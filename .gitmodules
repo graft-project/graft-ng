@@ -1,4 +1,4 @@
-[submodule "modules/cryptonode"]
+[submodule "cryptonode"]
 	path = modules/cryptonode
 	url = git@github.com:graft-project/monero.git
-	branch = graft-master
+	branch = origin/graft-master
