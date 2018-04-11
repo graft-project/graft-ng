@@ -11,6 +11,8 @@
 
 #include "r3.h"
 
+namespace graft {
+
 class Router
 {
 public:
@@ -121,3 +123,5 @@ private:
 	static R3Node *m_node;
 
 };
+
+}//namespace graft

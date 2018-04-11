@@ -22,6 +22,7 @@ graft_server.cpp
  /r3
    CMakeLists.txt
 */
+namespace graft {
 
 class manager_t;
 
@@ -35,7 +36,7 @@ class CryptoNodeSender;
 class manager_t;
 
 class GJ_ptr;
-using TPResQueue = MPMCBoundedQueue< GJ_ptr >;
+using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
 
 using GJ = GraftJob<ClientRequest_ptr, Router::JobParams, TPResQueue, manager_t, std::string>;
 
@@ -89,8 +90,8 @@ public:
 	}
 };
 
-using ThreadPoolX = ThreadPoolImpl<FixedFunction<void(), sizeof(GJ_ptr)>,
-								  MPMCBoundedQueue>;
+using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJ_ptr)>,
+								  tp::MPMCBoundedQueue>;
 
 ///////////////////////////////////
 
@@ -486,11 +487,13 @@ void manager_t::OnCryptonDone(CryptoNodeSender* cns)
 	cns->cr->AnswerOk();
 }
 
+}//namespace graft
+
 //Temporary server to simulate CryptoNode
 class cryptoNodeServer
 {
 public:
-	static void run(manager_t& extern_manager)
+	static void run(graft::manager_t& extern_manager)
 	{
 		mg_mgr mgr;
 		mg_mgr_init(&mgr, NULL, 0);
@@ -523,19 +526,19 @@ private:
 
 #include<thread>
 
-bool test(Router::vars_t& vars, const std::string& input, std::string& output)
+bool test(graft::Router::vars_t& vars, const std::string& input, std::string& output)
 {
 //	std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 	return true;
 }
 
-void init_threadPool(manager_t& manager)
+void init_threadPool(graft::manager_t& manager)
 {
-	ThreadPoolOptions th_op;
+	tp::ThreadPoolOptions th_op;
 //		th_op.setThreadCount(3);
 	th_op.setQueueSize(32);
 //		th_op.setQueueSize(4);
-	ThreadPoolX thread_pool(th_op);
+	graft::ThreadPoolX thread_pool(th_op);
 
 	size_t resQueueSize;
 	{//nearest ceiling power of 2
@@ -547,16 +550,16 @@ void init_threadPool(manager_t& manager)
 
 	const size_t maxinputSize = th_op.threadCount()*th_op.queueSize();
 	assert(maxinputSize == th_op.threadCount()*th_op.queueSize());
-	TPResQueue resQueue(resQueueSize);
+	graft::TPResQueue resQueue(resQueueSize);
 	
 	manager.setThreadPool(std::move(thread_pool), std::move(resQueue), maxinputSize);
 }
 
 int main(int argc, char *argv[]) 
 {
-	Router router;
+	graft::Router router;
 	{
-		static Router::Handler p = test;
+		static graft::Router::Handler p = test;
 		router.addRoute("/root/r{id:\\d+}", METHOD_GET, &p);
 		router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, &p);
 //		router.addRoute("/root/rr{id:\\d+}", METHOD_GET, test);
@@ -564,12 +567,12 @@ int main(int argc, char *argv[])
 		bool res = router.arm();
 		assert(res);
 	}
-	manager_t manager(router);
+	graft::manager_t manager(router);
 
 	std::thread t([&manager]{ cryptoNodeServer::run(manager); });
 
 	init_threadPool(manager);
-	GraftServer gs(manager);
+	graft::GraftServer gs(manager);
 	gs.serve("9084");
 	
 	t.join();

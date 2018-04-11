@@ -2,14 +2,7 @@
 
 #include "thread_pool/thread_pool.hpp"
 
-using namespace tp;
-
-///////
-//time measurement helpers
-using ticks_t = std::chrono::high_resolution_clock::duration;
-using ticks_p = decltype(std::chrono::high_resolution_clock::now());
-#define ticks_now() (std::chrono::high_resolution_clock::now())
-using fp_ms = std::chrono::duration<double, std::milli>;
+namespace graft {
 
 ////////
 ///
@@ -43,7 +36,6 @@ public:
 			cr = std::move(rhs.cr);
 			m_in = std::move(rhs.m_in);
 			m_out = std::move(rhs.m_out);
-			rc = std::move(rhs.rc);
 //			promise = std::move(rhs.promise);
 			rq = std::move(rhs.rq);
 			watcher = std::move(rhs.watcher);
@@ -54,7 +46,6 @@ public:
 	//main payload
 	virtual void operator()()
 	{
-		auto begin_count = ticks_now();
 		{
 /*			
 			m_out = m_in;
@@ -66,8 +57,6 @@ public:
 			m_in.handler(m_in.vars, m_in.input, m_out);
 		}
 
-		auto end_count = ticks_now();
-		rc = end_count - begin_count;
 
 //		promise.set_value();
 
@@ -77,7 +66,6 @@ public:
 	}
 
 	Output getOutput() { return m_out; }
-	ticks_t getReturnCode() { return rc; }
 
 	virtual ~GraftJob() = default;
 public:
@@ -86,7 +74,6 @@ protected:
 	Input m_in;
 	Output m_out;
 
-	ticks_t rc = ticks_t::zero();
 	ResQueue* rq = nullptr;
 	Watcher* watcher = nullptr;
 
@@ -96,3 +83,4 @@ protected:
 	//but unique_ptr of it instead. see GJ_ptr.
 };
 
+}//namespace graft
