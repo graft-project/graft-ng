@@ -51,7 +51,7 @@ add_executable(graft_server
 
 target_include_directories(graft_server PRIVATE 
 	${PROJECT_SOURCE_DIR}/modules/mongoose
-	${PROJECT_SOURCE_DIR}/modules/r3/include
+	${PROJECT_SOURCE_DIR}/modules/libr3/include
 	${PROJECT_SOURCE_DIR}/include
 )
 
