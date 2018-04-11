@@ -151,7 +151,7 @@ inline MPMCBoundedQueue<T>::MPMCBoundedQueue(size_t size)
 template <typename T>
 inline MPMCBoundedQueue<T>::MPMCBoundedQueue(MPMCBoundedQueue&& rhs) noexcept
 {
-    *this = rhs;
+    *this = std::forward<MPMCBoundedQueue>(rhs);
 }
 
 template <typename T>
