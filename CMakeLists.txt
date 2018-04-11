@@ -38,5 +38,30 @@ add_custom_target(
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 )
 
-#add_dependencies(cryptonode git_update)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_BUILD_TYPE Debug)
+
+add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
+
+add_executable(graft_server
+	${PROJECT_SOURCE_DIR}/src/graft_server.cpp
+	${PROJECT_SOURCE_DIR}/src/router.cpp
+	${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+)
+
+target_include_directories(graft_server PRIVATE 
+	${PROJECT_SOURCE_DIR}/modules/mongoose
+	${PROJECT_SOURCE_DIR}/modules/r3/include
+	${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(graft_server
+	m
+	${CMAKE_THREAD_LIBS_INIT}
+	${PROJECT_SOURCE_DIR}/BUILD/lib/libr3.a
+	pcre
+#	${PROJECT_SOURCE_DIR}/liblib3rdparty.a
+)
+
+add_dependencies(graft_server libr3)
 
