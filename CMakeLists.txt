@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.7)
 
+Project(graft_server)
+
+find_package (Threads)
+
 include(ExternalProject)
 
 set(ExternalProjectCMakeArgs
@@ -56,11 +60,10 @@ target_include_directories(graft_server PRIVATE
 )
 
 target_link_libraries(graft_server
-	m
 	${CMAKE_THREAD_LIBS_INIT}
-	${PROJECT_SOURCE_DIR}/BUILD/lib/libr3.a
+	${PROJECT_BINARY_DIR}/BUILD/lib/libr3.a
+	${PROJECT_BINARY_DIR}/BUILD/libr3/3rdparty/liblib3rdparty.a
 	pcre
-#	${PROJECT_SOURCE_DIR}/liblib3rdparty.a
 )
 
 add_dependencies(graft_server libr3)
