@@ -1,44 +1,20 @@
 #include "mongoose.h"
-
-#include <memory>
-#include <vector>
-#include <iostream>
-#include <unordered_map>
-#include <deque>
-
 #include "router.h"
-
 #include "thread_pool.h"
 
-/*
-////////
-graft_server.cpp
-+ mongoose.c
-+ mongoose.h
- /mongoose
-   CMakeLists.txt
- /thread-pool
-   CMakeLists.txt
- /r3
-   CMakeLists.txt
-*/
 namespace graft {
 
-class manager_t;
+class Manager;
 
 class ClientRequest;
 using ClientRequest_ptr = std::shared_ptr<ClientRequest>;
 
 class CryptoNodeSender;
-//using CryptoNodeSender_ptr = std::shared_ptr<CryptoNodeSender>;
-
-//////////////////////////////
-class manager_t;
 
 class GJ_ptr;
 using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
 
-using GJ = GraftJob<ClientRequest_ptr, Router::JobParams, TPResQueue, manager_t, std::string>;
+using GJ = GraftJob<ClientRequest_ptr, Router::JobParams, TPResQueue, Manager, std::string>;
 
 //////////////
 /// \brief The GJ_ptr class
@@ -47,7 +23,7 @@ using GJ = GraftJob<ClientRequest_ptr, Router::JobParams, TPResQueue, manager_t,
 ///
 class GJ_ptr final
 {
-	std::unique_ptr<GJ> ptr = nullptr;
+	std::unique_ptr<GJ> m_ptr = nullptr;
 public:
 	GJ_ptr(GJ_ptr&& rhs)
 	{
@@ -55,38 +31,35 @@ public:
 	}
 	GJ_ptr& operator = (GJ_ptr&& rhs)
 	{
-//		if(this != &rhs)
-		{
-			ptr = std::move(rhs.ptr);
-		}
+		//identity check (this != &rhs) is not required, it will be done in the next copy assignment
+		m_ptr = std::move(rhs.m_ptr);
 		return * this;
 	}
 
-//	GJ_ptr() = delete;
 	explicit GJ_ptr() = default;
 	GJ_ptr(const GJ_ptr&) = delete;
 	GJ_ptr& operator = (const GJ_ptr&) = delete;
 	~GJ_ptr() = default;
 
 	template<typename ...ARGS>
-	GJ_ptr(ARGS&&... args) : ptr( new GJ( std::forward<ARGS>(args)...) )
+	GJ_ptr(ARGS&&... args) : m_ptr( new GJ( std::forward<ARGS>(args)...) )
 	{
 	}
 
 	template<typename ...ARGS>
 	void operator ()(ARGS... args)
 	{
-		ptr.get()->operator () (args...);
+		m_ptr.get()->operator () (args...);
 	}
 
 	GJ* operator ->()
 	{
-		return ptr.operator ->();
+		return m_ptr.operator ->();
 	}
 
 	GJ& operator *()
 	{
-		return ptr.operator *();
+		return m_ptr.operator *();
 	}
 };
 
@@ -95,103 +68,104 @@ using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJ_ptr)>
 
 ///////////////////////////////////
 
-class manager_t
+class Manager
 {
-	mg_mgr mgr;
-	Router& router;
-
-	uint64_t cntClientRequest = 0;
-	uint64_t cntClientRequestDone = 0;
-	uint64_t cntCryptoNodeSender = 0;
-	uint64_t cntCryptoNodeSenderDone = 0;
-	uint64_t cntJobSent = 0;
-	uint64_t cntJobDone = 0;
-
-	uint64_t tp_InputSize = 0;
-	std::unique_ptr<ThreadPoolX> threadPool;
-	std::unique_ptr<TPResQueue> resQueue;
-
-private:
-	bool tryProcessReadyJob();
-	void processReadyJobBlock();
 public:
-	bool exit = false;
-public:
-	manager_t(Router& router)
-		: router(router)
+	Manager(Router& router)
+		: m_router(router)
 	{
-		mg_mgr_init(&mgr, this, cb_event);
+		mg_mgr_init(&m_mgr, this, cb_event);
 	}
 
-	static manager_t* from(mg_mgr* mgr)
+	void setThreadPool(ThreadPoolX&& tp, TPResQueue&& rq, uint64_t m_threadPoolInputSize_)
+	{
+		m_threadPool = std::unique_ptr<ThreadPoolX>(new ThreadPoolX(std::move(tp)));
+		m_resQueue = std::unique_ptr<TPResQueue>(new TPResQueue(std::move(rq)));
+		m_threadPoolInputSize = m_threadPoolInputSize_;
+	}
+
+	void notifyJobReady()
+	{
+		mg_notify(&m_mgr);
+	}
+
+	void doWork(uint64_t cnt);
+
+	void sendCrypton(ClientRequest_ptr cr);
+	void sendToThreadPool(ClientRequest_ptr cr);
+
+	////getters
+	mg_mgr* get_mg_mgr() { return &m_mgr; }
+	Router& get_Router() { return m_router; }
+	ThreadPoolX& get_threadPool() { return *m_threadPool.get(); }
+	TPResQueue& get_resQueue() { return *m_resQueue.get(); }
+
+	////static functions
+	static void cb_event(mg_mgr* mgr, uint64_t cnt)
+	{
+		Manager::from(mgr)->doWork(cnt);
+	}
+
+	static Manager* from(mg_mgr* mgr)
 	{
 		assert(mgr->user_data);
-		return static_cast<manager_t*>(mgr->user_data);
+		return static_cast<Manager*>(mgr->user_data);
 	}
 
-	static manager_t* from(mg_connection* cn)
+	static Manager* from(mg_connection* cn)
 	{
 		return from(cn->mgr);
 	}
 
-	mg_mgr* get_mg_mgr() { return &mgr; }
-	Router& get_Router() { return router; }
-	ThreadPoolX& get_threadPool() { return *threadPool.get(); }
-	TPResQueue& get_resQueue() { return *resQueue.get(); }
-	
-	void DoWork(uint64_t cnt);
-
-	void OnNewClient(ClientRequest_ptr cr)
+	////events
+	void onNewClient(ClientRequest_ptr cr)
 	{
-		++cntClientRequest;
+		++m_cntClientRequest;
 		static bool b = false;
 		if(b)
 		{
-			SendCrypton(cr);
+			sendCrypton(cr);
 		}
 		else
 		{
-			SendToThreadPool(cr);
+			sendToThreadPool(cr);
 		}
 		b = !b;
 	}
-	void OnClientDone(ClientRequest_ptr cr)
+	void onClientDone(ClientRequest_ptr cr)
 	{
-		++cntClientRequestDone;
+		++m_cntClientRequestDone;
 	}
 
-	void OnCryptonDone(CryptoNodeSender* cns);
-public:
-
-	void setThreadPool(ThreadPoolX&& tp, TPResQueue&& rq, uint64_t tp_InputSize_)
-	{
-		threadPool = std::unique_ptr<ThreadPoolX>(new ThreadPoolX(std::move(tp)));
-		resQueue = std::unique_ptr<TPResQueue>(new TPResQueue(std::move(rq)));
-		tp_InputSize = tp_InputSize_;
-	}
+	void onJobDone(GJ& gj);
 	
-	void notifyJobReady()
-	{
-		mg_notify(&mgr);
-	}
+	void onCryptonDone(CryptoNodeSender& cns);
 
+private:
+	bool tryProcessReadyJob();
+	void processReadyJobBlock();
+private:
+	mg_mgr m_mgr;
+	Router& m_router;
+
+	uint64_t m_cntClientRequest = 0;
+	uint64_t m_cntClientRequestDone = 0;
+	uint64_t m_cntCryptoNodeSender = 0;
+	uint64_t m_cntCryptoNodeSenderDone = 0;
+	uint64_t m_cntJobSent = 0;
+	uint64_t m_cntJobDone = 0;
+
+	uint64_t m_threadPoolInputSize = 0;
+	std::unique_ptr<ThreadPoolX> m_threadPool;
+	std::unique_ptr<TPResQueue> m_resQueue;
 public:
-	void SendCrypton(ClientRequest_ptr cr);
-	void SendToThreadPool(ClientRequest_ptr cr);
-
-	static void cb_event(mg_mgr* mgr, uint64_t val);
+	bool exit = false;
 };
-
-void manager_t::cb_event(mg_mgr* mgr, uint64_t cnt)
-{
-	manager_t::from(mgr)->DoWork(cnt);
-}
-
 
 template<typename C>
 class StaticMongooseHandler
 {
-public:	
+public:
 	static void static_ev_handler(mg_connection *nc, int ev, void *ev_data) 
 	{
 		static bool entered = false;
@@ -202,6 +176,7 @@ public:
 		This->ev_handler(nc, ev, ev_data);
 		entered = false;
 	}
+protected:
 	static void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
 	{
 
@@ -212,163 +187,141 @@ template<typename C>
 class ItselfHolder
 {
 public:	
-	using ptr = std::shared_ptr<C>;
-private:	
-	ptr itself;
-protected:	
-	ItselfHolder() : itself(static_cast<C*>(this)) { }
+	using Ptr = std::shared_ptr<C>;
 public:	
-	ptr getItself() { return itself; }
+	Ptr get_Itself() { return m_itself; }
 	
 	template<typename ...ARGS>
-	static const ptr Create(ARGS&&... args)
+	static const Ptr Create(ARGS&&... args)
 	{
-		return (new C(std::forward<ARGS>(args)...))->itself;
+		return (new C(std::forward<ARGS>(args)...))->m_itself;
 	}
-	void Release() { itself.reset(); }
+	void releaseItself() { m_itself.reset(); }
+protected:
+	ItselfHolder() : m_itself(static_cast<C*>(this)) { }
+private:
+	Ptr m_itself;
 };
 
 class CryptoNodeSender : public ItselfHolder<CryptoNodeSender>, StaticMongooseHandler<CryptoNodeSender>
 {
-	mg_connection *crypton = nullptr;
 public:	
-	ClientRequest_ptr cr;
-	std::string data;
-	std::string result;
-	
 	CryptoNodeSender() = default;
 	
-	void send(manager_t& manager, ClientRequest_ptr cr_, std::string& data_)
+	ClientRequest_ptr& get_CR() { return m_cr; }
+
+	void send(Manager& manager, ClientRequest_ptr cr, std::string& data)
 	{
-		cr = cr_;
-		data = data_;
-		crypton = mg_connect(manager.get_mg_mgr(),"localhost:1234", static_ev_handler);
-		crypton->user_data = this;
-		mg_send(crypton, data.c_str(), data.size());
+		m_cr = cr;
+		m_data = data;
+		m_crypton = mg_connect(manager.get_mg_mgr(),"localhost:1234", static_ev_handler);
+		m_crypton->user_data = this;
+		mg_send(m_crypton, m_data.c_str(), m_data.size());
 	}
-public:	
+private:
+	friend class StaticMongooseHandler<CryptoNodeSender>;
 	void ev_handler(mg_connection* crypton, int ev, void *ev_data) 
 	{
-		assert(crypton == this->crypton);
+		assert(crypton == this->m_crypton);
 		switch (ev) 
 		{
 		case MG_EV_RECV:
 		{
-			int cnt = *(int*)ev_data;
-			if(cnt<100) break;
+			int m_cnt = *(int*)ev_data;
+			if(m_cnt<100) break;
 			mbuf& buf = crypton->recv_mbuf;
-			result = std::string(buf.buf, buf.len);
+			m_result = std::string(buf.buf, buf.len);
 			crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-			manager_t::from(crypton)->OnCryptonDone(this);
+			Manager::from(crypton)->onCryptonDone(*this);
 			crypton->handler = static_empty_ev_handler;
-			Release();
+			releaseItself();
 		} break;
 		default:
 		  break;
 		}
 	}
+private:
+	mg_connection *m_crypton = nullptr;
+	ClientRequest_ptr m_cr;
+	std::string m_data;
+	std::string m_result;
 };
 
 class ClientRequest : public ItselfHolder<ClientRequest>, public StaticMongooseHandler<ClientRequest>
 {
-	enum class State
-	{
-		None,
-		ToCrytonode,
-		ToThreadPool,
-		AnswerError,
-		Delete,
-//		Stop
-	};
-	
-	Router::JobParams prms;
-//	Context 
-	State state;
-	mg_connection *client;
-public:	
-	
-	State get_state(){ return state; }
-	State set_state(State s){ state = s; }
 private:
 	friend class ItselfHolder<ClientRequest>;
 	ClientRequest(mg_connection *client, Router::JobParams& prms) 
-		: prms(prms)
-		, state(State::None)
-		, client(client)
+		: m_prms(prms)
+		, m_client(client)
 	{
 	}
 public:	
-	void AnswerOk()
+	void respondToClientAndDie(const std::string& s)
 	{
-		std::string s("I am answering Ok");
-		mg_send(client, s.c_str(), s.size());
-		client->flags |= MG_F_SEND_AND_CLOSE;
-		client->handler = static_empty_ev_handler;
-		Release();
+		mg_send(m_client, s.c_str(), s.size());
+		m_client->flags |= MG_F_SEND_AND_CLOSE;
+		m_client->handler = static_empty_ev_handler;
+		releaseItself();
 	}
 	
-	void CreateJob(manager_t& manager)
+	void createJob(Manager& manager)
 	{
 		manager.get_threadPool().post(
-			GJ_ptr( getItself(), Router::JobParams(prms), &manager.get_resQueue(), &manager )
+			GJ_ptr( get_Itself(), Router::JobParams(m_prms), &manager.get_resQueue(), &manager )
 		);
 	}
 
-	void JobDone(GJ&& gj)
+	void onJobDone(GJ& gj)
 	{
-		std::string s("Job done");
-		mg_send(client, s.c_str(), s.size());
-		client->flags |= MG_F_SEND_AND_CLOSE;
-		client->handler = static_empty_ev_handler;
-		Release();
+		//here you can send a request to cryptonode or send response to client
+		//gj will be destroyed on exit, save its result
+		//now it sends response to client
+		respondToClientAndDie("Job done");
 	}
 	
-public:
-	
+	void onCryptonDone(CryptoNodeSender& cns)
+	{
+		//here you can send a job to the thread pool or send response to client
+		//cns will be destroyed on exit, save its result
+		//now it sends response to client
+		respondToClientAndDie("I am answering Ok");
+	}
+private:
+	friend class StaticMongooseHandler<ClientRequest>;
 	void ev_handler(mg_connection *client, int ev, void *ev_data) 
 	{
-		assert(client == this->client);
+		assert(client == this->m_client);
 		switch (ev) 
 		{
-		case MG_EV_POLL:
-		{
-			if(state == State::ToCrytonode)
-			{
-				
-			}
-		} break;
 		case MG_EV_CLOSE:
 		{
-			assert(getItself());
-			if(getItself()) break;
-			state = State::Delete;
-			manager_t::from(client)->OnClientDone(getItself());
+			assert(get_Itself());
+			if(get_Itself()) break;
+			Manager::from(client)->onClientDone(get_Itself());
 			client->handler = static_empty_ev_handler;
-			Release();
+			releaseItself();
 		} break;
 		default:
 		  break;
 		}
 	}
+private:
+	Router::JobParams m_prms;
+	mg_connection *m_client;
 };
 
 class GraftServer final
 {
-	manager_t& manager;
 public:	
-	GraftServer(manager_t& manager) : manager(manager)
-	{ }
-	
-	void serve(const char* s_http_port)
+	void serve(mg_mgr* mgr, const char* s_http_port)
 	{
-		mg_mgr* mgr = manager.get_mg_mgr();
 		mg_connection* nc = mg_bind(mgr, s_http_port, ev_handler);
 		mg_set_protocol_http_websocket(nc);
 		for (;;) 
 		{
-//			mg_mgr_poll(mgr, -1);
 			mg_mgr_poll(mgr, 1000);
-			if(manager_t::from(mgr)->exit) break;
+			if(Manager::from(mgr)->exit) break;
 		}
 		mg_mgr_free(mgr);
 	}
@@ -382,7 +335,7 @@ private:
 		{
 			struct http_message *hm = (struct http_message *) ev_data;
 			std::string uri(hm->uri.p, hm->uri.len);
-			manager_t* manager = manager_t::from(client);
+			Manager* manager = Manager::from(client);
 			if(uri == "/root/exit")
 			{
 				manager->exit = true;
@@ -398,12 +351,7 @@ private:
 				ClientRequest* ptr = ClientRequest::Create(client, prms).get();
 				client->user_data = ptr;
 				client->handler = ClientRequest::static_ev_handler;
-				//short or long?
-				//if(short) exec
-				//
-				//if to cropton
-				
-				manager_t::from(client)->OnNewClient( ptr->getItself() );
+				Manager::from(client)->onNewClient( ptr->get_Itself() );
 			}
 			else
 			{
@@ -417,10 +365,10 @@ private:
 	}
 };
 
-void manager_t::SendCrypton(ClientRequest_ptr cr)
+void Manager::sendCrypton(ClientRequest_ptr cr)
 {
-	++cntCryptoNodeSender;
-	CryptoNodeSender::ptr cns = CryptoNodeSender::Create();
+	++m_cntCryptoNodeSender;
+	CryptoNodeSender::Ptr cns = CryptoNodeSender::Create();
 	std::string something(100, ' ');
 	{
 		std::string s("something");
@@ -432,30 +380,28 @@ void manager_t::SendCrypton(ClientRequest_ptr cr)
 	cns->send(*this, cr, something );
 }
 
-void manager_t::SendToThreadPool(ClientRequest_ptr cr)
+void Manager::sendToThreadPool(ClientRequest_ptr cr)
 {
-	assert(cntJobDone <= cntJobSent);
-	if(cntJobDone - cntJobSent == tp_InputSize)
-//	if(0 < cntJobDone - cntJobSent)
+	assert(m_cntJobDone <= m_cntJobSent);
+	if(m_cntJobDone - m_cntJobSent == m_threadPoolInputSize)
 	{//check overflow
 		processReadyJobBlock();
 	}
-	assert(cntJobDone - cntJobSent < tp_InputSize);
-	++cntJobSent;
-	cr->CreateJob(*this);
+	assert(m_cntJobDone - m_cntJobSent < m_threadPoolInputSize);
+	++m_cntJobSent;
+	cr->createJob(*this);
 }
 
-bool manager_t::tryProcessReadyJob()
+bool Manager::tryProcessReadyJob()
 {
 	GJ_ptr gj;
 	bool res = get_resQueue().pop(gj);
 	if(!res) return res;
-	gj->cr->JobDone(std::move(*gj));
-	++cntJobDone;
+	onJobDone(*gj);
 	return true;
 }
 
-void manager_t::processReadyJobBlock()
+void Manager::processReadyJobBlock()
 {
 	while(true)
 	{
@@ -464,15 +410,9 @@ void manager_t::processReadyJobBlock()
 	}
 }
 
-void manager_t::DoWork(uint64_t cnt)
+void Manager::doWork(uint64_t m_cnt)
 {
-/* job overflow is possible when we pop jobs without notification, thus cnt 
-	for(uint64_t i; i<cnt; ++i)
-	{
-		bool res = tryProcessReadyJop();
-		assert(res);
-	}
-*/
+	//job overflow is possible, and we can pop jobs without notification, thus m_cnt useless
 	bool res = true;
 	while(res)
 	{
@@ -481,19 +421,27 @@ void manager_t::DoWork(uint64_t cnt)
 	}
 }
 
-void manager_t::OnCryptonDone(CryptoNodeSender* cns)
+void Manager::onJobDone(GJ& gj)
 {
-	++cntCryptoNodeSenderDone;
-	cns->cr->AnswerOk();
+	gj.get_CR()->onJobDone(gj);
+	++m_cntJobDone;
+	//gj will be destroyed on exit
+}
+
+void Manager::onCryptonDone(CryptoNodeSender& cns)
+{
+	cns.get_CR()->onCryptonDone(cns);
+	++m_cntCryptoNodeSenderDone;
+	//cns will be destroyed on exit
 }
 
 }//namespace graft
 
 //Temporary server to simulate CryptoNode
-class cryptoNodeServer
+class TempCryptoNodeServer
 {
 public:
-	static void run(graft::manager_t& extern_manager)
+	static void run(graft::Manager& extern_manager)
 	{
 		mg_mgr mgr;
 		mg_mgr_init(&mgr, NULL, 0);
@@ -511,8 +459,8 @@ private:
 		{
 		case MG_EV_RECV:
 		{
-			int cnt = *(int*)ev_data;
-			if(cnt<100) break;
+			int m_cnt = *(int*)ev_data;
+			if(m_cnt<100) break;
 			mbuf& buf = client->recv_mbuf;
 			static std::string data = std::string(buf.buf, buf.len);
 			mg_send(client, data.c_str(), data.size());
@@ -524,20 +472,15 @@ private:
 	}
 };
 
-#include<thread>
-
 bool test(graft::Router::vars_t& vars, const std::string& input, std::string& output)
 {
-//	std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 	return true;
 }
 
-void init_threadPool(graft::manager_t& manager)
+void init_threadPool(graft::Manager& manager)
 {
 	tp::ThreadPoolOptions th_op;
-//		th_op.setThreadCount(3);
 	th_op.setQueueSize(32);
-//		th_op.setQueueSize(4);
 	graft::ThreadPoolX thread_pool(th_op);
 
 	size_t resQueueSize;
@@ -562,18 +505,16 @@ int main(int argc, char *argv[])
 		static graft::Router::Handler p = test;
 		router.addRoute("/root/r{id:\\d+}", METHOD_GET, &p);
 		router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, &p);
-//		router.addRoute("/root/rr{id:\\d+}", METHOD_GET, test);
-//		router.addRoute("/root/aaaaaa/{s1}/bbbbbb/{s2}", METHOD_GET, test);
 		bool res = router.arm();
 		assert(res);
 	}
-	graft::manager_t manager(router);
+	graft::Manager manager(router);
 
-	std::thread t([&manager]{ cryptoNodeServer::run(manager); });
+	std::thread t([&manager]{ TempCryptoNodeServer::run(manager); });
 
 	init_threadPool(manager);
-	graft::GraftServer gs(manager);
-	gs.serve("9084");
+	graft::GraftServer gs;
+	gs.serve(manager.get_mg_mgr(),"9084");
 	
 	t.join();
 	return 0;

@@ -12,15 +12,11 @@ template <typename CR_ptr, typename Input, typename ResQueue, typename Watcher, 
 class GraftJob
 {
 public:
-
-	explicit GraftJob()
-	{}
-
-	explicit GraftJob(CR_ptr cr, Input&& in, ResQueue* rq, Watcher* watcher) //, Output out)
-		: cr(cr)
+	explicit GraftJob(CR_ptr cr, Input&& in, ResQueue* rq, Watcher* watcher)
+		: m_cr(cr)
 		, m_in(in)
-		, rq(rq)
-		, watcher(watcher)
+		, m_rq(rq)
+		, m_watcher(watcher)
 	{}
 
 	GraftJob(GraftJob&& rhs) noexcept
@@ -28,59 +24,42 @@ public:
 		*this = std::move(rhs);
 	}
 
+	virtual ~GraftJob() = default;
 
-	GraftJob& operator=(GraftJob&& rhs) noexcept
+	GraftJob& operator = (GraftJob&& rhs) noexcept
 	{
 		if(this != &rhs)
 		{
-			cr = std::move(rhs.cr);
+			m_cr = std::move(rhs.m_cr);
 			m_in = std::move(rhs.m_in);
 			m_out = std::move(rhs.m_out);
-//			promise = std::move(rhs.promise);
-			rq = std::move(rhs.rq);
-			watcher = std::move(rhs.watcher);
+			m_rq = std::move(rhs.m_rq);
+			m_watcher = std::move(rhs.m_watcher);
 		}
 		return *this;
 	}
 
 	//main payload
-	virtual void operator()()
+	virtual void operator () ()
 	{
 		{
-/*			
-			m_out = m_in;
-			while(std::next_permutation(m_out.begin(), m_out.end()))
-			{
-	//			std::cout << "x " << m_out << "\n";
-			}
-*/
 			m_in.handler(m_in.vars, m_in.input, m_out);
 		}
-
-
-//		promise.set_value();
-
-		Watcher* save_watcher = watcher; //save watcher before move itself into resulting queue
-		rq->push(std::move(*this)); //similar to "delete this;"
-		save_watcher->notifyJobReady();
+		Watcher* save_m_watcher = m_watcher; //save m_watcher before move itself into resulting queue
+		m_rq->push(std::move(*this)); //similar to "delete this;"
+		save_m_watcher->notifyJobReady();
 	}
 
-	Output getOutput() { return m_out; }
-
-	virtual ~GraftJob() = default;
-public:
-	CR_ptr cr;
+	Output get_Output() { return m_out; }
+	CR_ptr& get_CR() { return m_cr; }
 protected:
+	CR_ptr m_cr;
+
 	Input m_in;
 	Output m_out;
 
-	ResQueue* rq = nullptr;
-	Watcher* watcher = nullptr;
-
-//	std::promise<void> promise;
-
-	char tmp_buf[1024]; //suppose polimorphic increase in size, so it is not good idea to move it from queue to queue,
-	//but unique_ptr of it instead. see GJ_ptr.
+	ResQueue* m_rq = nullptr;
+	Watcher* m_watcher = nullptr;
 };
 
 }//namespace graft

@@ -6,7 +6,6 @@
 #include <vector>
 #include <utility>
 #include <algorithm>
-
 #include <iostream>
 
 #include "r3.h"
@@ -16,20 +15,9 @@ namespace graft {
 class Router
 {
 public:
-//	enum class Result { Ok, Failure };
 	using vars_t = std::vector<std::pair<std::string, std::string>>;
-//	using Handler = std::function<bool (vars_t&, std::array<char,100>& , std::array<char,100>& ) >;
 	using Handler = std::function<bool (vars_t&, const std::string& , std::string& ) >;
-//	typedef std::function<Result (/*const Request&, Http::ResponseWriter*/)> Handler;
 
-/*	
-	Router(std::string root)
-		: m_root(std::move(root))
-	{
-		if (!m_node)
-			m_node = r3_tree_create(10);
-	}
-*/	
 	Router()
 	{
 		if (!m_node)
@@ -47,7 +35,6 @@ public:
 
 	void addRoute(std::string endpoint, int methods, Handler* handler)
 	{
-//		m_routes.push_back({m_root + std::move(endpoint), methods, std::move(handler)});
 		m_routes.push_back({endpoint, methods, handler});
 	}
 
@@ -109,8 +96,6 @@ public:
 	}
 
 private:
-	std::string m_root;
-
 	struct Route
 	{
 		std::string endpoint;
@@ -121,7 +106,6 @@ private:
 	std::deque<Route> m_routes;
 
 	static R3Node *m_node;
-
 };
 
 }//namespace graft
