@@ -220,6 +220,8 @@ public:
 		m_crypton->user_data = this;
 		mg_send(m_crypton, m_data.c_str(), m_data.size());
 	}
+public:
+	const std::string& get_Result() { return m_result; }
 private:
 	friend class StaticMongooseHandler<CryptoNodeSender>;
 	void ev_handler(mg_connection* crypton, int ev, void *ev_data) 
@@ -264,6 +266,7 @@ public:
 		mg_send(m_client, s.c_str(), s.size());
 		m_client->flags |= MG_F_SEND_AND_CLOSE;
 		m_client->handler = static_empty_ev_handler;
+		m_client = nullptr;
 		releaseItself();
 	}
 	
@@ -279,7 +282,30 @@ public:
 		//here you can send a request to cryptonode or send response to client
 		//gj will be destroyed on exit, save its result
 		//now it sends response to client
-		respondToClientAndDie("Job done");
+		switch(m_status)
+		{
+		case Router::Status::Forward :
+		{
+			assert(m_client);
+			Manager::from(m_client)->sendCrypton(get_Itself());
+		} break;
+		case Router::Status::Ok :
+		{
+			respondToClientAndDie("Job done.");
+		} break;
+		case Router::Status::Error :
+		{
+			respondToClientAndDie("Job done with error.");
+		} break;
+		case Router::Status::Drop :
+		{
+			respondToClientAndDie("Job done Drop.");
+		} break;
+		default:
+		{
+			assert(false);
+		} break;
+		}
 	}
 	
 	void onCryptonDone(CryptoNodeSender& cns)
@@ -287,8 +313,18 @@ public:
 		//here you can send a job to the thread pool or send response to client
 		//cns will be destroyed on exit, save its result
 		//now it sends response to client
-		respondToClientAndDie("I am answering Ok");
+		const std::string& res = cns.get_Result();
+		{//now always create a job and put it to the thread pool after CryptoNode
+			//temporary send info to client
+			std::string s = "onCryptonDone";
+			mg_send(m_client, s.c_str(), s.size());
+			//set output of CryptoNode as input for job
+			m_prms.input = res;
+			Manager::from(m_client)->sendToThreadPool(get_Itself());
+		}
 	}
+public:
+	Router::Status& get_StatusRef() { return m_status; }
 private:
 	friend class StaticMongooseHandler<ClientRequest>;
 	void ev_handler(mg_connection *client, int ev, void *ev_data) 
@@ -309,6 +345,7 @@ private:
 		}
 	}
 private:
+	Router::Status m_status = Router::Status::None;
 	Router::JobParams m_prms;
 	mg_connection *m_client;
 };
@@ -465,6 +502,11 @@ private:
 			if(m_cnt<100) break;
 			mbuf& buf = client->recv_mbuf;
 			static std::string data = std::string(buf.buf, buf.len);
+			{
+				static bool b = false;
+				data[0] = b? '0' : '1';
+				b = !b;
+			}
 			mg_send(client, data.c_str(), data.size());
 			client->flags |= MG_F_SEND_AND_CLOSE;
 		} break;
@@ -474,9 +516,10 @@ private:
 	}
 };
 
-bool test(const graft::Router::vars_t& vars, const std::string& input, std::string& output)
+graft::Router::Status test(const graft::Router::vars_t& vars, const std::string& input, std::string& output)
 {
-	return true;
+	static int b = 0;
+	return (++b%3)? graft::Router::Status::Forward : graft::Router::Status::Ok;
 }
 
 void init_threadPool(graft::Manager& manager)
@@ -502,7 +545,6 @@ void init_threadPool(graft::Manager& manager)
 
 int main(int argc, char *argv[]) 
 {
-
 	graft::Router router;
 	{
 		static graft::Router::Handler p = test;

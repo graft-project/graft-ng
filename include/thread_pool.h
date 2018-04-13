@@ -43,7 +43,7 @@ public:
 	virtual void operator () ()
 	{
 		{
-			m_in.handler(m_in.vars, m_in.input, m_out);
+			m_cr->get_StatusRef() = m_in.handler(m_in.vars, m_in.input, m_out);
 		}
 		Watcher* save_m_watcher = m_watcher; //save m_watcher before move itself into resulting queue
 		m_rq->push(std::move(*this)); //similar to "delete this;"

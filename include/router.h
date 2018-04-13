@@ -16,8 +16,17 @@ template<typename In, typename Out>
 class RouterT
 {
 public:
+	enum class Status
+	{
+		Ok,
+		Forward,
+		Error,
+		Drop,
+		None,
+	};
+public:
 	using vars_t = std::vector<std::pair<std::string, std::string>>;
-	using Handler = std::function<bool (const vars_t&, const In& , Out& ) >;
+	using Handler = std::function<Status (const vars_t&, const In& , Out& ) >;
 
 	RouterT()
 	{
