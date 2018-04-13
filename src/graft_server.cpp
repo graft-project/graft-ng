@@ -14,6 +14,8 @@ class CryptoNodeSender;
 class GJ_ptr;
 using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
 
+using Router = RouterT<std::string, std::string>;
+
 using GJ = GraftJob<ClientRequest_ptr, Router::JobParams, TPResQueue, Manager, std::string>;
 
 //////////////
@@ -472,7 +474,7 @@ private:
 	}
 };
 
-bool test(graft::Router::vars_t& vars, const std::string& input, std::string& output)
+bool test(const graft::Router::vars_t& vars, const std::string& input, std::string& output)
 {
 	return true;
 }
@@ -500,6 +502,7 @@ void init_threadPool(graft::Manager& manager)
 
 int main(int argc, char *argv[]) 
 {
+
 	graft::Router router;
 	{
 		static graft::Router::Handler p = test;

@@ -12,19 +12,20 @@
 
 namespace graft {
 
-class Router
+template<typename In, typename Out>
+class RouterT
 {
 public:
 	using vars_t = std::vector<std::pair<std::string, std::string>>;
-	using Handler = std::function<bool (vars_t&, const std::string& , std::string& ) >;
+	using Handler = std::function<bool (const vars_t&, const In& , Out& ) >;
 
-	Router()
+	RouterT()
 	{
 		if (!m_node)
 			m_node = r3_tree_create(10);
 	}
 
-	~Router()
+	~RouterT()
 	{
 		if (m_node)
 		{
@@ -107,5 +108,8 @@ private:
 
 	static R3Node *m_node;
 };
+
+template<typename In, typename Out>
+R3Node *RouterT<In, Out>::m_node = nullptr;
 
 }//namespace graft
