@@ -8,13 +8,12 @@ namespace graft {
 ///
 /// prototype of a job
 ///
-template <typename CR_ptr, typename Input, typename ResQueue, typename Watcher, typename Output>
+template <typename CR_ptr, typename ResQueue, typename Watcher>
 class GraftJob
 {
 public:
-	explicit GraftJob(CR_ptr cr, Input&& in, ResQueue* rq, Watcher* watcher)
+	explicit GraftJob(CR_ptr cr, ResQueue* rq, Watcher* watcher)
 		: m_cr(cr)
-		, m_in(in)
 		, m_rq(rq)
 		, m_watcher(watcher)
 	{}
@@ -31,8 +30,6 @@ public:
 		if(this != &rhs)
 		{
 			m_cr = std::move(rhs.m_cr);
-			m_in = std::move(rhs.m_in);
-			m_out = std::move(rhs.m_out);
 			m_rq = std::move(rhs.m_rq);
 			m_watcher = std::move(rhs.m_watcher);
 		}
@@ -43,20 +40,22 @@ public:
 	virtual void operator () ()
 	{
 		{
-			m_cr->get_StatusRef() = m_in.handler(m_in.vars, m_in.input, m_out);
+			decltype(auto) status_ref = m_cr->get_StatusRef();
+			decltype(auto) vars_cref = m_cr->get_Vars();
+			decltype(auto) input_cref = m_cr->get_Input();
+			decltype(auto) output_ref = m_cr->get_Output();
+			decltype(auto) handler_ref = m_cr->get_Handler();
+
+			status_ref = handler_ref(vars_cref, input_cref, output_ref);
 		}
 		Watcher* save_m_watcher = m_watcher; //save m_watcher before move itself into resulting queue
 		m_rq->push(std::move(*this)); //similar to "delete this;"
 		save_m_watcher->notifyJobReady();
 	}
 
-	Output get_Output() { return m_out; }
 	CR_ptr& get_CR() { return m_cr; }
 protected:
 	CR_ptr m_cr;
-
-	Input m_in;
-	Output m_out;
 
 	ResQueue* m_rq = nullptr;
 	Watcher* m_watcher = nullptr;

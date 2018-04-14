@@ -16,7 +16,7 @@ using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
 
 using Router = RouterT<std::string, std::string>;
 
-using GJ = GraftJob<ClientRequest_ptr, Router::JobParams, TPResQueue, Manager, std::string>;
+using GJ = GraftJob<ClientRequest_ptr, TPResQueue, Manager>;
 
 //////////////
 /// \brief The GJ_ptr class
@@ -273,7 +273,7 @@ public:
 	void createJob(Manager& manager)
 	{
 		manager.get_threadPool().post(
-			GJ_ptr( get_Itself(), Router::JobParams(m_prms), &manager.get_resQueue(), &manager )
+			GJ_ptr( get_Itself(), &manager.get_resQueue(), &manager )
 		);
 	}
 
@@ -316,7 +316,7 @@ public:
 		const std::string& res = cns.get_Result();
 		{//now always create a job and put it to the thread pool after CryptoNode
 			//temporary send info to client
-			std::string s = "onCryptonDone";
+			std::string s = "onCryptonDone ";
 			mg_send(m_client, s.c_str(), s.size());
 			//set output of CryptoNode as input for job
 			m_prms.input = res;
@@ -325,6 +325,10 @@ public:
 	}
 public:
 	Router::Status& get_StatusRef() { return m_status; }
+	const Router::vars_t& get_Vars() const { return m_prms.vars; }
+	const std::string& get_Input() const { return m_prms.input; }
+	std::string& get_Output() { return m_output; }
+	const Router::Handler& get_Handler() const { return m_prms.handler; }
 private:
 	friend class StaticMongooseHandler<ClientRequest>;
 	void ev_handler(mg_connection *client, int ev, void *ev_data) 
@@ -347,6 +351,7 @@ private:
 private:
 	Router::Status m_status = Router::Status::None;
 	Router::JobParams m_prms;
+	std::string m_output;
 	mg_connection *m_client;
 };
 
