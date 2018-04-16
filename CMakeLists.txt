@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.8.2)
+cmake_minimum_required(VERSION 3.11.0)
 
 Project(graft_server)
 
-find_package (Threads)
+find_package(Threads REQUIRED)
 
 include(ExternalProject)
 
@@ -67,3 +67,41 @@ target_link_libraries(graft_server
 
 add_dependencies(graft_server libr3)
 
+### tests section
+
+ExternalProject_Add(googletest
+  GIT_REPOSITORY    https://github.com/google/googletest.git
+  GIT_TAG           master
+  SOURCE_DIR        "${CMAKE_BINARY_DIR}/googletest-src"
+  BINARY_DIR        "${CMAKE_BINARY_DIR}/googletest-build"
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND     ""
+  INSTALL_COMMAND   ""
+  TEST_COMMAND      ""
+)
+
+# Add googletest directly to our build. This defines
+# the gtest and gtest_main targets.
+add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src
+                 ${CMAKE_BINARY_DIR}/googletest-build
+                 EXCLUDE_FROM_ALL)
+
+include(GoogleTest)
+
+enable_testing()
+
+add_executable(graft_server_test
+	test/graft_server_test.cpp
+)
+
+target_include_directories(graft_server_test PRIVATE
+	include
+)
+
+target_link_libraries(graft_server_test
+	${CMAKE_THREAD_LIBS_INIT}
+	gtest
+	gtest_main
+)
+
+gtest_discover_tests(graft_server_test)
