@@ -123,16 +123,7 @@ public:
 	void onNewClient(ClientRequest_ptr cr)
 	{
 		++m_cntClientRequest;
-		static bool b = false;
-		if(b)
-		{
-			sendCrypton(cr);
-		}
-		else
-		{
-			sendToThreadPool(cr);
-		}
-		b = !b;
+		sendToThreadPool(cr);
 	}
 	void onClientDone(ClientRequest_ptr cr)
 	{
