@@ -46,23 +46,35 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 
-add_executable(graft_server
-	${PROJECT_SOURCE_DIR}/src/graft_server.cpp
-	${PROJECT_SOURCE_DIR}/src/router.cpp
+set(GS_SOURCES
+	${PROJECT_SOURCE_DIR}/src/graft_manager.cpp
 	${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
 )
 
-target_include_directories(graft_server PRIVATE 
+set(GS_INCLUDE_DIRS
 	${PROJECT_SOURCE_DIR}/modules/mongoose
 	${PROJECT_SOURCE_DIR}/modules/libr3/include
 	${PROJECT_SOURCE_DIR}/include
 )
 
-target_link_libraries(graft_server
-	${CMAKE_THREAD_LIBS_INIT}
+set(GS_LIBS
 	${PROJECT_BINARY_DIR}/BUILD/lib/libr3.a
 	${PROJECT_BINARY_DIR}/BUILD/libr3/3rdparty/liblib3rdparty.a
 	pcre
+)
+
+add_executable(graft_server
+	${GS_SOURCES}
+	${PROJECT_SOURCE_DIR}/src/graft_server.cpp
+)
+
+target_include_directories(graft_server PRIVATE
+	${GS_INCLUDE_DIRS}
+)
+
+target_link_libraries(graft_server PRIVATE
+	${GS_LIBS}
+	${CMAKE_THREAD_LIBS_INIT}
 )
 
 add_dependencies(graft_server libr3)
@@ -91,17 +103,21 @@ include(GoogleTest)
 enable_testing()
 
 add_executable(graft_server_test
-	test/graft_server_test.cpp
+	${GS_SOURCES}
+	${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
 )
 
 target_include_directories(graft_server_test PRIVATE
-	include
+	${GS_INCLUDE_DIRS}
 )
 
 target_link_libraries(graft_server_test
+	${GS_LIBS}
 	${CMAKE_THREAD_LIBS_INIT}
 	gtest
 	gtest_main
 )
+
+add_dependencies(graft_server_test libr3)
 
 gtest_discover_tests(graft_server_test)
