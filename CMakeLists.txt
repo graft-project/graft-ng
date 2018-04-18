@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.11.0)
 
-Project(graft_server)
+project(graft_server)
+
+option(OPT_BUILD_TESTS "Build tests." ON)
+
+configure_file(
+	"${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
+	"${PROJECT_BINARY_DIR}/CMakeConfig.h"
+)
 
 find_package(Threads REQUIRED)
 
@@ -55,6 +62,7 @@ set(GS_INCLUDE_DIRS
 	${PROJECT_SOURCE_DIR}/modules/mongoose
 	${PROJECT_SOURCE_DIR}/modules/libr3/include
 	${PROJECT_SOURCE_DIR}/include
+	${PROJECT_BINARY_DIR}
 )
 
 set(GS_LIBS
@@ -80,44 +88,49 @@ target_link_libraries(graft_server PRIVATE
 add_dependencies(graft_server libr3)
 
 ### tests section
+if (OPT_BUILD_TESTS)
+	message("==> Build tests section included")
 
-ExternalProject_Add(googletest
-  GIT_REPOSITORY    https://github.com/google/googletest.git
-  GIT_TAG           master
-  SOURCE_DIR        "${CMAKE_BINARY_DIR}/googletest-src"
-  BINARY_DIR        "${CMAKE_BINARY_DIR}/googletest-build"
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND     ""
-  INSTALL_COMMAND   ""
-  TEST_COMMAND      ""
-)
+	ExternalProject_Add(googletest
+	  GIT_REPOSITORY    https://github.com/google/googletest.git
+	  GIT_TAG           master
+	  SOURCE_DIR        "${CMAKE_BINARY_DIR}/googletest-src"
+	  BINARY_DIR        "${CMAKE_BINARY_DIR}/googletest-build"
+	  CONFIGURE_COMMAND ""
+	  BUILD_COMMAND     ""
+	  INSTALL_COMMAND   ""
+	  TEST_COMMAND      ""
+	)
 
-# Add googletest directly to our build. This defines
-# the gtest and gtest_main targets.
-add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src
-                 ${CMAKE_BINARY_DIR}/googletest-build
-                 EXCLUDE_FROM_ALL)
+	# Add googletest directly to our build. This defines
+	# the gtest and gtest_main targets.
+	add_subdirectory(
+		${CMAKE_BINARY_DIR}/googletest-src
+		${CMAKE_BINARY_DIR}/googletest-build
+		EXCLUDE_FROM_ALL
+	)
 
-include(GoogleTest)
+	include(GoogleTest)
 
-enable_testing()
+	enable_testing()
 
-add_executable(graft_server_test
-	${GS_SOURCES}
-	${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
-)
+	add_executable(graft_server_test
+		${GS_SOURCES}
+		${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
+	)
 
-target_include_directories(graft_server_test PRIVATE
-	${GS_INCLUDE_DIRS}
-)
+	target_include_directories(graft_server_test PRIVATE
+		${GS_INCLUDE_DIRS}
+	)
 
-target_link_libraries(graft_server_test
-	${GS_LIBS}
-	${CMAKE_THREAD_LIBS_INIT}
-	gtest
-	gtest_main
-)
+	target_link_libraries(graft_server_test
+		${GS_LIBS}
+		${CMAKE_THREAD_LIBS_INIT}
+		gtest
+		gtest_main
+	)
 
-add_dependencies(graft_server_test libr3)
+	add_dependencies(graft_server_test libr3)
 
-gtest_discover_tests(graft_server_test)
+	gtest_discover_tests(graft_server_test)
+endif (OPT_BUILD_TESTS)
