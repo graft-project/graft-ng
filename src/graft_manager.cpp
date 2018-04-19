@@ -60,14 +60,14 @@ void Manager::doWork(uint64_t m_cnt)
 
 void Manager::onJobDone(GJ& gj)
 {
-	gj.get_CR()->onJobDone(gj);
+	gj.get_cr()->onJobDone(gj);
 	++m_cntJobDone;
 	//gj will be destroyed on exit
 }
 
 void Manager::onCryptonDone(CryptoNodeSender& cns)
 {
-	cns.get_CR()->onCryptonDone(cns);
+	cns.get_cr()->onCryptonDone(cns);
 	++m_cntCryptoNodeSenderDone;
 	//cns will be destroyed on exit
 }

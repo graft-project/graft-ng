@@ -40,10 +40,10 @@ public:
 	virtual void operator () ()
 	{
 		{
-			decltype(auto) status_ref = m_cr->get_StatusRef();
-			decltype(auto) vars_cref = m_cr->get_Vars();
-			decltype(auto) input_cref = m_cr->get_Input();
-			decltype(auto) output_ref = m_cr->get_Output();
+			decltype(auto) status_ref = m_cr->get_statusRef();
+			decltype(auto) vars_cref = m_cr->get_vars();
+			decltype(auto) input_cref = m_cr->get_input();
+			decltype(auto) output_ref = m_cr->get_output();
 			decltype(auto) h3_ref = m_cr->get_h3();
 
 			status_ref = h3_ref.peri(vars_cref, input_cref, output_ref);
@@ -53,7 +53,7 @@ public:
 		save_m_watcher->notifyJobReady();
 	}
 
-	CR_ptr& get_CR() { return m_cr; }
+	CR_ptr& get_cr() { return m_cr; }
 protected:
 	CR_ptr m_cr;
 

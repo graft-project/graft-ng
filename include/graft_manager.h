@@ -112,7 +112,7 @@ public:
 
 	////getters
 	mg_mgr* get_mg_mgr() { return &m_mgr; }
-	Router& get_Router() { return m_router; }
+	Router& get_router() { return m_router; }
 	ThreadPoolX& get_threadPool() { return *m_threadPool.get(); }
 	TPResQueue& get_resQueue() { return *m_resQueue.get(); }
 
@@ -203,7 +203,7 @@ class ItselfHolder
 public:
 	using Ptr = std::shared_ptr<C>;
 public:
-	Ptr get_Itself() { return m_itself; }
+	Ptr get_itself() { return m_itself; }
 
 	template<typename ...ARGS>
 	static const Ptr Create(ARGS&&... args)
@@ -222,7 +222,7 @@ class CryptoNodeSender : public ItselfHolder<CryptoNodeSender>, StaticMongooseHa
 public:
 	CryptoNodeSender() = default;
 
-	ClientRequest_ptr& get_CR() { return m_cr; }
+	ClientRequest_ptr& get_cr() { return m_cr; }
 
 	void send(Manager& manager, ClientRequest_ptr cr, std::string& data)
 	{
@@ -233,7 +233,7 @@ public:
 		mg_send(m_crypton, m_data.c_str(), m_data.size());
 	}
 public:
-	const std::string& get_Result() { return m_result; }
+	const std::string& get_result() { return m_result; }
 private:
 	friend class StaticMongooseHandler<CryptoNodeSender>;
 	void ev_handler(mg_connection* crypton, int ev, void *ev_data)
@@ -293,7 +293,7 @@ public:
 	void createJob(Manager& manager)
 	{
 		manager.get_threadPool().post(
-			GJ_ptr( get_Itself(), &manager.get_resQueue(), &manager )
+			GJ_ptr( get_itself(), &manager.get_resQueue(), &manager )
 		);
 	}
 
@@ -307,7 +307,7 @@ public:
 		case Router::Status::Forward:
 		{
 			assert(m_client);
-			Manager::from(m_client)->sendCrypton(get_Itself());
+			Manager::from(m_client)->sendCrypton(get_itself());
 		} break;
 		case Router::Status::Ok:
 		{
@@ -333,18 +333,18 @@ public:
 		//here you can send a job to the thread pool or send response to client
 		//cns will be destroyed on exit, save its result
 		//now it sends response to client
-		const std::string& res = cns.get_Result();
+		const std::string& res = cns.get_result();
 		{//now always create a job and put it to the thread pool after CryptoNode
 			//set output of CryptoNode as input for job
 			m_prms.input = res;
-			Manager::from(m_client)->sendToThreadPool(get_Itself());
+			Manager::from(m_client)->sendToThreadPool(get_itself());
 		}
 	}
 public:
-	Router::Status& get_StatusRef() { return m_status; }
-	const Router::vars_t& get_Vars() const { return m_prms.vars; }
-	const std::string& get_Input() const { return m_prms.input; }
-	std::string& get_Output() { return m_output; }
+	Router::Status& get_statusRef() { return m_status; }
+	const Router::vars_t& get_vars() const { return m_prms.vars; }
+	const std::string& get_input() const { return m_prms.input; }
+	std::string& get_output() { return m_output; }
 	const Router::Handler3& get_h3() const { return m_prms.h3; }
 private:
 	friend class StaticMongooseHandler<ClientRequest>;
@@ -355,9 +355,9 @@ private:
 		{
 		case MG_EV_CLOSE:
 		{
-			assert(get_Itself());
-			if(get_Itself()) break;
-			Manager::from(client)->onClientDone(get_Itself());
+			assert(get_itself());
+			if(get_itself()) break;
+			Manager::from(client)->onClientDone(get_itself());
 			client->handler = static_empty_ev_handler;
 			releaseItself();
 		} break;
@@ -405,14 +405,14 @@ private:
 			std::string s_method(hm->method.p, hm->method.len);
 			int method = (s_method == "GET")? METHOD_GET: METHOD_POST;
 
-			Router& router = manager->get_Router();
+			Router& router = manager->get_router();
 			Router::JobParams prms;
 			if(router.match(uri, method, prms))
 			{
 				ClientRequest* ptr = ClientRequest::Create(client, prms).get();
 				client->user_data = ptr;
 				client->handler = ClientRequest::static_ev_handler;
-				Manager::from(client)->onNewClient( ptr->get_Itself() );
+				Manager::from(client)->onNewClient( ptr->get_itself() );
 			}
 			else
 			{
