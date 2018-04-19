@@ -345,7 +345,7 @@ public:
 	const Router::vars_t& get_Vars() const { return m_prms.vars; }
 	const std::string& get_Input() const { return m_prms.input; }
 	std::string& get_Output() { return m_output; }
-	const Router::Handler& get_Handler() const { return m_prms.handler; }
+	const Router::Handler3& get_h3() const { return m_prms.h3; }
 private:
 	friend class StaticMongooseHandler<ClientRequest>;
 	void ev_handler(mg_connection *client, int ev, void *ev_data)

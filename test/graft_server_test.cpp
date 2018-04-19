@@ -79,7 +79,7 @@ void run_server()
 {
 	graft::Router router;
 	{
-		static graft::Router::Handler p = test;
+		static graft::Router::Handler3 p = test;
 		router.addRoute("/root/r{id:\\d+}", METHOD_GET, &p);
 		router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, &p);
 		bool res = router.arm();

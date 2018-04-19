@@ -44,9 +44,9 @@ public:
 			decltype(auto) vars_cref = m_cr->get_Vars();
 			decltype(auto) input_cref = m_cr->get_Input();
 			decltype(auto) output_ref = m_cr->get_Output();
-			decltype(auto) handler_ref = m_cr->get_Handler();
+			decltype(auto) h3_ref = m_cr->get_h3();
 
-			status_ref = handler_ref(vars_cref, input_cref, output_ref);
+			status_ref = h3_ref.peri(vars_cref, input_cref, output_ref);
 		}
 		Watcher* save_m_watcher = m_watcher; //save m_watcher before move itself into resulting queue
 		m_rq->push(std::move(*this)); //similar to "delete this;"

@@ -24,10 +24,39 @@ public:
 		Drop,
 		None,
 	};
+
 public:
 	using vars_t = std::vector<std::pair<std::string, std::string>>;
 	using Handler = std::function<Status (const vars_t&, const In& , Out& ) >;
 
+public:
+	struct Handler3
+	{
+		Handler3() = default;
+
+		template<typename H>
+		Handler3(H&& pre, H&& peri, H&& post)
+			: pre(std::forward<H>(pre))
+			, peri(std::forward<H>(peri))
+			, post(std::forward<H>(post))
+		{ }
+
+		template<typename H>
+		Handler3(H&& peri) : peri(std::forward<H>(peri)) { }
+
+		Handler3(const Handler3&) = default;
+		Handler3(Handler3&&) = default;
+		Handler3& operator = (const Handler3&) = default;
+		Handler3& operator = (Handler3&&) = default;
+
+		~Handler3() = default;
+	public:
+		Handler pre;
+		Handler peri;
+		Handler post;
+	};
+
+public:
 	RouterT()
 	{
 		if (!m_node)
@@ -43,9 +72,9 @@ public:
 		}
 	}
 
-	void addRoute(std::string endpoint, int methods, Handler* handler)
+	void addRoute(std::string endpoint, int methods, Handler3* ph3)
 	{
-		m_routes.push_back({endpoint, methods, handler});
+		m_routes.push_back({endpoint, methods, ph3});
 	}
 
 	bool arm()
@@ -57,7 +86,7 @@ public:
 						m_node,
 						r.methods,
 						r.endpoint.c_str(),
-						reinterpret_cast<void*>(r.handler)
+						reinterpret_cast<void*>(r.h3)
 					);
 				});
 
@@ -76,7 +105,7 @@ public:
 	{
 		std::string input;
 		vars_t vars;
-		Handler handler;
+		Handler3 h3;
 	};
 
 	bool match(const std::string& target, int method, JobParams& params) const
@@ -97,7 +126,7 @@ public:
 							std::move(std::string(entry->vars.tokens.entries[i].base, entry->vars.tokens.entries[i].len))
 				));
 
-			params.handler = *reinterpret_cast<Handler*>(m->data);
+			params.h3 = *reinterpret_cast<Handler3*>(m->data);
 			ret = true;
 		}
 		match_entry_free(entry);
@@ -110,7 +139,7 @@ private:
 	{
 		std::string endpoint;
 		int methods;
-		Handler* handler;
+		Handler3* h3;
 	};
 
 	std::deque<Route> m_routes;
