@@ -1,3 +1,5 @@
+#pragma once
+
 #include "mongoose.h"
 #include "router.h"
 #include "thread_pool.h"
