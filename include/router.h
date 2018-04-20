@@ -34,14 +34,14 @@ public:
 	{
 		Handler3() = default;
 
-		template<typename H>
+		template<typename H, typename = std::enable_if_t< std::is_same<H, Handler>::value >>
 		Handler3(H&& pre, H&& peri, H&& post)
 			: pre(std::forward<H>(pre))
 			, peri(std::forward<H>(peri))
 			, post(std::forward<H>(post))
 		{ }
 
-		template<typename H>
+		template<typename H, typename = std::enable_if_t< std::is_same<H, Handler>::value >>
 		Handler3(H&& peri) : peri(std::forward<H>(peri)) { }
 
 		Handler3(const Handler3&) = default;

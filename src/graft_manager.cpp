@@ -2,19 +2,16 @@
 
 namespace graft {
 
+#ifdef OPT_BUILD_TESTS
+std::atomic_bool GraftServer::ready = false;
+#endif
+
+
 void Manager::sendCrypton(ClientRequest_ptr cr)
 {
 	++m_cntCryptoNodeSender;
 	CryptoNodeSender::Ptr cns = CryptoNodeSender::Create();
-	std::string something(100, ' ');
-	{
-		std::string s("something");
-		for(int i=0; i< s.size(); ++i)
-		{
-			something[i] = s[i];
-		}
-	}
-	cns->send(*this, cr, something );
+	cns->send(*this, cr, cr->get_input());
 }
 
 void Manager::sendToThreadPool(ClientRequest_ptr cr)

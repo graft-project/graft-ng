@@ -2,6 +2,8 @@
 #include "router.h"
 #include "thread_pool.h"
 
+#include "CMakeConfig.h"
+
 namespace graft {
 
 class Manager;
@@ -224,16 +226,35 @@ public:
 
 	ClientRequest_ptr& get_cr() { return m_cr; }
 
-	void send(Manager& manager, ClientRequest_ptr cr, std::string& data)
+	void send(Manager& manager, ClientRequest_ptr cr, const std::string& data)
 	{
 		m_cr = cr;
 		m_data = data;
 		m_crypton = mg_connect(manager.get_mg_mgr(),"localhost:1234", static_ev_handler);
 		m_crypton->user_data = this;
-		mg_send(m_crypton, m_data.c_str(), m_data.size());
+		//len + data
+		help_send_pstring(m_crypton, m_data);
 	}
 public:
 	const std::string& get_result() { return m_result; }
+public:
+	static void help_send_pstring(mg_connection *nc, const std::string& data)
+	{
+		int len = data.size();
+		mg_send(nc, &len, sizeof(len));
+		mg_send(nc, data.c_str(), data.size());
+	}
+	static bool help_recv_pstring(mg_connection *nc, void *ev_data, std::string& data)
+	{
+		int cnt = *(int*)ev_data;
+		if(cnt < sizeof(int)) return false;
+		mbuf& buf = nc->recv_mbuf;
+		int len = *(int*)buf.buf;
+		if(len + sizeof(len) < cnt) return false;
+		data = std::string(buf.buf + sizeof(len), len);
+		mbuf_remove(&buf, len + sizeof(len));
+		return true;
+	}
 private:
 	friend class StaticMongooseHandler<CryptoNodeSender>;
 	void ev_handler(mg_connection* crypton, int ev, void *ev_data)
@@ -243,10 +264,8 @@ private:
 		{
 		case MG_EV_RECV:
 		{
-			int m_cnt = *(int*)ev_data;
-			if(m_cnt<100) break;
-			mbuf& buf = crypton->recv_mbuf;
-			m_result = std::string(buf.buf, buf.len);
+			bool ok = help_recv_pstring(crypton, ev_data, m_result);
+			if(!ok) break;
 			crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
 			Manager::from(crypton)->onCryptonDone(*this);
 			crypton->handler = static_empty_ev_handler;
@@ -292,6 +311,11 @@ public:
 
 	void createJob(Manager& manager)
 	{
+		if(m_prms.h3.pre)
+		{
+			m_prms.h3.pre(m_prms.vars, m_prms.input, m_output);
+			m_prms.input = m_output;
+		}
 		manager.get_threadPool().post(
 			GJ_ptr( get_itself(), &manager.get_resQueue(), &manager )
 		);
@@ -299,6 +323,15 @@ public:
 
 	void onJobDone(GJ& gj)
 	{
+		if(Router::Status::Forward == m_status || m_prms.h3.post)
+		{
+			m_prms.input = m_output;
+		}
+		if(m_prms.h3.post)
+		{
+			m_prms.h3.post(m_prms.vars, m_prms.input, m_output);
+			m_prms.input = m_output;
+		}
 		//here you can send a request to cryptonode or send response to client
 		//gj will be destroyed on exit, save its result
 		//now it sends response to client
@@ -374,11 +407,18 @@ private:
 
 class GraftServer final
 {
+#ifdef OPT_BUILD_TESTS
+public:
+	static std::atomic_bool ready;
+#endif
 public:
 	void serve(mg_mgr* mgr, const char* s_http_port)
 	{
 		mg_connection* nc = mg_bind(mgr, s_http_port, ev_handler);
 		mg_set_protocol_http_websocket(nc);
+#ifdef OPT_BUILD_TESTS
+		ready = true;
+#endif
 		for (;;)
 		{
 			mg_mgr_poll(mgr, 1000);
@@ -409,6 +449,8 @@ private:
 			Router::JobParams prms;
 			if(router.match(uri, method, prms))
 			{
+				mg_str& body = hm->body;
+				prms.input = std::string(body.p, body.len);
 				ClientRequest* ptr = ClientRequest::Create(client, prms).get();
 				client->user_data = ptr;
 				client->handler = ClientRequest::static_ev_handler;
