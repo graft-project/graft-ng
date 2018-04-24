@@ -28,7 +28,41 @@ TEST(InOut, common)
 
 TEST(Context, common)
 {
-	graft::Context ctx;
+	graft::GlobalContextMap m;
+	graft::Context ctx(m);
+
+	std::string key[] = { "aaa", "aa" }, s = "aaaaaaaaaaaa";
+	std::vector<char> v({'1','2','3'});
+#if 0
+	ctx.local[key[0]] = s;
+	ctx.local[key[1]] = v;
+	std::string bb = ctx.local[key[0]];
+	const std::vector<char> cc = ctx.local[key[1]];
+//	std::string& c = ctx.local[key];
+
+//	std::cout << bb << " " << c << std::endl;
+//	std::cout << c << std::endl;
+	ctx.local[key[0]] = std::string("bbbbb");
+
+	const std::string& b = ctx.local[key[0]];
+	std::cout << b << " " << bb << " " << std::string(cc.begin(), cc.end()) << std::endl;
+#endif
+	ctx.global[key[0]] = s;
+	ctx.global[key[1]] = v;
+	std::string bbg = ctx.global[key[0]];
+	const std::vector<char> ccg = ctx.global[key[1]];
+//	std::string& c = ctx.global[key];
+
+//	std::cout << bb << " " << c << std::endl;
+//	std::cout << c << std::endl;
+	std::string s1("bbbbb");
+	ctx.global[key[0]] = s1;
+
+	std::string bg = ctx.global[key[0]];
+	EXPECT_EQ( bg, s1 );
+	EXPECT_EQ( bbg, s );
+	EXPECT_EQ( ccg, std::vector<char>({'1', '2', '3'}) );
+#if 0
 	ctx.put("aaa", std::string("aaaaaaaaaaaa"));
 	ctx.put("bbb", 5);
 
@@ -44,6 +78,7 @@ TEST(Context, common)
 	ctx.purge();
 	b = ctx.take("aaa", s);
 	EXPECT_EQ(b, false);
+#endif
 }
 
 /////////////////////////////////
