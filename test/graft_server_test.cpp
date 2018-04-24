@@ -248,7 +248,7 @@ protected:
 			return graft::Router::Status::Ok;
 		};
 
-		h3_test = graft::Router::Handler3(graft::Router::Handler(pre), graft::Router::Handler(peri), graft::Router::Handler(post));
+		h3_test = graft::Router::Handler3(pre, peri, post);
 
 		t_CN = std::thread([]{ TempCryptoNodeServer::run(); });
 		t_srv = std::thread([]{ run_server(); });

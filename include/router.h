@@ -35,22 +35,21 @@ public:
 	{
 		Handler3() = default;
 
-		template<typename H, typename = std::enable_if_t< std::is_same<H, Handler>::value >>
-		Handler3(H&& pre, H&& peri, H&& post)
-			: pre(std::forward<H>(pre))
-			, peri(std::forward<H>(peri))
-			, post(std::forward<H>(post))
-		{ }
-
-		template<typename H, typename = std::enable_if_t< std::is_same<H, Handler>::value >>
-		Handler3(H&& peri) : peri(std::forward<H>(peri)) { }
-
 		Handler3(const Handler3&) = default;
 		Handler3(Handler3&&) = default;
 		Handler3& operator = (const Handler3&) = default;
 		Handler3& operator = (Handler3&&) = default;
-
 		~Handler3() = default;
+
+		Handler3(const Handler& pre, const Handler& peri, const Handler& post)
+			: pre(pre), peri(peri), post(post)
+		{ }
+		Handler3(Handler&& pre, Handler&& peri, Handler&& post)
+			: pre(std::move(pre)), peri(std::move(peri)), post(std::move(post))
+		{ }
+
+		Handler3(const Handler& peri) : peri(peri) { }
+		Handler3(Handler&& peri) : peri(std::move(peri)) { }
 	public:
 		Handler pre;
 		Handler peri;
