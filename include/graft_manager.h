@@ -3,6 +3,7 @@
 #include "mongoose.h"
 #include "router.h"
 #include "thread_pool.h"
+#include "inout.h"
 
 #include "CMakeConfig.h"
 
@@ -18,7 +19,7 @@ class CryptoNodeSender;
 class GJ_ptr;
 using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
 
-using Router = RouterT<std::string, std::string>;
+using Router = RouterT<Input, Output>;
 
 using GJ = GraftJob<ClientRequest_ptr, TPResQueue, Manager>;
 
@@ -238,7 +239,7 @@ public:
 		help_send_pstring(m_crypton, m_data);
 	}
 public:
-	const std::string& get_result() { return m_result; }
+	const Output& get_result() { return m_result; }
 public:
 	static void help_send_pstring(mg_connection *nc, const std::string& data)
 	{
@@ -266,7 +267,9 @@ private:
 		{
 		case MG_EV_RECV:
 		{
-			bool ok = help_recv_pstring(crypton, ev_data, m_result);
+			std::string s;
+			bool ok = help_recv_pstring(crypton, ev_data, s);
+			m_result.load(s);
 			if(!ok) break;
 			crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
 			Manager::from(crypton)->onCryptonDone(*this);
@@ -281,7 +284,7 @@ private:
 	mg_connection *m_crypton = nullptr;
 	ClientRequest_ptr m_cr;
 	std::string m_data;
-	std::string m_result;
+	Output m_result;
 };
 
 class ClientRequest : public ItselfHolder<ClientRequest>, public StaticMongooseHandler<ClientRequest>
@@ -316,7 +319,7 @@ public:
 		if(m_prms.h3.pre)
 		{
 			m_prms.h3.pre(m_prms.vars, m_prms.input, m_output);
-			m_prms.input = m_output;
+			m_prms.input.assign(m_output);
 		}
 		manager.get_threadPool().post(
 			GJ_ptr( get_itself(), &manager.get_resQueue(), &manager )
@@ -327,12 +330,12 @@ public:
 	{
 		if(Router::Status::Forward == m_status || m_prms.h3.post)
 		{
-			m_prms.input = m_output;
+			m_prms.input.assign(m_output);
 		}
 		if(m_prms.h3.post)
 		{
 			m_prms.h3.post(m_prms.vars, m_prms.input, m_output);
-			m_prms.input = m_output;
+			m_prms.input.assign(m_output);
 		}
 		//here you can send a request to cryptonode or send response to client
 		//gj will be destroyed on exit, save its result
@@ -368,18 +371,17 @@ public:
 		//here you can send a job to the thread pool or send response to client
 		//cns will be destroyed on exit, save its result
 		//now it sends response to client
-		const std::string& res = cns.get_result();
 		{//now always create a job and put it to the thread pool after CryptoNode
 			//set output of CryptoNode as input for job
-			m_prms.input = res;
+			m_prms.input.assign(cns.get_result());
 			Manager::from(m_client)->sendToThreadPool(get_itself());
 		}
 	}
 public:
 	Router::Status& get_statusRef() { return m_status; }
 	const Router::vars_t& get_vars() const { return m_prms.vars; }
-	const std::string& get_input() const { return m_prms.input; }
-	std::string& get_output() { return m_output; }
+	const Input& get_input() const { return m_prms.input; }
+	Output& get_output() { return m_output; }
 	const Router::Handler3& get_h3() const { return m_prms.h3; }
 private:
 	friend class StaticMongooseHandler<ClientRequest>;
@@ -403,7 +405,7 @@ private:
 private:
 	Router::Status m_status = Router::Status::None;
 	Router::JobParams m_prms;
-	std::string m_output;
+	Output m_output;
 	mg_connection *m_client;
 };
 
@@ -452,7 +454,7 @@ private:
 			if(router.match(uri, method, prms))
 			{
 				mg_str& body = hm->body;
-				prms.input = std::string(body.p, body.len);
+				prms.input.load(body.p, body.len) ;
 				ClientRequest* ptr = ClientRequest::Create(client, prms).get();
 				client->user_data = ptr;
 				client->handler = ClientRequest::static_ev_handler;

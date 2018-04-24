@@ -1,6 +1,30 @@
 #include <gtest/gtest.h>
 #include "context.h"
 #include "graft_manager.h"
+#include "inout.h"
+
+TEST(InOut, common)
+{
+	using namespace graft;
+
+	auto f = [](const Input& in, Output& out)
+	{
+		EXPECT_EQ(in.get(), "abc");
+		out.load("def");
+	};
+
+	char buffer[] = { 'a', 'b', 'c' };
+	graft::InString in;
+	graft::OutString  out;
+
+	in.load(&buffer[0], 3);
+	in.load(&buffer[0], 3);
+	f(in, out);
+
+	EXPECT_EQ(in.get(), "abc");
+	auto t = out.get();
+	EXPECT_EQ(std::string(t.first, t.second), "def");
+}
 
 TEST(Context, common)
 {
@@ -193,28 +217,34 @@ public:
 protected:
 	static void SetUpTestCase()
 	{
-		auto pre = [&](const graft::Router::vars_t& vars, const std::string& input, std::string& output)->graft::Router::Status
+		auto pre = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Output& output)->graft::Router::Status
 		{
-			EXPECT_EQ(input, iocheck);
-			iocheck = output = input + '1';
+			std::string in = input.get();
+			EXPECT_EQ(in, iocheck);
+			iocheck = in + '1';
+			output.load(iocheck);
 			return graft::Router::Status::Ok;
 		};
-		auto peri = [&](const graft::Router::vars_t& vars, const std::string& input, std::string& output)->graft::Router::Status
+		auto peri = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Output& output)->graft::Router::Status
 		{
-			EXPECT_EQ(input, iocheck);
+			std::string in = input.get();
+			EXPECT_EQ(in, iocheck);
 			graft::Router::Status res = graft::Router::Status::Ok;
 			if(!res_que_peri.empty())
 			{
 				res = res_que_peri.front();
 				res_que_peri.pop_front();
 			}
-			iocheck = output = input + '2';
+			iocheck = in + '2';
+			output.load(iocheck);
 			return res;
 		};
-		auto post = [&](const graft::Router::vars_t& vars, const std::string& input, std::string& output)->graft::Router::Status
+		auto post = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Output& output)->graft::Router::Status
 		{
-			EXPECT_EQ(input, iocheck);
-			iocheck = output = input + '3';
+			std::string in = input.get();
+			EXPECT_EQ(in, iocheck);
+			iocheck = in + '3';
+			output.load(iocheck);
 			return graft::Router::Status::Ok;
 		};
 

@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include "r3.h"
+#include "inout.h"
 
 namespace graft {
 
@@ -103,7 +104,7 @@ public:
 
 	struct JobParams
 	{
-		std::string input;
+		Input input;
 		vars_t vars;
 		Handler3 h3;
 	};

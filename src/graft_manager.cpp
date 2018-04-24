@@ -11,7 +11,8 @@ void Manager::sendCrypton(ClientRequest_ptr cr)
 {
 	++m_cntCryptoNodeSender;
 	CryptoNodeSender::Ptr cns = CryptoNodeSender::Create();
-	cns->send(*this, cr, cr->get_input());
+	std::string s = cr->get_input().get();
+	cns->send(*this, cr, s);
 }
 
 void Manager::sendToThreadPool(ClientRequest_ptr cr)
