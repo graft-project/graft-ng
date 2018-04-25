@@ -4,6 +4,7 @@
 #include "router.h"
 #include "thread_pool.h"
 #include "inout.h"
+#include "context.h"
 
 #include "CMakeConfig.h"
 
@@ -120,6 +121,7 @@ public:
 	Router& get_router() { return m_router; }
 	ThreadPoolX& get_threadPool() { return *m_threadPool.get(); }
 	TPResQueue& get_resQueue() { return *m_resQueue.get(); }
+	GlobalContextMap& get_gcm() { return m_gcm; }
 
 	////static functions
 	static void cb_event(mg_mgr* mgr, uint64_t cnt)
@@ -166,6 +168,7 @@ private:
 private:
 	mg_mgr m_mgr;
 	Router& m_router;
+	GlobalContextMap m_gcm;
 
 	uint64_t m_cntClientRequest = 0;
 	uint64_t m_cntClientRequestDone = 0;
@@ -291,9 +294,10 @@ class ClientRequest : public ItselfHolder<ClientRequest>, public StaticMongooseH
 {
 private:
 	friend class ItselfHolder<ClientRequest>;
-	ClientRequest(mg_connection *client, Router::JobParams& prms)
+	ClientRequest(mg_connection *client, Router::JobParams& prms, GlobalContextMap& gcm)
 		: m_prms(prms)
 		, m_client(client)
+		, m_ctx(gcm)
 	{
 	}
 public:
@@ -318,7 +322,7 @@ public:
 	{
 		if(m_prms.h3.pre)
 		{
-			m_prms.h3.pre(m_prms.vars, m_prms.input, m_output);
+			m_prms.h3.pre(m_prms.vars, m_prms.input, m_ctx, m_output);
 			m_prms.input.assign(m_output);
 		}
 		manager.get_threadPool().post(
@@ -334,7 +338,7 @@ public:
 		}
 		if(m_prms.h3.post)
 		{
-			m_prms.h3.post(m_prms.vars, m_prms.input, m_output);
+			m_prms.h3.post(m_prms.vars, m_prms.input, m_ctx, m_output);
 			m_prms.input.assign(m_output);
 		}
 		//here you can send a request to cryptonode or send response to client
@@ -383,6 +387,7 @@ public:
 	const Input& get_input() const { return m_prms.input; }
 	Output& get_output() { return m_output; }
 	const Router::Handler3& get_h3() const { return m_prms.h3; }
+	Context& get_ctx() { return m_ctx; }
 private:
 	friend class StaticMongooseHandler<ClientRequest>;
 	void ev_handler(mg_connection *client, int ev, void *ev_data)
@@ -407,6 +412,7 @@ private:
 	Router::JobParams m_prms;
 	Output m_output;
 	mg_connection *m_client;
+	Context m_ctx;
 };
 
 class GraftServer final
@@ -455,10 +461,10 @@ private:
 			{
 				mg_str& body = hm->body;
 				prms.input.load(body.p, body.len) ;
-				ClientRequest* ptr = ClientRequest::Create(client, prms).get();
+				ClientRequest* ptr = ClientRequest::Create(client, prms, manager->get_gcm()).get();
 				client->user_data = ptr;
 				client->handler = ClientRequest::static_ev_handler;
-				Manager::from(client)->onNewClient( ptr->get_itself() );
+				manager->onNewClient( ptr->get_itself() );
 			}
 			else
 			{

@@ -26,7 +26,7 @@ TEST(InOut, common)
 	EXPECT_EQ(std::string(t.first, t.second), "def");
 }
 
-TEST(Context, common)
+TEST(Context, simple)
 {
 	graft::GlobalContextMap m;
 	graft::Context ctx(m);
@@ -81,6 +81,49 @@ TEST(Context, common)
 #endif
 }
 
+TEST(Context, stress)
+{
+	graft::GlobalContextMap m;
+	graft::Context ctx(m);
+	std::vector<std::string> v_keys;
+	{
+		const char keys[] = "abcdefghijklmnopqrstuvwxyz";
+		const int keys_cnt = sizeof(keys)/sizeof(keys[0]);
+		for(int i = 0; i< keys_cnt; ++i)
+		{
+			char ch1 = keys[(5*i)%keys_cnt], ch2 = keys[(5*i+7)%keys_cnt];
+			std::string key(1, ch1); key += ch2;
+			v_keys.push_back(key);
+			ctx.global[key] = key;
+			ctx.local[key] = key;
+		}
+	}
+	std::for_each(v_keys.rbegin(), v_keys.rend(), [&](auto& key)
+	{
+		std::string sg = ctx.global[key];
+		std::string sl = ctx.local[key];
+		EXPECT_EQ( sg, key );
+		EXPECT_EQ( sl, key );
+	});
+	for(int i = 0; i < v_keys.size(); i += 2)
+	{
+		auto it = v_keys.begin() + i;
+		std::string& key = *it;
+		ctx.global.remove(key);
+//		ctx.local.remove(key);
+		EXPECT_EQ( false, ctx.global.hasKey(key) );
+//		EXPECT_EQ( false, ctx.local.hasKey(key) );
+		v_keys.erase(it);
+	}
+	std::for_each(v_keys.begin(), v_keys.end(), [&](auto& key)
+	{
+		std::string sg = ctx.global[key];
+		std::string sl = ctx.local[key];
+		EXPECT_EQ( sg, key );
+		EXPECT_EQ( sl, key );
+	});
+}
+
 /////////////////////////////////
 // GraftServerTest fixture
 
@@ -88,6 +131,7 @@ class GraftServerTest : public ::testing::Test
 {
 public:
 	static std::string iocheck;
+	static bool skip_ctx_check;
 	static std::deque<graft::Router::Status> res_que_peri;
 	static graft::Router::Handler3 h3_test;
 	static std::thread t_CN;
@@ -125,8 +169,7 @@ private:
 				bool ok = graft::CryptoNodeSender::help_recv_pstring(client, ev_data, data);
 				if(!ok) break;
 				EXPECT_EQ(data, iocheck);
-				data += '4';
-				iocheck = data;
+				iocheck = data += '4'; skip_ctx_check = true;
 
 				graft::CryptoNodeSender::help_send_pstring(client, data);
 				client->flags |= MG_F_SEND_AND_CLOSE;
@@ -252,18 +295,45 @@ public:
 protected:
 	static void SetUpTestCase()
 	{
-		auto pre = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Output& output)->graft::Router::Status
+		auto check_ctx = [](auto& ctx, auto& in)
+		{
+			if(in == "" || skip_ctx_check)
+			{
+				skip_ctx_check = false;
+				return;
+			}
+			bool bg = ctx.global.hasKey(in);
+			bool bl = ctx.local.hasKey(in);
+			EXPECT_EQ(true, bg);
+			EXPECT_EQ(true, bl);
+			if(bg)
+			{
+				std::string s = ctx.global[in];
+				EXPECT_EQ(s, in);
+			}
+			if(bl)
+			{
+				std::string s = ctx.local[in];
+				EXPECT_EQ(s, in);
+			}
+		};
+
+		auto pre = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
 		{
 			std::string in = input.get();
 			EXPECT_EQ(in, iocheck);
+			check_ctx(ctx, in);
 			iocheck = in + '1';
 			output.load(iocheck);
+			ctx.global[iocheck] = iocheck;
+			ctx.local[iocheck] = iocheck;
 			return graft::Router::Status::Ok;
 		};
-		auto peri = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Output& output)->graft::Router::Status
+		auto peri = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
 		{
 			std::string in = input.get();
 			EXPECT_EQ(in, iocheck);
+			check_ctx(ctx, in);
 			graft::Router::Status res = graft::Router::Status::Ok;
 			if(!res_que_peri.empty())
 			{
@@ -272,14 +342,19 @@ protected:
 			}
 			iocheck = in + '2';
 			output.load(iocheck);
+			ctx.global[iocheck] = iocheck;
+			ctx.local[iocheck] = iocheck;
 			return res;
 		};
-		auto post = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Output& output)->graft::Router::Status
+		auto post = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
 		{
 			std::string in = input.get();
 			EXPECT_EQ(in, iocheck);
+			check_ctx(ctx, in);
 			iocheck = in + '3';
 			output.load(iocheck);
+			ctx.global[iocheck] = iocheck;
+			ctx.local[iocheck] = iocheck;
 			return graft::Router::Status::Ok;
 		};
 
@@ -314,6 +389,7 @@ protected:
 };
 
 std::string GraftServerTest::iocheck;
+bool GraftServerTest::skip_ctx_check = false;
 std::deque<graft::Router::Status> GraftServerTest::res_que_peri;
 graft::Router::Handler3 GraftServerTest::h3_test;
 std::thread GraftServerTest::t_CN;
@@ -326,7 +402,7 @@ bool GraftServerTest::TempCryptoNodeServer::stop = false;
 
 TEST_F(GraftServerTest, GETtp)
 {//GET -> threadPool
-	iocheck = "";
+	iocheck = ""; skip_ctx_check = true;
 	Client client;
 	client.serve((uri_base+uri).c_str());
 	std::string res = client.get_body();
@@ -336,7 +412,7 @@ TEST_F(GraftServerTest, GETtp)
 
 TEST_F(GraftServerTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
-	iocheck = "";
+	iocheck = ""; skip_ctx_check = true;
 	res_que_peri.clear();
 	res_que_peri.push_back(graft::Router::Status::Forward);
 	res_que_peri.push_back(graft::Router::Status::Ok);
@@ -350,7 +426,7 @@ TEST_F(GraftServerTest, GETtpCNtp)
 TEST_F(GraftServerTest, clPOSTtp)
 {//POST cmdline -> threadPool
 	std::string body = "input body";
-	iocheck = body;
+	iocheck = body; skip_ctx_check = true;
 	{
 		std::ostringstream s;
 		s << "curl --data \"" << body << "\" " << (uri_base+uri);
@@ -364,7 +440,7 @@ TEST_F(GraftServerTest, clPOSTtp)
 TEST_F(GraftServerTest, clPOSTtpCNtp)
 {//POST cmdline -> threadPool -> CryptoNode -> threadPool
 	std::string body = "input body";
-	iocheck = body;
+	iocheck = body; skip_ctx_check = true;
 	res_que_peri.clear();
 	res_que_peri.push_back(graft::Router::Status::Forward);
 	res_que_peri.push_back(graft::Router::Status::Ok);
