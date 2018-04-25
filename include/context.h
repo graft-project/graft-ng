@@ -16,143 +16,143 @@
 
 namespace graft
 {
-	using GlobalContextMap = graft::TSHashtable<std::string, boost::any>;
+using GlobalContextMap = graft::TSHashtable<std::string, boost::any>;
 
-	struct Context
-	{
-		class Local
-		{
-		private:
-			using ContextMap = std::map<std::string, boost::any>;
-			ContextMap m_map;
+struct Context
+{
+    class Local
+    {
+    private:
+        using ContextMap = std::map<std::string, boost::any>;
+        ContextMap m_map;
 
-			class Proxy
-			{
-			public:
-				Proxy(ContextMap& map, const std::string& key)
-					: m_map(map), m_key(key) { }
+        class Proxy
+        {
+        public:
+            Proxy(ContextMap& map, const std::string& key)
+                : m_map(map), m_key(key) { }
 
-				template<typename T>
-				Proxy& operator =(T&& v)
-				{
-					static_assert(std::is_nothrow_move_constructible<T>::value,
-							"not move constructible");
+            template<typename T>
+            Proxy& operator =(T&& v)
+            {
+                static_assert(std::is_nothrow_move_constructible<T>::value,
+                              "not move constructible");
 
-					boost::any tmp(std::forward<T>(v));
-					auto p = m_map.emplace(m_key, std::move(tmp));
+                boost::any tmp(std::forward<T>(v));
+                auto p = m_map.emplace(m_key, std::move(tmp));
 
-					if (!p.second) p.first->second = tmp;
+                if (!p.second) p.first->second = tmp;
 
-					return *this;
-				}
+                return *this;
+            }
 
-				template<typename T>
-				operator T& () const
-				{
-					return boost::any_cast<T&>(m_map[m_key]);
-				}
+            template<typename T>
+            operator T& () const
+            {
+                return boost::any_cast<T&>(m_map[m_key]);
+            }
 
-			private:
-				ContextMap& m_map;
-				const std::string& m_key;
-			};
+        private:
+            ContextMap& m_map;
+            const std::string& m_key;
+        };
 
-		public:
-			Local() = default;
-			~Local() = default;
-			Local(const Local&) = delete;
-			Local(Local&&) = delete;
+    public:
+        Local() = default;
+        ~Local() = default;
+        Local(const Local&) = delete;
+        Local(Local&&) = delete;
 
-			template<typename T>
-			T const& operator[](const std::string& key) const
-			{
-				auto it = m_map.find(key);
-				return boost::any_cast<T&>(it->second);
-			}
+        template<typename T>
+        T const& operator[](const std::string& key) const
+        {
+            auto it = m_map.find(key);
+            return boost::any_cast<T&>(it->second);
+        }
 
-			template<typename T>
-			T operator[](const std::string& key) const
-			{
-				auto it = m_map.find(key);
-				return boost::any_cast<T>(it->second);
-			}
+        template<typename T>
+        T operator[](const std::string& key) const
+        {
+            auto it = m_map.find(key);
+            return boost::any_cast<T>(it->second);
+        }
 
-			Proxy operator[](const std::string& key)
-			{
-				return Proxy(m_map, key);
-			}
+        Proxy operator[](const std::string& key)
+        {
+            return Proxy(m_map, key);
+        }
 
-			bool hasKey(const std::string& key)
-			{
-				return (m_map.find(key) != m_map.end());
-			}
-		};
+        bool hasKey(const std::string& key)
+        {
+            return (m_map.find(key) != m_map.end());
+        }
+    };
 
-		class Global
-		{
-		private:
-			GlobalContextMap& m_map;
+    class Global
+    {
+    private:
+        GlobalContextMap& m_map;
 
-			class Proxy
-			{
-			public:
-				Proxy(GlobalContextMap& map, const std::string& key)
-					: m_map(map), m_key(key) { }
+        class Proxy
+        {
+        public:
+            Proxy(GlobalContextMap& map, const std::string& key)
+                : m_map(map), m_key(key) { }
 
-				template<typename T>
-				Proxy& operator =(T&& v)
-				{
-					static_assert(std::is_nothrow_move_constructible<T>::value,
-							"not move constructible");
-					boost::any tmp(std::forward<T>(v));
-					m_map.addOrUpdate(m_key, std::move(tmp));
-					return *this;
-				}
+            template<typename T>
+            Proxy& operator =(T&& v)
+            {
+                static_assert(std::is_nothrow_move_constructible<T>::value,
+                              "not move constructible");
+                boost::any tmp(std::forward<T>(v));
+                m_map.addOrUpdate(m_key, std::move(tmp));
+                return *this;
+            }
 
-				template<typename T>
-				operator T () const
-				{
-					return boost::any_cast<T>(
-							m_map.valueFor(m_key, boost::any()));
-				}
+            template<typename T>
+            operator T () const
+            {
+                return boost::any_cast<T>(
+                            m_map.valueFor(m_key, boost::any()));
+            }
 
-			private:
-				GlobalContextMap& m_map;
-				const std::string& m_key;
-			};
+        private:
+            GlobalContextMap& m_map;
+            const std::string& m_key;
+        };
 
-		public:
-			Global(GlobalContextMap& map) : m_map(map) {}
-			~Global() = default;
-			Global(const Global&) = delete;
-			Global(Global&&) = delete;
+    public:
+        Global(GlobalContextMap& map) : m_map(map) {}
+        ~Global() = default;
+        Global(const Global&) = delete;
+        Global(Global&&) = delete;
 
-			template<typename T>
-			T operator[](const std::string key) const
-			{
-				return boost::any_cast<T>(
-						m_map.valueFor(key, boost::any()));
-			}
+        template<typename T>
+        T operator[](const std::string key) const
+        {
+            return boost::any_cast<T>(
+                        m_map.valueFor(key, boost::any()));
+        }
 
-			Proxy operator[](const std::string& key)
-			{
-				return Proxy(m_map, key);
-			}
+        Proxy operator[](const std::string& key)
+        {
+            return Proxy(m_map, key);
+        }
 
-			bool hasKey(const std::string& key)
-			{
-				return m_map.hasKey(key);
-			}
+        bool hasKey(const std::string& key)
+        {
+            return m_map.hasKey(key);
+        }
 
-			void remove(const std::string& key)
-			{
-				return m_map.remove(key);
-			}
-		};
+        void remove(const std::string& key)
+        {
+            return m_map.remove(key);
+        }
+    };
 
-		Context(GlobalContextMap& map) : global(map) {}
+    Context(GlobalContextMap& map) : global(map) {}
 
-		Local local;
-		Global global;
-	};
+    Local local;
+    Global global;
+};
 }//namespace graft
