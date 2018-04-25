@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.11.0)
 
 project(graft_server)
 
-option(OPT_BUILD_TESTS "Build tests." OFF)
+option(OPT_BUILD_TESTS "Build tests." ON)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
