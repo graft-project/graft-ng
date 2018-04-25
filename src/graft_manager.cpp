@@ -67,7 +67,17 @@ void Manager::onCryptonDone(CryptoNodeSender& cns)
 {
 	cns.get_cr()->onCryptonDone(cns);
 	++m_cntCryptoNodeSenderDone;
-	//cns will be destroyed on exit
+  //cns will be destroyed on exit
+}
+
+void GraftServer::setCryptonodeRPCAddress(const std::string &address)
+{
+    // TODO implement me
+}
+
+void GraftServer::setCryptonodeP2PAddress(const std::string &address)
+{
+    // TODO implement me
 }
 
 }//namespace graft

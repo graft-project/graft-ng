@@ -430,6 +430,16 @@ public:
 		}
 		mg_mgr_free(mgr);
 	}
+   /**
+   * @brief setCryptonodeRpcAddress - setup cryptonode RPC address
+   * @param address - address in IP:port form
+   */
+  void setCryptonodeRPCAddress(const std::string &address);
+  /**
+   * @brief setCryptonodeP2PAddress - setup cryptonode P2P address
+   * @param address - address in IP:port form
+   */
+  void setCryptonodeP2PAddress(const std::string &address);
 
 private:
 	static void ev_handler(mg_connection *client, int ev, void *ev_data)
