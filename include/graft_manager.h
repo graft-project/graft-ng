@@ -79,81 +79,81 @@ tp::MPMCBoundedQueue>;
 class Manager
 {
 public:
-	Manager(Router& router)
-		: m_router(router)
-	{
-		mg_mgr_init(&m_mgr, this, cb_event);
-	}
+    Manager(Router& router)
+        : m_router(router)
+    {
+        mg_mgr_init(&m_mgr, this, cb_event);
+    }
 
-	void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32)
-	{
-		tp::ThreadPoolOptions th_op;
-		th_op.setThreadCount(threadCount);
-		th_op.setQueueSize(workersQueueSize);
-		graft::ThreadPoolX thread_pool(th_op);
+    void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32)
+    {
+        tp::ThreadPoolOptions th_op;
+        th_op.setThreadCount(threadCount);
+        th_op.setQueueSize(workersQueueSize);
+        graft::ThreadPoolX thread_pool(th_op);
 
-		size_t resQueueSize;
-		{//nearest ceiling power of 2
-			size_t val = th_op.threadCount()*th_op.queueSize();
-			size_t bit = 1;
-			for(; bit<val; bit <<= 1);
-			resQueueSize = bit;
-		}
+        size_t resQueueSize;
+        {//nearest ceiling power of 2
+            size_t val = th_op.threadCount()*th_op.queueSize();
+            size_t bit = 1;
+            for(; bit<val; bit <<= 1);
+            resQueueSize = bit;
+        }
 
-		const size_t maxinputSize = th_op.threadCount()*th_op.queueSize();
-		graft::TPResQueue resQueue(resQueueSize);
+        const size_t maxinputSize = th_op.threadCount()*th_op.queueSize();
+        graft::TPResQueue resQueue(resQueueSize);
 
-		setThreadPool(std::move(thread_pool), std::move(resQueue), maxinputSize);
-	}
+        setThreadPool(std::move(thread_pool), std::move(resQueue), maxinputSize);
+    }
 
-	void notifyJobReady()
-	{
-		mg_notify(&m_mgr);
-	}
+    void notifyJobReady()
+    {
+        mg_notify(&m_mgr);
+    }
 
-	void doWork(uint64_t cnt);
+    void doWork(uint64_t cnt);
 
-	void sendCrypton(ClientRequest_ptr cr);
-	void sendToThreadPool(ClientRequest_ptr cr);
+    void sendCrypton(ClientRequest_ptr cr);
+    void sendToThreadPool(ClientRequest_ptr cr);
 
-	////getters
-	mg_mgr* get_mg_mgr() { return &m_mgr; }
-	Router& get_router() { return m_router; }
-	ThreadPoolX& get_threadPool() { return *m_threadPool.get(); }
-	TPResQueue& get_resQueue() { return *m_resQueue.get(); }
-	GlobalContextMap& get_gcm() { return m_gcm; }
+    ////getters
+    mg_mgr* get_mg_mgr() { return &m_mgr; }
+    Router& get_router() { return m_router; }
+    ThreadPoolX& get_threadPool() { return *m_threadPool.get(); }
+    TPResQueue& get_resQueue() { return *m_resQueue.get(); }
+    GlobalContextMap& get_gcm() { return m_gcm; }
 
-	////static functions
-	static void cb_event(mg_mgr* mgr, uint64_t cnt)
-	{
-		Manager::from(mgr)->doWork(cnt);
-	}
+    ////static functions
+    static void cb_event(mg_mgr* mgr, uint64_t cnt)
+    {
+        Manager::from(mgr)->doWork(cnt);
+    }
 
-	static Manager* from(mg_mgr* mgr)
-	{
-		assert(mgr->user_data);
-		return static_cast<Manager*>(mgr->user_data);
-	}
+    static Manager* from(mg_mgr* mgr)
+    {
+        assert(mgr->user_data);
+        return static_cast<Manager*>(mgr->user_data);
+    }
 
-	static Manager* from(mg_connection* cn)
-	{
-		return from(cn->mgr);
-	}
+    static Manager* from(mg_connection* cn)
+    {
+        return from(cn->mgr);
+    }
 
-	////events
-	void onNewClient(ClientRequest_ptr cr)
-	{
-		++m_cntClientRequest;
-		sendToThreadPool(cr);
-	}
-	void onClientDone(ClientRequest_ptr cr)
-	{
-		++m_cntClientRequestDone;
-	}
+    ////events
+    void onNewClient(ClientRequest_ptr cr)
+    {
+        ++m_cntClientRequest;
+        sendToThreadPool(cr);
+    }
+    void onClientDone(ClientRequest_ptr cr)
+    {
+        ++m_cntClientRequestDone;
+    }
 
-	void onJobDone(GJ& gj);
+    void onJobDone(GJ& gj);
 
-	void onCryptonDone(CryptoNodeSender& cns);
+    void onCryptonDone(CryptoNodeSender& cns);
 
 private:
     void setThreadPool(ThreadPoolX&& tp, TPResQueue&& rq, uint64_t m_threadPoolInputSize_)
@@ -166,20 +166,20 @@ private:
     bool tryProcessReadyJob();
     void processReadyJobBlock();
 private:
-	mg_mgr m_mgr;
-	Router& m_router;
-	GlobalContextMap m_gcm;
+    mg_mgr m_mgr;
+    Router& m_router;
+    GlobalContextMap m_gcm;
 
-	uint64_t m_cntClientRequest = 0;
-	uint64_t m_cntClientRequestDone = 0;
-	uint64_t m_cntCryptoNodeSender = 0;
-	uint64_t m_cntCryptoNodeSenderDone = 0;
-	uint64_t m_cntJobSent = 0;
-	uint64_t m_cntJobDone = 0;
+    uint64_t m_cntClientRequest = 0;
+    uint64_t m_cntClientRequestDone = 0;
+    uint64_t m_cntCryptoNodeSender = 0;
+    uint64_t m_cntCryptoNodeSenderDone = 0;
+    uint64_t m_cntJobSent = 0;
+    uint64_t m_cntJobDone = 0;
 
-	uint64_t m_threadPoolInputSize = 0;
-	std::unique_ptr<ThreadPoolX> m_threadPool;
-	std::unique_ptr<TPResQueue> m_resQueue;
+    uint64_t m_threadPoolInputSize = 0;
+    std::unique_ptr<ThreadPoolX> m_threadPool;
+    std::unique_ptr<TPResQueue> m_resQueue;
 public:
     bool exit = false;
 };
@@ -293,101 +293,101 @@ private:
 class ClientRequest : public ItselfHolder<ClientRequest>, public StaticMongooseHandler<ClientRequest>
 {
 private:
-	friend class ItselfHolder<ClientRequest>;
-	ClientRequest(mg_connection *client, Router::JobParams& prms, GlobalContextMap& gcm)
-		: m_prms(prms)
-		, m_client(client)
-		, m_ctx(gcm)
-	{
-	}
+    friend class ItselfHolder<ClientRequest>;
+    ClientRequest(mg_connection *client, Router::JobParams& prms, GlobalContextMap& gcm)
+        : m_prms(prms)
+        , m_client(client)
+        , m_ctx(gcm)
+    {
+    }
 public:
-	void respondToClientAndDie(const std::string& s)
-	{
-		int code;
-		switch(m_status)
-		{
-		case Router::Status::Ok: code = 200; break;
-		case Router::Status::Error: code = 500; break;
-		case Router::Status::Drop: code = 400; break;
-		default: assert(false); break;
-		}
-		mg_http_send_error(m_client, code, s.c_str());
-		m_client->flags |= MG_F_SEND_AND_CLOSE;
-		m_client->handler = static_empty_ev_handler;
-		m_client = nullptr;
-		releaseItself();
-	}
+    void respondToClientAndDie(const std::string& s)
+    {
+        int code;
+        switch(m_status)
+        {
+        case Router::Status::Ok: code = 200; break;
+        case Router::Status::Error: code = 500; break;
+        case Router::Status::Drop: code = 400; break;
+        default: assert(false); break;
+        }
+        mg_http_send_error(m_client, code, s.c_str());
+        m_client->flags |= MG_F_SEND_AND_CLOSE;
+        m_client->handler = static_empty_ev_handler;
+        m_client = nullptr;
+        releaseItself();
+    }
 
-	void createJob(Manager& manager)
-	{
-		if(m_prms.h3.pre)
-		{
-			m_prms.h3.pre(m_prms.vars, m_prms.input, m_ctx, m_output);
-			m_prms.input.assign(m_output);
-		}
-		manager.get_threadPool().post(
-			GJ_ptr( get_itself(), &manager.get_resQueue(), &manager )
-		);
-	}
+    void createJob(Manager& manager)
+    {
+        if(m_prms.h3.pre)
+        {
+            m_prms.h3.pre(m_prms.vars, m_prms.input, m_ctx, m_output);
+            m_prms.input.assign(m_output);
+        }
+        manager.get_threadPool().post(
+                    GJ_ptr( get_itself(), &manager.get_resQueue(), &manager )
+                    );
+    }
 
-	void onJobDone(GJ& gj)
-	{
-		if(Router::Status::Forward == m_status || m_prms.h3.post)
-		{
-			m_prms.input.assign(m_output);
-		}
-		if(m_prms.h3.post)
-		{
-			m_prms.h3.post(m_prms.vars, m_prms.input, m_ctx, m_output);
-			m_prms.input.assign(m_output);
-		}
-		//here you can send a request to cryptonode or send response to client
-		//gj will be destroyed on exit, save its result
-		//now it sends response to client
-		switch(m_status)
-		{
-		case Router::Status::Forward:
-		{
-			assert(m_client);
-			Manager::from(m_client)->sendCrypton(get_itself());
-		} break;
-		case Router::Status::Ok:
-		{
-			respondToClientAndDie("Job done.");
-		} break;
-		case Router::Status::Error:
-		{
-			respondToClientAndDie("Job done with error.");
-		} break;
-		case Router::Status::Drop:
-		{
-			respondToClientAndDie("Job done Drop.");
-		} break;
-		default:
-		{
-			assert(false);
-		} break;
-		}
-	}
+    void onJobDone(GJ& gj)
+    {
+        if(Router::Status::Forward == m_status || m_prms.h3.post)
+        {
+            m_prms.input.assign(m_output);
+        }
+        if(m_prms.h3.post)
+        {
+            m_prms.h3.post(m_prms.vars, m_prms.input, m_ctx, m_output);
+            m_prms.input.assign(m_output);
+        }
+        //here you can send a request to cryptonode or send response to client
+        //gj will be destroyed on exit, save its result
+        //now it sends response to client
+        switch(m_status)
+        {
+        case Router::Status::Forward:
+        {
+            assert(m_client);
+            Manager::from(m_client)->sendCrypton(get_itself());
+        } break;
+        case Router::Status::Ok:
+        {
+            respondToClientAndDie("Job done.");
+        } break;
+        case Router::Status::Error:
+        {
+            respondToClientAndDie("Job done with error.");
+        } break;
+        case Router::Status::Drop:
+        {
+            respondToClientAndDie("Job done Drop.");
+        } break;
+        default:
+        {
+            assert(false);
+        } break;
+        }
+    }
 
-	void onCryptonDone(CryptoNodeSender& cns)
-	{
-		//here you can send a job to the thread pool or send response to client
-		//cns will be destroyed on exit, save its result
-		//now it sends response to client
-		{//now always create a job and put it to the thread pool after CryptoNode
-			//set output of CryptoNode as input for job
-			m_prms.input.assign(cns.get_result());
-			Manager::from(m_client)->sendToThreadPool(get_itself());
-		}
-	}
+    void onCryptonDone(CryptoNodeSender& cns)
+    {
+        //here you can send a job to the thread pool or send response to client
+        //cns will be destroyed on exit, save its result
+        //now it sends response to client
+        {//now always create a job and put it to the thread pool after CryptoNode
+            //set output of CryptoNode as input for job
+            m_prms.input.assign(cns.get_result());
+            Manager::from(m_client)->sendToThreadPool(get_itself());
+        }
+    }
 public:
-	Router::Status& get_statusRef() { return m_status; }
-	const Router::vars_t& get_vars() const { return m_prms.vars; }
-	const Input& get_input() const { return m_prms.input; }
-	Output& get_output() { return m_output; }
-	const Router::Handler3& get_h3() const { return m_prms.h3; }
-	Context& get_ctx() { return m_ctx; }
+    Router::Status& get_statusRef() { return m_status; }
+    const Router::vars_t& get_vars() const { return m_prms.vars; }
+    const Input& get_input() const { return m_prms.input; }
+    Output& get_output() { return m_output; }
+    const Router::Handler3& get_h3() const { return m_prms.h3; }
+    Context& get_ctx() { return m_ctx; }
 private:
     friend class StaticMongooseHandler<ClientRequest>;
     void ev_handler(mg_connection *client, int ev, void *ev_data)
@@ -408,11 +408,11 @@ private:
         }
     }
 private:
-	Router::Status m_status = Router::Status::None;
-	Router::JobParams m_prms;
-	Output m_output;
-	mg_connection *m_client;
-	Context m_ctx;
+    Router::Status m_status = Router::Status::None;
+    Router::JobParams m_prms;
+    Output m_output;
+    mg_connection *m_client;
+    Context m_ctx;
 };
 
 class GraftServer final
@@ -448,44 +448,44 @@ public:
     void setCryptonodeP2PAddress(const std::string &address);
 
 private:
-	static void ev_handler(mg_connection *client, int ev, void *ev_data)
-	{
-		switch (ev)
-		{
-		case MG_EV_HTTP_REQUEST:
-		{
-			struct http_message *hm = (struct http_message *) ev_data;
-			std::string uri(hm->uri.p, hm->uri.len);
-			Manager* manager = Manager::from(client);
-			if(uri == "/root/exit")
-			{
-				manager->exit = true;
-				return;
-			}
-			std::string s_method(hm->method.p, hm->method.len);
-			int method = (s_method == "GET")? METHOD_GET: METHOD_POST;
+    static void ev_handler(mg_connection *client, int ev, void *ev_data)
+    {
+        switch (ev)
+        {
+        case MG_EV_HTTP_REQUEST:
+        {
+            struct http_message *hm = (struct http_message *) ev_data;
+            std::string uri(hm->uri.p, hm->uri.len);
+            Manager* manager = Manager::from(client);
+            if(uri == "/root/exit")
+            {
+                manager->exit = true;
+                return;
+            }
+            std::string s_method(hm->method.p, hm->method.len);
+            int method = (s_method == "GET")? METHOD_GET: METHOD_POST;
 
-			Router& router = manager->get_router();
-			Router::JobParams prms;
-			if(router.match(uri, method, prms))
-			{
-				mg_str& body = hm->body;
-				prms.input.load(body.p, body.len) ;
-				ClientRequest* ptr = ClientRequest::Create(client, prms, manager->get_gcm()).get();
-				client->user_data = ptr;
-				client->handler = ClientRequest::static_ev_handler;
-				manager->onNewClient( ptr->get_itself() );
-			}
-			else
-			{
-				mg_http_send_error(client, 500, "invalid parameter");
-				client->flags |= MG_F_SEND_AND_CLOSE;
-			}
-		} break;
-		default:
-		  break;
-		}
-	}
+            Router& router = manager->get_router();
+            Router::JobParams prms;
+            if(router.match(uri, method, prms))
+            {
+                mg_str& body = hm->body;
+                prms.input.load(body.p, body.len) ;
+                ClientRequest* ptr = ClientRequest::Create(client, prms, manager->get_gcm()).get();
+                client->user_data = ptr;
+                client->handler = ClientRequest::static_ev_handler;
+                manager->onNewClient( ptr->get_itself() );
+            }
+            else
+            {
+                mg_http_send_error(client, 500, "invalid parameter");
+                client->flags |= MG_F_SEND_AND_CLOSE;
+            }
+        } break;
+        default:
+            break;
+        }
+    }
 };
 
 }//namespace graft
