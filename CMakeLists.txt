@@ -154,3 +154,12 @@ if (OPT_BUILD_TESTS)
 
     gtest_discover_tests(graft_server_test)
 endif (OPT_BUILD_TESTS)
+
+
+# copy config file to build directory
+add_custom_command(
+    TARGET graft_server POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/data/config.ini
+        ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
+

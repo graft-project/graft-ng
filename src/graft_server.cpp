@@ -8,17 +8,19 @@
 namespace po = boost::program_options;
 using namespace std;
 
+
 int main(int argc, const char** argv)
 {
     int log_level = 1;
     string config_filename;
 
+
     try {
         po::options_description desc("Allowed options");
         desc.add_options()
                 ("help", "produce help message")
-                ("config-file", po::value<string>(), "config filename (config.ini by default")
-                ("log-level", po::value<int>(), "log-level. 3 by default)");
+                ("config-file", po::value<string>(), "config filename (config.ini by default)")
+                ("log-level", po::value<int>(), "log-level. (3 by default)");
 
         po::variables_map vm;
         po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -57,47 +59,39 @@ int main(int argc, const char** argv)
 
     try {
         boost::property_tree::ini_parser::read_ini(config_filename, config);
-        // -------------------------------- DAPI -------------------------------------------
-        const boost::property_tree::ptree& dapi_conf = config.get_child("dapi");
-        // use DAPI version
-        // supernode::rpc_command::SetDAPIVersion( dapi_conf.get<string>("version") );
+        // now we have only 5 parameters
+        // cryptonode
+        // 1. rpc-address <IP>:<PORT>
+        // 2. p2p-address <IP>:<PORT>
+        // server
+        // 3. address <IP>:<PORT>
+        // 4. workers-count <integer>
+        // 5. worker-queue-len <integer>
+        const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
+        const std::string cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
+        const std::string cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
 
-        // use IP, port and threads
-        // dapi_server.Set( dapi_conf.get<string>("ip"), dapi_conf.get<string>("port"), dapi_conf.get<int>("threads") );
+        const boost::property_tree::ptree& server_conf = config.get_child("server");
+        const std::string server_address = server_conf.get<string>("address");
+        const int workers_count = server_conf.get<int>("workers-count");
+        const int worker_queue_len = server_conf.get<int>("worker-queue-len");
 
-        // use wallet_proxy_only
-        // supernode::rpc_command::SetWalletProxyOnly( dapi_conf.get<int>("wallet_proxy_only", 0)==1 );
+        // TODO configure router
+        graft::Router router;
+        graft::Manager manager(router);
+        graft::GraftServer server;
 
+        // TODO interfaces to setup workers_count and worker_queue_len
 
-
-        // -------------------------------- Servant -----------------------------------------
-
-        const boost::property_tree::ptree& cf_ser = config.get_child("servant");
-        // use "bdb_path", "daemon_addr"
-        // supernode::FSN_Servant* servant = new supernode::FSN_Servant_Test( cf_ser.get<string>("bdb_path"), cf_ser.get<string>("daemon_addr"), "", cf_ser.get<bool>("is_testnet") );
-//        if( !supernode::rpc_command::IsWalletProxyOnly() ) {
-//          servant->Set( cf_ser.get<string>("stake_wallet_path"), "", cf_ser.get<string>("miner_wallet_path"), "");
-//          // TODO: Remove next code, it only for testing
-//          const boost::property_tree::ptree& fsn_hardcoded = config.get_child("fsn_hardcoded");
-//          for(unsigned i=1;i<10000;i++) {
-//            string key = string("data")+boost::lexical_cast<string>(i);
-//            string val = fsn_hardcoded.get<string>(key, "");
-//            if(val=="") break;
-//            vector<string> vv = supernode::helpers::StrTok(val, ":");
-
-//            servant->AddFsnAccount(boost::make_shared<supernode::FSN_Data>(supernode::FSN_WalletData{vv[2], vv[3]}, supernode::FSN_WalletData{vv[4], vv[5]}, vv[0], vv[1]));
-//          }
-//          // TODO: end
-//        }//if wallet proxy only
-
+        // setup cryptonode connection params
+        server.setCryptonodeP2PAddress(cryptonode_p2p_address);
+        server.setCryptonodeRPCAddress(cryptonode_rpc_address);
+        server.serve(manager.get_mg_mgr(), server_address.c_str());
 
     } catch (const std::exception & e) {
-        // LOG_ERROR("exception thrown: " << e.what());
+        std::cerr << "Exception thrown: " << e.what() << std::endl;
         return -1;
     }
-    // TODO: start app here
-
 
     return 0;
 }
-
