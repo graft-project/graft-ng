@@ -3,7 +3,7 @@
 namespace graft {
 
 #ifdef OPT_BUILD_TESTS
-std::atomic_bool GraftServer::ready {false};
+std::atomic_bool GraftServer::ready;
 #endif
 
 

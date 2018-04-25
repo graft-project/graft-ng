@@ -10,6 +10,7 @@
 
 #include "r3.h"
 #include "inout.h"
+#include "context.h"
 
 namespace graft {
 
@@ -27,8 +28,8 @@ public:
     };
 
 public:
-    using vars_t = std::vector<std::pair<std::string, std::string>>;
-    using Handler = std::function<Status (const vars_t&, const In& , Out& ) >;
+	using vars_t = std::vector<std::pair<std::string, std::string>>;
+	using Handler = std::function<Status (const vars_t&, const In&, Context&, Out& ) >;
 
 public:
     struct Handler3

@@ -36,22 +36,23 @@ public:
         return *this;
     }
 
-    //main payload
-    virtual void operator () ()
-    {
-        {
-            decltype(auto) status_ref = m_cr->get_statusRef();
-            decltype(auto) vars_cref = m_cr->get_vars();
-            decltype(auto) input_cref = m_cr->get_input();
-            decltype(auto) output_ref = m_cr->get_output();
-            decltype(auto) h3_ref = m_cr->get_h3();
+	//main payload
+	virtual void operator () ()
+	{
+		{
+			decltype(auto) status_ref = m_cr->get_statusRef();
+			decltype(auto) vars_cref = m_cr->get_vars();
+			decltype(auto) input_cref = m_cr->get_input();
+			decltype(auto) output_ref = m_cr->get_output();
+			decltype(auto) h3_ref = m_cr->get_h3();
+			decltype(auto) ctx = m_cr->get_ctx();
 
-            status_ref = h3_ref.peri(vars_cref, input_cref, output_ref);
-        }
-        Watcher* save_m_watcher = m_watcher; //save m_watcher before move itself into resulting queue
-        m_rq->push(std::move(*this)); //similar to "delete this;"
-        save_m_watcher->notifyJobReady();
-    }
+			status_ref = h3_ref.peri(vars_cref, input_cref, ctx, output_ref);
+		}
+		Watcher* save_m_watcher = m_watcher; //save m_watcher before move itself into resulting queue
+		m_rq->push(std::move(*this)); //similar to "delete this;"
+		save_m_watcher->notifyJobReady();
+	}
 
     CR_ptr& get_cr() { return m_cr; }
 protected:

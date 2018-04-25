@@ -26,7 +26,7 @@ TEST(InOut, common)
     EXPECT_EQ(std::string(t.first, t.second), "def");
 }
 
-TEST(Context, common)
+TEST(Context, simple)
 {
     graft::GlobalContextMap m;
     graft::Context ctx(m);
@@ -81,84 +81,127 @@ TEST(Context, common)
 #endif
 }
 
+TEST(Context, stress)
+{
+	graft::GlobalContextMap m;
+	graft::Context ctx(m);
+	std::vector<std::string> v_keys;
+	{
+		const char keys[] = "abcdefghijklmnopqrstuvwxyz";
+		const int keys_cnt = sizeof(keys)/sizeof(keys[0]);
+		for(int i = 0; i< keys_cnt; ++i)
+		{
+			char ch1 = keys[(5*i)%keys_cnt], ch2 = keys[(5*i+7)%keys_cnt];
+			std::string key(1, ch1); key += ch2;
+			v_keys.push_back(key);
+			ctx.global[key] = key;
+			ctx.local[key] = key;
+		}
+	}
+	std::for_each(v_keys.rbegin(), v_keys.rend(), [&](auto& key)
+	{
+		std::string sg = ctx.global[key];
+		std::string sl = ctx.local[key];
+		EXPECT_EQ( sg, key );
+		EXPECT_EQ( sl, key );
+	});
+	for(int i = 0; i < v_keys.size(); i += 2)
+	{
+		auto it = v_keys.begin() + i;
+		std::string& key = *it;
+		ctx.global.remove(key);
+//		ctx.local.remove(key);
+		EXPECT_EQ( false, ctx.global.hasKey(key) );
+//		EXPECT_EQ( false, ctx.local.hasKey(key) );
+		v_keys.erase(it);
+	}
+	std::for_each(v_keys.begin(), v_keys.end(), [&](auto& key)
+	{
+		std::string sg = ctx.global[key];
+		std::string sl = ctx.local[key];
+		EXPECT_EQ( sg, key );
+		EXPECT_EQ( sl, key );
+	});
+}
+
 /////////////////////////////////
 // GraftServerTest fixture
 
 class GraftServerTest : public ::testing::Test
 {
 public:
-    static std::string iocheck;
-    static std::deque<graft::Router::Status> res_que_peri;
-    static graft::Router::Handler3 h3_test;
-    static std::thread t_CN;
-    static std::thread t_srv;
-    static bool run_server_ready;
+	static std::string iocheck;
+	static bool skip_ctx_check;
+	static std::deque<graft::Router::Status> res_que_peri;
+	static graft::Router::Handler3 h3_test;
+	static std::thread t_CN;
+	static std::thread t_srv;
+	static bool run_server_ready;
 
     const std::string uri_base = "http://localhost:9084";
     const std::string uri = "/root/r55";
 
 private:
-    //Server to simulate CryptoNode (its object is created in non-main thread)
-    class TempCryptoNodeServer
-    {
-    public:
-        static void run()
-        {
-            mg_mgr mgr;
-            mg_mgr_init(&mgr, NULL, 0);
-            mg_connection *nc = mg_bind(&mgr, "1234", ev_handler);
-            ready = true;
-            for (;;) {
-                mg_mgr_poll(&mgr, 1000);
-                if(stop) break;
-            }
-            mg_mgr_free(&mgr);
-        }
-    private:
-        static void ev_handler(mg_connection *client, int ev, void *ev_data)
-        {
-            switch (ev)
-            {
-            case MG_EV_RECV:
-            {
-                std::string data;
-                bool ok = graft::CryptoNodeSender::help_recv_pstring(client, ev_data, data);
-                if(!ok) break;
-                EXPECT_EQ(data, iocheck);
-                data += '4';
-                iocheck = data;
+	//Server to simulate CryptoNode (its object is created in non-main thread)
+	class TempCryptoNodeServer
+	{
+	public:
+		static void run()
+		{
+			mg_mgr mgr;
+			mg_mgr_init(&mgr, NULL, 0);
+			mg_connection *nc = mg_bind(&mgr, "1234", ev_handler);
+			ready = true;
+			for (;;) {
+			  mg_mgr_poll(&mgr, 1000);
+			  if(stop) break;
+			}
+			mg_mgr_free(&mgr);
+		}
+	private:
+		static void ev_handler(mg_connection *client, int ev, void *ev_data)
+		{
+			switch (ev)
+			{
+			case MG_EV_RECV:
+			{
+				std::string data;
+				bool ok = graft::CryptoNodeSender::help_recv_pstring(client, ev_data, data);
+				if(!ok) break;
+				EXPECT_EQ(data, iocheck);
+				iocheck = data += '4'; skip_ctx_check = true;
 
-                graft::CryptoNodeSender::help_send_pstring(client, data);
-                client->flags |= MG_F_SEND_AND_CLOSE;
-            } break;
-            default:
-                break;
-            }
-        }
-    public:
-        static bool ready;
-        static bool stop;
-    };
+				graft::CryptoNodeSender::help_send_pstring(client, data);
+				client->flags |= MG_F_SEND_AND_CLOSE;
+			} break;
+			default:
+			  break;
+			}
+		}
+	public:
+		static bool ready;
+		static bool stop;
+	};
 
-    //prepare and run GraftServer (it is called in non-main thread)
-    static void run_server()
-    {
-        assert(h3_test.peri);
-        graft::Router router;
-        {
-            static graft::Router::Handler3 p(h3_test);
-            router.addRoute("/root/r{id:\\d+}", METHOD_GET, &p);
-            router.addRoute("/root/r{id:\\d+}", METHOD_POST, &p);
-            router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, &p);
-            bool res = router.arm();
-            EXPECT_EQ(res, true);
-        }
-        graft::Manager manager(router);
+	//prepare and run GraftServer (it is called in non-main thread)
+	static void run_server()
+	{
+		assert(h3_test.peri);
+		graft::Router router;
+		{
+			static graft::Router::Handler3 p(h3_test);
+			router.addRoute("/root/r{id:\\d+}", METHOD_GET, &p);
+			router.addRoute("/root/r{id:\\d+}", METHOD_POST, &p);
+			router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, &p);
+			bool res = router.arm();
+			EXPECT_EQ(res, true);
+		}
+		graft::Manager manager(router);
 
-        manager.initThreadPool();
-        graft::GraftServer gs;
-        gs.serve(manager.get_mg_mgr(),"9084");
-    }
+		manager.initThreadPool();
+		graft::GraftServer gs;
+		gs.serve(manager.get_mg_mgr(),"9084");
+	}
 
 public:
     //http client (its objects are created in the main thread)
@@ -250,70 +293,103 @@ public:
     }
 
 protected:
-    static void SetUpTestCase()
-    {
-        auto pre = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Output& output)->graft::Router::Status
-        {
-            std::string in = input.get();
-            EXPECT_EQ(in, iocheck);
-            iocheck = in + '1';
-            output.load(iocheck);
-            return graft::Router::Status::Ok;
-        };
-        auto peri = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Output& output)->graft::Router::Status
-        {
-            std::string in = input.get();
-            EXPECT_EQ(in, iocheck);
-            graft::Router::Status res = graft::Router::Status::Ok;
-            if(!res_que_peri.empty())
-            {
-                res = res_que_peri.front();
-                res_que_peri.pop_front();
-            }
-            iocheck = in + '2';
-            output.load(iocheck);
-            return res;
-        };
-        auto post = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Output& output)->graft::Router::Status
-        {
-            std::string in = input.get();
-            EXPECT_EQ(in, iocheck);
-            iocheck = in + '3';
-            output.load(iocheck);
-            return graft::Router::Status::Ok;
-        };
+	static void SetUpTestCase()
+	{
+		auto check_ctx = [](auto& ctx, auto& in)
+		{
+			if(in == "" || skip_ctx_check)
+			{
+				skip_ctx_check = false;
+				return;
+			}
+			bool bg = ctx.global.hasKey(in);
+			bool bl = ctx.local.hasKey(in);
+			EXPECT_EQ(true, bg);
+			EXPECT_EQ(true, bl);
+			if(bg)
+			{
+				std::string s = ctx.global[in];
+				EXPECT_EQ(s, in);
+			}
+			if(bl)
+			{
+				std::string s = ctx.local[in];
+				EXPECT_EQ(s, in);
+			}
+		};
 
-        h3_test = graft::Router::Handler3(pre, peri, post);
+		auto pre = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
+		{
+			std::string in = input.get();
+			EXPECT_EQ(in, iocheck);
+			check_ctx(ctx, in);
+			iocheck = in + '1';
+			output.load(iocheck);
+			ctx.global[iocheck] = iocheck;
+			ctx.local[iocheck] = iocheck;
+			return graft::Router::Status::Ok;
+		};
+		auto peri = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
+		{
+			std::string in = input.get();
+			EXPECT_EQ(in, iocheck);
+			check_ctx(ctx, in);
+			graft::Router::Status res = graft::Router::Status::Ok;
+			if(!res_que_peri.empty())
+			{
+				res = res_que_peri.front();
+				res_que_peri.pop_front();
+			}
+			iocheck = in + '2';
+			output.load(iocheck);
+			ctx.global[iocheck] = iocheck;
+			ctx.local[iocheck] = iocheck;
+			return res;
+		};
+		auto post = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
+		{
+			std::string in = input.get();
+			EXPECT_EQ(in, iocheck);
+			check_ctx(ctx, in);
+			iocheck = in + '3';
+			output.load(iocheck);
+			ctx.global[iocheck] = iocheck;
+			ctx.local[iocheck] = iocheck;
+			return graft::Router::Status::Ok;
+		};
 
-        t_CN = std::thread([]{ TempCryptoNodeServer::run(); });
-        t_srv = std::thread([]{ run_server(); });
+		h3_test = graft::Router::Handler3(pre, peri, post);
 
-        while(!TempCryptoNodeServer::ready || !graft::GraftServer::ready)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-    }
+		t_CN = std::thread([]{ TempCryptoNodeServer::run(); });
+		t_srv = std::thread([]{ run_server(); });
 
-    static void TearDownTestCase()
-    {
-        {
-            Client client;
-            client.serve("http://localhost:9084/root/exit");
-        }
-        TempCryptoNodeServer::stop = true;
+		while(!TempCryptoNodeServer::ready || !graft::GraftServer::ready)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+	}
 
-        t_srv.join();
-        t_CN.join();
-    }
+	static void TearDownTestCase()
+	{
+		{
+			Client client;
+			client.serve("http://localhost:9084/root/exit");
+		}
+		TempCryptoNodeServer::stop = true;
 
-    virtual void SetUp() override
-    { }
-    virtual void TearDown() override
-    { }
+		t_srv.join();
+		t_CN.join();
+	}
+
+	virtual void SetUp() override
+	{ }
+	virtual void TearDown() override
+	{ }
 
 };
 
 std::string GraftServerTest::iocheck;
+bool GraftServerTest::skip_ctx_check = false;
 std::deque<graft::Router::Status> GraftServerTest::res_que_peri;
 graft::Router::Handler3 GraftServerTest::h3_test;
 std::thread GraftServerTest::t_CN;
@@ -326,56 +402,56 @@ bool GraftServerTest::TempCryptoNodeServer::stop = false;
 
 TEST_F(GraftServerTest, GETtp)
 {//GET -> threadPool
-    iocheck = "";
-    Client client;
-    client.serve((uri_base+uri).c_str());
-    std::string res = client.get_body();
-    EXPECT_EQ("Job done.", res);
-    EXPECT_EQ("123", iocheck);
+	iocheck = ""; skip_ctx_check = true;
+	Client client;
+	client.serve((uri_base+uri).c_str());
+	std::string res = client.get_body();
+	EXPECT_EQ("Job done.", res);
+	EXPECT_EQ("123", iocheck);
 }
 
 TEST_F(GraftServerTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
-    iocheck = "";
-    res_que_peri.clear();
-    res_que_peri.push_back(graft::Router::Status::Forward);
-    res_que_peri.push_back(graft::Router::Status::Ok);
-    Client client;
-    client.serve((uri_base+uri).c_str());
-    std::string res = client.get_body();
-    EXPECT_EQ("Job done.", res);
-    EXPECT_EQ("1234123", iocheck);
+	iocheck = ""; skip_ctx_check = true;
+	res_que_peri.clear();
+	res_que_peri.push_back(graft::Router::Status::Forward);
+	res_que_peri.push_back(graft::Router::Status::Ok);
+	Client client;
+	client.serve((uri_base+uri).c_str());
+	std::string res = client.get_body();
+	EXPECT_EQ("Job done.", res);
+	EXPECT_EQ("1234123", iocheck);
 }
 
 TEST_F(GraftServerTest, clPOSTtp)
 {//POST cmdline -> threadPool
-    std::string body = "input body";
-    iocheck = body;
-    {
-        std::ostringstream s;
-        s << "curl --data \"" << body << "\" " << (uri_base+uri);
-        std::string ss = s.str();
-        std::string res = run_cmdline_read(ss.c_str());
-        EXPECT_EQ("Job done.", res);
-        EXPECT_EQ(body + "123", iocheck);
-    }
+	std::string body = "input body";
+	iocheck = body; skip_ctx_check = true;
+	{
+		std::ostringstream s;
+		s << "curl --data \"" << body << "\" " << (uri_base+uri);
+		std::string ss = s.str();
+		std::string res = run_cmdline_read(ss.c_str());
+		EXPECT_EQ("Job done.", res);
+		EXPECT_EQ(body + "123", iocheck);
+	}
 }
 
 TEST_F(GraftServerTest, clPOSTtpCNtp)
 {//POST cmdline -> threadPool -> CryptoNode -> threadPool
-    std::string body = "input body";
-    iocheck = body;
-    res_que_peri.clear();
-    res_que_peri.push_back(graft::Router::Status::Forward);
-    res_que_peri.push_back(graft::Router::Status::Ok);
-    {
-        std::ostringstream s;
-        s << "curl --data \"" << body << "\" " << (uri_base+uri);
-        std::string ss = s.str();
-        std::string res = run_cmdline_read(ss.c_str());
-        EXPECT_EQ("Job done.", res);
-        EXPECT_EQ(body + "1234123", iocheck);
-    }
+	std::string body = "input body";
+	iocheck = body; skip_ctx_check = true;
+	res_que_peri.clear();
+	res_que_peri.push_back(graft::Router::Status::Forward);
+	res_que_peri.push_back(graft::Router::Status::Ok);
+	{
+		std::ostringstream s;
+		s << "curl --data \"" << body << "\" " << (uri_base+uri);
+		std::string ss = s.str();
+		std::string res = run_cmdline_read(ss.c_str());
+		EXPECT_EQ("Job done.", res);
+		EXPECT_EQ(body + "1234123", iocheck);
+	}
 }
 
 /* TODO: crash on this
