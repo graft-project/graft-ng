@@ -88,7 +88,7 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 add_executable(graft_server
     ${GS_SOURCES}
-    ${PROJECT_SOURCE_DIR}/src/graft_server.cpp
+    ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
 
 target_include_directories(graft_server PRIVATE
