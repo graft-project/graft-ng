@@ -24,7 +24,7 @@ namespace graft
 		node head;
 
 	public:
-		using func = std::function<bool(T const &)>;
+		using func = std::function<bool(T&)>;
 
 		TSList() {}
 		~TSList()
@@ -78,6 +78,23 @@ namespace graft
 			return std::shared_ptr<T>();
 		}
 
+		bool findAndApplyFirstOf(func p, func f)
+		{
+			node const *current = &head;
+			std::unique_lock<std::mutex> lk(head.m);
+			while (node* const next = current->next.get())
+			{
+				std::unique_lock<std::mutex> next_lk(next->m);
+				lk.unlock();
+				if (p(*next->data))
+				{
+					return f(*next->data);
+				}
+				current = next;
+				lk = std::move(next_lk);
+			}
+			return false;
+		}
 		void removeIf(func p)
 		{
 			node *current = &head;
@@ -152,6 +169,16 @@ namespace graft
 				BucketPtr const found_entry = findEntryFor(key);
 				return (found_entry != nullptr);
 			}
+
+			bool applyFor(Key const& key, std::function<bool(Value&)> f)
+			{
+				return m_data.findAndApplyFirstOf(
+					[&](BucketValue const& item)
+						{return item.first == key;},
+					[&](BucketValue& item)
+						{return f(item.second);}
+				);
+			}
 		};
 
 		std::vector<std::unique_ptr<BucketType>> m_buckets;
@@ -192,6 +219,11 @@ namespace graft
 		bool hasKey(Key const& key) const
 		{
 			return getBucket(key).hasKey(key);
+		}
+
+		bool apply(Key const& key, std::function<bool(Value&)> f)
+		{
+			return getBucket(key).applyFor(key, f);
 		}
 	};
 }
