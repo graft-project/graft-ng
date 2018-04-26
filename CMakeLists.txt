@@ -18,17 +18,18 @@ set(ExternalProjectCMakeArgs
     -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/BUILD
     )
 
-#ExternalProject_Add(
-#    cryptonode
-#    DOWNLOAD_COMMAND git submodule update --recursive
-#    DOWNLOAD_DIR ${PROJECT_SOURCE_DIR}
-#    SOURCE_DIR ${PROJECT_SOURCE_DIR}/modules/cryptonode
-#    BINARY_DIR ${PROJECT_BINARY_DIR}/BUILD/cryptonode
-#    STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
-#    TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
-#    INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-#    CMAKE_ARGS ${ExternalProjectCMakeArgs}
-#)
+ExternalProject_Add(
+    cryptonode
+    DOWNLOAD_COMMAND git submodule update --recursive
+    DOWNLOAD_DIR ${PROJECT_SOURCE_DIR}
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/modules/cryptonode
+    BINARY_DIR ${PROJECT_BINARY_DIR}/BUILD/cryptonode
+    STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
+    TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
+    INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DBUILD_SHARED_LIBS=OFF
+    #CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DBUILD_GUI_DEPS=ON
+)
 
 ExternalProject_Add(
     libr3
