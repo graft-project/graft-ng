@@ -86,6 +86,12 @@ elseif(Boost_FOUND)
 endif()
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+# cryptonode dependencies
+# TODO: modify cryptonode CMakeLists.txt so it installs all required headers/libs
+include_directories(${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include)
+include_directories(${PROJECT_SOURCE_DIR}/modules/cryptonode/external/easylogging++)
+link_directories(${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src)
+link_directories(${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++)
 
 add_executable(graft_server
     ${GS_SOURCES}
@@ -97,6 +103,8 @@ target_include_directories(graft_server PRIVATE
     )
 
 target_link_libraries(graft_server PRIVATE
+    epee
+    easylogging
     ${GS_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}

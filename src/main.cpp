@@ -1,5 +1,6 @@
 #include "graft_manager.h"
 
+#include <misc_log_ex.h>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 // #include <boost/tokenizer.hpp>
@@ -45,7 +46,8 @@ int main(int argc, const char** argv)
     catch(...) {
         cerr << "Exception of unknown type!\n";
     }
-
+    mlog_configure("", true);
+    mlog_set_log_level(log_level);
     // load config
     boost::property_tree::ptree config;
     namespace fs = boost::filesystem;
@@ -86,6 +88,8 @@ int main(int argc, const char** argv)
         // setup cryptonode connection params
         server.setCryptonodeP2PAddress(cryptonode_p2p_address);
         server.setCryptonodeRPCAddress(cryptonode_rpc_address);
+
+        LOG_PRINT_L0("Starting server on " << server_address);
         server.serve(manager.get_mg_mgr(), server_address.c_str());
 
     } catch (const std::exception & e) {
