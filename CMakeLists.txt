@@ -164,7 +164,7 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_SYSTEM_LIBRARY}
     )
 
-add_dependencies(graft_server libr3)
+add_dependencies(graft_server libr3 cryptonode)
 
 ##################
 ### tests section
