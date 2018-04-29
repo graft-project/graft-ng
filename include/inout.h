@@ -92,6 +92,5 @@ namespace graft
 
 	using Input = InJson;
 	using Output = OutJson;
-
 } //namespace graft
 
