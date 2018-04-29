@@ -15,6 +15,7 @@
 | automake       | any           | `automake`         |                | NO       | libr3 dependency |
 | check          | any           | `check`            |                | NO       | libr3 dependency |
 | PCRE3          | any           | `libpcre3-dev`     |                | NO       | libr3 dependency |
+| RapidJson      | 1.1.0         | `rapidjson-dev'    |                | NO       |                  |
 
 [^] Some Debian/Ubuntu versions (for example, Ubuntu 16.04) don't support CMake 3.11.0 from the package. To install it manually see **Install non-standard dependencies** bellow.
 
