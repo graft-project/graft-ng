@@ -6,9 +6,49 @@
 #include <tuple>
 #include <boost/hana.hpp>
 
-#include "json.hpp"
+#include "reflective-rapidjson/reflector-boosthana.h"
+#include "reflective-rapidjson/serializable.h"
+#include "reflective-rapidjson/types.h"
 
-namespace hana = boost::hana;
+#define GRAFT_DEFINE_IO_STRUCT(__S__, ...)              \
+	struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> \
+		{BOOST_HANA_DEFINE_STRUCT(__S__, __VA_ARGS__);}
+
+/*
+ *  Mapping of supported C++ types to supported JSON types
+ *  ========================================================================
+ *                           C++ type                        |  JSON type
+ *  ---------------------------------------------------------+--------------
+ *   custom structures/classes                               | object
+ *   bool                                                    | true/false
+ *   signed and unsigned integral types                      | number
+ *   float and double                                        | number
+ *   enum and enum class                                     | number
+ *   std::string                                             | string
+ *   const char *                                            | string
+ *   iteratable lists (std::vector, std::list, ...)          | array
+ *   sets (std::set, std::unordered_set, std::multiset, ...) | array
+ *   std::tuple                                              | array
+ *   std::unique_ptr, std::shared_ptr                        | depends/null
+ *   std::map, std::unordered_map                            | object
+ *   JsonSerializable                                        | object
+ *  ---------------------------------------------------------+--------------
+ *
+ *  Example of structure definitions:
+ *  =================================
+ *
+ *  GRAFT_DEFINE_IO_STRUCT(Payment,
+ *      (uint64, amount),
+ *      (uint32, block_height),
+ *      (std::string, payment_id),
+ *      (std::string, tx_hash),
+ *      (uint32, unlock_time)
+ * );
+ *
+ * GRAFT_DEFINE_IO_STRUCT(Payments,
+ *     (std::vector<Payment>, payments)
+ * );
+ */
 
 namespace graft 
 {
@@ -18,7 +58,7 @@ namespace graft
 		template <typename T>
 		void load(const T& out)
 		{
-			m_buf.assign(json::to_json(out));
+			m_buf.assign(out.toJson().GetString());
 		}
 
 		std::pair<const char *, size_t> get() const
@@ -35,9 +75,7 @@ namespace graft
 		template <typename T>
 		T get() const
 		{
-			std::istringstream iss;
-			iss.str(m_buf);
-			return json::from_json<T>(iss);
+			return T::fromJson(m_buf);
 		}
 
 		void load(const char *buf, size_t size) { m_buf.assign(buf, buf + size); }
@@ -56,31 +94,4 @@ namespace graft
 	using Output = OutJson;
 
 } //namespace graft
-
-#if 0
-#include <iostream>
-
-int main()
-{
-	struct Test {
-		BOOST_HANA_DEFINE_STRUCT(Test,
-			(std::string, name),
-			(int, id)
-		);
-	};
-
-	graft::InJson in;
-	graft::OutJson out;
-	std::string ts = "{\"name\": \"aaa\", \"id\": 123}";
-
-	in.load(ts.c_str(), ts.length());
-	auto t = in.get<Test>();
-
-	std::cout << "t.name = " << t.name << "; t.id = " << t.id << std::endl;
-
-	out.load(t);
-
-	std::cout << out.get().first << std::endl;
-}
-#endif
 
