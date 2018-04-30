@@ -131,6 +131,98 @@ TEST(Context, stress)
     });
 }
 
+TEST(Context, multithreaded)
+{
+    graft::GlobalContextMap m;
+    std::vector<std::string> v_keys;
+    {//init global
+        graft::Context ctx(m);
+        const char keys[] = "abcdefghijklmnopqrstuvwxyz";
+        const int keys_cnt = sizeof(keys)/sizeof(keys[0]);
+        for(int i = 0; i< keys_cnt; ++i)
+        {
+            char ch1 = keys[(5*i)%keys_cnt], ch2 = keys[(5*i+7)%keys_cnt];
+            std::string key(1, ch1); key += ch2;
+            v_keys.push_back(key);
+            ctx.global[key] = (uint64_t)0;
+        }
+    }
+
+    std::atomic<uint64_t> g_count(0);
+    std::function<bool(uint64_t&)> f = [](uint64_t& v)->bool { ++v; return true; };
+    int pass_cnt;
+    {//get pass count so that overall will take about 100 ms
+        graft::Context ctx(m);
+        auto begin = std::chrono::high_resolution_clock::now();
+        std::for_each(v_keys.begin(), v_keys.end(), [&] (auto& key)
+        {
+            ctx.global.apply(key, f);
+            ++g_count;
+        });
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::high_resolution_clock::duration d = std::chrono::milliseconds(100);
+        pass_cnt = d.count() / (end - begin).count();
+    }
+
+    //forward and backward passes
+    bool stop = false;
+
+    auto f_f = [&] ()
+    {
+        graft::Context ctx(m);
+        int cnt = 0;
+        for(int i=0; i<pass_cnt; ++i)
+        {
+            std::for_each(v_keys.begin(), v_keys.end(), [&] (auto& key)
+            {
+                while(!stop && cnt == g_count);
+                ctx.global.apply(key, f);
+                cnt = ++g_count;
+            });
+        }
+        stop = true;
+    };
+    auto f_b = [&] ()
+    {
+        graft::Context ctx(m);
+        int cnt = 0;
+        for(int i=0; i<pass_cnt; ++i)
+        {
+            std::for_each(v_keys.rbegin(), v_keys.rend(), [&] (auto& key)
+            {
+                while(!stop && cnt == g_count);
+                ctx.global.apply(key, f);
+                cnt = ++g_count;
+            });
+        }
+        stop = true;
+    };
+
+    std::thread tf(f_f);
+    std::thread tb(f_b);
+
+    int main_count = 0;
+    while( !stop )
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        ++g_count;
+        ++main_count;
+    }
+    tf.join();
+    tb.join();
+
+    uint64_t sum = 0;
+    {
+        graft::Context ctx(m);
+        std::for_each(v_keys.begin(), v_keys.end(), [&] (auto& key)
+        {
+            uint64_t v = ctx.global[key];
+            sum += v;
+        });
+    }
+    EXPECT_EQ(sum, g_count-main_count);
+}
+
 /////////////////////////////////
 // GraftServerTest fixture
 
