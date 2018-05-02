@@ -309,7 +309,7 @@ void GraftServer::setCryptonodeP2PAddress(const std::string &address)
     // TODO implement me
 }
 
-int GraftServer::methodFromString(std::string& method)
+int GraftServer::methodFromString(const std::string& method)
 {
 #define _M(x) std::make_pair(#x, METHOD_##x)
     static const std::pair<std::string, int> methods[] = {
