@@ -1,65 +1,96 @@
 #pragma once
 
 #include <utility>
-#include <iostream>
+#include <string>
 #include <vector>
 #include <tuple>
+#include <boost/hana.hpp>
+
+#include "reflective-rapidjson/reflector-boosthana.h"
+#include "reflective-rapidjson/serializable.h"
+#include "reflective-rapidjson/types.h"
+
+#define GRAFT_DEFINE_IO_STRUCT(__S__, ...)              \
+	struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> \
+		{BOOST_HANA_DEFINE_STRUCT(__S__, __VA_ARGS__);}
+
+/*
+ *  Mapping of supported C++ types to supported JSON types
+ *  ========================================================================
+ *                           C++ type                        |  JSON type
+ *  ---------------------------------------------------------+--------------
+ *   custom structures/classes                               | object
+ *   bool                                                    | true/false
+ *   signed and unsigned integral types                      | number
+ *   float and double                                        | number
+ *   enum and enum class                                     | number
+ *   std::string                                             | string
+ *   const char *                                            | string
+ *   iteratable lists (std::vector, std::list, ...)          | array
+ *   sets (std::set, std::unordered_set, std::multiset, ...) | array
+ *   std::tuple                                              | array
+ *   std::unique_ptr, std::shared_ptr                        | depends/null
+ *   std::map, std::unordered_map                            | object
+ *   JsonSerializable                                        | object
+ *  ---------------------------------------------------------+--------------
+ *
+ *  Example of structure definitions:
+ *  =================================
+ *
+ *  GRAFT_DEFINE_IO_STRUCT(Payment,
+ *      (uint64, amount),
+ *      (uint32, block_height),
+ *      (std::string, payment_id),
+ *      (std::string, tx_hash),
+ *      (uint32, unlock_time)
+ * );
+ *
+ * GRAFT_DEFINE_IO_STRUCT(Payments,
+ *     (std::vector<Payment>, payments)
+ * );
+ */
 
 namespace graft 
 {
-template <typename T>
-class Out
-{
-public:
-    Out() = default;
-    virtual void load(const T& out) = 0;
-    std::pair<const char *, size_t> get() const
-    {
-        return std::make_pair(m_v.data(), m_v.size());
-    }
-protected:
-    std::vector<char> m_v;
-};
+	class OutJson
+	{
+	public:
+		template <typename T>
+		void load(const T& out)
+		{
+			m_buf.assign(out.toJson().GetString());
+		}
 
-class OutString : public Out<std::string>
-{
-public:
-    using Out<std::string>::Out;
-    void load(const std::string& out)
-    {
-        m_v.clear();
-        std::copy(out.begin(), out.end(), std::back_inserter(m_v));
-    }
-};
+		std::pair<const char *, size_t> get() const
+		{
+			return std::make_pair(m_buf.c_str(), m_buf.length());
+		}
+	private:
+		std::string m_buf;
+	};
 
-template <typename T>
-class In
-{
-public:
-    void load(const char *buf, size_t size) { m_v.assign(buf, buf + size); }
-    virtual T get() const = 0;
+	class InJson
+	{
+	public:
+		template <typename T>
+		T get() const
+		{
+			return T::fromJson(m_buf);
+		}
 
-    void assign(const Out<T>& o)
-    {
-        const char *buf; size_t size;
-        std::tie(buf, size) = o.get();
-        load(buf, size);
-    }
-protected:
-    std::vector<char> m_v;
-};
+		void load(const char *buf, size_t size) { m_buf.assign(buf, buf + size); }
 
-class InString : public In<std::string>
-{
-public:
-    std::string get() const
-    {
-        return std::string(m_v.begin(), m_v.end());
-    }
+		void assign(const OutJson& o)
+		{
+			const char *buf; size_t size;
+			std::tie(buf, size) = o.get();
+			load(buf, size);
+		}
+	private:
+		std::string m_buf;
+	};
 
-};
-
-using Input = InString;
-using Output = OutString;
-
+	using Input = InJson;
+	using Output = OutJson;
 } //namespace graft
+
