@@ -52,45 +52,45 @@
 
 namespace graft 
 {
-	class OutJson
-	{
-	public:
-		template <typename T>
-		void load(const T& out)
-		{
-			m_buf.assign(out.toJson().GetString());
-		}
+    class OutJson
+    {
+    public:
+        template <typename T>
+        void load(const T& out)
+        {
+            m_buf.assign(out.toJson().GetString());
+        }
 
-		std::pair<const char *, size_t> get() const
-		{
-			return std::make_pair(m_buf.c_str(), m_buf.length());
-		}
-	private:
-		std::string m_buf;
-	};
+        std::pair<const char *, size_t> get() const
+        {
+            return std::make_pair(m_buf.c_str(), m_buf.length());
+        }
+    private:
+        std::string m_buf;
+    };
 
-	class InJson
-	{
-	public:
-		template <typename T>
-		T get() const
-		{
-			return T::fromJson(m_buf);
-		}
+    class InJson
+    {
+    public:
+        template <typename T>
+        T get() const
+        {
+            return T::fromJson(m_buf);
+        }
 
-		void load(const char *buf, size_t size) { m_buf.assign(buf, buf + size); }
+        void load(const char *buf, size_t size) { m_buf.assign(buf, buf + size); }
 
-		void assign(const OutJson& o)
-		{
-			const char *buf; size_t size;
-			std::tie(buf, size) = o.get();
-			load(buf, size);
-		}
-	private:
-		std::string m_buf;
-	};
+        void assign(const OutJson& o)
+        {
+            const char *buf; size_t size;
+            std::tie(buf, size) = o.get();
+            load(buf, size);
+        }
+    private:
+        std::string m_buf;
+    };
 
-	using Input = InJson;
-	using Output = OutJson;
+    using Input = InJson;
+    using Output = OutJson;
 } //namespace graft
 
