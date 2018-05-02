@@ -309,6 +309,21 @@ void GraftServer::setCryptonodeP2PAddress(const std::string &address)
     // TODO implement me
 }
 
+int GraftServer::methodFromString(std::string& method)
+{
+#define _M(x) std::make_pair(#x, METHOD_##x)
+    static const std::pair<std::string, int> methods[] = {
+        _M(GET), _M(POST), _M(DELETE), _M(HEAD), _M(CONNECT)
+    };
+
+    for (const auto& m : methods)
+    {
+        if (m.first == method)
+            return m.second;
+    }
+#endif
+}
+
 void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
 {
     Manager* manager = Manager::from(client);
@@ -327,7 +342,7 @@ void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
             return;
         }
         std::string s_method(hm->method.p, hm->method.len);
-        int method = (s_method == "GET")? METHOD_GET: METHOD_POST;
+        int method = methodFromString(s_method);
 
         Router& router = manager->get_router();
         Router::JobParams prms;

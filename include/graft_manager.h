@@ -272,6 +272,7 @@ public:
 
 private:
     static void ev_handler(mg_connection *client, int ev, void *ev_data);
+    int methodFromString(std::string& method);
 };
 
 }//namespace graft
