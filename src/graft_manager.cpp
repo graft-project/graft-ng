@@ -313,7 +313,7 @@ int GraftServer::methodFromString(std::string& method)
 {
 #define _M(x) std::make_pair(#x, METHOD_##x)
     static const std::pair<std::string, int> methods[] = {
-        _M(GET), _M(POST), _M(DELETE), _M(HEAD), _M(CONNECT)
+        _M(GET), _M(POST), _M(DELETE), _M(HEAD) //, _M(CONNECT)
     };
 
     for (const auto& m : methods)
@@ -321,7 +321,10 @@ int GraftServer::methodFromString(std::string& method)
         if (m.first == method)
             return m.second;
     }
-#endif
+}
+
+void GraftServer::ev_handler_empty(mg_connection *client, int ev, void *ev_data)
+{
 }
 
 void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
@@ -371,6 +374,7 @@ void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
     }
     case MG_EV_TIMER:
         mg_set_timer(client, 0);
+        client->handler = ev_handler_empty; //without this we will get MG_EV_HTTP_REQUEST
         client->flags |= MG_F_CLOSE_IMMEDIATELY;
         break;
 

@@ -79,7 +79,7 @@ tp::MPMCBoundedQueue>;
 struct ServerOpts
 {
     std::string http_address;
-    int http_connection_timeout;
+    double http_connection_timeout;
     int workers_count;
     int worker_queue_len;
 };
@@ -271,8 +271,9 @@ public:
     void setCryptonodeP2PAddress(const std::string &address);
 
 private:
+    static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
     static void ev_handler(mg_connection *client, int ev, void *ev_data);
-    int methodFromString(std::string& method);
+    static int methodFromString(std::string& method);
 };
 
 }//namespace graft
