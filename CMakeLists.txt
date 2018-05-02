@@ -173,7 +173,7 @@ if (OPT_BUILD_TESTS)
 endif (OPT_BUILD_TESTS)
 
 # copy config file to build directory
-if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/config.ini")
+if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
     add_custom_command(
         TARGET graft_server POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
