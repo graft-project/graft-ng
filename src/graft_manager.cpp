@@ -183,8 +183,6 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
 
 
 
-
-
 void ClientRequest::respondToClientAndDie(const std::string &s)
 {
     int code;
@@ -284,9 +282,11 @@ void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
     }
 }
 
-void GraftServer::serve(mg_mgr *mgr, const char *s_http_port)
+void GraftServer::serve(mg_mgr *mgr)
 {
-    mg_connection* nc = mg_bind(mgr, s_http_port, ev_handler);
+    ServerOpts& opts = Manager::from(mgr)->get_opts();
+
+    mg_connection* nc = mg_bind(mgr, opts.http_address.c_str(), ev_handler);
     mg_set_protocol_http_websocket(nc);
 #ifdef OPT_BUILD_TESTS
     ready = true;
@@ -311,13 +311,16 @@ void GraftServer::setCryptonodeP2PAddress(const std::string &address)
 
 void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
 {
+    Manager* manager = Manager::from(client);
+
     switch (ev)
     {
     case MG_EV_HTTP_REQUEST:
     {
+        mg_set_timer(client, 0);
+
         struct http_message *hm = (struct http_message *) ev_data;
         std::string uri(hm->uri.p, hm->uri.len);
-        Manager* manager = Manager::from(client);
         if(uri == "/root/exit")
         {
             manager->exit = true;
@@ -342,7 +345,20 @@ void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
             mg_http_send_error(client, 500, "invalid parameter");
             client->flags |= MG_F_SEND_AND_CLOSE;
         }
-    } break;
+        break;
+    }
+    case MG_EV_ACCEPT:
+    {
+        ServerOpts& opts = manager->get_opts();
+
+        mg_set_timer(client, mg_time() + opts.http_connection_timeout);
+        break;
+    }
+    case MG_EV_TIMER:
+        mg_set_timer(client, 0);
+        client->flags |= MG_F_CLOSE_IMMEDIATELY;
+        break;
+
     default:
         break;
     }
