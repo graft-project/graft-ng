@@ -196,11 +196,17 @@ private:
 			bool res = router.arm();
 			EXPECT_EQ(res, true);
 		}
-		graft::Manager manager(router);
 
-		manager.initThreadPool();
+        graft::ServerOpts sopts;
+        sopts.http_address = "127.0.0.1:9084";
+        sopts.http_connection_timeout = .1;
+        sopts.workers_count = 0;
+        sopts.worker_queue_len = 0;
+
+        graft::Manager manager(router,sopts);
+
 		graft::GraftServer gs;
-		gs.serve(manager.get_mg_mgr(),"9084");
+        gs.serve(manager.get_mg_mgr());
 	}
 
 public:

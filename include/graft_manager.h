@@ -91,9 +91,8 @@ public:
         : m_router(router), m_sopts(sopts)
     {
         mg_mgr_init(&m_mgr, this, cb_event);
+        initThreadPool(sopts.workers_count, sopts.worker_queue_len);
     }
-
-    void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
 
     void notifyJobReady();
 
@@ -126,6 +125,7 @@ public:
     void onCryptonDone(CryptoNodeSender& cns);
 
 private:
+    void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
     void setThreadPool(ThreadPoolX&& tp, TPResQueue&& rq, uint64_t m_threadPoolInputSize_);
 
     bool tryProcessReadyJob();

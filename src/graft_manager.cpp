@@ -74,6 +74,9 @@ void Manager::processReadyJobBlock()
 
 void Manager::initThreadPool(int threadCount, int workersQueueSize)
 {
+    if(threadCount <= 0) threadCount = std::thread::hardware_concurrency();
+    if(workersQueueSize <= 0) workersQueueSize = 32;
+
     tp::ThreadPoolOptions th_op;
     th_op.setThreadCount(threadCount);
     th_op.setQueueSize(workersQueueSize);
