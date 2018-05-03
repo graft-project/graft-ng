@@ -42,19 +42,19 @@ public:
         Handler3& operator = (Handler3&&) = default;
         ~Handler3() = default;
 
-        Handler3(const Handler& pre, const Handler& peri, const Handler& post)
-            : pre(pre), peri(peri), post(post)
+        Handler3(const Handler& pre_action, const Handler& action, const Handler& post_action)
+            : pre_action(pre_action), action(action), post_action(post_action)
         { }
-        Handler3(Handler&& pre, Handler&& peri, Handler&& post)
-            : pre(std::move(pre)), peri(std::move(peri)), post(std::move(post))
+        Handler3(Handler&& pre_action, Handler&& action, Handler&& post_action)
+            : pre_action(std::move(pre_action)), action(std::move(action)), post_action(std::move(post_action))
         { }
 
-        Handler3(const Handler& peri) : peri(peri) { }
-        Handler3(Handler&& peri) : peri(std::move(peri)) { }
+        Handler3(const Handler& action) : action(action) { }
+        Handler3(Handler&& action) : action(std::move(action)) { }
     public:
-        Handler pre;
-        Handler peri;
-        Handler post;
+        Handler pre_action;
+        Handler action;
+        Handler post_action;
     };
 
 public:

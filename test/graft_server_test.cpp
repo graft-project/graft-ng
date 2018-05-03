@@ -231,7 +231,7 @@ class GraftServerTest : public ::testing::Test
 public:
     static std::string iocheck;
     static bool skip_ctx_check;
-    static std::deque<graft::Router::Status> res_que_peri;
+    static std::deque<graft::Router::Status> res_que_action;
     static graft::Router::Handler3 h3_test;
     static std::thread t_CN;
     static std::thread t_srv;
@@ -285,7 +285,7 @@ private:
     //prepare and run GraftServer (it is called in non-main thread)
     static void run_server()
     {
-        assert(h3_test.peri);
+        assert(h3_test.action);
         graft::Router router;
         {
             static graft::Router::Handler3 p(h3_test);
@@ -417,7 +417,7 @@ protected:
             }
         };
 
-        auto pre = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
+        auto pre_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
         {
             std::string in = input.get();
             EXPECT_EQ(in, iocheck);
@@ -428,16 +428,16 @@ protected:
             ctx.local[iocheck] = iocheck;
             return graft::Router::Status::Ok;
         };
-        auto peri = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
+        auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
         {
             std::string in = input.get();
             EXPECT_EQ(in, iocheck);
             check_ctx(ctx, in);
             graft::Router::Status res = graft::Router::Status::Ok;
-            if(!res_que_peri.empty())
+            if(!res_que_action.empty())
             {
-                res = res_que_peri.front();
-                res_que_peri.pop_front();
+                res = res_que_action.front();
+                res_que_action.pop_front();
             }
             iocheck = in + '2';
             output.load(iocheck);
@@ -445,7 +445,7 @@ protected:
             ctx.local[iocheck] = iocheck;
             return res;
         };
-        auto post = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
+        auto post_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
         {
             std::string in = input.get();
             EXPECT_EQ(in, iocheck);
@@ -457,7 +457,7 @@ protected:
             return graft::Router::Status::Ok;
         };
 
-        h3_test = graft::Router::Handler3(pre, peri, post);
+        h3_test = graft::Router::Handler3(pre_action, action, post_action);
 
         t_CN = std::thread([]{ TempCryptoNodeServer::run(); });
         t_srv = std::thread([]{ run_server(); });
@@ -489,7 +489,7 @@ protected:
 
 std::string GraftServerTest::iocheck;
 bool GraftServerTest::skip_ctx_check = false;
-std::deque<graft::Router::Status> GraftServerTest::res_que_peri;
+std::deque<graft::Router::Status> GraftServerTest::res_que_action;
 graft::Router::Handler3 GraftServerTest::h3_test;
 std::thread GraftServerTest::t_CN;
 std::thread GraftServerTest::t_srv;
@@ -512,9 +512,9 @@ TEST_F(GraftServerTest, GETtp)
 TEST_F(GraftServerTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
     iocheck = ""; skip_ctx_check = true;
-    res_que_peri.clear();
-    res_que_peri.push_back(graft::Router::Status::Forward);
-    res_que_peri.push_back(graft::Router::Status::Ok);
+    res_que_action.clear();
+    res_que_action.push_back(graft::Router::Status::Forward);
+    res_que_action.push_back(graft::Router::Status::Ok);
     Client client;
     client.serve((uri_base+uri).c_str());
     std::string res = client.get_body();
@@ -540,9 +540,9 @@ TEST_F(GraftServerTest, clPOSTtpCNtp)
 {//POST cmdline -> threadPool -> CryptoNode -> threadPool
     std::string body = "input body";
     iocheck = body; skip_ctx_check = true;
-    res_que_peri.clear();
-    res_que_peri.push_back(graft::Router::Status::Forward);
-    res_que_peri.push_back(graft::Router::Status::Ok);
+    res_que_action.clear();
+    res_que_action.push_back(graft::Router::Status::Forward);
+    res_que_action.push_back(graft::Router::Status::Ok);
     {
         std::ostringstream s;
         s << "curl --data \"" << body << "\" " << (uri_base+uri);
