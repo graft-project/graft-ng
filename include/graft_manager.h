@@ -76,16 +76,23 @@ tp::MPMCBoundedQueue>;
 
 ///////////////////////////////////
 
+struct ServerOpts
+{
+    std::string http_address;
+    double http_connection_timeout;
+    int workers_count;
+    int worker_queue_len;
+};
+
 class Manager
 {
 public:
-    Manager(Router& router)
-        : m_router(router)
+    Manager(Router& router, const ServerOpts& sopts)
+        : m_router(router), m_sopts(sopts)
     {
         mg_mgr_init(&m_mgr, this, cb_event);
+        initThreadPool(sopts.workers_count, sopts.worker_queue_len);
     }
-
-    void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
 
     void notifyJobReady();
 
@@ -100,6 +107,7 @@ public:
     ThreadPoolX& get_threadPool() { return *m_threadPool.get(); }
     TPResQueue& get_resQueue() { return *m_resQueue.get(); }
     GlobalContextMap& get_gcm() { return m_gcm; }
+    ServerOpts& get_opts() { return m_sopts; }
 
     ////static functions
     static void cb_event(mg_mgr* mgr, uint64_t cnt);
@@ -117,6 +125,7 @@ public:
     void onCryptonDone(CryptoNodeSender& cns);
 
 private:
+    void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
     void setThreadPool(ThreadPoolX&& tp, TPResQueue&& rq, uint64_t m_threadPoolInputSize_);
 
     bool tryProcessReadyJob();
@@ -136,6 +145,8 @@ private:
     uint64_t m_threadPoolInputSize = 0;
     std::unique_ptr<ThreadPoolX> m_threadPool;
     std::unique_ptr<TPResQueue> m_resQueue;
+
+    ServerOpts m_sopts;
 public:
     bool exit = false;
 };
@@ -247,7 +258,7 @@ public:
     static std::atomic_bool ready;
 #endif
 public:
-    void serve(mg_mgr* mgr, const char* s_http_port);
+    void serve(mg_mgr* mgr);
     /**
    * @brief setCryptonodeRpcAddress - setup cryptonode RPC address
    * @param address - address in IP:port form
@@ -260,7 +271,9 @@ public:
     void setCryptonodeP2PAddress(const std::string &address);
 
 private:
+    static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
     static void ev_handler(mg_connection *client, int ev, void *ev_data);
+    static int methodFromString(const std::string& method);
 };
 
 }//namespace graft
