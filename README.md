@@ -9,13 +9,13 @@
 | GCC            | 4.7.3         | `build-essential`  | `base-devel`   | NO       |                  |
 | CMake          | 3.11.0        | `cmake`^           | `cmake`        | NO       |                  |
 | pkg-config     | any           | `pkg-config`       | `base-devel`   | NO       |                  |
-| Boost          | 1.58          | `libboost-all-dev` | `boost`        | NO       | C++ libraries    |
+| Boost          | 1.65          | `libboost-all-dev` | `boost`        | NO       | C++ libraries    |
 | OpenSSL        | basically any | `libssl-dev`       | `openssl`      | NO       |                  |
 | autoconf       | any           | `autoconf`         |                | NO       | libr3 dependency |
 | automake       | any           | `automake`         |                | NO       | libr3 dependency |
 | check          | any           | `check`            |                | NO       | libr3 dependency |
 | PCRE3          | any           | `libpcre3-dev`     |                | NO       | libr3 dependency |
-| RapidJson      | 1.1.0         | `rapidjson-dev'    |                | NO       |                  |
+| RapidJson      | 1.1.0         | `rapidjson-dev`    |                | NO       |                  |
 
 [^] Some Debian/Ubuntu versions (for example, Ubuntu 16.04) don't support CMake 3.11.0 from the package. To install it manually see **Install non-standard dependencies** bellow.
 
