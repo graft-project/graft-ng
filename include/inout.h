@@ -61,6 +61,11 @@ namespace graft
             m_buf.assign(out.toJson().GetString());
         }
 
+        void load(const std::string& out)
+        {
+            m_buf.assign(out);
+        }
+
         std::pair<const char *, size_t> get() const
         {
             return std::make_pair(m_buf.c_str(), m_buf.length());
@@ -76,6 +81,11 @@ namespace graft
         T get() const
         {
             return T::fromJson(m_buf);
+        }
+
+	std::string get() const
+        {
+            return m_buf;
         }
 
         void load(const char *buf, size_t size) { m_buf.assign(buf, buf + size); }
