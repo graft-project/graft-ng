@@ -10,3 +10,7 @@
 	path = modules/mongoose
 	url = git@github.com:graft-project/mongoose.git
 	branch = master
+[submodule "googletest"]
+	path = modules/googletest
+	url = https://github.com/google/googletest.git
+	branch = master
