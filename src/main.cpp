@@ -10,6 +10,10 @@
 namespace po = boost::program_options;
 using namespace std;
 
+namespace graft {
+  void setCoapRouters(Manager& m);
+  void setHttpRouters(Manager& m);
+}
 
 int main(int argc, const char** argv)
 {
@@ -78,22 +82,24 @@ int main(int argc, const char** argv)
 
         const boost::property_tree::ptree& server_conf = config.get_child("server");
         sopts.http_address = server_conf.get<string>("http-address");
+        sopts.coap_address = server_conf.get<string>("coap-address");
         sopts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
         sopts.workers_count = server_conf.get<int>("workers-count");
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
 
-        // TODO configure router
-        graft::Router router;
-        graft::registerRTARequests(router);
-        router.arm();
-        graft::Manager manager(router, sopts);
+        graft::Manager manager(sopts);
+
+	graft::setCoapRouters(manager);
+	graft::setHttpRouters(manager);
+	manager.enableRouting();
+
         graft::GraftServer server;
 
         // setup cryptonode connection params
         server.setCryptonodeP2PAddress(cryptonode_p2p_address);
         server.setCryptonodeRPCAddress(cryptonode_rpc_address);
 
-        LOG_PRINT_L0("Starting server on " << sopts.http_address);
+        LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
         server.serve(manager.get_mg_mgr());
 
     } catch (const std::exception & e) {

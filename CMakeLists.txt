@@ -75,6 +75,8 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
+    ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 
@@ -131,6 +133,7 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
     )
+target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
 
 add_dependencies(graft_server libr3 cryptonode)
 
