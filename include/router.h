@@ -27,11 +27,9 @@ public:
         None,
     };
 
-public:
     using vars_t = std::vector<std::pair<std::string, std::string>>;
     using Handler = std::function<Status (const vars_t&, const In&, Context&, Out& ) >;
 
-public:
     struct Handler3
     {
         Handler3() = default;
@@ -57,8 +55,7 @@ public:
         Handler post;
     };
 
-public:
-    RouterT()
+    RouterT(const std::string& prefix = "") : m_endpointPrefix(prefix)
     {
         if (!m_node)
             m_node = r3_tree_create(10);
@@ -75,21 +72,17 @@ public:
 
     void addRoute(std::string endpoint, int methods, Handler3* ph3)
     {
-        m_routes.push_back({endpoint, methods, ph3});
+        m_routes.push_back({m_endpointPrefix + endpoint, methods, ph3});
     }
 
     bool arm()
     {
         std::for_each(m_routes.begin(), m_routes.end(),
-                      [this](Route& r)
-        {
-            r3_tree_insert_route(
-                        m_node,
-                        r.methods,
-                        r.endpoint.c_str(),
-                        reinterpret_cast<void*>(r.h3)
-                        );
-        });
+            [this](Route& r)
+            {
+                r3_tree_insert_route(m_node, r.methods, r.endpoint.c_str(), reinterpret_cast<void*>(r.h3));
+            }
+        );
 
         char *errstr = NULL;
         int err = r3_tree_compile(m_node, &errstr);
@@ -109,11 +102,13 @@ public:
         Handler3 h3;
     };
 
-    bool match(const std::string& target, int method, JobParams& params) const
+    static bool match(const std::string& target, int method, JobParams& params)
     {
         match_entry *entry;
         R3Route *m;
         bool ret = false;
+
+        if (!m_node) return false;
 
         entry = match_entry_create(target.c_str());
         entry->request_method = method;
@@ -123,9 +118,9 @@ public:
         {
             for (size_t i = 0; i < entry->vars.tokens.size; i++)
                 params.vars.emplace_back(std::make_pair(
-                                             std::move(std::string(entry->vars.slugs.entries[i].base, entry->vars.slugs.entries[i].len)),
-                                             std::move(std::string(entry->vars.tokens.entries[i].base, entry->vars.tokens.entries[i].len))
-                                             ));
+                    std::move(std::string(entry->vars.slugs.entries[i].base, entry->vars.slugs.entries[i].len)),
+                    std::move(std::string(entry->vars.tokens.entries[i].base, entry->vars.tokens.entries[i].len))
+                ));
 
             params.h3 = *reinterpret_cast<Handler3*>(m->data);
             ret = true;
@@ -146,6 +141,7 @@ private:
     std::deque<Route> m_routes;
 
     static R3Node *m_node;
+    std::string m_endpointPrefix;
 };
 
 template<typename In, typename Out>

@@ -77,13 +77,20 @@ int main(int argc, const char** argv)
 
         const boost::property_tree::ptree& server_conf = config.get_child("server");
         sopts.http_address = server_conf.get<string>("http-address");
+        sopts.http_address = server_conf.get<string>("coap-address");
         sopts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
         sopts.workers_count = server_conf.get<int>("workers-count");
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
 
         // TODO configure router
-        graft::Router router;
-        graft::Manager manager(router, sopts);
+        graft::Router http_router("/dapi/v2.0/");
+        graft::Router coap_router("/coap/");
+
+        graft::Manager manager(sopts);
+
+        manager.addRouter(http_router);
+        manager.addRouter(coap_router);
+
         graft::GraftServer server;
 
         // setup cryptonode connection params

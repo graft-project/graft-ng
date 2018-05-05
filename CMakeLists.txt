@@ -125,6 +125,7 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
     )
+target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
 
 add_dependencies(graft_server libr3 cryptonode)
 
