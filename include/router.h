@@ -43,17 +43,17 @@ public:
         ~Handler3() = default;
 
         Handler3(const Handler& pre_action, const Handler& action, const Handler& post_action)
-            : pre_action(pre_action), action(action), post_action(post_action)
+            : pre_action(pre_action), worker_action(action), post_action(post_action)
         { }
         Handler3(Handler&& pre_action, Handler&& action, Handler&& post_action)
-            : pre_action(std::move(pre_action)), action(std::move(action)), post_action(std::move(post_action))
+            : pre_action(std::move(pre_action)), worker_action(std::move(action)), post_action(std::move(post_action))
         { }
 
-        Handler3(const Handler& action) : action(action) { }
-        Handler3(Handler&& action) : action(std::move(action)) { }
+        Handler3(const Handler& worker_action) : worker_action(worker_action) { }
+        Handler3(Handler&& worker_action) : worker_action(std::move(worker_action)) { }
     public:
         Handler pre_action;
-        Handler action;
+        Handler worker_action;
         Handler post_action;
     };
 

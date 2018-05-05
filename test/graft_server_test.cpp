@@ -285,7 +285,7 @@ private:
     //prepare and run GraftServer (it is called in non-main thread)
     static void run_server()
     {
-        assert(h3_test.action);
+        assert(h3_test.worker_action);
         graft::Router router;
         {
             static graft::Router::Handler3 p(h3_test);
