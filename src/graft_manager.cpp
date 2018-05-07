@@ -246,7 +246,7 @@ void ClientRequest::onJobDone(GJ &gj)
     } break;
     case Router::Status::Drop:
     {
-        respondToClientAndDie("Job done Drop.");
+        respondToClientAndDie("Job done Drop."); //TODO: Expect HTTP Error Response
     } break;
     default:
     {
