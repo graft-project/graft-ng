@@ -243,9 +243,9 @@ private:
 		graft::Router router;
 		{
 			static graft::Router::Handler3 p(h3_test);
-            router.addRoute("/root/r{id:\\d+}", METHOD_GET, &p);
-			router.addRoute("/root/r{id:\\d+}", METHOD_POST, &p);
-			router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, &p);
+            router.addRoute("/root/r{id:\\d+}", METHOD_GET, p);
+            router.addRoute("/root/r{id:\\d+}", METHOD_POST, p);
+            router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, p);
 			bool res = router.arm();
 			EXPECT_EQ(res, true);
 		}

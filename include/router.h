@@ -73,9 +73,9 @@ public:
         }
     }
 
-    void addRoute(std::string endpoint, int methods, Handler3* ph3)
+    void addRoute(const std::string& endpoint, int methods, Handler3& ph3)
     {
-        m_routes.push_back({endpoint, methods, ph3});
+        m_routes.push_back({endpoint, methods, &ph3});
     }
 
     bool arm()
