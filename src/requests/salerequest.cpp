@@ -4,17 +4,6 @@
 
 namespace graft {
 
-GRAFT_DEFINE_IO_STRUCT(SaleRequest,
-    (std::string, Address),
-    (std::string, SaleDetails),
-    (std::string, Amount)
-);
-
-GRAFT_DEFINE_IO_STRUCT(SaleResponse,
-    (uint64, BlockNumber), //TODO: Need to check if we really need it.
-    (std::string, PaymentID)
-);
-
 Router::Status workerHandler(const Router::vars_t& vars, const graft::Input& input,
                             graft::Context& ctx, graft::Output& output)
 {

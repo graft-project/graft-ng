@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 #include "context.h"
 #include "graft_manager.h"
+#include "requests.h"
+#include "salerequest.h"
+#include "requestdefines.h"
 #include "inout.h"
 
 TEST(InOut, common)
@@ -139,6 +142,7 @@ public:
 	static bool run_server_ready;
 
     const std::string uri_base = "http://localhost:9084";
+    const std::string dapi_url = "http://localhost:9084/dapi";
     const std::string uri = "/root/r55";
 
 private:
@@ -193,6 +197,7 @@ private:
 			router.addRoute("/root/r{id:\\d+}", METHOD_GET, &p);
 			router.addRoute("/root/r{id:\\d+}", METHOD_POST, &p);
 			router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, &p);
+            graft::registerRTARequests(router);
 			bool res = router.arm();
 			EXPECT_EQ(res, true);
 		}
@@ -290,6 +295,14 @@ public:
             res += path;
         }
         return res;
+    }
+
+    static std::string send_request(const std::string &url, const std::string &json_data)
+    {
+        std::ostringstream s;
+        s << "curl --data \"" << json_data << "\" " << url;
+        std::string ss = s.str();
+        return run_cmdline_read(ss.c_str());
     }
 
 protected:
@@ -452,6 +465,36 @@ TEST_F(GraftServerTest, clPOSTtpCNtp)
 		EXPECT_EQ("Job done.", res);
 		EXPECT_EQ(body + "1234123", iocheck);
 	}
+}
+
+TEST_F(GraftServerTest, testSaleRequest)
+{
+    std::string sale_url(dapi_url + "/sale");
+    graft::Input response;
+    std::string res;
+    graft::SaleResponse sale_response;
+    ErrorResponse error_response;
+
+    std::string empty_data_request("{\\\"Address\\\":\\\"\\\",""\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"10.0\\\"}");
+    res = send_request(sale_url, empty_data_request);
+    response.load(res.data(), res.length());
+    error_response = response.get<ErrorResponse>();
+    EXPECT_EQ(ERROR_INVALID_PARAMS, error_response.code);
+    EXPECT_EQ(MESSAGE_INVALID_PARAMS, error_response.message);
+
+    std::string error_balance_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"fffffffff\\\"}");
+    res = send_request(sale_url, error_balance_request);
+    response.load(res.data(), res.length());
+    error_response = response.get<ErrorResponse>();
+    EXPECT_EQ(ERROR_AMOUNT_INVALID, error_response.code);
+    EXPECT_EQ(MESSAGE_AMOUNT_INVALID, error_response.message);
+
+    std::string correct_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"dddd\\\",\\\"Amount\\\":\\\"10.0\\\"}");
+    res = send_request(sale_url, correct_request);
+    response.load(res.data(), res.length());
+    sale_response = response.get<graft::SaleResponse>();
+    EXPECT_EQ(36, sale_response.PaymentID.length());
+    ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
 }
 
 /* TODO: crash on this

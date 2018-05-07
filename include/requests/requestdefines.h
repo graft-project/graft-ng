@@ -50,10 +50,10 @@ struct SaleData
 {
     SaleData(const std::string &address, const uint64_t &blockNumber,
              const uint64_t &amount)
+        : Address(address)
+        ,BlockNumber(blockNumber)
+        ,Amount(amount)
     {
-        Address = address;
-        BlockNumber = blockNumber;
-        Amount = amount;
     }
 
     std::string Address;
