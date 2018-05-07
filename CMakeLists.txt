@@ -91,10 +91,10 @@ set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)  
 set(Boost_USE_STATIC_RUNTIME OFF) 
 
-find_package(Boost 1.58 QUIET REQUIRED COMPONENTS system filesystem program_options)
+find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options)
 
 if(NOT Boost_FOUND)
-    die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.58) or the equivalent")
+    die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
 elseif(Boost_FOUND)
     message(STATUS "Found Boost Version: ${Boost_VERSION}")
 endif()
