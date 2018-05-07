@@ -9,6 +9,10 @@
 namespace po = boost::program_options;
 using namespace std;
 
+namespace graft {
+  bool setCoapRouters(Manager& m);
+  bool setHttpRouters(Manager& m);
+}
 
 int main(int argc, const char** argv)
 {
@@ -82,14 +86,10 @@ int main(int argc, const char** argv)
         sopts.workers_count = server_conf.get<int>("workers-count");
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
 
-        // TODO configure router
-        graft::Router http_router("/dapi/v2.0/");
-        graft::Router coap_router("/coap/");
-
         graft::Manager manager(sopts);
 
-        manager.addRouter(http_router);
-        manager.addRouter(coap_router);
+	graft::setCoapRouters(manager);
+	graft::setHttpRouters(manager);
 
         graft::GraftServer server;
 
