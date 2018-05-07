@@ -22,11 +22,11 @@ Router::Status workerHandler(const Router::vars_t& vars, const graft::Input& inp
     if (!in.Address.empty() && !in.Amount.empty())
     {
         std::string payment_id = generatePaymentID();
-        if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE))
+        if (ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE))
         {
             ErrorResponse err;
             err.code = ERROR_SALE_REQUEST_FAILED;
-            err.message = ERROR_MESSAGE(MESSAGE_SALE_REQUEST_FAILED);
+            err.message = MESSAGE_SALE_REQUEST_FAILED;
             output.load(err);
             return Router::Status::Error;
         }
@@ -35,7 +35,7 @@ Router::Status workerHandler(const Router::vars_t& vars, const graft::Input& inp
         {
             ErrorResponse err;
             err.code = ERROR_AMOUNT_INVALID;
-            err.message = ERROR_MESSAGE(MESSAGE_AMOUNT_INVALID);
+            err.message = MESSAGE_AMOUNT_INVALID;
             output.load(err);
             return Router::Status::Error;
         }
@@ -56,7 +56,7 @@ Router::Status workerHandler(const Router::vars_t& vars, const graft::Input& inp
     {
         ErrorResponse err;
         err.code = ERROR_INVALID_PARAMS;
-        err.message = ERROR_MESSAGE(MESSAGE_INVALID_PARAMS);
+        err.message = MESSAGE_INVALID_PARAMS;
         output.load(err);
         return Router::Status::Error;
     }
