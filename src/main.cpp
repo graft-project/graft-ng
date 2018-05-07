@@ -6,6 +6,8 @@
 // #include <boost/tokenizer.hpp>
 #include <boost/filesystem.hpp>
 
+#include "requests/requests.h"
+
 namespace po = boost::program_options;
 using namespace std;
 
@@ -80,6 +82,8 @@ int main(int argc, const char** argv)
 
         // TODO configure router
         graft::Router router;
+        graft::registerRTARequests(router);
+        router.arm();
         graft::Manager manager(router);
         graft::GraftServer server;
 
