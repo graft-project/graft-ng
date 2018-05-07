@@ -11,7 +11,8 @@ void Manager::sendCrypton(ClientRequest_ptr cr)
 {
     ++m_cntCryptoNodeSender;
     CryptoNodeSender::Ptr cns = CryptoNodeSender::Create();
-    std::string s = cr->get_input().get();
+    auto out = cr->get_output().get();
+    std::string s(out.first, out.second);
     cns->send(*this, cr, s);
 }
 
@@ -172,8 +173,8 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     {
         std::string s;
         bool ok = help_recv_pstring(crypton, ev_data, s);
-        m_result.load(s);
         if(!ok) break;
+        m_cr->get_input().load(s.c_str(), s.size());
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
         Manager::from(crypton)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
@@ -259,10 +260,7 @@ void ClientRequest::onCryptonDone(CryptoNodeSender &cns)
 {
     //here you can send a job to the thread pool or send response to client
     //cns will be destroyed on exit, save its result
-    //now it sends response to client
     {//now always create a job and put it to the thread pool after CryptoNode
-        //set output of CryptoNode as input for job
-        m_prms.input.assign(cns.get_result());
         Manager::from(m_client)->sendToThreadPool(get_itself());
     }
 }
