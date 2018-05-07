@@ -201,11 +201,17 @@ private:
 			bool res = router.arm();
 			EXPECT_EQ(res, true);
 		}
-		graft::Manager manager(router);
 
-		manager.initThreadPool();
+        graft::ServerOpts sopts;
+        sopts.http_address = "127.0.0.1:9084";
+        sopts.http_connection_timeout = .001;
+        sopts.workers_count = 0;
+        sopts.worker_queue_len = 0;
+
+        graft::Manager manager(router,sopts);
+
 		graft::GraftServer gs;
-		gs.serve(manager.get_mg_mgr(),"9084");
+        gs.serve(manager.get_mg_mgr());
 	}
 
 public:
@@ -229,6 +235,7 @@ public:
             }
         }
 
+        bool get_closed(){ return m_closed; }
         std::string get_body(){ return m_body; }
         std::string get_message(){ return m_message; }
 
@@ -271,12 +278,14 @@ public:
             case MG_EV_CLOSE:
             {
                 client->handler = static_empty_ev_handler;
+                m_closed = true;
                 m_exit = true;
             } break;
             }
         }
     private:
         bool m_exit = false;
+        bool m_closed = false;
         mg_mgr m_mgr;
         mg_connection* client;
         std::string m_body;
@@ -418,9 +427,24 @@ TEST_F(GraftServerTest, GETtp)
 	iocheck = ""; skip_ctx_check = true;
 	Client client;
 	client.serve((uri_base+uri).c_str());
+    EXPECT_EQ(false, client.get_closed());
 	std::string res = client.get_body();
 	EXPECT_EQ("Job done.", res);
 	EXPECT_EQ("123", iocheck);
+}
+
+TEST_F(GraftServerTest, timeout)
+{//GET -> timout
+    iocheck = ""; skip_ctx_check = true;
+    Client client;
+    auto begin = std::chrono::high_resolution_clock::now();
+    client.serve((uri_base+uri).c_str(), "Content-Length: 348");
+    auto end = std::chrono::high_resolution_clock::now();
+    auto int_us = std::chrono::duration_cast<std::chrono::microseconds>(end - begin);
+    EXPECT_LT(int_us.count(), 5000); //less than 5 ms
+    EXPECT_EQ(true, client.get_closed());
+    std::string res = client.get_body();
+    EXPECT_EQ("", res);
 }
 
 TEST_F(GraftServerTest, GETtpCNtp)
@@ -431,6 +455,7 @@ TEST_F(GraftServerTest, GETtpCNtp)
 	res_que_peri.push_back(graft::Router::Status::Ok);
 	Client client;
 	client.serve((uri_base+uri).c_str());
+    EXPECT_EQ(false, client.get_closed());
 	std::string res = client.get_body();
 	EXPECT_EQ("Job done.", res);
 	EXPECT_EQ("1234123", iocheck);

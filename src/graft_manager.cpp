@@ -74,6 +74,9 @@ void Manager::processReadyJobBlock()
 
 void Manager::initThreadPool(int threadCount, int workersQueueSize)
 {
+    if(threadCount <= 0) threadCount = std::thread::hardware_concurrency();
+    if(workersQueueSize <= 0) workersQueueSize = 32;
+
     tp::ThreadPoolOptions th_op;
     th_op.setThreadCount(threadCount);
     th_op.setQueueSize(workersQueueSize);
@@ -183,8 +186,6 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
 
 
 
-
-
 void ClientRequest::respondToClientAndDie(const std::string &s)
 {
     int code;
@@ -284,9 +285,11 @@ void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
     }
 }
 
-void GraftServer::serve(mg_mgr *mgr, const char *s_http_port)
+void GraftServer::serve(mg_mgr *mgr)
 {
-    mg_connection* nc = mg_bind(mgr, s_http_port, ev_handler);
+    ServerOpts& opts = Manager::from(mgr)->get_opts();
+
+    mg_connection* nc = mg_bind(mgr, opts.http_address.c_str(), ev_handler);
     mg_set_protocol_http_websocket(nc);
 #ifdef OPT_BUILD_TESTS
     ready = true;
@@ -309,22 +312,43 @@ void GraftServer::setCryptonodeP2PAddress(const std::string &address)
     // TODO implement me
 }
 
+int GraftServer::methodFromString(const std::string& method)
+{
+#define _M(x) std::make_pair(#x, METHOD_##x)
+    static const std::pair<std::string, int> methods[] = {
+        _M(GET), _M(POST), _M(DELETE), _M(HEAD) //, _M(CONNECT)
+    };
+
+    for (const auto& m : methods)
+    {
+        if (m.first == method)
+            return m.second;
+    }
+}
+
+void GraftServer::ev_handler_empty(mg_connection *client, int ev, void *ev_data)
+{
+}
+
 void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
 {
+    Manager* manager = Manager::from(client);
+
     switch (ev)
     {
     case MG_EV_HTTP_REQUEST:
     {
+        mg_set_timer(client, 0);
+
         struct http_message *hm = (struct http_message *) ev_data;
         std::string uri(hm->uri.p, hm->uri.len);
-        Manager* manager = Manager::from(client);
         if(uri == "/root/exit")
         {
             manager->exit = true;
             return;
         }
         std::string s_method(hm->method.p, hm->method.len);
-        int method = (s_method == "GET")? METHOD_GET: METHOD_POST;
+        int method = methodFromString(s_method);
 
         Router& router = manager->get_router();
         Router::JobParams prms;
@@ -342,7 +366,21 @@ void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
             mg_http_send_error(client, 500, "invalid parameter");
             client->flags |= MG_F_SEND_AND_CLOSE;
         }
-    } break;
+        break;
+    }
+    case MG_EV_ACCEPT:
+    {
+        ServerOpts& opts = manager->get_opts();
+
+        mg_set_timer(client, mg_time() + opts.http_connection_timeout);
+        break;
+    }
+    case MG_EV_TIMER:
+        mg_set_timer(client, 0);
+        client->handler = ev_handler_empty; //without this we will get MG_EV_HTTP_REQUEST
+        client->flags |= MG_F_CLOSE_IMMEDIATELY;
+        break;
+
     default:
         break;
     }

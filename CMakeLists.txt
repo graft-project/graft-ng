@@ -95,10 +95,10 @@ set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)  
 set(Boost_USE_STATIC_RUNTIME OFF) 
 
-find_package(Boost 1.58 QUIET REQUIRED COMPONENTS system filesystem program_options)
+find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options)
 
 if(NOT Boost_FOUND)
-    die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.58) or the equivalent")
+    die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
 elseif(Boost_FOUND)
     message(STATUS "Found Boost Version: ${Boost_VERSION}")
 endif()
@@ -177,7 +177,7 @@ if (OPT_BUILD_TESTS)
 endif (OPT_BUILD_TESTS)
 
 # copy config file to build directory
-if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/config.ini")
+if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
     add_custom_command(
         TARGET graft_server POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
