@@ -500,7 +500,7 @@ TEST_F(GraftServerTest, testSaleRequest)
     graft::SaleResponse sale_response;
     ErrorResponse error_response;
 
-    std::string empty_data_request("{\\\"Address\\\":\\\"\\\",""\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"10.0\\\"}");
+    std::string empty_data_request("{\\\"Address\\\":\\\"\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"10.0\\\"}");
     res = send_request(sale_url, empty_data_request);
     response.load(res.data(), res.length());
     error_response = response.get<ErrorResponse>();
