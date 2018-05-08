@@ -103,6 +103,7 @@ namespace graft
         }
 
         void load(const char *buf, size_t size) { m_buf.assign(buf, buf + size); }
+        void load(const std::string &buf) { m_buf = buf; }
 
         void assign(const OutJson& o)
         {
