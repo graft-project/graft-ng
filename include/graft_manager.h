@@ -201,8 +201,6 @@ public:
 
     void send(Manager& manager, ClientRequest_ptr cr, const std::string& data);
 public:
-    const Output& get_result() { return m_result; }
-public:
     static void help_send_pstring(mg_connection *nc, const std::string& data);
     static bool help_recv_pstring(mg_connection *nc, void *ev_data, std::string& data);
 private:
@@ -212,7 +210,6 @@ private:
     mg_connection *m_crypton = nullptr;
     ClientRequest_ptr m_cr;
     std::string m_data;
-    Output m_result;
 };
 
 class ClientRequest : public ItselfHolder<ClientRequest>, public StaticMongooseHandler<ClientRequest>
@@ -236,7 +233,7 @@ public:
 public:
     Router::Status& get_statusRef() { return m_status; }
     const Router::vars_t& get_vars() const { return m_prms.vars; }
-    const Input& get_input() const { return m_prms.input; }
+    Input& get_input() { return m_prms.input; }
     Output& get_output() { return m_output; }
     const Router::Handler3& get_h3() const { return m_prms.h3; }
     Context& get_ctx() { return m_ctx; }
