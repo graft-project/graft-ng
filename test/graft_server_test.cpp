@@ -519,7 +519,7 @@ TEST_F(GraftServerTest, GETtp)
     client.serve((uri_base+"r1").c_str());
     EXPECT_EQ(false, client.get_closed());
     std::string res = client.get_body();
-    EXPECT_EQ("Job done.", res);
+    std::cout << "Test:" << res << std::endl;
     EXPECT_EQ("0123", iocheck);
 }
 
@@ -550,7 +550,6 @@ TEST_F(GraftServerTest, GETtpCNtp)
     client.serve((uri_base+"r2").c_str());
     EXPECT_EQ(false, client.get_closed());
     std::string res = client.get_body();
-    EXPECT_EQ("Job done.", res);
     EXPECT_EQ("01234123", iocheck);
 }
 
@@ -561,11 +560,12 @@ TEST_F(GraftServerTest, clPOSTtp)
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
     {
-        std::ostringstream s;
-        s << "curl --data \"" << jsonx << "\" " << (uri_base+"r3");
-        std::string ss = s.str();
-        std::string res = run_cmdline_read(ss.c_str());
-        EXPECT_EQ("Job done.", res);
+        std::string res = send_request(uri_base+"r3", jsonx);
+        EXPECT_EQ("{\"s\":\"0123\"}", res);
+        graft::Input response;
+        response.load(res.data(), res.length());
+        Sstr test_response = response.get<Sstr>();
+        EXPECT_EQ("0123", test_response.s);
         EXPECT_EQ("0123", iocheck);
     }
 }
@@ -580,11 +580,12 @@ TEST_F(GraftServerTest, clPOSTtpCNtp)
     res_que_peri.push_back(graft::Router::Status::Forward);
     res_que_peri.push_back(graft::Router::Status::Ok);
     {
-        std::ostringstream s;
-        s << "curl --data \"" << jsonx << "\" " << (uri_base+"r4");
-        std::string ss = s.str();
-        std::string res = run_cmdline_read(ss.c_str());
-        EXPECT_EQ("Job done.", res);
+        std::string res = send_request(uri_base+"r4", jsonx);
+        EXPECT_EQ("{\"s\":\"01234123\"}", res);
+        graft::Input response;
+        response.load(res.data(), res.length());
+        Sstr test_response = response.get<Sstr>();
+        EXPECT_EQ("01234123", test_response.s);
         EXPECT_EQ("01234123", iocheck);
     }
 }
