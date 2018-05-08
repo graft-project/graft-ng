@@ -1,12 +1,16 @@
 [submodule "cryptonode"]
 	path = modules/cryptonode
-	url = git@github.com:graft-project/GraftNetwork.git
+	url = https://github.com/graft-project/GraftNetwork.git
 	branch = master
 [submodule "libr3"]
 	path = modules/libr3
-	url = git@github.com:graft-project/r3.git
+	url = https://github.com/graft-project/r3.git
 	branch = graft-master
 [submodule "mongoose"]
 	path = modules/mongoose
-	url = git@github.com:graft-project/mongoose.git
+	url = https://github.com/graft-project/mongoose.git
+	branch = master
+[submodule "googletest"]
+	path = modules/googletest
+	url = https://github.com/google/googletest.git
 	branch = master
