@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.11.1)
 
 project(graft_server)
 
-option(OPT_BUILD_TESTS "Build tests." OFF)
+option(OPT_BUILD_TESTS "Build tests." ON)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
@@ -156,12 +156,13 @@ if (OPT_BUILD_TESTS)
         ExternalProject_Get_Property(googletest BINARY_DIR)
         set(GT_LIBS
             ${BINARY_DIR}/googlemock/gtest/${CMAKE_FIND_LIBRARY_PREFIXES}gtest.a
-            ${BINARY_DIR}/googlemock/gtest/${CMAKE_FIND_LIBRARY_PREFIXES}gtest_main.a
             )
 
         add_executable(graft_server_test
                 ${GS_SOURCES}
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/json-rpc-test.cpp
+                ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
         target_include_directories(graft_server_test PRIVATE
