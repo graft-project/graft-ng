@@ -206,9 +206,9 @@ void ClientRequest::respondToClientAndDie(const std::string &s)
 
 void ClientRequest::createJob(Manager &manager)
 {
-    if(m_prms.h3.pre)
+    if(m_prms.h3.pre_action)
     {
-        m_prms.h3.pre(m_prms.vars, m_prms.input, m_ctx, m_output);
+        m_prms.h3.pre_action(m_prms.vars, m_prms.input, m_ctx, m_output);
         m_prms.input.assign(m_output);
     }
     manager.get_threadPool().post(
@@ -218,13 +218,13 @@ void ClientRequest::createJob(Manager &manager)
 
 void ClientRequest::onJobDone(GJ &gj)
 {
-    if(Router::Status::Forward == m_status || m_prms.h3.post)
+    if(Router::Status::Forward == m_status || m_prms.h3.post_action)
     {
         m_prms.input.assign(m_output);
     }
-    if(m_prms.h3.post)
+    if(m_prms.h3.post_action)
     {
-        m_prms.h3.post(m_prms.vars, m_prms.input, m_ctx, m_output);
+        m_prms.h3.post_action(m_prms.vars, m_prms.input, m_ctx, m_output);
         m_prms.input.assign(m_output);
     }
     //here you can send a request to cryptonode or send response to client
