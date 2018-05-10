@@ -30,11 +30,12 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
         }
         SaleData data(in.Address, 0, amount);
         ctx.global[payment_id + CONTEXT_KEY_SALE] = data;
-        ctx.global[payment_id + CONTEXT_KEY_SALE_STATUS] = RTAStatus::InProgress;
+        ctx.global[payment_id + CONTEXT_KEY_SALE_STATUS] = static_cast<int>(RTAStatus::InProgress);
         if (!in.SaleDetails.empty())
         {
             ctx.global[payment_id + CONTEXT_KEY_SALE_DETAILS] = in.SaleDetails;
         }
+        // TODO: Sale: Add broadcast and another business logic
         SaleResponse out;
         out.BlockNumber = data.BlockNumber;
         out.PaymentID = payment_id;
@@ -53,8 +54,8 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
 
 void registerSaleRequest(graft::Router &router)
 {
-    static Router::Handler3 h3_test(nullptr, saleWorkerHandler, nullptr);
-    router.addRoute("/dapi/sale", METHOD_POST, h3_test);
+    static Router::Handler3 h3(nullptr, saleWorkerHandler, nullptr);
+    router.addRoute("/dapi/sale", METHOD_POST, h3);
 }
 
 }
