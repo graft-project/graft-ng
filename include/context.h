@@ -86,6 +86,10 @@ struct Context
         {
             return (m_map.find(key) != m_map.end());
         }
+        void remove(const std::string& key)
+        {
+            m_map.erase(key);
+        }
     };
 
     class Global
@@ -128,7 +132,7 @@ struct Context
         Global(Global&&) = delete;
 
         template<typename T>
-        T operator[](const std::string key) const
+        T operator[](const std::string& key) const
         {
             return boost::any_cast<T>(
                         m_map.valueFor(key, boost::any()));
