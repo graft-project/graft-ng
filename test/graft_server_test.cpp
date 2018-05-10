@@ -5,6 +5,7 @@
 #include "salerequest.h"
 #include "requestdefines.h"
 #include "inout.h"
+#include <deque>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -345,10 +346,9 @@ private:
         assert(h3_test.worker_action);
         graft::Router router;
         {
-            static graft::Router::Handler3 p(h3_test);
-            router.addRoute("/root/r{id:\\d+}", METHOD_GET, &p);
-            router.addRoute("/root/r{id:\\d+}", METHOD_POST, &p);
-            router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, &p);
+            router.addRoute("/root/r{id:\\d+}", METHOD_GET, h3_test);
+            router.addRoute("/root/r{id:\\d+}", METHOD_POST, h3_test);
+            router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, h3_test);
             graft::registerRTARequests(router);
             bool res = router.arm();
             EXPECT_EQ(res, true);
