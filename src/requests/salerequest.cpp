@@ -4,8 +4,8 @@
 
 namespace graft {
 
-Router::Status workerHandler(const Router::vars_t& vars, const graft::Input& input,
-                            graft::Context& ctx, graft::Output& output)
+Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
+                                 graft::Context& ctx, graft::Output& output)
 {
     SaleRequest in = input.get<SaleRequest>();
     if (!in.Address.empty() && !in.Amount.empty())
@@ -53,7 +53,7 @@ Router::Status workerHandler(const Router::vars_t& vars, const graft::Input& inp
 
 void registerSaleRequest(graft::Router &router)
 {
-    Router::Handler3 *h3_test = new Router::Handler3(nullptr, workerHandler, nullptr);
+    Router::Handler3 *h3_test = new Router::Handler3(nullptr, saleWorkerHandler, nullptr);
     router.addRoute("/dapi/sale", METHOD_POST, h3_test);
 }
 
