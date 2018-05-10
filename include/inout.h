@@ -74,13 +74,48 @@ namespace graft
         std::string m_buf;
     };
 
+    class JsonParseError : public std::runtime_error
+    {
+    public:
+        JsonParseError(const rapidjson::ParseResult &pr)
+            : std::runtime_error( std::string("Json parse error, code: ") + std::to_string(pr.Code())
+                                  + ", offset: " + std::to_string(pr.Offset()))
+        {
+        }
+    };
+
     class InJson
     {
     public:
+
+        /*!
+         * \brief get - parses object from JSON. Throws ParseError exception in case parse error
+         * \return   Object of type T
+         */
         template <typename T>
         T get() const
         {
-            return T::fromJson(m_buf);
+            try {
+                return T::fromJson(m_buf);
+            } catch (const rapidjson::ParseResult &pr) {
+                throw ParseError(pr);
+            }
+        }
+
+        /*!
+         * \brief get - overloaded method not throwning exception
+         * \param result - reference to result object of type T
+         * \return  - true on success
+         */
+        template <typename T>
+        bool get(T& result)
+        {
+            try {
+                result = T::fromJson(m_buf);
+                return true;
+            } catch (const rapidjson::ParseResult &/*err*/) {
+                return false;
+            }
         }
 
         void load(const char *buf, size_t size) { m_buf.assign(buf, buf + size); }

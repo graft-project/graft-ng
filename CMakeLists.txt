@@ -4,6 +4,13 @@ project(graft_server)
 
 option(OPT_BUILD_TESTS "Build tests." ON)
 
+
+if(NOT CMAKE_BUILD_TYPE)
+  set( CMAKE_BUILD_TYPE Debug CACHE STRING
+       "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+       FORCE )
+endif()
+
 configure_file(
     "${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
     "${PROJECT_BINARY_DIR}/CMakeConfig.h"
@@ -159,7 +166,8 @@ if (OPT_BUILD_TESTS)
         add_executable(graft_server_test
                 ${GS_SOURCES}
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/json-rpc-test.cpp
+                ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/json_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
