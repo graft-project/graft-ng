@@ -92,7 +92,7 @@ GRAFT_DEFINE_IO_STRUCT(JsonRpcError,
     GRAFT_DEFINE_IO_STRUCT(Name,          \
         (std::string,         json),      \
         (uint64_t,            id),        \
-        (Result,              result),    \
+        (Result,              result)    \
     );
 
 
