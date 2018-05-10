@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 #include "context.h"
 #include "graft_manager.h"
+#include "requests.h"
+#include "salerequest.h"
+#include "requestdefines.h"
 #include "inout.h"
 #include <deque>
 
@@ -277,6 +280,7 @@ public:
     static graft::Manager* pmanager;
 
     const std::string uri_base = "http://localhost:9084/root/";
+    const std::string dapi_url = "http://localhost:9084/dapi";
 
 private:
     //Server to simulate CryptoNode (its object is created in non-main thread)
@@ -345,6 +349,7 @@ private:
             router.addRoute("/root/r{id:\\d+}", METHOD_GET, h3_test);
             router.addRoute("/root/r{id:\\d+}", METHOD_POST, h3_test);
             router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, h3_test);
+            graft::registerRTARequests(router);
             bool res = router.arm();
             EXPECT_EQ(res, true);
         }
@@ -452,6 +457,14 @@ public:
             res += path;
         }
         return res;
+    }
+
+    static std::string send_request(const std::string &url, const std::string &json_data)
+    {
+        std::ostringstream s;
+        s << "curl --data \"" << json_data << "\" " << url;
+        std::string ss = s.str();
+        return run_cmdline_read(ss.c_str());
     }
 
 protected:
@@ -605,7 +618,6 @@ TEST_F(GraftServerTest, GETtp)
     client.serve((uri_base+"r1").c_str());
     EXPECT_EQ(false, client.get_closed());
     std::string res = client.get_body();
-    EXPECT_EQ("Job done.", res);
     EXPECT_EQ("0123", iocheck);
 }
 
@@ -636,7 +648,6 @@ TEST_F(GraftServerTest, GETtpCNtp)
     client.serve((uri_base+"r2").c_str());
     EXPECT_EQ(false, client.get_closed());
     std::string res = client.get_body();
-    EXPECT_EQ("Job done.", res);
     EXPECT_EQ("01234123", iocheck);
 }
 
@@ -647,11 +658,12 @@ TEST_F(GraftServerTest, clPOSTtp)
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
     {
-        std::ostringstream s;
-        s << "curl --data \"" << jsonx << "\" " << (uri_base+"r3");
-        std::string ss = s.str();
-        std::string res = run_cmdline_read(ss.c_str());
-        EXPECT_EQ("Job done.", res);
+        std::string res = send_request(uri_base+"r3", jsonx);
+        EXPECT_EQ("{\"s\":\"0123\"}", res);
+        graft::Input response;
+        response.load(res.data(), res.length());
+        Sstr test_response = response.get<Sstr>();
+        EXPECT_EQ("0123", test_response.s);
         EXPECT_EQ("0123", iocheck);
     }
 }
@@ -666,13 +678,44 @@ TEST_F(GraftServerTest, clPOSTtpCNtp)
     res_que_action.push_back(graft::Router::Status::Forward);
     res_que_action.push_back(graft::Router::Status::Ok);
     {
-        std::ostringstream s;
-        s << "curl --data \"" << jsonx << "\" " << (uri_base+"r4");
-        std::string ss = s.str();
-        std::string res = run_cmdline_read(ss.c_str());
-        EXPECT_EQ("Job done.", res);
+        std::string res = send_request(uri_base+"r4", jsonx);
+        EXPECT_EQ("{\"s\":\"01234123\"}", res);
+        graft::Input response;
+        response.load(res.data(), res.length());
+        Sstr test_response = response.get<Sstr>();
+        EXPECT_EQ("01234123", test_response.s);
         EXPECT_EQ("01234123", iocheck);
     }
+}
+
+TEST_F(GraftServerTest, testSaleRequest)
+{
+    std::string sale_url(dapi_url + "/sale");
+    graft::Input response;
+    std::string res;
+    graft::SaleResponse sale_response;
+    ErrorResponse error_response;
+
+    std::string empty_data_request("{\\\"Address\\\":\\\"\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"10.0\\\"}");
+    res = send_request(sale_url, empty_data_request);
+    response.load(res.data(), res.length());
+    error_response = response.get<ErrorResponse>();
+    EXPECT_EQ(ERROR_INVALID_PARAMS, error_response.code);
+    EXPECT_EQ(MESSAGE_INVALID_PARAMS, error_response.message);
+
+    std::string error_balance_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"fffffffff\\\"}");
+    res = send_request(sale_url, error_balance_request);
+    response.load(res.data(), res.length());
+    error_response = response.get<ErrorResponse>();
+    EXPECT_EQ(ERROR_AMOUNT_INVALID, error_response.code);
+    EXPECT_EQ(MESSAGE_AMOUNT_INVALID, error_response.message);
+
+    std::string correct_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"dddd\\\",\\\"Amount\\\":\\\"10.0\\\"}");
+    res = send_request(sale_url, correct_request);
+    response.load(res.data(), res.length());
+    sale_response = response.get<graft::SaleResponse>();
+    EXPECT_EQ(36, sale_response.PaymentID.length());
+    ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
 }
 
 /* TODO: crash on this

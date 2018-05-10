@@ -70,12 +70,16 @@ add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 
 set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/graft_manager.cpp
+    ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 
 set(GS_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/mongoose
     ${PROJECT_SOURCE_DIR}/modules/libr3/include
+    ${PROJECT_SOURCE_DIR}/include/requests
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_BINARY_DIR}
     )

@@ -156,4 +156,6 @@ private:
 template<typename In, typename Out>
 R3Node *RouterT<In, Out>::m_node = nullptr;
 
+using Router = graft::RouterT<graft::Input, graft::Output>;
+
 }//namespace graft
