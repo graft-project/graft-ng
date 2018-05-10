@@ -59,30 +59,25 @@ TEST(JsonRPCFormat, common)
     GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRPCResponse, Payment);
 
     std::string json_rpc_error     = " {\"json\":\"\",\"id\":3355185,\"error\":{\"code\":123,\"message\":\"Error Message\"}}";
-    std::string json_rpc_response  = " {\"json\":\"\",\"id\":3355185,\"result\":{\"amount\":0 'aaaa',\"block_height\":3581286912,\"payment_id\":\"\",\"tx_hash\":\"\",\"unlock_time\":1217885840}}";
+    std::string json_rpc_response  = " {\"json\":\"\",\"id\":3355185,\"result\":{\"amount\":0,\"block_height\":3581286912,\"payment_id\":\"\",\"tx_hash\":\"\",\"unlock_time\":1217885840}}";
     // JsonRPCResponse jresp;
     // std::cout << jresp.toJson().GetString() << std::endl;
     Input in_err; in_err.load(json_rpc_error);
     Input in_result; in_result.load(json_rpc_response);
 
-//    try {
-//        std::cout << "Parsing: " << json_rpc_error << std::endl;
-//        JsonRPCResponse jr_err = in_err.get<JsonRPCResponse>();
-//        std::cout << "jr_err: result.unlock_time:  " <<  jr_err.result.unlock_time << std::endl;
-//        std::cout << "jr_err: " << jr_err.error.message << std::endl;
-//    } catch (std::exception &e) {
-//        std::cerr << e.what() << std::endl;
-//    }
+    JsonRPCResponse response;
+    ASSERT_NO_THROW(response = in_result.get<JsonRPCResponse>());
+    GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JsonRPCResponseResult, Payment);
 
-    try {
-        std::cout << "Trying to parse: " << json_rpc_response << std::endl;
-        JsonRPCResponse jr_result = in_result.get<JsonRPCResponse>();
-        std::cout << "jr_result: error_code:  " <<   jr_result.error.code << std::endl;
-//        std::cout << "jr_result: " <<   jr_result.toJson().GetString() << std::endl;
-    } catch (const std::exception &e) {
-        std::cerr << e.what() << std::endl;
-    } catch (...) {
-        std::cerr << "Unknown exception thrown...\n";
+    // we have positive response (no error);
+
+    if (response.error.code == 0) {
+        JsonRPCResponseResult result = in_result.get<JsonRPCResponseResult>();
+        // alternatively, we can just copy member-by-member from result
+        // Use result;
+    } else {
+        JsonRpcErrorResponse errorResponse = in_result.get<JsonRpcErrorResponse>();
+        // Use error;
     }
 
 }

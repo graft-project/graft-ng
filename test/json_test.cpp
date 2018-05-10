@@ -47,7 +47,6 @@ GRAFT_DEFINE_IO_STRUCT(PaymentTest,
 TEST(JsonParse, common)
 {
     GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRPCResponseTest, PaymentTest);
-
     std::string json_valid  = "{\"json\":\"\",\"id\":3355185,\"result\":{\"amount\":0, \"block_height\":3581286912,\"payment_id\":\"\",\"tx_hash\":\"\",\"unlock_time\":1217885840}}";
     std::string json_invalid  = "{\"json\":\"\",\"id\":3355185,\"result\":{\"amount\":0 'aaaa' = 'bbb',\"block_height\":3581286912,\"payment_id\":\"\",\"tx_hash\":\"\",\"unlock_time\":1217885840}}";
 
