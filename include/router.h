@@ -1,6 +1,6 @@
 #pragma once
 
-#include <deque>
+#include <forward_list>
 #include <functional>
 #include <string>
 #include <vector>
@@ -42,19 +42,19 @@ public:
         Handler3& operator = (Handler3&&) = default;
         ~Handler3() = default;
 
-        Handler3(const Handler& pre, const Handler& peri, const Handler& post)
-            : pre(pre), peri(peri), post(post)
+        Handler3(const Handler& pre_action, const Handler& action, const Handler& post_action)
+            : pre_action(pre_action), worker_action(action), post_action(post_action)
         { }
-        Handler3(Handler&& pre, Handler&& peri, Handler&& post)
-            : pre(std::move(pre)), peri(std::move(peri)), post(std::move(post))
+        Handler3(Handler&& pre_action, Handler&& action, Handler&& post_action)
+            : pre_action(std::move(pre_action)), worker_action(std::move(action)), post_action(std::move(post_action))
         { }
 
-        Handler3(const Handler& peri) : peri(peri) { }
-        Handler3(Handler&& peri) : peri(std::move(peri)) { }
+        Handler3(const Handler& worker_action) : worker_action(worker_action) { }
+        Handler3(Handler&& worker_action) : worker_action(std::move(worker_action)) { }
     public:
-        Handler pre;
-        Handler peri;
-        Handler post;
+        Handler pre_action;
+        Handler worker_action;
+        Handler post_action;
     };
 
 public:
@@ -73,9 +73,14 @@ public:
         }
     }
 
-    void addRoute(std::string endpoint, int methods, Handler3* ph3)
+    void addRoute(const std::string& endpoint, int methods, const Handler3& ph3)
     {
-        m_routes.push_back({endpoint, methods, ph3});
+        addRoute(endpoint, methods, Handler3(ph3));
+    }
+
+    void addRoute(const std::string& endpoint, int methods, Handler3&& ph3)
+    {
+        m_routes.push_front({endpoint, methods, std::move(ph3)});
     }
 
     bool arm()
@@ -87,7 +92,7 @@ public:
                         m_node,
                         r.methods,
                         r.endpoint.c_str(),
-                        reinterpret_cast<void*>(r.h3)
+                        &r
                         );
         });
 
@@ -127,7 +132,7 @@ public:
                                              std::move(std::string(entry->vars.tokens.entries[i].base, entry->vars.tokens.entries[i].len))
                                              ));
 
-            params.h3 = *reinterpret_cast<Handler3*>(m->data);
+            params.h3 = static_cast<Route*>(m->data)->h3;
             ret = true;
         }
         match_entry_free(entry);
@@ -140,15 +145,17 @@ private:
     {
         std::string endpoint;
         int methods;
-        Handler3* h3;
+        Handler3 h3;
     };
 
-    std::deque<Route> m_routes;
+    std::forward_list<Route> m_routes;
 
     static R3Node *m_node;
 };
 
 template<typename In, typename Out>
 R3Node *RouterT<In, Out>::m_node = nullptr;
+
+using Router = graft::RouterT<graft::Input, graft::Output>;
 
 }//namespace graft

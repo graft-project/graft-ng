@@ -65,6 +65,11 @@ namespace graft
         {
             return std::make_pair(m_buf.c_str(), m_buf.length());
         }
+
+        std::string data() const
+        {
+            return m_buf;
+        }
     private:
         std::string m_buf;
     };

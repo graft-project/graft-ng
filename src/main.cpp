@@ -1,4 +1,5 @@
 #include "graft_manager.h"
+#include "requests.h"
 
 #include <misc_log_ex.h>
 #include <boost/program_options.hpp>
@@ -83,6 +84,8 @@ int main(int argc, const char** argv)
 
         // TODO configure router
         graft::Router router;
+        graft::registerRTARequests(router);
+        router.arm();
         graft::Manager manager(router, sopts);
         graft::GraftServer server;
 
