@@ -98,7 +98,7 @@ namespace graft
             try {
                 return T::fromJson(m_buf);
             } catch (const rapidjson::ParseResult &pr) {
-                throw ParseError(pr);
+                throw JsonParseError(pr);
             }
         }
 
