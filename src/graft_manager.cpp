@@ -115,7 +115,7 @@ void Manager::doWork(uint64_t m_cnt)
 
 void Manager::onJobDone(GJ& gj)
 {
-    gj.get_cr()->onJobDone(gj);
+    gj.get_cr()->onJobDone(&gj);
     ++m_cntJobDone;
     //gj will be destroyed on exit
 }
@@ -190,11 +190,12 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
 void ClientRequest::respondToClientAndDie(const std::string &s)
 {
     int code;
-    switch(m_status)
+    switch(m_ctx.local.last_status)
     {
-    case Router::Status::Ok: code = 200; break;
-    case Router::Status::Error: code = 500; break;
-    case Router::Status::Drop: code = 400; break;
+    case Status::Ok: code = 200; break;
+    case Status::InternalError:
+    case Status::Error: code = 500; break;
+    case Status::Drop: code = 400; break;
     default: assert(false); break;
     }
     mg_http_send_error(m_client, code, s.c_str());
@@ -208,44 +209,96 @@ void ClientRequest::createJob(Manager &manager)
 {
     if(m_prms.h3.pre_action)
     {
-        m_prms.h3.pre_action(m_prms.vars, m_prms.input, m_ctx, m_output);
-        m_prms.input.assign(m_output);
+        try
+        {
+            m_ctx.local.last_status = m_prms.h3.pre_action(m_prms.vars, m_prms.input, m_ctx, m_output);
+            if(Status::Ok == m_ctx.local.last_status && (m_prms.h3.worker_action || m_prms.h3.post_action)
+                    || Status::Forward == m_ctx.local.last_status)
+            {
+                m_prms.input.assign(m_output);
+            }
+        }
+        catch(std::exception& e)
+        {
+            m_ctx.local.set_error(e.what());
+            m_prms.input.reset();
+        }
+        catch(...)
+        {
+            m_ctx.local.set_error("unknown exeption");;
+            m_prms.input.reset();
+        }
+
+        if(Status::Ok != m_ctx.local.last_status && Status::Forward != m_ctx.local.last_status)
+        {
+            processResult();
+            return;
+        }
     }
-    manager.get_threadPool().post(
+
+    if(m_prms.h3.worker_action)
+    {
+        manager.get_threadPool().post(
                 GJ_ptr( get_itself(), &manager.get_resQueue(), &manager )
                 );
+    }
+    else
+    {
+        onJobDone(nullptr);
+    }
 }
 
-void ClientRequest::onJobDone(GJ &gj)
+void ClientRequest::onJobDone(GJ* gj)
 {
-    if(Router::Status::Forward == m_status || m_prms.h3.post_action)
-    {
-        m_prms.input.assign(m_output);
-    }
+    //post_action if not empty, will be called in any case, even if worker_action results as some kind of error or exception.
+    //But, in case pre_action finishes as error both worker_action and post_action will be skipped.
+    //post_action has a chance to fix result of pre_action. In case of error was before it it should just return that error.
     if(m_prms.h3.post_action)
     {
-        m_prms.h3.post_action(m_prms.vars, m_prms.input, m_ctx, m_output);
-        m_prms.input.assign(m_output);
+        try
+        {
+            m_ctx.local.last_status = m_prms.h3.post_action(m_prms.vars, m_prms.input, m_ctx, m_output);
+            if(Status::Forward == m_ctx.local.last_status)
+            {
+                m_prms.input.assign(m_output);
+            }
+        }
+        catch(std::exception& e)
+        {
+            m_ctx.local.set_error(e.what());
+            m_prms.input.reset();
+        }
+        catch(...)
+        {
+            m_ctx.local.set_error("unknown exeption");;
+            m_prms.input.reset();
+        }
     }
     //here you can send a request to cryptonode or send response to client
     //gj will be destroyed on exit, save its result
     //now it sends response to client
-    switch(m_status)
+    processResult();
+}
+
+void ClientRequest::processResult()
+{
+    switch(m_ctx.local.last_status)
     {
-    case Router::Status::Forward:
+    case Status::Forward:
     {
         assert(m_client);
         Manager::from(m_client)->sendCrypton(get_itself());
     } break;
-    case Router::Status::Ok:
+    case Status::Ok:
     {
         respondToClientAndDie(m_output.data());
     } break;
-    case Router::Status::Error:
+    case Status::InternalError:
+    case Status::Error:
     {
         respondToClientAndDie(m_output.data());
     } break;
-    case Router::Status::Drop:
+    case Status::Drop:
     {
         respondToClientAndDie("Job done Drop."); //TODO: Expect HTTP Error Response
     } break;
@@ -353,7 +406,7 @@ void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
         if(router.match(uri, method, prms))
         {
             mg_str& body = hm->body;
-            prms.input.load(body.p, body.len) ;
+            prms.input.load(body.p, body.len);
             ClientRequest* ptr = ClientRequest::Create(client, prms, manager->get_gcm()).get();
             client->user_data = ptr;
             client->handler = ClientRequest::static_ev_handler;

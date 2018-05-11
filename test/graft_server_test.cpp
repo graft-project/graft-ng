@@ -272,7 +272,7 @@ class GraftServerTest : public ::testing::Test
 public:
     static std::string iocheck;
     static bool skip_ctx_check;
-    static std::deque<graft::Router::Status> res_que_action;
+    static std::deque<graft::Status> res_que_action;
     static graft::Router::Handler3 h3_test;
     static std::thread t_CN;
     static std::thread t_srv;
@@ -522,7 +522,7 @@ protected:
             return s;
         };
 
-        auto pre_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
+        auto pre_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
         {
             Sstr ss;
             std::string s = get_str(input, ctx, ss);
@@ -532,15 +532,15 @@ protected:
             put_str(s, ctx, output, ss);
             ctx.global[iocheck] = iocheck;
             ctx.local[iocheck] = iocheck;
-            return graft::Router::Status::Ok;
+            return graft::Status::Ok;
         };
-        auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
+        auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
         {
             Sstr ss;
             std::string s = get_str(input, ctx, ss);
             EXPECT_EQ(s, iocheck);
             check_ctx(ctx, s);
-            graft::Router::Status res = graft::Router::Status::Ok;
+            graft::Status res = graft::Status::Ok;
             if(!res_que_action.empty())
             {
                 res = res_que_action.front();
@@ -552,7 +552,7 @@ protected:
             ctx.local[iocheck] = iocheck;
             return res;
         };
-        auto post_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Router::Status
+        auto post_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
         {
             Sstr ss;
             std::string s = get_str(input, ctx, ss);
@@ -562,7 +562,7 @@ protected:
             put_str(s, ctx, output, ss);
             ctx.global[iocheck] = iocheck;
             ctx.local[iocheck] = iocheck;
-            return graft::Router::Status::Ok;
+            return ctx.local.last_status;
         };
 
         h3_test = graft::Router::Handler3(pre_action, action, post_action);
@@ -597,7 +597,7 @@ protected:
 
 std::string GraftServerTest::iocheck;
 bool GraftServerTest::skip_ctx_check = false;
-std::deque<graft::Router::Status> GraftServerTest::res_que_action;
+std::deque<graft::Status> GraftServerTest::res_que_action;
 graft::Router::Handler3 GraftServerTest::h3_test;
 std::thread GraftServerTest::t_CN;
 std::thread GraftServerTest::t_srv;
@@ -642,8 +642,8 @@ TEST_F(GraftServerTest, GETtpCNtp)
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
     res_que_action.clear();
-    res_que_action.push_back(graft::Router::Status::Forward);
-    res_que_action.push_back(graft::Router::Status::Ok);
+    res_que_action.push_back(graft::Status::Forward);
+    res_que_action.push_back(graft::Status::Ok);
     Client client;
     client.serve((uri_base+"r2").c_str());
     EXPECT_EQ(false, client.get_closed());
@@ -675,8 +675,8 @@ TEST_F(GraftServerTest, clPOSTtpCNtp)
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
     res_que_action.clear();
-    res_que_action.push_back(graft::Router::Status::Forward);
-    res_que_action.push_back(graft::Router::Status::Ok);
+    res_que_action.push_back(graft::Status::Forward);
+    res_que_action.push_back(graft::Status::Ok);
     {
         std::string res = send_request(uri_base+"r4", jsonx);
         EXPECT_EQ("{\"s\":\"01234123\"}", res);

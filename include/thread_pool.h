@@ -40,14 +40,30 @@ public:
     virtual void operator () ()
     {
         {
-            decltype(auto) status_ref = m_cr->get_statusRef();
             decltype(auto) vars_cref = m_cr->get_vars();
             decltype(auto) input_ref = m_cr->get_input();
             decltype(auto) output_ref = m_cr->get_output();
             decltype(auto) h3_ref = m_cr->get_h3();
             decltype(auto) ctx = m_cr->get_ctx();
 
-            status_ref = h3_ref.worker_action(vars_cref, input_ref, ctx, output_ref);
+            try
+            {
+                ctx.local.last_status = h3_ref.worker_action(vars_cref, input_ref, ctx, output_ref);
+                if(Status::Ok == ctx.local.last_status && h3_ref.post_action || Status::Forward == ctx.local.last_status)
+                {
+                    input_ref.assign(output_ref);
+                }
+            }
+            catch(std::exception& e)
+            {
+                ctx.local.set_error(e.what());
+                input_ref.reset();
+            }
+            catch(...)
+            {
+                ctx.local.set_error("unknown exeption");;
+                input_ref.reset();
+            }
         }
         Watcher* save_m_watcher = m_watcher; //save m_watcher before move itself into resulting queue
         m_rq->push(std::move(*this)); //similar to "delete this;"

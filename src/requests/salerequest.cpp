@@ -4,7 +4,7 @@
 
 namespace graft {
 
-Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
+Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
     SaleRequest in = input.get<SaleRequest>();
@@ -17,7 +17,7 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
             err.code = ERROR_SALE_REQUEST_FAILED;
             err.message = MESSAGE_SALE_REQUEST_FAILED;
             output.load(err);
-            return Router::Status::Error;
+            return Status::Error;
         }
         uint64_t amount = convertAmount(in.Amount);
         if (amount <= 0)
@@ -26,7 +26,7 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
             err.code = ERROR_AMOUNT_INVALID;
             err.message = MESSAGE_AMOUNT_INVALID;
             output.load(err);
-            return Router::Status::Error;
+            return Status::Error;
         }
         SaleData data(in.Address, 0, amount);
         ctx.global[payment_id + CONTEXT_KEY_SALE] = data;
@@ -39,7 +39,7 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
         out.BlockNumber = data.BlockNumber;
         out.PaymentID = payment_id;
         output.load(out);
-        return Router::Status::Ok;
+        return Status::Ok;
     }
     else
     {
@@ -47,13 +47,13 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
         err.code = ERROR_INVALID_PARAMS;
         err.message = MESSAGE_INVALID_PARAMS;
         output.load(err);
-        return Router::Status::Error;
+        return Status::Error;
     }
 }
 
 void registerSaleRequest(graft::Router &router)
 {
-    static Router::Handler3 h3_test(nullptr, saleWorkerHandler, nullptr);
+    Router::Handler3 h3_test(nullptr, saleWorkerHandler, nullptr);
     router.addRoute("/dapi/sale", METHOD_POST, h3_test);
 }
 

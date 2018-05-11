@@ -10,6 +10,7 @@
 #include <map>
 
 #include "graft_utility.hpp"
+#include "graft_constants.h"
 
 #include <iostream>
 #include <vector>
@@ -90,6 +91,14 @@ struct Context
         {
             m_map.erase(key);
         }
+        void set_error(const char* str, Status status = Status::InternalError)
+        {
+            error = str;
+            last_status = status;
+        }
+    public:
+        Status last_status = Status::None;
+        std::string error;
     };
 
     class Global
