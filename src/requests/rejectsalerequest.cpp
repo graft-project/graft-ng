@@ -25,7 +25,7 @@ Router::Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input&
 
 void registerRejectSaleRequest(Router &router)
 {
-    static Router::Handler3 h3(nullptr, rejectSaleHandler, nullptr);
+    Router::Handler3 h3(nullptr, rejectSaleHandler, nullptr);
     router.addRoute("/dapi/reject_sale", METHOD_POST, h3);
 }
 

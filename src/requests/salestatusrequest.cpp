@@ -23,7 +23,7 @@ Router::Status saleStatusHandler(const Router::vars_t& vars, const graft::Input&
 
 void registerSaleStatusRequest(graft::Router &router)
 {
-    static Router::Handler3 h3(nullptr, saleStatusHandler, nullptr);
+    Router::Handler3 h3(nullptr, saleStatusHandler, nullptr);
     router.addRoute("/dapi/sale_status", METHOD_POST, h3);
 }
 
