@@ -26,10 +26,19 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <string>
+
+#include <misc_log_ex.h>
 #include <gtest/gtest.h>
 #include <inout.h>
 #include <jsonrpc.h>
+#include <graft_manager.h>
+#include <router.h>
+
+#include <string>
+#include <thread>
+
+
+using namespace graft;
 
 GRAFT_DEFINE_IO_STRUCT_INITED(Payment1,
      (uint64, amount, 0),
@@ -44,22 +53,17 @@ GRAFT_DEFINE_IO_STRUCT(Payments,
                        (std::vector<Payment1>, payments)
 );
 
+
+
+
+GRAFT_DEFINE_JSON_RPC_REQUEST(JsonRPCRequest, Payment1);
+GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRPCResponse, Payment1);
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JsonRPCResponseResult, Payment1);
+
+
 TEST(JsonRPCFormat, error_and_result_parse)
 {
     using namespace graft;
-    Payment1 p;
-    p.amount = 1;
-    p.block_height = 1;
-    p.payment_id = "123";
-    std::vector<Payment1> params = {p};
-
-    GRAFT_DEFINE_JSON_RPC_REQUEST(JsonRPCRequest, Payment1);
-    JsonRPCRequest jreq;
-    initJsonRpcRequest(jreq, 1, "hello", params);
-    std::cout << jreq.toJson().GetString() << std::endl;
-
-    GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRPCResponse, Payment1);
-
     std::string json_rpc_response  = " {\"json\":\"\",\"id\":3355185,\"result\":{\"amount\":0,\"block_height\":3581286912,\"payment_id\":\"\",\"tx_hash\":\"\",\"unlock_time\":1217885840}}";
 
     Input in_result; in_result.load(json_rpc_response);
@@ -67,7 +71,7 @@ TEST(JsonRPCFormat, error_and_result_parse)
     JsonRPCResponse response1;
     // testing 'result' response
     ASSERT_NO_THROW(response1 = in_result.get<JsonRPCResponse>());
-    GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JsonRPCResponseResult, Payment1);
+
     EXPECT_TRUE(response1.error.code == 0);
 
     JsonRPCResponseResult result = in_result.get<JsonRPCResponseResult>();
@@ -83,4 +87,97 @@ TEST(JsonRPCFormat, error_and_result_parse)
     EXPECT_TRUE(response2.result.block_height == 0);
 }
 
+GRAFT_DEFINE_IO_STRUCT_INITED(TestRequestParam,
+                              (bool, return_success, true));
 
+GRAFT_DEFINE_IO_STRUCT_INITED(TestResponseParam,
+                              (std::string, foo, ""),
+                              (int, bar, 0),
+                              (std::vector<int>, baz, std::vector<int>())
+                              );
+
+GRAFT_DEFINE_JSON_RPC_REQUEST(JsonRpcTestRequest, TestRequestParam);
+GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRpcTestResponse, TestRequestParam);
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JsonRpcTestResponseResult, TestRequestParam);
+
+struct JsonRpcTest : public ::testing::Test
+{
+
+    static Router::Status jsonRpcHandler(const Router::vars_t& vars, const graft::Input& input,
+                                     graft::Context& ctx, graft::Output& output)
+    {
+
+    }
+
+    JsonRpcTest()
+    {
+        mlog_configure("", true);
+        ServerOpts sopts {"localhost:8855", 5.0, 4, 4};
+        Router router;
+        Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
+        router.addRoute("/jsonrpc/test", METHOD_POST, h3);
+        router.arm();
+        manager = new Manager(router, sopts);
+        server_thread = std::thread([&]() {
+            server.serve(manager->get_mg_mgr());
+        });
+    }
+
+    ~JsonRpcTest()
+    {
+        delete manager;
+        server_thread.join();
+    }
+
+    static std::string run_cmdline_read(const std::string& cmdl)
+    {
+        FILE* fp = popen(cmdl.c_str(), "r");
+        assert(fp);
+        std::string res;
+        char path[1035];
+        while(fgets(path, sizeof(path)-1, fp))
+        {
+            res += path;
+        }
+        pclose(fp);
+        return res;
+    }
+
+    static std::string send_request(const std::string &url, const std::string &json_data)
+    {
+        std::ostringstream s;
+        s << "curl --data \"" << json_data << "\" " << url;
+        std::string ss = s.str();
+        return run_cmdline_read(ss.c_str());
+    }
+
+
+    static void SetUpTestCase()
+    {
+    }
+
+    static void TearDownTestCase()
+    {
+    }
+
+    virtual void SetUp() override
+    { }
+    virtual void TearDown() override
+    { }
+
+    GraftServer server;
+    Manager   * manager;
+    std::thread server_thread;
+};
+
+
+TEST_F(JsonRpcTest, resultResponse)
+{
+    LOG_PRINT_L1("resultResponse");
+}
+
+
+TEST_F(JsonRpcTest, errorResponse)
+{
+    LOG_PRINT_L2("errorResponse");
+}

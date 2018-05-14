@@ -30,6 +30,8 @@
 #define JSONRPC_H
 
 #include <inout.h>
+#include <string>
+#include <vector>
 
 namespace graft {
 

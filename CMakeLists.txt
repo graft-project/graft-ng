@@ -179,9 +179,13 @@ if (OPT_BUILD_TESTS)
         )
 
         target_link_libraries(graft_server_test
-                ${GS_LIBS}
-                ${GT_LIBS}
-                ${CMAKE_THREAD_LIBS_INIT}
+            epee
+            easylogging
+            ${GS_LIBS}
+            ${GT_LIBS}
+            ${CMAKE_THREAD_LIBS_INIT}
+            ${Boost_SYSTEM_LIBRARY}
+            ${Boost_FILESYSTEM_LIBRARY}
         )
 
         add_dependencies(graft_server_test libr3 cryptonode googletest)
