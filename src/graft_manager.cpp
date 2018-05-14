@@ -226,7 +226,7 @@ void ClientRequest::createJob(Manager &manager)
         }
         catch(...)
         {
-            setError("unknown exeption");;
+            setError("unknown exeption");
             m_prms.input.reset();
         }
 
@@ -272,7 +272,7 @@ void ClientRequest::onJobDone(GJ* gj)
         }
         catch(...)
         {
-            setError("unknown exeption");;
+            setError("unknown exeption");
             m_prms.input.reset();
         }
     }
