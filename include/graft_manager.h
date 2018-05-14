@@ -232,6 +232,9 @@ public:
     void onCryptonDone(CryptoNodeSender& cns);
 private:
     void processResult();
+    void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
+    Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
+    void setError(const char* str, Status status = Status::InternalError) { m_ctx.local.setError(str, status); }
 public:
     const Router::vars_t& get_vars() const { return m_prms.vars; }
     Input& get_input() { return m_prms.input; }

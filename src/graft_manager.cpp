@@ -190,7 +190,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
 void ClientRequest::respondToClientAndDie(const std::string &s)
 {
     int code;
-    switch(m_ctx.local.last_status)
+    switch(m_ctx.local.getLastStatus())
     {
     case Status::Ok: code = 200; break;
     case Status::InternalError:
@@ -211,25 +211,26 @@ void ClientRequest::createJob(Manager &manager)
     {
         try
         {
-            m_ctx.local.last_status = m_prms.h3.pre_action(m_prms.vars, m_prms.input, m_ctx, m_output);
-            if(Status::Ok == m_ctx.local.last_status && (m_prms.h3.worker_action || m_prms.h3.post_action)
-                    || Status::Forward == m_ctx.local.last_status)
+            Status status = m_prms.h3.pre_action(m_prms.vars, m_prms.input, m_ctx, m_output);
+            setLastStatus(status);
+            if(Status::Ok == status && (m_prms.h3.worker_action || m_prms.h3.post_action)
+                    || Status::Forward == status)
             {
                 m_prms.input.assign(m_output);
             }
         }
-        catch(std::exception& e)
+        catch(const std::exception& e)
         {
-            m_ctx.local.set_error(e.what());
+            setError(e.what());
             m_prms.input.reset();
         }
         catch(...)
         {
-            m_ctx.local.set_error("unknown exeption");;
+            setError("unknown exeption");;
             m_prms.input.reset();
         }
 
-        if(Status::Ok != m_ctx.local.last_status && Status::Forward != m_ctx.local.last_status)
+        if(Status::Ok != getLastStatus() && Status::Forward != getLastStatus())
         {
             processResult();
             return;
@@ -257,20 +258,21 @@ void ClientRequest::onJobDone(GJ* gj)
     {
         try
         {
-            m_ctx.local.last_status = m_prms.h3.post_action(m_prms.vars, m_prms.input, m_ctx, m_output);
-            if(Status::Forward == m_ctx.local.last_status)
+            Status status = m_prms.h3.post_action(m_prms.vars, m_prms.input, m_ctx, m_output);
+            setLastStatus(status);
+            if(Status::Forward == status)
             {
                 m_prms.input.assign(m_output);
             }
         }
-        catch(std::exception& e)
+        catch(const std::exception& e)
         {
-            m_ctx.local.set_error(e.what());
+            setError(e.what());
             m_prms.input.reset();
         }
         catch(...)
         {
-            m_ctx.local.set_error("unknown exeption");;
+            setError("unknown exeption");;
             m_prms.input.reset();
         }
     }
@@ -282,7 +284,7 @@ void ClientRequest::onJobDone(GJ* gj)
 
 void ClientRequest::processResult()
 {
-    switch(m_ctx.local.last_status)
+    switch(getLastStatus())
     {
     case Status::Forward:
     {

@@ -91,14 +91,33 @@ struct Context
         {
             m_map.erase(key);
         }
-        void set_error(const char* str, Status status = Status::InternalError)
+        void setError(const char* str, Status status = Status::InternalError)
         {
-            error = str;
-            last_status = status;
+            m_error = str;
+            m_last_status = status;
         }
+        Status getLastStatus() const
+        {
+            return m_last_status;
+        }
+        const std::string& getLastError() const
+        {
+            return m_error;
+        }
+    protected:
+        Status m_last_status = Status::None;
+        std::string m_error;
+    };
+
+    class LocalFriend : protected Local
+    {
     public:
-        Status last_status = Status::None;
-        std::string error;
+        LocalFriend() = delete;
+        static void setLastStatus(Local& local, Status status)
+        {
+            LocalFriend& lf = static_cast<LocalFriend&>(local);
+            lf.m_last_status = status;
+        }
     };
 
     class Global

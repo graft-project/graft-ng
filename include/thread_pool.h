@@ -48,20 +48,21 @@ public:
 
             try
             {
-                ctx.local.last_status = h3_ref.worker_action(vars_cref, input_ref, ctx, output_ref);
-                if(Status::Ok == ctx.local.last_status && h3_ref.post_action || Status::Forward == ctx.local.last_status)
+                Status status = h3_ref.worker_action(vars_cref, input_ref, ctx, output_ref);
+                Context::LocalFriend::setLastStatus(ctx.local, status);
+                if(Status::Ok == status && h3_ref.post_action || Status::Forward == status)
                 {
                     input_ref.assign(output_ref);
                 }
             }
-            catch(std::exception& e)
+            catch(const std::exception& e)
             {
-                ctx.local.set_error(e.what());
+                ctx.local.setError(e.what());
                 input_ref.reset();
             }
             catch(...)
             {
-                ctx.local.set_error("unknown exeption");;
+                ctx.local.setError("unknown exeption");;
                 input_ref.reset();
             }
         }

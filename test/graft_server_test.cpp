@@ -562,7 +562,7 @@ protected:
             put_str(s, ctx, output, ss);
             ctx.global[iocheck] = iocheck;
             ctx.local[iocheck] = iocheck;
-            return ctx.local.last_status;
+            return ctx.local.getLastStatus();
         };
 
         h3_test = graft::Router::Handler3(pre_action, action, post_action);
