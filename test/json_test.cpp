@@ -35,48 +35,48 @@
 using namespace std;
 using namespace graft;
 
-GRAFT_DEFINE_IO_STRUCT(PaymentTest,
-     (uint64, amount),
-     (uint32, block_height),
-     (std::string, payment_id),
-     (std::string, tx_hash),
-     (uint32, unlock_time)
+struct Foo
+{
+    int foo = 1;
+};
+
+// conflicting Payment struct defined with GRAFT_DEFINE_IO_STRUCT in another file (graft_server_test.cpp)
+//
+GRAFT_DEFINE_IO_STRUCT_INITED(Payment,
+     (uint64, amount, 1),
+     (uint32, block_height, 2),
+     (std::string, payment_id, "123"),
+     (std::string, tx_hash, "456"),
+     (uint32, unlock_time, 3)
  );
 
+GRAFT_DEFINE_IO_STRUCT_INITED(Payment3,
+     (uint64, amount, 1),
+     (uint32, block_height, 2),
+     (std::string, payment_id, "123"),
+     (std::string, tx_hash, "456"),
+     (uint32, unlock_time, 3)
+ );
 
-TEST(JsonParse, common)
+TEST(GraftDefineIOStruct, initedFail)
 {
-    GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRPCResponseTest, PaymentTest);
-    std::string json_valid  = "{\"json\":\"\",\"id\":3355185,\"result\":{\"amount\":0, \"block_height\":3581286912,\"payment_id\":\"\",\"tx_hash\":\"\",\"unlock_time\":1217885840}}";
-    std::string json_invalid  = "{\"json\":\"\",\"id\":3355185,\"result\":{\"amount\":0 'aaaa' = 'bbb',\"block_height\":3581286912,\"payment_id\":\"\",\"tx_hash\":\"\",\"unlock_time\":1217885840}}";
-
-    // valid json test
-    Input in; in.load(json_valid);
-    JsonRPCResponseTest result1;
-
-
-    ASSERT_NO_THROW(result1 = in.get<JsonRPCResponseTest>());
-    ASSERT_EQ(result1.id, 3355185);
-    ASSERT_EQ(result1.result.block_height, 3581286912);
-
-
-
-    JsonRPCResponseTest result2;
-    bool ret = in.get<JsonRPCResponseTest>(result2);
-
-
-
-
-    ASSERT_EQ(result2.id, 3355185);
-    ASSERT_EQ(result2.result.block_height, 3581286912);
-
-    // invalid json test
-    in.load(json_invalid);
-
-    ASSERT_ANY_THROW(result1 = in.get<JsonRPCResponseTest>());
-
-    ASSERT_FALSE(in.get<JsonRPCResponseTest>(result1));
-
-
+    Payment pt1;
+    // pt1 has randomly initialized fields here
+    EXPECT_EQ(pt1.amount, 1);
+    EXPECT_EQ(pt1.block_height, 2);
+    EXPECT_EQ(pt1.payment_id, "123");
+    EXPECT_EQ(pt1.tx_hash, "456");
+    EXPECT_EQ(pt1.unlock_time, 3);
+    Foo foo;
+    EXPECT_EQ(foo.foo, 1);
 }
 
+TEST(GraftDefineIOStruct, initedSuccess)
+{
+    Payment3 pt3;
+    EXPECT_EQ(pt3.amount, 1);
+    EXPECT_EQ(pt3.block_height, 2);
+    EXPECT_EQ(pt3.payment_id, "123");
+    EXPECT_EQ(pt3.tx_hash, "456");
+    EXPECT_EQ(pt3.unlock_time, 3);
+}
