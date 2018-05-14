@@ -31,55 +31,56 @@
 #include <inout.h>
 #include <jsonrpc.h>
 
-GRAFT_DEFINE_IO_STRUCT(Payment,
-     (uint64, amount),
-     (uint32, block_height),
-     (std::string, payment_id),
-     (std::string, tx_hash),
-     (uint32, unlock_time)
+GRAFT_DEFINE_IO_STRUCT_INITED(Payment1,
+     (uint64, amount, 0),
+     (uint32, block_height, 0),
+     (std::string, payment_id, ""),
+     (std::string, tx_hash, ""),
+     (uint32, unlock_time, 0)
  );
 
 
+GRAFT_DEFINE_IO_STRUCT(Payments,
+                       (std::vector<Payment1>, payments)
+);
 
-
-TEST(JsonRPCFormat, common)
+TEST(JsonRPCFormat, error_and_result_parse)
 {
     using namespace graft;
-    Payment p;
+    Payment1 p;
     p.amount = 1;
     p.block_height = 1;
     p.payment_id = "123";
-    std::vector<Payment> params = {p};
+    std::vector<Payment1> params = {p};
 
-    GRAFT_DEFINE_JSON_RPC_REQUEST(JsonRPCRequest, Payment);
+    GRAFT_DEFINE_JSON_RPC_REQUEST(JsonRPCRequest, Payment1);
     JsonRPCRequest jreq;
     initJsonRpcRequest(jreq, 1, "hello", params);
     std::cout << jreq.toJson().GetString() << std::endl;
 
-    GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRPCResponse, Payment);
+    GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRPCResponse, Payment1);
 
-    std::string json_rpc_error     = " {\"json\":\"\",\"id\":3355185,\"error\":{\"code\":123,\"message\":\"Error Message\"}}";
     std::string json_rpc_response  = " {\"json\":\"\",\"id\":3355185,\"result\":{\"amount\":0,\"block_height\":3581286912,\"payment_id\":\"\",\"tx_hash\":\"\",\"unlock_time\":1217885840}}";
-    // JsonRPCResponse jresp;
-    // std::cout << jresp.toJson().GetString() << std::endl;
-    Input in_err; in_err.load(json_rpc_error);
+
     Input in_result; in_result.load(json_rpc_response);
 
-    JsonRPCResponse response;
-    ASSERT_NO_THROW(response = in_result.get<JsonRPCResponse>());
-    GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JsonRPCResponseResult, Payment);
+    JsonRPCResponse response1;
+    // testing 'result' response
+    ASSERT_NO_THROW(response1 = in_result.get<JsonRPCResponse>());
+    GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JsonRPCResponseResult, Payment1);
+    EXPECT_TRUE(response1.error.code == 0);
 
-    // we have positive response (no error);
+    JsonRPCResponseResult result = in_result.get<JsonRPCResponseResult>();
+    EXPECT_TRUE(result.result.block_height == 3581286912);
 
-    if (response.error.code == 0) {
-        JsonRPCResponseResult result = in_result.get<JsonRPCResponseResult>();
-        // alternatively, we can just copy member-by-member from result
-        // Use result;
-    } else {
-        JsonRpcErrorResponse errorResponse = in_result.get<JsonRpcErrorResponse>();
-        // Use error;
-    }
-
+    // testing 'error' response
+    std::string json_rpc_error     = " {\"json\":\"\",\"id\":3355185,\"error\":{\"code\":123,\"message\":\"Error Message\"}}";
+    Input in_err; in_err.load(json_rpc_error);
+    JsonRPCResponse response2;
+    ASSERT_NO_THROW(response2 = in_err.get<JsonRPCResponse>());
+    EXPECT_TRUE(response2.error.code == 123);
+    EXPECT_TRUE(response2.result.amount == 0);
+    EXPECT_TRUE(response2.result.block_height == 0);
 }
 
 

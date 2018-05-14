@@ -63,9 +63,9 @@ void initJsonRpcRequest(T &t, uint64_t id, const std::string &method, const std:
     t.params = std::move(params);
 }
 
-GRAFT_DEFINE_IO_STRUCT(JsonRpcError,
-                       (int64_t, code),
-                       (std::string, message)
+GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcError,
+                       (int64_t, code, 0),
+                       (std::string, message, "")
                        );
 
 /*!
