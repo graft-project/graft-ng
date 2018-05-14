@@ -12,6 +12,8 @@ GRAFT_DEFINE_IO_STRUCT(ErrorResponse,
 #define EXTENDED_ERROR_MESSAGE(message, reason) \
     std::string(__FUNCTION__) + std::string(": ") + message + std::string(" Reason: ") + reason
 
+#define STATUS_OK                           0
+
 //Standart JSON-RPC 2.0 Errors
 #define ERROR_PARSE_ERROR                   -32700
 #define ERROR_INVALID_REQUEST               -32600
@@ -24,9 +26,11 @@ static const std::string MESSAGE_INTERNAL_ERROR("Internal server error.");
 
 //RTA DAPI Errors
 #define ERROR_AMOUNT_INVALID                -32050
+#define ERROR_PAYMENT_ID_INVALID            -32051
 #define ERROR_SALE_REQUEST_FAILED           -32060
 
 static const std::string MESSAGE_AMOUNT_INVALID("Amount is invalid.");
+static const std::string MESSAGE_PAYMENT_ID_INVALID("Payment ID is invalid.");
 static const std::string MESSAGE_SALE_REQUEST_FAILED("Sale request is failed.");
 
 //Context Keys
