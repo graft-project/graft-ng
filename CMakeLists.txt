@@ -75,6 +75,8 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/saledetailsrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/payrequest.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 
