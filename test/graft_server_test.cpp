@@ -25,7 +25,7 @@ TEST(InOut, common)
 
     auto f = [](const Input& in, Output& out)
     {
-        Payment p = in.get<Payment>();
+        Payment p(in);
         EXPECT_EQ(p.amount, 10350000000000);
         EXPECT_EQ(p.block_height, 994327);
         EXPECT_EQ(p.payment_id, "4279257e0a20608e25dba8744949c9e1caff4fcdafc7d5362ecf14225f3d9030");
@@ -321,7 +321,7 @@ private:
                 else
                 {
                     graft::Input in; in.load(data.c_str(), data.size());
-                    Sstr ss = in.get<Sstr>();
+                    Sstr ss(in);
                     EXPECT_EQ(ss.s, iocheck);
                     iocheck = ss.s += '4'; skip_ctx_check = true;
                     graft::Output out; out.load(ss);
@@ -502,7 +502,7 @@ protected:
             }
             else
             {//POST
-                ss = input.get<Sstr>();
+                ss = Sstr(input);
                 std::string s = ss.s;
                 return s;
             }
@@ -662,7 +662,7 @@ TEST_F(GraftServerTest, clPOSTtp)
         EXPECT_EQ("{\"s\":\"0123\"}", res);
         graft::Input response;
         response.load(res.data(), res.length());
-        Sstr test_response = response.get<Sstr>();
+        Sstr test_response(response);
         EXPECT_EQ("0123", test_response.s);
         EXPECT_EQ("0123", iocheck);
     }
@@ -682,7 +682,7 @@ TEST_F(GraftServerTest, clPOSTtpCNtp)
         EXPECT_EQ("{\"s\":\"01234123\"}", res);
         graft::Input response;
         response.load(res.data(), res.length());
-        Sstr test_response = response.get<Sstr>();
+        Sstr test_response(response);
         EXPECT_EQ("01234123", test_response.s);
         EXPECT_EQ("01234123", iocheck);
     }
@@ -699,21 +699,21 @@ TEST_F(GraftServerTest, testSaleRequest)
     std::string empty_data_request("{\\\"Address\\\":\\\"\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"10.0\\\"}");
     res = send_request(sale_url, empty_data_request);
     response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
+    error_response = ErrorResponse(response);
     EXPECT_EQ(ERROR_INVALID_PARAMS, error_response.code);
     EXPECT_EQ(MESSAGE_INVALID_PARAMS, error_response.message);
 
     std::string error_balance_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"fffffffff\\\"}");
     res = send_request(sale_url, error_balance_request);
     response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
+    error_response = ErrorResponse(response);
     EXPECT_EQ(ERROR_AMOUNT_INVALID, error_response.code);
     EXPECT_EQ(MESSAGE_AMOUNT_INVALID, error_response.message);
 
     std::string correct_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"dddd\\\",\\\"Amount\\\":\\\"10.0\\\"}");
     res = send_request(sale_url, correct_request);
     response.load(res.data(), res.length());
-    sale_response = response.get<graft::SaleResponse>();
+    sale_response = graft::SaleResponse(response);
     EXPECT_EQ(36, sale_response.PaymentID.length());
     ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
 }

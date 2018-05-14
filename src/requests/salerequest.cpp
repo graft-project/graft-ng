@@ -7,7 +7,7 @@ namespace graft {
 Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
-    SaleRequest in = input.get<SaleRequest>();
+    SaleRequest in(input);
     if (!in.Address.empty() && !in.Amount.empty())
     {
         std::string payment_id = generatePaymentID();

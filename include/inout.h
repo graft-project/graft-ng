@@ -12,7 +12,16 @@
 
 #define GRAFT_DEFINE_IO_STRUCT(__S__, ...)              \
 	struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> \
-		{BOOST_HANA_DEFINE_STRUCT(__S__, __VA_ARGS__);}
+        { \
+            __S__() = default; \
+            __S__(const __S__& ) = default; \
+            __S__(__S__&& ) = default; \
+            ~__S__() = default; \
+            __S__& operator = (const __S__& ) = default; \
+            __S__& operator = (__S__&& ) = default; \
+            __S__(const graft::InJson& inp) : __S__(inp.get<__S__>()) { } \
+            BOOST_HANA_DEFINE_STRUCT(__S__, __VA_ARGS__); \
+        }
 
 /*
  *  Mapping of supported C++ types to supported JSON types
@@ -80,7 +89,7 @@ namespace graft
         template <typename T>
         T get() const
         {
-            return T::fromJson(m_buf);
+            return T::fromJson(m_buf.c_str(), m_buf.size());
         }
 
         void load(const char *buf, size_t size) { m_buf.assign(buf, buf + size); }
