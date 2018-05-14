@@ -97,6 +97,11 @@ void Manager::initThreadPool(int threadCount, int workersQueueSize)
     setThreadPool(std::move(thread_pool), std::move(resQueue), maxinputSize);
 }
 
+Manager::~Manager()
+{
+    this->stop();
+}
+
 void Manager::notifyJobReady()
 {
     mg_notify(&m_mgr);
@@ -125,6 +130,17 @@ void Manager::onCryptonDone(CryptoNodeSender& cns)
     cns.get_cr()->onCryptonDone(cns);
     ++m_cntCryptoNodeSenderDone;
     //cns will be destroyed on exit
+}
+
+void Manager::stop()
+{
+    // TODO:
+    this->m_exit = true;
+}
+
+bool Manager::stopped() const
+{
+    return this->m_exit;
 }
 
 void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_threadPoolInputSize_)
@@ -343,6 +359,7 @@ void GraftServer::serve(mg_mgr *mgr)
     ServerOpts& opts = Manager::from(mgr)->get_opts();
 
     mg_connection* nc = mg_bind(mgr, opts.http_address.c_str(), ev_handler);
+
     mg_set_protocol_http_websocket(nc);
 #ifdef OPT_BUILD_TESTS
     ready = true;
@@ -350,7 +367,8 @@ void GraftServer::serve(mg_mgr *mgr)
     for (;;)
     {
         mg_mgr_poll(mgr, 1000);
-        if(Manager::from(mgr)->exit) break;
+        if (Manager::from(mgr)->stopped())
+            break;
     }
     mg_mgr_free(mgr);
 }
@@ -395,9 +413,10 @@ void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
 
         struct http_message *hm = (struct http_message *) ev_data;
         std::string uri(hm->uri.p, hm->uri.len);
+        // TODO: why this is hardcoded ?
         if(uri == "/root/exit")
         {
-            manager->exit = true;
+            manager->stop();
             return;
         }
         std::string s_method(hm->method.p, hm->method.len);
