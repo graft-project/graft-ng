@@ -77,8 +77,6 @@ public:
 
             if (err != 0)
                 std::cout << "error: " << std::string(errstr) << std::endl;
-//          else
-//              r3_tree_dump(m_node, 0);
 
             return (err == 0);
         }
@@ -113,7 +111,7 @@ public:
         std::forward_list<RouterT<In, Out>> m_routers;
     };
 
-    RouterT(const std::string& prefix = "") : m_endpointPrefix(prefix) { }
+    RouterT(const std::string& prefix = std::string()) : m_endpointPrefix(prefix) { }
 
     RouterT(RouterT&& r)
         : m_endpointPrefix(std::move(r.m_endpointPrefix))
