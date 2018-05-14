@@ -10,9 +10,18 @@
 #include "reflective-rapidjson/serializable.h"
 #include "reflective-rapidjson/types.h"
 
-#define GRAFT_DEFINE_IO_STRUCT(__S__, ...)              \
-	struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> \
-		{BOOST_HANA_DEFINE_STRUCT(__S__, __VA_ARGS__);}
+#include "graft_macros.h"
+
+#define GRAFT_DEFINE_IO_STRUCT(__S__, ...) \
+    struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> { \
+	BOOST_HANA_DEFINE_STRUCT(__S__, __VA_ARGS__); \
+    }
+
+#define GRAFT_DEFINE_IO_STRUCT_INITED(__S__, ...) \
+    struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> { \
+        __S__() : INIT_PAIRS(__VA_ARGS__) {} \
+	BOOST_HANA_DEFINE_STRUCT(__S__, TN_PAIRS(__VA_ARGS__)); \
+    }
 
 /*
  *  Mapping of supported C++ types to supported JSON types
@@ -43,6 +52,16 @@
  *      (std::string, payment_id),
  *      (std::string, tx_hash),
  *      (uint32, unlock_time)
+ * );
+ *
+ * or initialized with default values
+ *
+ *  GRAFT_DEFINE_IO_STRUCT_INITED(Payment,
+ *      (uint64, amount, 999),
+ *      (uint32, block_height, 10000),
+ *      (std::string, payment_id, "abc"),
+ *      (std::string, tx_hash, "def"),
+ *      (uint32, unlock_time, 555555)
  * );
  *
  * GRAFT_DEFINE_IO_STRUCT(Payments,
