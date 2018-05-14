@@ -3,6 +3,8 @@
 #include "graft_manager.h"
 #include "requests.h"
 #include "salerequest.h"
+#include "salestatusrequest.h"
+#include "rejectsalerequest.h"
 #include "requestdefines.h"
 #include "inout.h"
 #include <deque>
@@ -716,6 +718,91 @@ TEST_F(GraftServerTest, testSaleRequest)
     sale_response = response.get<graft::SaleResponse>();
     EXPECT_EQ(36, sale_response.PaymentID.length());
     ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
+}
+
+TEST_F(GraftServerTest, testSaleStatusRequest)
+{
+    std::string sale_status_url(dapi_url + "/sale_status");
+    graft::Input response;
+    std::string res;
+    graft::SaleStatusResponse sale_status_response;
+    ErrorResponse error_response;
+
+    std::string empty_data_request("{\\\"PaymentID\\\":\\\"\\\"}");
+    res = send_request(sale_status_url, empty_data_request);
+    response.load(res.data(), res.length());
+    error_response = response.get<ErrorResponse>();
+    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
+    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
+
+    std::string wrong_data_request("{\\\"PaymentID\\\":\\\"zzzzzzzzzzzzzzzzzzz\\\"}");
+    res = send_request(sale_status_url, wrong_data_request);
+    response.load(res.data(), res.length());
+    error_response = response.get<ErrorResponse>();
+    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
+    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
+
+    std::string sale_url(dapi_url + "/sale");
+    graft::SaleResponse sale_response;
+    std::string correct_sale_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"dddd\\\",\\\"Amount\\\":\\\"10.0\\\"}");
+    res = send_request(sale_url, correct_sale_request);
+    response.load(res.data(), res.length());
+    sale_response = response.get<graft::SaleResponse>();
+
+    std::string correct_request("{\\\"PaymentID\\\":\\\"" + sale_response.PaymentID + "\\\"}");
+    res = send_request(sale_status_url, correct_request);
+    response.load(res.data(), res.length());
+    sale_status_response = response.get<graft::SaleStatusResponse>();
+    EXPECT_EQ(static_cast<int64>(graft::RTAStatus::InProgress), sale_status_response.Status);
+}
+
+TEST_F(GraftServerTest, testRejectSaleRequest)
+{
+    std::string reject_sale_url(dapi_url + "/reject_sale");
+    graft::Input response;
+    std::string res;
+    graft::RejectSaleResponse reject_sale_response;
+    ErrorResponse error_response;
+
+    std::string empty_data_request("{\\\"PaymentID\\\":\\\"\\\"}");
+    res = send_request(reject_sale_url, empty_data_request);
+    response.load(res.data(), res.length());
+    error_response = response.get<ErrorResponse>();
+    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
+    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
+
+    std::string wrong_data_request("{\\\"PaymentID\\\":\\\"zzzzzzzzzzzzzzzzzzz\\\"}");
+    res = send_request(reject_sale_url, wrong_data_request);
+    response.load(res.data(), res.length());
+    error_response = response.get<ErrorResponse>();
+    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
+    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
+
+    std::string sale_url(dapi_url + "/sale");
+    graft::SaleResponse sale_response;
+    std::string correct_sale_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"dddd\\\",\\\"Amount\\\":\\\"10.0\\\"}");
+    res = send_request(sale_url, correct_sale_request);
+    response.load(res.data(), res.length());
+    sale_response = response.get<graft::SaleResponse>();
+
+    std::string sale_status_url(dapi_url + "/sale_status");
+    graft::SaleStatusResponse sale_status_response;
+    std::string sale_status_request("{\\\"PaymentID\\\":\\\"" + sale_response.PaymentID + "\\\"}");
+    res = send_request(sale_status_url, sale_status_request);
+    response.load(res.data(), res.length());
+    sale_status_response = response.get<graft::SaleStatusResponse>();
+    EXPECT_EQ(static_cast<int>(graft::RTAStatus::InProgress), sale_status_response.Status);
+
+    std::string correct_request("{\\\"PaymentID\\\":\\\"" + sale_response.PaymentID + "\\\"}");
+    res = send_request(reject_sale_url, correct_request);
+    response.load(res.data(), res.length());
+    reject_sale_response = response.get<graft::RejectSaleResponse>();
+    EXPECT_EQ(STATUS_OK, reject_sale_response.Result);
+
+    res = send_request(sale_status_url, sale_status_request);
+    response.load(res.data(), res.length());
+    sale_status_response = response.get<graft::SaleStatusResponse>();
+    EXPECT_EQ(static_cast<int>(graft::RTAStatus::RejectedByPOS), sale_status_response.Status);
 }
 
 /* TODO: crash on this
