@@ -1,7 +1,8 @@
 #ifndef REQUESTDEFINES_H
 #define REQUESTDEFINES_H
 
-#include "router.h"
+#include "graft_constants.h"
+#include "inout.h"
 
 GRAFT_DEFINE_IO_STRUCT(ErrorResponse,
     (int64, code),
@@ -45,9 +46,9 @@ static const std::string CONTEXT_KEY_PAY(":pay");
 
 namespace graft {
 
-Router::Status errorInvalidPaymentID(Output &output);
-Router::Status errorInvalidParams(Output &output);
-Router::Status errorInvalidAmount(Output &output);
+Status errorInvalidPaymentID(Output &output);
+Status errorInvalidParams(Output &output);
+Status errorInvalidAmount(Output &output);
 bool errorFinishedPayment(int status, Output &output);
 
 enum class RTAStatus : int

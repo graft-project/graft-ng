@@ -227,11 +227,15 @@ public:
 
     void createJob(Manager& manager);
 
-    void onJobDone(GJ& gj);
+    void onJobDone(GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
 
     void onCryptonDone(CryptoNodeSender& cns);
+private:
+    void processResult();
+    void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
+    Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
+    void setError(const char* str, Status status = Status::InternalError) { m_ctx.local.setError(str, status); }
 public:
-    Router::Status& get_statusRef() { return m_status; }
     const Router::vars_t& get_vars() const { return m_prms.vars; }
     Input& get_input() { return m_prms.input; }
     Output& get_output() { return m_output; }
@@ -241,7 +245,6 @@ private:
     friend class StaticMongooseHandler<ClientRequest>;
     void ev_handler(mg_connection *client, int ev, void *ev_data);
 private:
-    Router::Status m_status = Router::Status::None;
     Router::JobParams m_prms;
     Output m_output;
     mg_connection *m_client;

@@ -2,31 +2,31 @@
 
 namespace graft {
 
-Router::Status errorInvalidPaymentID(Output &output)
+Status errorInvalidPaymentID(Output &output)
 {
     ErrorResponse err;
     err.code = ERROR_PAYMENT_ID_INVALID;
     err.message = MESSAGE_PAYMENT_ID_INVALID;
     output.load(err);
-    return Router::Status::Error;
+    return Status::Error;
 }
 
-Router::Status errorInvalidParams(Output &output)
+Status errorInvalidParams(Output &output)
 {
     ErrorResponse err;
     err.code = ERROR_INVALID_PARAMS;
     err.message = MESSAGE_INVALID_PARAMS;
     output.load(err);
-    return Router::Status::Error;
+    return Status::Error;
 }
 
-Router::Status errorInvalidAmount(Output &output)
+Status errorInvalidAmount(Output &output)
 {
     ErrorResponse err;
     err.code = ERROR_AMOUNT_INVALID;
     err.message = MESSAGE_AMOUNT_INVALID;
     output.load(err);
-    return Router::Status::Error;
+    return Status::Error;
 }
 
 bool errorFinishedPayment(int status, Output &output)

@@ -8,6 +8,7 @@ namespace graft {
 GRAFT_DEFINE_IO_STRUCT(SaleRequest,
     (std::string, Address),
     (std::string, SaleDetails),
+    (std::string, PaymentID),
     (std::string, Amount)
 );
 

@@ -3,8 +3,8 @@
 
 namespace graft {
 
-Router::Status saleStatusHandler(const Router::vars_t& vars, const graft::Input& input,
-                                 graft::Context& ctx, graft::Output& output)
+Status saleStatusHandler(const Router::vars_t& vars, const graft::Input& input,
+                         graft::Context& ctx, graft::Output& output)
 {
     SaleStatusRequest in = input.get<SaleStatusRequest>();
     if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
@@ -14,12 +14,12 @@ Router::Status saleStatusHandler(const Router::vars_t& vars, const graft::Input&
     SaleStatusResponse out;
     out.Status = ctx.global[in.PaymentID + CONTEXT_KEY_STATUS];
     output.load(out);
-    return Router::Status::Ok;
+    return Status::Ok;
 }
 
 void registerSaleStatusRequest(graft::Router &router)
 {
-    Router::Handler3 h3(nullptr, saleStatusHandler, nullptr);
+    Router::Handler3 h3(saleStatusHandler, nullptr, nullptr);
     router.addRoute("/dapi/sale_status", METHOD_POST, h3);
 }
 

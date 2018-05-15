@@ -3,8 +3,8 @@
 
 namespace graft {
 
-Router::Status saleDetailsHandler(const Router::vars_t& vars, const graft::Input& input,
-                                  graft::Context& ctx, graft::Output& output)
+Status saleDetailsHandler(const Router::vars_t& vars, const graft::Input& input,
+                          graft::Context& ctx, graft::Output& output)
 {
     SaleDetailsRequest in = input.get<SaleDetailsRequest>();
     if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
@@ -14,7 +14,7 @@ Router::Status saleDetailsHandler(const Router::vars_t& vars, const graft::Input
     int current_status = ctx.global[in.PaymentID + CONTEXT_KEY_STATUS];
     if (errorFinishedPayment(current_status, output))
     {
-        return Router::Status::Error;
+        return Status::Error;
     }
     SaleDetailsResponse out;
     if (ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_DETAILS))
@@ -23,7 +23,7 @@ Router::Status saleDetailsHandler(const Router::vars_t& vars, const graft::Input
         out.Details = details;
     }
     output.load(out);
-    return Router::Status::Ok;
+    return Status::Ok;
 }
 
 void registerSaleDetailsRequest(Router &router)

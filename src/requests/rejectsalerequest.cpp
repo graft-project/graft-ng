@@ -3,8 +3,8 @@
 
 namespace graft {
 
-Router::Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input& input,
-                                 graft::Context& ctx, graft::Output& output)
+Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input& input,
+                         graft::Context& ctx, graft::Output& output)
 {
     RejectSaleRequest in = input.get<RejectSaleRequest>();
     if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
@@ -16,7 +16,7 @@ Router::Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input&
     RejectSaleResponse out;
     out.Result = STATUS_OK;
     output.load(out);
-    return Router::Status::Ok;
+    return Status::Ok;
 }
 
 void registerRejectSaleRequest(Router &router)

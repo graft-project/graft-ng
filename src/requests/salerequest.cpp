@@ -4,7 +4,7 @@
 
 namespace graft {
 
-Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
+Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
     SaleRequest in = input.get<SaleRequest>();
@@ -17,7 +17,7 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
             err.code = ERROR_SALE_REQUEST_FAILED;
             err.message = MESSAGE_SALE_REQUEST_FAILED;
             output.load(err);
-            return Router::Status::Error;
+            return Status::Error;
         }
         uint64_t amount = convertAmount(in.Amount);
         if (amount <= 0)
@@ -37,7 +37,7 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
         out.BlockNumber = data.BlockNumber;
         out.PaymentID = payment_id;
         output.load(out);
-        return Router::Status::Ok;
+        return Status::Ok;
     }
     return errorInvalidParams(output);
 }

@@ -3,8 +3,8 @@
 
 namespace graft {
 
-Router::Status rejectPayHandler(const Router::vars_t& vars, const graft::Input& input,
-                                 graft::Context& ctx, graft::Output& output)
+Status rejectPayHandler(const Router::vars_t& vars, const graft::Input& input,
+                        graft::Context& ctx, graft::Output& output)
 {
     RejectPayRequest in = input.get<RejectPayRequest>();
     if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
@@ -16,7 +16,7 @@ Router::Status rejectPayHandler(const Router::vars_t& vars, const graft::Input& 
     RejectPayResponse out;
     out.Result = STATUS_OK;
     output.load(out);
-    return Router::Status::Ok;
+    return Status::Ok;
 }
 
 void registerRejectPayRequest(Router &router)

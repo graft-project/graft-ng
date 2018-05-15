@@ -4,8 +4,8 @@
 
 namespace graft {
 
-Router::Status payWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
-                                graft::Context& ctx, graft::Output& output)
+Status payWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
+                        graft::Context& ctx, graft::Output& output)
 {
     PayRequest in = input.get<PayRequest>();
     if (!in.Address.empty() && !in.Amount.empty()
@@ -15,7 +15,7 @@ Router::Status payWorkerHandler(const Router::vars_t& vars, const graft::Input& 
         int current_status = ctx.global[in.PaymentID + CONTEXT_KEY_STATUS];
         if (errorFinishedPayment(current_status, output))
         {
-            return Router::Status::Error;
+            return Status::Error;
         }
         uint64_t amount = convertAmount(in.Amount);
         if (amount <= 0)
@@ -33,7 +33,7 @@ Router::Status payWorkerHandler(const Router::vars_t& vars, const graft::Input& 
         PayResponse out;
         out.Result = STATUS_OK;
         output.load(out);
-        return Router::Status::Ok;
+        return Status::Ok;
     }
     return errorInvalidParams(output);
 }
