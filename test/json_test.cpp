@@ -58,6 +58,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(Payment3,
      (uint32, unlock_time, 3)
  );
 
+/*
 TEST(GraftDefineIOStruct, initedFail)
 {
     Payment pt1;
@@ -70,6 +71,7 @@ TEST(GraftDefineIOStruct, initedFail)
     Foo foo;
     EXPECT_EQ(foo.foo, 1);
 }
+*/
 
 TEST(GraftDefineIOStruct, initedSuccess)
 {

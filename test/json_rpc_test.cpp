@@ -36,9 +36,13 @@
 
 #include <string>
 #include <thread>
+#include <chrono>
+
 
 
 using namespace graft;
+using namespace std::chrono_literals;
+
 
 GRAFT_DEFINE_IO_STRUCT_INITED(Payment1,
      (uint64, amount, 0),
@@ -60,6 +64,27 @@ GRAFT_DEFINE_JSON_RPC_REQUEST(JsonRPCRequest, Payment1);
 GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRPCResponse, Payment1);
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JsonRPCResponseResult, Payment1);
 
+
+GRAFT_DEFINE_IO_STRUCT_INITED(TestRequestParam,
+                              (bool, return_success, true));
+
+GRAFT_DEFINE_IO_STRUCT_INITED(TestResponseParam,
+                              (std::string, foo, ""),
+                              (int, bar, 0),
+                              (std::vector<int>, baz, std::vector<int>())
+                              );
+
+GRAFT_DEFINE_JSON_RPC_REQUEST(JsonRpcTestRequest, TestRequestParam);
+GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRpcTestResponse, TestResponseParam);
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JsonRpcTestResponseResult, TestResponseParam);
+
+TEST(JsonRPCFormat, request_parse)
+{
+    std::string json_rpc_req = "{\"json\":\"2.0\",\"id\":\"0\",\"method\":\"Hello\",\"params\": {\"return_success\" : \"false\"} }";
+    Input in; in.load(json_rpc_req);
+    JsonRpcTestRequest req = in.get<JsonRpcTestRequest>();
+    LOG_PRINT_L0("Params size: " << req.params.size());
+}
 
 TEST(JsonRPCFormat, error_and_result_parse)
 {
@@ -87,18 +112,7 @@ TEST(JsonRPCFormat, error_and_result_parse)
     EXPECT_TRUE(response2.result.block_height == 0);
 }
 
-GRAFT_DEFINE_IO_STRUCT_INITED(TestRequestParam,
-                              (bool, return_success, true));
 
-GRAFT_DEFINE_IO_STRUCT_INITED(TestResponseParam,
-                              (std::string, foo, ""),
-                              (int, bar, 0),
-                              (std::vector<int>, baz, std::vector<int>())
-                              );
-
-GRAFT_DEFINE_JSON_RPC_REQUEST(JsonRpcTestRequest, TestRequestParam);
-GRAFT_DEFINE_JSON_RPC_RESPONSE(JsonRpcTestResponse, TestRequestParam);
-GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JsonRpcTestResponseResult, TestRequestParam);
 
 struct JsonRpcTest : public ::testing::Test
 {
@@ -107,27 +121,72 @@ struct JsonRpcTest : public ::testing::Test
                                      graft::Context& ctx, graft::Output& output)
     {
 
+
+        JsonRpcTestRequest request = input.get<JsonRpcTestRequest>();
+        // success response;
+        if (request.params.size() && request.params.at(0).return_success) {
+            LOG_PRINT_L0("Returning 'result' response...");
+            JsonRpcTestResponseResult response;
+            response.id = request.id;
+            response.result.foo = "Hello";
+            response.result.bar = 1;
+            for (int i = 0; i < 10; ++i)
+                response.result.baz.push_back(i);
+
+            //std::this_thread::sleep_for(10s);
+
+            output.load(response);
+            return Router::Status::Ok;
+        // error response
+        } else {
+            LOG_PRINT_L0("Returning 'error' response...");
+            JsonRpcErrorResponse response;
+            response.error.message  = "Something wrong";
+            response.error.code  = -1;
+            response.json = "2.0";
+            response.id = request.id;
+            output.load(response);
+            return Router::Status::Error;
+        }
     }
 
-    JsonRpcTest()
+    void startServer()
     {
-        mlog_configure("", true);
         ServerOpts sopts {"localhost:8855", 5.0, 4, 4};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
         router.arm();
-        manager = new Manager(router, sopts);
-        server_thread = std::thread([&]() {
-            server.serve(manager->get_mg_mgr());
+        Manager manager(router, sopts);
+        this->manager = &manager;
+        server.serve(manager.get_mg_mgr());
+    }
+
+    void stopServer()
+    {
+
+    }
+
+    JsonRpcTest()
+    {
+        mlog_configure("", true);
+        mlog_set_log_level(1);
+
+        server_thread = std::thread([this]() {
+            this->startServer();
         });
+        LOG_PRINT_L0("Server thread started..");
+        while (!server.ready) {
+            LOG_PRINT_L0("waiting for server");
+            std::this_thread::sleep_for(1s);
+        }
+        LOG_PRINT_L0("Server ready");
     }
 
     ~JsonRpcTest()
     {
-        delete manager;
-        server_thread.join();
     }
+
 
     static std::string run_cmdline_read(const std::string& cmdl)
     {
@@ -142,12 +201,24 @@ struct JsonRpcTest : public ::testing::Test
         pclose(fp);
         return res;
     }
+    static std::string escape_string_curl(const std::string & in)
+    {
+        std::string result;
+        for (char c : in) {
+            if (c == '"')
+                result.push_back('\\');
+            result.push_back(c);
+        }
+        return result;
+    }
 
     static std::string send_request(const std::string &url, const std::string &json_data)
     {
         std::ostringstream s;
-        s << "curl --data \"" << json_data << "\" " << url;
+        s << "curl -s -H \"Content-type: application/json\" --data \"" << json_data << "\" " << url;
         std::string ss = s.str();
+        LOG_PRINT_L0("curl invocation: " << ss);
+        //return "";
         return run_cmdline_read(ss.c_str());
     }
 
@@ -171,13 +242,41 @@ struct JsonRpcTest : public ::testing::Test
 };
 
 
-TEST_F(JsonRpcTest, resultResponse)
+TEST_F(JsonRpcTest, common)
 {
-    LOG_PRINT_L1("resultResponse");
+    JsonRpcTestRequest request;
+    request.id = 0;
+    request.json = "2.0";
+    TestRequestParam request_param; request_param.return_success = true;
+    std::vector<TestRequestParam> params {request_param};
+    initJsonRpcRequest(request, 1, "Hello", params);
+    LOG_PRINT_L0("Sending request...");
+    std::string response_s = send_request("http://localhost:8855/jsonrpc/test", escape_string_curl(request.toJson().GetString()));
+    LOG_PRINT_L0("response: " << response_s);
+
+    Input in; in.load(response_s);
+    JsonRpcTestResponseResult response_result = in.get<JsonRpcTestResponseResult>();
+
+    EXPECT_TRUE(response_result.id == 1);
+    EXPECT_TRUE(response_result.result.foo == "Hello");
+    EXPECT_TRUE(response_result.result.bar == 1);
+    EXPECT_TRUE(response_result.result.baz.size() == 10);
+
+
+    request.params[0].return_success = false;
+    LOG_PRINT_L0("Sending request...");
+    response_s = send_request("http://localhost:8855/jsonrpc/test", escape_string_curl(request.toJson().GetString()));
+    LOG_PRINT_L0("response: " << response_s);
+    in.load(response_s);
+    JsonRpcErrorResponse response_error = in.get<JsonRpcErrorResponse>();
+    EXPECT_TRUE(response_error.id == 1);
+    EXPECT_TRUE(response_error.error.code == -1);
+
+    LOG_PRINT_L0("Stopping server..");
+    manager->stop();
+    LOG_PRINT_L0("Waiting for a server thread done...");
+    server_thread.join();
+    LOG_PRINT_L0("Server thread done...");
 }
 
 
-TEST_F(JsonRpcTest, errorResponse)
-{
-    LOG_PRINT_L2("errorResponse");
-}
