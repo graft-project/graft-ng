@@ -151,6 +151,8 @@ namespace graft
         {
             m_buf.clear();
         }
+        // for debugging
+        const std::string &toString() const { return m_buf; }
     private:
         std::string m_buf;
     };
