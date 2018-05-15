@@ -41,12 +41,12 @@ namespace graft {
  * \param   Param - name of the existing type of parameter to be used in "params" array.
  *          Type must be defined with GRAFT_DEFINE_IO_STRUCT
  */
-#define GRAFT_DEFINE_JSON_RPC_REQUEST(Name, Param) \
-    GRAFT_DEFINE_IO_STRUCT(Name,          \
-        (std::string,         json),      \
-        (std::string,         method),    \
-        (uint64_t,            id),        \
-        (std::vector<Param>,  params)     \
+#define GRAFT_DEFINE_JSON_RPC_REQUEST(Name, Param)              \
+    GRAFT_DEFINE_IO_STRUCT_INITED(Name,                         \
+        (std::string,         json,     "2.0"),                 \
+        (std::string,         method,   ""),                    \
+        (uint64_t,            id,       0),                     \
+        (std::vector<Param>,  params, std::vector<Param>())    \
     );
 
 /*!
@@ -64,7 +64,6 @@ void initJsonRpcRequest(T &t, uint64_t id, const std::string &method, const std:
     t.json = "2.0";
     t.params = std::move(params);
 }
-
 GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcError,
                        (int64_t, code, 0),
                        (std::string, message, "")
