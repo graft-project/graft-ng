@@ -3,7 +3,7 @@
 
 namespace graft {
 
-Router::Status saleStatusHandler(const Router::vars_t& vars, const graft::Input& input,
+Status saleStatusHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
     SaleStatusRequest in = input.get<SaleStatusRequest>();
@@ -13,12 +13,12 @@ Router::Status saleStatusHandler(const Router::vars_t& vars, const graft::Input&
         err.code = ERROR_PAYMENT_ID_INVALID;
         err.message = MESSAGE_PAYMENT_ID_INVALID;
         output.load(err);
-        return Router::Status::Error;
+        return Status::Error;
     }
     SaleStatusResponse out;
     out.Status = ctx.global[in.PaymentID + CONTEXT_KEY_SALE_STATUS];
     output.load(out);
-    return Router::Status::Ok;
+    return Status::Ok;
 }
 
 void registerSaleStatusRequest(graft::Router &router)
