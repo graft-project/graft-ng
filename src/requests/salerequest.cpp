@@ -10,7 +10,11 @@ Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
     SaleRequest in = input.get<SaleRequest>();
     if (!in.Address.empty() && !in.Amount.empty())
     {
-        std::string payment_id = generatePaymentID();
+        std::string payment_id = in.PaymentID;
+        if (payment_id.empty())
+        {
+            payment_id = generatePaymentID();
+        }
         if (ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE))
         {
             ErrorResponse err;

@@ -701,6 +701,8 @@ TEST_F(GraftServerTest, testSaleRequest)
     std::string res;
     ErrorResponse error_response;
 
+    std::string wallet_address("F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz");
+
     std::string empty_data_request("{\\\"Address\\\":\\\"\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"10.0\\\"}");
     res = send_request(sale_url, empty_data_request);
     response.load(res.data(), res.length());
@@ -708,12 +710,23 @@ TEST_F(GraftServerTest, testSaleRequest)
     EXPECT_EQ(ERROR_INVALID_PARAMS, error_response.code);
     EXPECT_EQ(MESSAGE_INVALID_PARAMS, error_response.message);
 
-    std::string error_balance_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"fffffffff\\\"}");
+    std::string error_balance_request("{\\\"Address\\\":\\\"" + wallet_address
+                                      + "\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"fffffffff\\\"}");
     res = send_request(sale_url, error_balance_request);
     response.load(res.data(), res.length());
     error_response = response.get<ErrorResponse>();
     EXPECT_EQ(ERROR_AMOUNT_INVALID, error_response.code);
     EXPECT_EQ(MESSAGE_AMOUNT_INVALID, error_response.message);
+
+    std::string custom_pid("test");
+
+    std::string custom_pid_request("{\\\"Address\\\":\\\"" + wallet_address
+                                   + "\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"PaymentID\\\":\\\""
+                                   + custom_pid + "\\\",\\\"Amount\\\":\\\"10.0\\\"}");
+    res = send_request(sale_url, custom_pid_request);
+    response.load(res.data(), res.length());
+    graft::SaleResponse sale_response = response.get<graft::SaleResponse>();
+    EXPECT_EQ(custom_pid, sale_response.PaymentID);
 }
 
 TEST_F(GraftServerTest, testSaleStatusRequest)
