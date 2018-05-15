@@ -19,11 +19,11 @@ void Manager::sendCrypton(ClientRequest_ptr cr)
 void Manager::sendToThreadPool(ClientRequest_ptr cr)
 {
     assert(m_cntJobDone <= m_cntJobSent);
-    if(m_cntJobDone - m_cntJobSent == m_threadPoolInputSize)
+    if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
     {//check overflow
         processReadyJobBlock();
     }
-    assert(m_cntJobDone - m_cntJobSent < m_threadPoolInputSize);
+    assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
     ++m_cntJobSent;
     cr->createJob(*this);
 }
