@@ -359,6 +359,10 @@ void GraftServer::serve(mg_mgr *mgr)
     ServerOpts& opts = Manager::from(mgr)->get_opts();
 
     mg_connection* nc = mg_bind(mgr, opts.http_address.c_str(), ev_handler);
+    if (!nc) {
+        // TODO: make it crossplatform
+        throw std::runtime_error(strerror(errno));
+    }
 
     mg_set_protocol_http_websocket(nc);
 #ifdef OPT_BUILD_TESTS
