@@ -4,6 +4,8 @@
 #include "rejectsalerequest.h"
 #include "saledetailsrequest.h"
 #include "payrequest.h"
+#include "paystatusrequest.h"
+#include "rejectpayrequest.h"
 
 namespace graft {
 
@@ -14,6 +16,8 @@ void registerRTARequests(graft::Router &router)
     graft::registerRejectSaleRequest(router);
     graft::registerSaleDetailsRequest(router);
     graft::registerPayRequest(router);
+    graft::registerPayStatusRequest(router);
+    graft::registerRejectPayRequest(router);
 }
 
 }

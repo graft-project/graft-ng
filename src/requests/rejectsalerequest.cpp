@@ -7,7 +7,7 @@ Router::Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input&
                                  graft::Context& ctx, graft::Output& output)
 {
     RejectSaleRequest in = input.get<RejectSaleRequest>();
-    if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_STATUS))
+    if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
     {
         ErrorResponse err;
         err.code = ERROR_PAYMENT_ID_INVALID;
@@ -15,7 +15,7 @@ Router::Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input&
         output.load(err);
         return Router::Status::Error;
     }
-    ctx.global[in.PaymentID + CONTEXT_KEY_SALE_STATUS] = static_cast<int>(RTAStatus::RejectedByPOS);
+    ctx.global[in.PaymentID + CONTEXT_KEY_STATUS] = static_cast<int>(RTAStatus::RejectedByPOS);
     // TODO: Reject Sale: Add broadcast and another business logic
     RejectSaleResponse out;
     out.Result = STATUS_OK;

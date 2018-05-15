@@ -40,20 +40,20 @@ static const std::string MESSAGE_RTA_FAILED("Payment is already failed.");
 //Context Keys
 static const std::string CONTEXT_KEY_SALE_DETAILS(":saledetails");
 static const std::string CONTEXT_KEY_SALE(":sale");
-static const std::string CONTEXT_KEY_SALE_STATUS(":salestatus");
+static const std::string CONTEXT_KEY_STATUS(":status");
 static const std::string CONTEXT_KEY_PAY(":pay");
-static const std::string CONTEXT_KEY_PAY_STATUS(":paystatus");
 
 namespace graft {
 
 enum class RTAStatus : int
 {
     None = 0,
-    InProgress=1,
-    Success=2,
-    Fail=3,
-    RejectedByWallet=4,
-    RejectedByPOS=5
+    Waiting=1,
+    InProgress=2,
+    Success=3,
+    Fail=4,
+    RejectedByWallet=5,
+    RejectedByPOS=6
 };
 
 struct SaleData

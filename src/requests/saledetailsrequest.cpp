@@ -7,7 +7,7 @@ Router::Status saleDetailsHandler(const Router::vars_t& vars, const graft::Input
                                   graft::Context& ctx, graft::Output& output)
 {
     SaleDetailsRequest in = input.get<SaleDetailsRequest>();
-    if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_STATUS))
+    if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
     {
         ErrorResponse err;
         err.code = ERROR_PAYMENT_ID_INVALID;
@@ -15,8 +15,9 @@ Router::Status saleDetailsHandler(const Router::vars_t& vars, const graft::Input
         output.load(err);
         return Router::Status::Error;
     }
-    int current_status = ctx.global[in.PaymentID + CONTEXT_KEY_SALE_STATUS];
-    if (current_status != static_cast<int>(RTAStatus::InProgress))
+    int current_status = ctx.global[in.PaymentID + CONTEXT_KEY_STATUS];
+    if (current_status != static_cast<int>(RTAStatus::Waiting)
+            && current_status != static_cast<int>(RTAStatus::InProgress))
     {
         ErrorResponse err;
         if (current_status == static_cast<int>(RTAStatus::Success))

@@ -31,7 +31,7 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
         // TODO: Validate address
         SaleData data(in.Address, 0, amount); // TODO: Use correct BlockNumber
         ctx.global[payment_id + CONTEXT_KEY_SALE] = data;
-        ctx.global[payment_id + CONTEXT_KEY_SALE_STATUS] = static_cast<int>(RTAStatus::InProgress);
+        ctx.global[payment_id + CONTEXT_KEY_STATUS] = static_cast<int>(RTAStatus::Waiting);
         if (!in.SaleDetails.empty())
         {
             ctx.global[payment_id + CONTEXT_KEY_SALE_DETAILS] = in.SaleDetails;

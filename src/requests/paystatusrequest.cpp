@@ -1,12 +1,12 @@
-#include "salestatusrequest.h"
+#include "paystatusrequest.h"
 #include "requestdefines.h"
 
 namespace graft {
 
-Router::Status saleStatusHandler(const Router::vars_t& vars, const graft::Input& input,
-                                 graft::Context& ctx, graft::Output& output)
+Router::Status payStatusHandler(const Router::vars_t& vars, const graft::Input& input,
+                                graft::Context& ctx, graft::Output& output)
 {
-    SaleStatusRequest in = input.get<SaleStatusRequest>();
+    PayStatusRequest in = input.get<PayStatusRequest>();
     if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
     {
         ErrorResponse err;
@@ -15,16 +15,16 @@ Router::Status saleStatusHandler(const Router::vars_t& vars, const graft::Input&
         output.load(err);
         return Router::Status::Error;
     }
-    SaleStatusResponse out;
+    PayStatusResponse out;
     out.Status = ctx.global[in.PaymentID + CONTEXT_KEY_STATUS];
     output.load(out);
     return Router::Status::Ok;
 }
 
-void registerSaleStatusRequest(graft::Router &router)
+void registerPayStatusRequest(Router &router)
 {
-    Router::Handler3 h3(nullptr, saleStatusHandler, nullptr);
-    router.addRoute("/dapi/sale_status", METHOD_POST, h3);
+    Router::Handler3 h3(nullptr, payStatusHandler, nullptr);
+    router.addRoute("/dapi/pay_status", METHOD_POST, h3);
 }
 
 }
