@@ -22,11 +22,7 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
         uint64_t amount = convertAmount(in.Amount);
         if (amount <= 0)
         {
-            ErrorResponse err;
-            err.code = ERROR_AMOUNT_INVALID;
-            err.message = MESSAGE_AMOUNT_INVALID;
-            output.load(err);
-            return Router::Status::Error;
+            return errorInvalidAmount(output);
         }
         // TODO: Validate address
         SaleData data(in.Address, 0, amount); // TODO: Use correct BlockNumber
@@ -43,14 +39,7 @@ Router::Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input&
         output.load(out);
         return Router::Status::Ok;
     }
-    else
-    {
-        ErrorResponse err;
-        err.code = ERROR_INVALID_PARAMS;
-        err.message = MESSAGE_INVALID_PARAMS;
-        output.load(err);
-        return Router::Status::Error;
-    }
+    return errorInvalidParams(output);
 }
 
 void registerSaleRequest(graft::Router &router)

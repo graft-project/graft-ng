@@ -9,11 +9,7 @@ Router::Status payStatusHandler(const Router::vars_t& vars, const graft::Input& 
     PayStatusRequest in = input.get<PayStatusRequest>();
     if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
     {
-        ErrorResponse err;
-        err.code = ERROR_PAYMENT_ID_INVALID;
-        err.message = MESSAGE_PAYMENT_ID_INVALID;
-        output.load(err);
-        return Router::Status::Error;
+        return errorInvalidPaymentID(output);
     }
     PayStatusResponse out;
     out.Status = ctx.global[in.PaymentID + CONTEXT_KEY_STATUS];

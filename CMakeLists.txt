@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.11.1)
 
 project(graft_server)
 
-option(OPT_BUILD_TESTS "Build tests." ON)
+option(OPT_BUILD_TESTS "Build tests." OFF)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
@@ -71,6 +71,7 @@ add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/graft_manager.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
+    ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/requests.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp

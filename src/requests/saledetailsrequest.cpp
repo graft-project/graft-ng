@@ -9,28 +9,11 @@ Router::Status saleDetailsHandler(const Router::vars_t& vars, const graft::Input
     SaleDetailsRequest in = input.get<SaleDetailsRequest>();
     if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
     {
-        ErrorResponse err;
-        err.code = ERROR_PAYMENT_ID_INVALID;
-        err.message = MESSAGE_PAYMENT_ID_INVALID;
-        output.load(err);
-        return Router::Status::Error;
+        return errorInvalidPaymentID(output);
     }
     int current_status = ctx.global[in.PaymentID + CONTEXT_KEY_STATUS];
-    if (current_status != static_cast<int>(RTAStatus::Waiting)
-            && current_status != static_cast<int>(RTAStatus::InProgress))
+    if (errorFinishedPayment(current_status, output))
     {
-        ErrorResponse err;
-        if (current_status == static_cast<int>(RTAStatus::Success))
-        {
-            err.code = ERROR_RTA_COMPLETED;
-            err.message = MESSAGE_RTA_COMPLETED;
-        }
-        else
-        {
-            err.code = ERROR_RTA_FAILED;
-            err.message = MESSAGE_RTA_FAILED;
-        }
-        output.load(err);
         return Router::Status::Error;
     }
     SaleDetailsResponse out;
