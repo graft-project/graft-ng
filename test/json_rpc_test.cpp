@@ -117,7 +117,7 @@ TEST(JsonRPCFormat, error_and_result_parse)
 struct JsonRpcTest : public ::testing::Test
 {
 
-    static Router::Status jsonRpcHandler(const Router::vars_t& vars, const graft::Input& input,
+    static Status jsonRpcHandler(const Router::vars_t& vars, const graft::Input& input,
                                      graft::Context& ctx, graft::Output& output)
     {
 
@@ -136,7 +136,7 @@ struct JsonRpcTest : public ::testing::Test
             //std::this_thread::sleep_for(10s);
 
             output.load(response);
-            return Router::Status::Ok;
+            return Status::Ok;
         // error response
         } else {
             LOG_PRINT_L0("Returning 'error' response...");
@@ -146,7 +146,7 @@ struct JsonRpcTest : public ::testing::Test
             response.json = "2.0";
             response.id = request.id;
             output.load(response);
-            return Router::Status::Error;
+            return Status::Error;
         }
     }
 
