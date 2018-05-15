@@ -110,6 +110,11 @@ namespace graft
             std::tie(buf, size) = o.get();
             load(buf, size);
         }
+
+        void reset()
+        {
+            m_buf.clear();
+        }
     private:
         std::string m_buf;
     };

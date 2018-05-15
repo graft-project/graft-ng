@@ -10,6 +10,7 @@
 #include <map>
 
 #include "graft_utility.hpp"
+#include "graft_constants.h"
 
 #include <iostream>
 #include <vector>
@@ -89,6 +90,33 @@ struct Context
         void remove(const std::string& key)
         {
             m_map.erase(key);
+        }
+        void setError(const char* str, Status status = Status::InternalError)
+        {
+            m_error = str;
+            m_last_status = status;
+        }
+        Status getLastStatus() const
+        {
+            return m_last_status;
+        }
+        const std::string& getLastError() const
+        {
+            return m_error;
+        }
+    protected:
+        Status m_last_status = Status::None;
+        std::string m_error;
+    };
+
+    class LocalFriend : protected Local
+    {
+    public:
+        LocalFriend() = delete;
+        static void setLastStatus(Local& local, Status status)
+        {
+            LocalFriend& lf = static_cast<LocalFriend&>(local);
+            lf.m_last_status = status;
         }
     };
 
