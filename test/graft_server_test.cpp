@@ -609,7 +609,6 @@ graft::Manager* GraftServerTest::pmanager = nullptr;
 bool GraftServerTest::TempCryptoNodeServer::ready = false;
 bool GraftServerTest::TempCryptoNodeServer::stop = false;
 
-
 TEST_F(GraftServerTest, GETtp)
 {//GET -> threadPool
     graft::Context ctx(pmanager->get_gcm());
@@ -650,6 +649,55 @@ TEST_F(GraftServerTest, GETtpCNtp)
     client.serve((uri_base+"r2").c_str());
     EXPECT_EQ(false, client.get_closed());
     std::string res = client.get_body();
+    EXPECT_EQ("01234123", iocheck);
+}
+
+TEST_F(GraftServerTest, POSTtp)
+{//POST -> threadPool
+    graft::Context ctx(pmanager->get_gcm());
+    ctx.global["method"] = METHOD_POST;
+    std::string jsonx = "{\"s\":\"0\"}";
+    iocheck = "0"; skip_ctx_check = true;
+    Client client;
+    std::string headers;
+    {
+        std::ostringstream ss;
+        ss << "Content-Length: " << jsonx.size();
+    }
+    client.serve((uri_base+"r3").c_str(), headers.c_str(), jsonx.c_str());
+    EXPECT_EQ(false, client.get_closed());
+    std::string res = client.get_body();
+    EXPECT_EQ("{\"s\":\"0123\"}", res);
+    graft::Input response;
+    response.load(res.data(), res.length());
+    Sstr test_response = response.get<Sstr>();
+    EXPECT_EQ("0123", test_response.s);
+    EXPECT_EQ("0123", iocheck);
+}
+
+TEST_F(GraftServerTest, POSTtpCNtp)
+{//POST -> threadPool -> CryptoNode -> threadPool
+    graft::Context ctx(pmanager->get_gcm());
+    ctx.global["method"] = METHOD_POST;
+    std::string jsonx = "{\"s\":\"0\"}";
+    iocheck = "0"; skip_ctx_check = true;
+    res_que_action.clear();
+    res_que_action.push_back(graft::Status::Forward);
+    res_que_action.push_back(graft::Status::Ok);
+    Client client;
+    std::string headers;
+    {
+        std::ostringstream ss;
+        ss << "Content-Length: " << jsonx.size();
+    }
+    client.serve((uri_base+"r4").c_str(), headers.c_str(), jsonx.c_str());
+    EXPECT_EQ(false, client.get_closed());
+    std::string res = client.get_body();
+    EXPECT_EQ("{\"s\":\"01234123\"}", res);
+    graft::Input response;
+    response.load(res.data(), res.length());
+    Sstr test_response = response.get<Sstr>();
+    EXPECT_EQ("01234123", test_response.s);
     EXPECT_EQ("01234123", iocheck);
 }
 
