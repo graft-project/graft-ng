@@ -191,6 +191,7 @@ if (OPT_BUILD_TESTS)
             ${Boost_FILESYSTEM_LIBRARY}
         )
 
+        target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
         add_dependencies(graft_server_test libr3 cryptonode googletest)
 endif (OPT_BUILD_TESTS)
 
