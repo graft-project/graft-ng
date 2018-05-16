@@ -346,24 +346,27 @@ private:
     static void run_server()
     {
         assert(h3_test.worker_action);
-        graft::Router router;
+        graft::Router http_router;
         {
-            router.addRoute("/root/r{id:\\d+}", METHOD_GET, h3_test);
-            router.addRoute("/root/r{id:\\d+}", METHOD_POST, h3_test);
-            router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, h3_test);
-            graft::registerRTARequests(router);
-            bool res = router.arm();
-            EXPECT_EQ(res, true);
+            http_router.addRoute("/root/r{id:\\d+}", METHOD_GET, h3_test);
+            http_router.addRoute("/root/r{id:\\d+}", METHOD_POST, h3_test);
+            http_router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, h3_test);
+            graft::registerRTARequests(http_router);
         }
 
         graft::ServerOpts sopts;
         sopts.http_address = "127.0.0.1:9084";
+        sopts.coap_address = "127.0.0.1:9086";
         sopts.http_connection_timeout = .001;
         sopts.workers_count = 0;
         sopts.worker_queue_len = 0;
 
-        graft::Manager manager(router,sopts);
+        graft::Manager manager(sopts);
         pmanager = &manager;
+
+        manager.addRouter(http_router);
+        bool res = manager.enableRouting();
+        EXPECT_EQ(res, true);
 
         graft::GraftServer gs;
         gs.serve(manager.get_mg_mgr());

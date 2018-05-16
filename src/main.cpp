@@ -89,9 +89,9 @@ int main(int argc, const char** argv)
 
         graft::Manager manager(sopts);
 
-	graft::setCoapRouters(manager);
-	graft::setHttpRouters(manager);
-	manager.enableRouting();
+        graft::setCoapRouters(manager);
+        graft::setHttpRouters(manager);
+        manager.enableRouting();
 
         graft::GraftServer server;
 
