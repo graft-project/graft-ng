@@ -36,6 +36,7 @@
 #include <requests/getinforequest.h>
 #include <requests.h>
 
+
 #include <string>
 #include <thread>
 #include <chrono>
@@ -53,7 +54,8 @@ struct CryptonodeHandlersTest : public ::testing::Test
     {
         ServerOpts sopts {"localhost:8855", 5.0, 4, 4};
         Router router;
-        graft::registerRTARequests(router);
+        graft::registerGetInfoRequest(router);
+        router.arm();
         Manager manager(router, sopts);
         this->manager = &manager;
         server.serve(manager.get_mg_mgr());
