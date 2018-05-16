@@ -82,6 +82,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 
@@ -124,6 +125,7 @@ add_executable(graft_server
     ${GS_SOURCES}
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
+
 
 target_include_directories(graft_server PRIVATE
     ${GS_INCLUDE_DIRS}
@@ -170,6 +172,7 @@ if (OPT_BUILD_TESTS)
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 

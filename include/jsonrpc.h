@@ -35,6 +35,8 @@
 
 namespace graft {
 
+
+
 /*!
  * \brief   defines new stucture for json-rpc request
  * \param   Name - name of new type to be defined
@@ -48,6 +50,16 @@ namespace graft {
         (uint64_t,            id,       0),                     \
         (std::vector<Param>,  params, std::vector<Param>())    \
     );
+
+/*!
+ *  JsonRpcRequestEmpty - Generic JsonRPC request without params
+ */
+GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcRequestEmpty,     \
+     (std::string,         json,     "2.0"),           \
+     (std::string,         method,   ""),              \
+     (uint64_t,            id,       0)                \
+);
+
 
 /*!
  * \brief initJsonRpcRequest - initializes json-rpc request with id, method name and params
