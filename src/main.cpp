@@ -74,9 +74,6 @@ int main(int argc, const char** argv)
         // 3. address <IP>:<PORT>
         // 4. workers-count <integer>
         // 5. worker-queue-len <integer>
-        const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
-        const std::string cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
-        const std::string cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
 
         graft::ServerOpts sopts;
 
@@ -86,6 +83,9 @@ int main(int argc, const char** argv)
         sopts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
         sopts.workers_count = server_conf.get<int>("workers-count");
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
+        const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
+        sopts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
+        //sopts.cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
 
         graft::Manager manager(sopts);
 
@@ -94,10 +94,6 @@ int main(int argc, const char** argv)
         manager.enableRouting();
 
         graft::GraftServer server;
-
-        // setup cryptonode connection params
-        server.setCryptonodeP2PAddress(cryptonode_p2p_address);
-        server.setCryptonodeRPCAddress(cryptonode_rpc_address);
 
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
         server.serve(manager.get_mg_mgr());

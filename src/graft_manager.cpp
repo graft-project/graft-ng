@@ -141,7 +141,8 @@ void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr, const std::s
 {
     m_cr = cr;
     m_data = data;
-    m_crypton = mg_connect(manager.get_mg_mgr(),"localhost:1234", static_ev_handler);
+    const ServerOpts& opts = manager.get_c_opts();
+    m_crypton = mg_connect(manager.get_mg_mgr(), opts.cryptonode_rpc_address.c_str(), static_ev_handler);
     m_crypton->user_data = this;
     //len + data
     help_send_pstring(m_crypton, m_data);
@@ -352,7 +353,7 @@ constexpr std::pair<const char *, int> GraftServer::m_methods[];
 
 void GraftServer::serve(mg_mgr *mgr)
 {
-    ServerOpts& opts = Manager::from(mgr)->get_opts();
+    const ServerOpts& opts = Manager::from(mgr)->get_c_opts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http),
                   *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
@@ -369,16 +370,6 @@ void GraftServer::serve(mg_mgr *mgr)
         if(Manager::from(mgr)->exit) break;
     }
     mg_mgr_free(mgr);
-}
-
-void GraftServer::setCryptonodeRPCAddress(const std::string &address)
-{
-    // TODO implement me
-}
-
-void GraftServer::setCryptonodeP2PAddress(const std::string &address)
-{
-    // TODO implement me
 }
 
 int GraftServer::translateMethod(const char *method, std::size_t len)
@@ -441,7 +432,7 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
     }
     case MG_EV_ACCEPT:
     {
-        ServerOpts& opts = manager->get_opts();
+        const ServerOpts& opts = manager->get_c_opts();
 
         mg_set_timer(client, mg_time() + opts.http_connection_timeout);
         break;

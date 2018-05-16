@@ -360,6 +360,7 @@ private:
         sopts.http_connection_timeout = .001;
         sopts.workers_count = 0;
         sopts.worker_queue_len = 0;
+        sopts.cryptonode_rpc_address = "127.0.0.1:1234";
 
         graft::Manager manager(sopts);
         pmanager = &manager;
