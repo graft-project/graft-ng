@@ -384,6 +384,7 @@ public:
 
         void serve(const char* url, const char* extra_headers = nullptr, const char* post_data = nullptr)
         {
+            m_exit = false; m_closed = false;
             client = mg_connect_http(&m_mgr, static_ev_handler, url, extra_headers, post_data); //last NULL means GET
             assert(client);
             client->user_data = this;
@@ -391,6 +392,13 @@ public:
             {
                 mg_mgr_poll(&m_mgr, 1000);
             }
+        }
+
+        std::string serve_json_res(const char* url, const char* json_data)
+        {
+            serve(url, "Content-Type: application/json\r\n", json_data);
+            EXPECT_EQ(false, get_closed());
+            return get_body();
         }
 
         bool get_closed(){ return m_closed; }
@@ -445,7 +453,7 @@ public:
         bool m_exit = false;
         bool m_closed = false;
         mg_mgr m_mgr;
-        mg_connection* client;
+        mg_connection* client = nullptr;
         std::string m_body;
         std::string m_message;
     };
@@ -662,14 +670,7 @@ TEST_F(GraftServerTest, POSTtp)
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
     Client client;
-    std::string headers;
-    {
-        std::ostringstream ss;
-        ss << "Content-Length: " << jsonx.size();
-    }
-    client.serve((uri_base+"r3").c_str(), headers.c_str(), jsonx.c_str());
-    EXPECT_EQ(false, client.get_closed());
-    std::string res = client.get_body();
+    std::string res = client.serve_json_res((uri_base+"r3").c_str(), jsonx.c_str());
     EXPECT_EQ("{\"s\":\"0123\"}", res);
     graft::Input response;
     response.load(res.data(), res.length());
@@ -688,14 +689,7 @@ TEST_F(GraftServerTest, POSTtpCNtp)
     res_que_action.push_back(graft::Status::Forward);
     res_que_action.push_back(graft::Status::Ok);
     Client client;
-    std::string headers;
-    {
-        std::ostringstream ss;
-        ss << "Content-Length: " << jsonx.size();
-    }
-    client.serve((uri_base+"r4").c_str(), headers.c_str(), jsonx.c_str());
-    EXPECT_EQ(false, client.get_closed());
-    std::string res = client.get_body();
+    std::string res = client.serve_json_res((uri_base+"r4").c_str(), jsonx.c_str());
     EXPECT_EQ("{\"s\":\"01234123\"}", res);
     graft::Input response;
     response.load(res.data(), res.length());
@@ -748,23 +742,24 @@ TEST_F(GraftServerTest, testSaleRequest)
     std::string res;
     graft::SaleResponse sale_response;
     ErrorResponse error_response;
+    Client client;
 
-    std::string empty_data_request("{\\\"Address\\\":\\\"\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"10.0\\\"}");
-    res = send_request(sale_url, empty_data_request);
+    std::string empty_data_request("{\"Address\":\"\",\"SaleDetails\":\"\",\"Amount\":\"10.0\"}");
+    res = client.serve_json_res(sale_url.c_str(), empty_data_request.c_str());
     response.load(res.data(), res.length());
     error_response = response.get<ErrorResponse>();
     EXPECT_EQ(ERROR_INVALID_PARAMS, error_response.code);
     EXPECT_EQ(MESSAGE_INVALID_PARAMS, error_response.message);
 
-    std::string error_balance_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"\\\",\\\"Amount\\\":\\\"fffffffff\\\"}");
-    res = send_request(sale_url, error_balance_request);
+    std::string error_balance_request("{\"Address\":\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\",\"SaleDetails\":\"\",\"Amount\":\"fffffffff\"}");
+    res = client.serve_json_res(sale_url.c_str(), error_balance_request.c_str());
     response.load(res.data(), res.length());
     error_response = response.get<ErrorResponse>();
     EXPECT_EQ(ERROR_AMOUNT_INVALID, error_response.code);
     EXPECT_EQ(MESSAGE_AMOUNT_INVALID, error_response.message);
 
-    std::string correct_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"dddd\\\",\\\"Amount\\\":\\\"10.0\\\"}");
-    res = send_request(sale_url, correct_request);
+    std::string correct_request("{\"Address\":\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\",\"SaleDetails\":\"dddd\",\"Amount\":\"10.0\"}");
+    res = client.serve_json_res(sale_url.c_str(), correct_request.c_str());
     response.load(res.data(), res.length());
     sale_response = response.get<graft::SaleResponse>();
     EXPECT_EQ(36, sale_response.PaymentID.length());
@@ -778,16 +773,17 @@ TEST_F(GraftServerTest, testSaleStatusRequest)
     std::string res;
     graft::SaleStatusResponse sale_status_response;
     ErrorResponse error_response;
+    Client client;
 
-    std::string empty_data_request("{\\\"PaymentID\\\":\\\"\\\"}");
-    res = send_request(sale_status_url, empty_data_request);
+    std::string empty_data_request("{\"PaymentID\":\"\"}");
+    res = client.serve_json_res(sale_status_url.c_str(), empty_data_request.c_str());
     response.load(res.data(), res.length());
     error_response = response.get<ErrorResponse>();
     EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
     EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
 
-    std::string wrong_data_request("{\\\"PaymentID\\\":\\\"zzzzzzzzzzzzzzzzzzz\\\"}");
-    res = send_request(sale_status_url, wrong_data_request);
+    std::string wrong_data_request("{\"PaymentID\":\"zzzzzzzzzzzzzzzzzzz\"}");
+    res = client.serve_json_res(sale_status_url.c_str(), wrong_data_request.c_str());
     response.load(res.data(), res.length());
     error_response = response.get<ErrorResponse>();
     EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
@@ -795,13 +791,13 @@ TEST_F(GraftServerTest, testSaleStatusRequest)
 
     std::string sale_url(dapi_url + "/sale");
     graft::SaleResponse sale_response;
-    std::string correct_sale_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"dddd\\\",\\\"Amount\\\":\\\"10.0\\\"}");
-    res = send_request(sale_url, correct_sale_request);
+    std::string correct_sale_request("{\"Address\":\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\",\"SaleDetails\":\"dddd\",\"Amount\":\"10.0\"}");
+    res = client.serve_json_res(sale_url.c_str(), correct_sale_request.c_str());
     response.load(res.data(), res.length());
     sale_response = response.get<graft::SaleResponse>();
 
-    std::string correct_request("{\\\"PaymentID\\\":\\\"" + sale_response.PaymentID + "\\\"}");
-    res = send_request(sale_status_url, correct_request);
+    std::string correct_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
+    res = client.serve_json_res(sale_status_url.c_str(), correct_request.c_str());
     response.load(res.data(), res.length());
     sale_status_response = response.get<graft::SaleStatusResponse>();
     EXPECT_EQ(static_cast<int64>(graft::RTAStatus::InProgress), sale_status_response.Status);
@@ -814,16 +810,17 @@ TEST_F(GraftServerTest, testRejectSaleRequest)
     std::string res;
     graft::RejectSaleResponse reject_sale_response;
     ErrorResponse error_response;
+    Client client;
 
-    std::string empty_data_request("{\\\"PaymentID\\\":\\\"\\\"}");
-    res = send_request(reject_sale_url, empty_data_request);
+    std::string empty_data_request("{\"PaymentID\":\"\"}");
+    res = client.serve_json_res(reject_sale_url.c_str(), empty_data_request.c_str());
     response.load(res.data(), res.length());
     error_response = response.get<ErrorResponse>();
     EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
     EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
 
-    std::string wrong_data_request("{\\\"PaymentID\\\":\\\"zzzzzzzzzzzzzzzzzzz\\\"}");
-    res = send_request(reject_sale_url, wrong_data_request);
+    std::string wrong_data_request("{\"PaymentID\":\"zzzzzzzzzzzzzzzzzzz\"}");
+    res = client.serve_json_res(reject_sale_url.c_str(), wrong_data_request.c_str());
     response.load(res.data(), res.length());
     error_response = response.get<ErrorResponse>();
     EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
@@ -831,33 +828,28 @@ TEST_F(GraftServerTest, testRejectSaleRequest)
 
     std::string sale_url(dapi_url + "/sale");
     graft::SaleResponse sale_response;
-    std::string correct_sale_request("{\\\"Address\\\":\\\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\\\",\\\"SaleDetails\\\":\\\"dddd\\\",\\\"Amount\\\":\\\"10.0\\\"}");
-    res = send_request(sale_url, correct_sale_request);
+    std::string correct_sale_request("{\"Address\":\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\",\"SaleDetails\":\"dddd\",\"Amount\":\"10.0\"}");
+    res = client.serve_json_res(sale_url.c_str(), correct_sale_request.c_str());
     response.load(res.data(), res.length());
     sale_response = response.get<graft::SaleResponse>();
 
     std::string sale_status_url(dapi_url + "/sale_status");
     graft::SaleStatusResponse sale_status_response;
-    std::string sale_status_request("{\\\"PaymentID\\\":\\\"" + sale_response.PaymentID + "\\\"}");
-    res = send_request(sale_status_url, sale_status_request);
+    std::string sale_status_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
+    res = client.serve_json_res(sale_status_url.c_str(), sale_status_request.c_str());
     response.load(res.data(), res.length());
     sale_status_response = response.get<graft::SaleStatusResponse>();
     EXPECT_EQ(static_cast<int>(graft::RTAStatus::InProgress), sale_status_response.Status);
 
-    std::string correct_request("{\\\"PaymentID\\\":\\\"" + sale_response.PaymentID + "\\\"}");
-    res = send_request(reject_sale_url, correct_request);
+    std::string correct_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
+    res = client.serve_json_res(reject_sale_url.c_str(), correct_request.c_str());
     response.load(res.data(), res.length());
     reject_sale_response = response.get<graft::RejectSaleResponse>();
     EXPECT_EQ(STATUS_OK, reject_sale_response.Result);
 
-    res = send_request(sale_status_url, sale_status_request);
+    res = client.serve_json_res(sale_status_url.c_str(), sale_status_request.c_str());
     response.load(res.data(), res.length());
     sale_status_response = response.get<graft::SaleStatusResponse>();
     EXPECT_EQ(static_cast<int>(graft::RTAStatus::RejectedByPOS), sale_status_response.Status);
 }
 
-/* TODO: crash on this
-        client.serve((uri_base+uri).c_str(),
-                     "Content-Type: text/plain\r\n",
-                     body.c_str());
-*/
