@@ -200,7 +200,15 @@ void ClientRequest::respondToClientAndDie(const std::string &s)
     case Status::Drop: code = 400; break;
     default: assert(false); break;
     }
-    mg_http_send_error(m_client, code, s.c_str());
+    if(Status::Ok == m_ctx.local.getLastStatus())
+    {
+        mg_send_head(m_client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
+        mg_send(m_client, s.c_str(), s.size());
+    }
+    else
+    {
+        mg_http_send_error(m_client, code, s.c_str());
+    }
     m_client->flags |= MG_F_SEND_AND_CLOSE;
     m_client->handler = static_empty_ev_handler;
     m_client = nullptr;
