@@ -293,7 +293,8 @@ private:
         {
             mg_mgr mgr;
             mg_mgr_init(&mgr, NULL, 0);
-            mg_connection *nc = mg_bind(&mgr, "1234", ev_handler);
+            mg_connection *nc = mg_bind(&mgr, "1234", ev_handler_http);
+            mg_set_protocol_http_websocket(nc);
             ready = true;
             for (;;) {
                 mg_mgr_poll(&mgr, 1000);
@@ -302,15 +303,19 @@ private:
             mg_mgr_free(&mgr);
         }
     private:
-        static void ev_handler(mg_connection *client, int ev, void *ev_data)
+        static void ev_handler_empty(mg_connection *client, int ev, void *ev_data)
+        {
+        }
+        static void ev_handler_http(mg_connection *client, int ev, void *ev_data)
         {
             switch (ev)
             {
-            case MG_EV_RECV:
+            case MG_EV_HTTP_REQUEST:
             {
-                std::string data;
-                bool ok = graft::CryptoNodeSender::help_recv_pstring(client, ev_data, data);
-                if(!ok) break;
+                mg_set_timer(client, 0);
+
+                struct http_message *hm = (struct http_message *) ev_data;
+                std::string data(hm->uri.p, hm->uri.len);
                 graft::Context ctx(pmanager->get_gcm());
                 int method = ctx.global["method"];
                 if(method == METHOD_GET)
@@ -322,6 +327,7 @@ private:
                 }
                 else
                 {
+                    data = std::string(hm->body.p, hm->body.len);
                     graft::Input in; in.load(data.c_str(), data.size());
                     Sstr ss = in.get<Sstr>();
                     EXPECT_EQ(ss.s, iocheck);
@@ -330,9 +336,20 @@ private:
                     auto pair = out.get();
                     data = std::string(pair.first, pair.second);
                 }
-                graft::CryptoNodeSender::help_send_pstring(client, data);
+                mg_send_head(client, 200, data.size(), "Content-Type: application/json\r\nConnection: close");
+                mg_send(client, data.c_str(), data.size());
                 client->flags |= MG_F_SEND_AND_CLOSE;
             } break;
+            case MG_EV_ACCEPT:
+            {
+                mg_set_timer(client, mg_time() + 1000);
+            } break;
+            case MG_EV_TIMER:
+            {
+                mg_set_timer(client, 0);
+                client->handler = ev_handler_empty; //without this we will get MG_EV_HTTP_REQUEST
+                client->flags |= MG_F_CLOSE_IMMEDIATELY;
+             } break;
             default:
                 break;
             }
