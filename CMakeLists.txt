@@ -83,6 +83,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 
