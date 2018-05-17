@@ -124,6 +124,7 @@ struct JsonRpcTest : public ::testing::Test
 
         JsonRpcTestRequest request = input.get<JsonRpcTestRequest>();
         // success response;
+        LOG_PRINT_L0("received: " << input.toString());
         if (request.params.size() && request.params.at(0).return_success) {
             LOG_PRINT_L0("Returning 'result' response...");
             JsonRpcTestResponseResult response;
@@ -152,12 +153,13 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
-        ServerOpts sopts {"localhost:8855", 5.0, 4, 4};
+        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 4, 4};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
-        router.arm();
-        Manager manager(router, sopts);
+
+        Manager manager(sopts);
+        manager.addRouter(router);
         this->manager = &manager;
         server.serve(manager.get_mg_mgr());
     }
