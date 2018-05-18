@@ -52,7 +52,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
     void startServer()
     {
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 4, 4, "localhost:28881"};
+        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 4, 4, "localhost:28881/json_rpc"};
         Router router;
         graft::registerGetInfoRequest(router);
         Manager manager(sopts);
@@ -156,14 +156,21 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
 TEST_F(CryptonodeHandlersTest, getinfo)
 {
-
+    MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
     std::string response_s = send_request("http://localhost:8855/cryptonode/getinfo");
     EXPECT_FALSE(response_s.empty());
 
-    LOG_PRINT_L0("response: " << response_s);
-
+    LOG_PRINT_L2("response: " << response_s);
+    Input in; in.load(response_s);
+    GetInfoResponse resp = in.get<GetInfoResponse>();
+    EXPECT_TRUE(resp.height > 0);
+    EXPECT_TRUE(resp.status == "OK");
+    EXPECT_TRUE(resp.difficulty > 0);
+    EXPECT_TRUE(resp.tx_count > 0);
+    LOG_PRINT_L2("Stopping server...");
+    manager->stop();
     server_thread.join();
-    LOG_PRINT_L0("Server thread done...");
+    LOG_PRINT_L2("Server stopped, Server thread done...");
 }
 
 

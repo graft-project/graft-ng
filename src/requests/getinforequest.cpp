@@ -5,7 +5,7 @@
 
 namespace graft {
 
-GRAFT_DEFINE_JSON_RPC_RESPONSE(GetInfoResponseJsonRpc, GetInfoResult);
+GRAFT_DEFINE_JSON_RPC_RESPONSE(GetInfoResponseJsonRpc, GetInfoResponse);
 
 
 Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
@@ -27,7 +27,7 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
     //  3. return Forward, which tells framework to forward request to cryptonode
     LOG_PRINT_L2(__FUNCTION__);
     if (!ctx.local.hasKey(__FUNCTION__)) {
-        LOG_PRINT_L0("call from client, forwarding to cryptonode...");
+        LOG_PRINT_L2("call from client, forwarding to cryptonode...");
         JsonRpcRequestEmpty req;
         req.method = "get_info";
         output.load(req);
@@ -41,8 +41,8 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
         //  3. if http status code is ok (200) read body and parse it
         //  4. handle parsed response and prepare reply to the client
 
-        LOG_PRINT_L0("response from cryptonode (input) : " << input.toString());
-        LOG_PRINT_L0("response from cryptonode (output) : " << output.data());
+        LOG_PRINT_L2("response from cryptonode (input) : " << input.toString());
+        LOG_PRINT_L2("response from cryptonode (output) : " << output.data());
 
         Status status = ctx.local.getLastStatus();
         std::string error = ctx.local.getLastError();
@@ -51,8 +51,7 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
 
         if (resp.error.code == 0) { // no error, normal reply
             GetInfoResponse ret;
-            ret.status = static_cast<uint64_t>(RTAStatus::Success);
-            ret.result = resp.result;
+            ret = resp.result;
             output.load(ret);
             return Status::Ok;
         } else { // error response
