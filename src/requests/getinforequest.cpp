@@ -18,15 +18,18 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
     // -> this will be forwarded to client
 
     // call from client
-    if (!ctx.local.hasKey("get_info_handler")) {
+    LOG_PRINT_L2(__FUNCTION__);
+    if (!ctx.local.hasKey(__FUNCTION__)) {
         LOG_PRINT_L0("call from client, forwarding to cryptonode...");
         JsonRpcRequestEmpty req;
         req.method = "get_info";
         output.load(req);
+        ctx.local[__FUNCTION__] = true;
         return Status::Forward;
     } else {
     // response from cryptonode
-        LOG_PRINT_L0("response from cryptonode : " << input.toString());
+        LOG_PRINT_L0("response from cryptonode (input) : " << input.toString());
+        LOG_PRINT_L0("response from cryptonode (output) : " << output.data());
         GetInfoResponseJsonRpc resp = input.get<GetInfoResponseJsonRpc>();
         if (resp.error.code == 0) { // no error, normal reply
             GetInfoResponse ret;

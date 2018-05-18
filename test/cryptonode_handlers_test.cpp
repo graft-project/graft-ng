@@ -52,11 +52,12 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
     void startServer()
     {
-        ServerOpts sopts {"localhost:8855", 5.0, 4, 4};
+        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 4, 4, "localhost:28881"};
         Router router;
         graft::registerGetInfoRequest(router);
-        router.arm();
-        Manager manager(router, sopts);
+        Manager manager(sopts);
+        manager.addRouter(router);
+        manager.enableRouting();
         this->manager = &manager;
         server.serve(manager.get_mg_mgr());
     }

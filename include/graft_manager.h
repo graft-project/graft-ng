@@ -90,6 +90,7 @@ public:
     Manager(const ServerOpts& sopts)
         : m_sopts(sopts)
     {
+        // TODO: validate options, throw exception if any mandatory options missing
         mg_mgr_init(&m_mgr, this, cb_event);
         initThreadPool(sopts.workers_count, sopts.worker_queue_len);
     }
