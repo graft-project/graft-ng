@@ -1,5 +1,7 @@
 #pragma once
 
+#include <list>
+
 #include "mongoose.h"
 #include "router.h"
 #include "thread_pool.h"
@@ -19,9 +21,6 @@ class CryptoNodeSender;
 
 class GJ_ptr;
 using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
-
-using Router = RouterT<Input, Output>;
-
 using GJ = GraftJob<ClientRequest_ptr, TPResQueue, Manager>;
 
 //////////////
@@ -71,24 +70,25 @@ public:
     }
 };
 
-using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJ_ptr)>,
-tp::MPMCBoundedQueue>;
+using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJ_ptr)>, tp::MPMCBoundedQueue>;
 
 ///////////////////////////////////
 
 struct ServerOpts
 {
     std::string http_address;
+    std::string coap_address;
     double http_connection_timeout;
     int workers_count;
     int worker_queue_len;
+    std::string cryptonode_rpc_address;
 };
 
 class Manager
 {
 public:
-    Manager(Router& router, const ServerOpts& sopts)
-        : m_router(router), m_sopts(sopts)
+    Manager(const ServerOpts& sopts)
+        : m_sopts(sopts)
     {
         mg_mgr_init(&m_mgr, this, cb_event);
         initThreadPool(sopts.workers_count, sopts.worker_queue_len);
@@ -102,13 +102,17 @@ public:
     void sendCrypton(ClientRequest_ptr cr);
     void sendToThreadPool(ClientRequest_ptr cr);
 
+    void addRouter(Router& r) { m_root.addRouter(r); }
+
+    bool enableRouting() { return m_root.arm(); }
+    bool matchRoute(const std::string& target, int method, Router::JobParams& params) { return m_root.match(target, method, params); }
+
     ////getters
     mg_mgr* get_mg_mgr() { return &m_mgr; }
-    Router& get_router() { return m_router; }
     ThreadPoolX& get_threadPool() { return *m_threadPool.get(); }
     TPResQueue& get_resQueue() { return *m_resQueue.get(); }
     GlobalContextMap& get_gcm() { return m_gcm; }
-    ServerOpts& get_opts() { return m_sopts; }
+    const ServerOpts& get_c_opts() const { return m_sopts; }
 
     ////static functions
     static void cb_event(mg_mgr* mgr, uint64_t cnt);
@@ -135,7 +139,7 @@ private:
     void processReadyJobBlock();
 private:
     mg_mgr m_mgr;
-    Router& m_router;
+    Router::Root m_root;
     GlobalContextMap m_gcm;
 
     uint64_t m_cntClientRequest = 0;
@@ -203,16 +207,22 @@ public:
     ClientRequest_ptr& get_cr() { return m_cr; }
 
     void send(Manager& manager, ClientRequest_ptr cr, const std::string& data);
-public:
-    static void help_send_pstring(mg_connection *nc, const std::string& data);
-    static bool help_recv_pstring(mg_connection *nc, void *ev_data, std::string& data);
+    Status getStatus() const { return m_status; }
+    const std::string& getError() const { return m_error; }
 private:
     friend class StaticMongooseHandler<CryptoNodeSender>;
     void ev_handler(mg_connection* crypton, int ev, void *ev_data);
+    void setError(Status status, const std::string& error = std::string())
+    {
+        m_status = status;
+        m_error = error;
+    }
 private:
     mg_connection *m_crypton = nullptr;
     ClientRequest_ptr m_cr;
     std::string m_data;
+    Status m_status = Status::None;
+    std::string m_error;
 };
 
 class ClientRequest : public ItselfHolder<ClientRequest>, public StaticMongooseHandler<ClientRequest>
@@ -262,21 +272,17 @@ public:
 #endif
 public:
     void serve(mg_mgr* mgr);
-    /**
-   * @brief setCryptonodeRpcAddress - setup cryptonode RPC address
-   * @param address - address in IP:port form
-   */
-    void setCryptonodeRPCAddress(const std::string &address);
-    /**
-   * @brief setCryptonodeP2PAddress - setup cryptonode P2P address
-   * @param address - address in IP:port form
-   */
-    void setCryptonodeP2PAddress(const std::string &address);
-
 private:
     static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
-    static void ev_handler(mg_connection *client, int ev, void *ev_data);
-    static int methodFromString(const std::string& method);
+    static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
+    static void ev_handler_coap(mg_connection *client, int ev, void *ev_data);
+    static int translateMethod(const char *method, std::size_t len);
+    static int translateMethod(int i);
+
+#define _M(x) std::make_pair(#x, METHOD_##x)
+    constexpr static std::pair<const char *, int> m_methods[] = {
+        _M(GET), _M(POST), _M(PUT), _M(DELETE), _M(HEAD) //, _M(CONNECT)
+    };
 };
 
 }//namespace graft
