@@ -2,6 +2,7 @@
 
 #include "graft_manager.h"
 #include "router.h"
+#include <sstream>
 
 namespace graft {
 
@@ -141,29 +142,13 @@ void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr, const std::s
 {
     m_cr = cr;
     m_data = data;
-    m_crypton = mg_connect(manager.get_mg_mgr(),"localhost:1234", static_ev_handler);
+    const ServerOpts& opts = manager.get_c_opts();
+    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, opts.cryptonode_rpc_address.c_str(),
+                             "Content-Type: application/json\r\n",
+                             (m_data.empty())? nullptr : m_data.c_str()); //last nullptr means GET
+    assert(m_crypton);
     m_crypton->user_data = this;
     //len + data
-    help_send_pstring(m_crypton, m_data);
-}
-
-void CryptoNodeSender::help_send_pstring(mg_connection *nc, const std::string &data)
-{
-    int len = data.size();
-    mg_send(nc, &len, sizeof(len));
-    mg_send(nc, data.c_str(), data.size());
-}
-
-bool CryptoNodeSender::help_recv_pstring(mg_connection *nc, void *ev_data, std::string &data)
-{
-    int cnt = *(int*)ev_data;
-    if(cnt < sizeof(int)) return false;
-    mbuf& buf = nc->recv_mbuf;
-    int len = *(int*)buf.buf;
-    if(len + sizeof(len) < cnt) return false;
-    data = std::string(buf.buf + sizeof(len), len);
-    mbuf_remove(&buf, len + sizeof(len));
-    return true;
 }
 
 void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
@@ -171,13 +156,32 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     assert(crypton == this->m_crypton);
     switch (ev)
     {
-    case MG_EV_RECV:
+    case MG_EV_CONNECT:
     {
-        std::string s;
-        bool ok = help_recv_pstring(crypton, ev_data, s);
-        if(!ok) break;
-        m_cr->get_input().load(s.c_str(), s.size());
+        int& err = *static_cast<int*>(ev_data);
+        if(err != 0)
+        {
+            std::ostringstream ss;
+            ss << "cryptonode connect failed: " << strerror(err);
+            setError(Status::Error, ss.str().c_str());
+            Manager::from(crypton)->onCryptonDone(*this);
+            crypton->handler = static_empty_ev_handler;
+            releaseItself();
+        }
+    } break;
+    case MG_EV_HTTP_REPLY:
+    {
+        http_message* hm = static_cast<http_message*>(ev_data);
+        m_cr->get_input().load(hm->body.p, hm->body.len);
+        setError(Status::Ok);
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
+        Manager::from(crypton)->onCryptonDone(*this);
+        crypton->handler = static_empty_ev_handler;
+        releaseItself();
+    } break;
+    case MG_EV_CLOSE:
+    {
+        setError(Status::Error, "cryptonode connection unexpectedly closed");
         Manager::from(crypton)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
@@ -323,6 +327,12 @@ void ClientRequest::processResult()
 
 void ClientRequest::onCryptonDone(CryptoNodeSender &cns)
 {
+    if(Status::Ok != cns.getStatus())
+    {
+        setError(cns.getError().c_str(), cns.getStatus());
+        processResult();
+        return;
+    }
     //here you can send a job to the thread pool or send response to client
     //cns will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
@@ -352,7 +362,7 @@ constexpr std::pair<const char *, int> GraftServer::m_methods[];
 
 void GraftServer::serve(mg_mgr *mgr)
 {
-    ServerOpts& opts = Manager::from(mgr)->get_opts();
+    const ServerOpts& opts = Manager::from(mgr)->get_c_opts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http),
                   *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
@@ -369,16 +379,6 @@ void GraftServer::serve(mg_mgr *mgr)
         if(Manager::from(mgr)->exit) break;
     }
     mg_mgr_free(mgr);
-}
-
-void GraftServer::setCryptonodeRPCAddress(const std::string &address)
-{
-    // TODO implement me
-}
-
-void GraftServer::setCryptonodeP2PAddress(const std::string &address)
-{
-    // TODO implement me
 }
 
 int GraftServer::translateMethod(const char *method, std::size_t len)
@@ -441,7 +441,7 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
     }
     case MG_EV_ACCEPT:
     {
-        ServerOpts& opts = manager->get_opts();
+        const ServerOpts& opts = manager->get_c_opts();
 
         mg_set_timer(client, mg_time() + opts.http_connection_timeout);
         break;
