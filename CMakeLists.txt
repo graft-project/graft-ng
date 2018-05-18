@@ -2,7 +2,14 @@ cmake_minimum_required(VERSION 3.11.1)
 
 project(graft_server)
 
-option(OPT_BUILD_TESTS "Build tests." OFF)
+option(OPT_BUILD_TESTS "Build tests." ON)
+
+
+if(NOT CMAKE_BUILD_TYPE)
+  set( CMAKE_BUILD_TYPE Debug CACHE STRING
+       "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+       FORCE )
+endif()
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
@@ -159,12 +166,14 @@ if (OPT_BUILD_TESTS)
         ExternalProject_Get_Property(googletest BINARY_DIR)
         set(GT_LIBS
             ${BINARY_DIR}/googlemock/gtest/${CMAKE_FIND_LIBRARY_PREFIXES}gtest.a
-            ${BINARY_DIR}/googlemock/gtest/${CMAKE_FIND_LIBRARY_PREFIXES}gtest_main.a
             )
 
         add_executable(graft_server_test
                 ${GS_SOURCES}
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/json_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
         target_include_directories(graft_server_test PRIVATE
@@ -173,9 +182,13 @@ if (OPT_BUILD_TESTS)
         )
 
         target_link_libraries(graft_server_test
-                ${GS_LIBS}
-                ${GT_LIBS}
-                ${CMAKE_THREAD_LIBS_INIT}
+            epee
+            easylogging
+            ${GS_LIBS}
+            ${GT_LIBS}
+            ${CMAKE_THREAD_LIBS_INIT}
+            ${Boost_SYSTEM_LIBRARY}
+            ${Boost_FILESYSTEM_LIBRARY}
         )
 
         target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
