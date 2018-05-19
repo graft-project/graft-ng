@@ -116,10 +116,15 @@ void Manager::doWork(uint64_t m_cnt)
     }
 }
 
+void Manager::onJobDone()
+{
+    ++m_cntJobDone;
+}
+
 void Manager::onJobDone(GJ& gj)
 {
     gj.get_cr()->onJobDone(&gj);
-    ++m_cntJobDone;
+    onJobDone();
     //gj will be destroyed on exit
 }
 
@@ -250,12 +255,16 @@ void ClientRequest::createJob(Manager &manager)
     if(m_prms.h3.worker_action)
     {
         manager.get_threadPool().post(
-                GJ_ptr( get_itself(), &manager.get_resQueue(), &manager )
-                );
+                    GJ_ptr( get_itself(), &manager.get_resQueue(), &manager ),
+                    true
+                    );
     }
     else
     {
+        //special case when worker_action is absent
         onJobDone(nullptr);
+        //next call is required to fix counters that prevents overflow
+        manager.onJobDone();
     }
 }
 

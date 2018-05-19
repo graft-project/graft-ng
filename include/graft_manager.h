@@ -123,6 +123,7 @@ public:
     void onNewClient(ClientRequest_ptr cr);
     void onClientDone(ClientRequest_ptr cr);
 
+    void onJobDone();
     void onJobDone(GJ& gj);
 
     void onCryptonDone(CryptoNodeSender& cns);
