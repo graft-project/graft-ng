@@ -161,22 +161,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
     std::thread server_thread;
 };
 
-bool create_send_tx_request(const tools::wallet2::pending_tx &ptx, SendRawTxRequest &request)
-{
 
-    assert(ptx.dests.size() == 1);
-
-    for (const auto &dest : ptx.dests) {
-        request.tx_info.amount += dest.amount;
-    }
-
-    request.tx_info.fee = ptx.fee;
-    request.tx_info.dest_address = cryptonote::get_account_address_as_str(true, ptx.dests[0].addr);
-    request.tx_info.id = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx.tx));
-    request.tx_as_hex = epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx));
-
-    return true;
-}
 
 TEST_F(CryptonodeHandlersTest, getinfo)
 {
@@ -228,7 +213,7 @@ TEST_F(CryptonodeHandlersTest, sendrawtx)
     std::vector<tools::wallet2::pending_tx> ptx = wallet.create_transactions_2(dsts, 4, 0, 0, extra, true);
     ASSERT_TRUE(ptx.size() == 1);
     SendRawTxRequest req;
-    ASSERT_TRUE(create_send_tx_request(ptx.at(0), req));
+    ASSERT_TRUE(createSendRawTxRequest(ptx.at(0), req));
     std::string request_s = req.toJson().GetString();
     LOG_PRINT_L2("sending to supernode: " << request_s);
     std::string response_s = send_request("http://localhost:8855/cryptonode/sendrawtx",

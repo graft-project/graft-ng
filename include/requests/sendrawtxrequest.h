@@ -6,6 +6,8 @@
 #include "jsonrpc.h"
 
 #include <string>
+#include <wallet/wallet2.h>
+
 
 namespace graft {
 
@@ -38,6 +40,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SendRawTxResponse,
 
 
 void registerSendRawTxRequest(graft::Router &router);
+bool createSendRawTxRequest(const tools::wallet2::pending_tx &ptx, SendRawTxRequest &request);
 
 }
 
