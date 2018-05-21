@@ -138,7 +138,6 @@ void Manager::onCryptonDone(CryptoNodeSender& cns)
 
 void Manager::stop()
 {
-    // TODO:
     this->m_exit = true;
 }
 
