@@ -96,12 +96,36 @@ set(GS_LIBS
     pcre
     )
 
+set(CRYPTONODE_LIBS
+    epee
+    easylogging
+    wallet
+    common
+    cryptonote_basic
+    )
+
+set(CRYPTONODE_INCLUDE_DIRS
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/external/easylogging++
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/external
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/src
+    )
+
+set(CRYPTONODE_LIB_DIRS
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/common
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/wallet
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/cryptonote_basic
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/cryptonote_core
+    )
+
 
 set(Boost_USE_STATIC_LIBS OFF) 
 set(Boost_USE_MULTITHREADED ON)  
 set(Boost_USE_STATIC_RUNTIME OFF) 
 
-find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options)
+find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread)
 
 if(NOT Boost_FOUND)
     die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
@@ -112,10 +136,8 @@ endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 # cryptonode dependencies
 # TODO: modify cryptonode CMakeLists.txt so it installs all required headers/libs
-include_directories(${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include)
-include_directories(${PROJECT_SOURCE_DIR}/modules/cryptonode/external/easylogging++)
-link_directories(${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src)
-link_directories(${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++)
+include_directories(${CRYPTONODE_INCLUDE_DIRS})
+link_directories(${CRYPTONODE_LIB_DIRS})
 
 add_executable(graft_server
     ${GS_SOURCES}
@@ -128,8 +150,7 @@ target_include_directories(graft_server PRIVATE
     )
 
 target_link_libraries(graft_server PRIVATE
-    epee
-    easylogging
+    ${CRYPTONODE_LIBS}
     ${GS_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
@@ -176,20 +197,34 @@ if (OPT_BUILD_TESTS)
         target_include_directories(graft_server_test PRIVATE
                 ${GS_INCLUDE_DIRS}
                 ${GT_INCLUDE_DIRS}
+                ${CRYPTONODE_INCLUDES}
+
         )
 
         target_link_libraries(graft_server_test
-            epee
-            easylogging
+            ${CRYPTONODE_LIBS}
             ${GS_LIBS}
             ${GT_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
             ${Boost_SYSTEM_LIBRARY}
             ${Boost_FILESYSTEM_LIBRARY}
+            ${Boost_SERIALIZATION_LIBRARY}
+            ${Boost_THREAD_LIBRARY}
         )
+
+        link_directories(${CRYPTONODE_LIB_PATHS})
 
         target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
         add_dependencies(graft_server_test libr3 cryptonode googletest)
+
+        if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
+            add_custom_command(
+                TARGET graft_server POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_SOURCE_DIR}/data/test_wallet.keys
+                ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
+        endif()
+
 endif (OPT_BUILD_TESTS)
 
 # copy config file to build directory

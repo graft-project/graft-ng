@@ -72,7 +72,7 @@ void registerGetInfoRequest(graft::Router &router)
     Router::Handler3 h3(nullptr, getInfoHandler, nullptr);
     const char * path = "/cryptonode/getinfo";
     router.addRoute(path, METHOD_GET, h3);
-    LOG_PRINT_L1("route " << path << " registered");
+    LOG_PRINT_L2("route " << path << " registered");
 }
 
 }

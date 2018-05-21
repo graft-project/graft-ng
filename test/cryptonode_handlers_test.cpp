@@ -33,8 +33,14 @@
 #include <jsonrpc.h>
 #include <graft_manager.h>
 #include <router.h>
-#include <requests/getinforequest.h>
 #include <requests.h>
+#include <requests/getinforequest.h>
+#include <requests/sendrawtxrequest.h>
+
+
+
+// cryptonode includes
+#include <wallet/wallet2.h>
 
 
 #include <string>
@@ -52,9 +58,11 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
     void startServer()
     {
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 4, 4, "localhost:28881/json_rpc"};
+        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 4, 4, "localhost:28881/sendrawtransaction"};
         Router router;
         graft::registerGetInfoRequest(router);
+        graft::registerSendRawTxRequest(router);
+
         Manager manager(sopts);
         manager.addRouter(router);
         manager.enableRouting();
@@ -153,10 +161,28 @@ struct CryptonodeHandlersTest : public ::testing::Test
     std::thread server_thread;
 };
 
+bool create_send_tx_request(const tools::wallet2::pending_tx &ptx, SendRawTxRequest &request)
+{
+
+    assert(ptx.dests.size() == 1);
+
+    for (const auto &dest : ptx.dests) {
+        request.tx_info.amount += dest.amount;
+    }
+
+    request.tx_info.fee = ptx.fee;
+    request.tx_info.dest_address = cryptonote::get_account_address_as_str(true, ptx.dests[0].addr);
+    request.tx_info.id = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx.tx));
+    request.tx_as_hex = epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx));
+
+    return true;
+}
 
 TEST_F(CryptonodeHandlersTest, getinfo)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
+
+
     std::string response_s = send_request("http://localhost:8855/cryptonode/getinfo");
     EXPECT_FALSE(response_s.empty());
 
@@ -167,6 +193,62 @@ TEST_F(CryptonodeHandlersTest, getinfo)
     EXPECT_TRUE(resp.status == "OK");
     EXPECT_TRUE(resp.difficulty > 0);
     EXPECT_TRUE(resp.tx_count > 0);
+    LOG_PRINT_L2("Stopping server...");
+    manager->stop();
+    // server_thread.join();
+    LOG_PRINT_L2("Server stopped, Server thread done...");
+}
+
+struct FooBar
+{
+    std::string foo;
+    int bar;
+};
+
+TEST_F(CryptonodeHandlersTest, sendrawtx)
+{
+    MGINFO_YELLOW("*** This test requires running cryptonode with public testnet blockchain running on localhost:28881. If not running, test will fail ***");
+
+    FooBar fb {"1", 2};
+
+    // open wallet
+    const std::string wallet_path = "test_wallet";
+    tools::wallet2 wallet(true);
+
+    wallet.load(wallet_path, "");
+    wallet.init("localhost:28881");
+    wallet.refresh();
+    wallet.store();
+
+    const uint64_t AMOUNT_1_GRFT = 10000000000000;
+    // send to itself
+    cryptonote::tx_destination_entry de (AMOUNT_1_GRFT, wallet.get_account().get_keys().m_account_address);
+    std::vector<cryptonote::tx_destination_entry> dsts; dsts.push_back(de);
+    std::vector<uint8_t> extra;
+    std::vector<tools::wallet2::pending_tx> ptx = wallet.create_transactions_2(dsts, 4, 0, 0, extra, true);
+    ASSERT_TRUE(ptx.size() == 1);
+    SendRawTxRequest req;
+    ASSERT_TRUE(create_send_tx_request(ptx.at(0), req));
+    std::string request_s = req.toJson().GetString();
+    LOG_PRINT_L2("sending to supernode: " << request_s);
+    std::string response_s = send_request("http://localhost:8855/cryptonode/sendrawtx",
+                                          escape_string_curl(request_s));
+    EXPECT_FALSE(response_s.empty());
+    LOG_PRINT_L2("response: " << response_s);
+    Input in; in.load(response_s);
+    SendRawTxResponse  resp = in.get<SendRawTxResponse>();
+    wallet.store();
+    EXPECT_TRUE(resp.status == "OK");
+    EXPECT_FALSE(resp.not_relayed);
+    EXPECT_FALSE(resp.low_mixin);
+    EXPECT_FALSE(resp.double_spend);
+    EXPECT_FALSE(resp.invalid_input);
+    EXPECT_FALSE(resp.invalid_output);
+    EXPECT_FALSE(resp.too_big);
+    EXPECT_FALSE(resp.overspend);
+    EXPECT_FALSE(resp.fee_too_low);
+    EXPECT_FALSE(resp.not_rct);
+
     LOG_PRINT_L2("Stopping server...");
     manager->stop();
     server_thread.join();

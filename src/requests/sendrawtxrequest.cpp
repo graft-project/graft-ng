@@ -40,7 +40,7 @@ void registerSendRawTxRequest(graft::Router &router)
     Router::Handler3 h3(nullptr, sendRawTxHandler, nullptr);
     const char * path = "/cryptonode/sendrawtx";
     router.addRoute(path, METHOD_POST, h3);
-    LOG_PRINT_L1("route " << path << " registered");
+    LOG_PRINT_L2("route " << path << " registered");
 }
 
 }
