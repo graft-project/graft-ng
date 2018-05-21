@@ -58,20 +58,6 @@ GRAFT_DEFINE_IO_STRUCT_INITED(Payment3,
      (uint32, unlock_time, 3)
  );
 
-/*
-TEST(GraftDefineIOStruct, initedFail)
-{
-    Payment pt1;
-    // pt1 has randomly initialized fields here
-    EXPECT_EQ(pt1.amount, 1);
-    EXPECT_EQ(pt1.block_height, 2);
-    EXPECT_EQ(pt1.payment_id, "123");
-    EXPECT_EQ(pt1.tx_hash, "456");
-    EXPECT_EQ(pt1.unlock_time, 3);
-    Foo foo;
-    EXPECT_EQ(foo.foo, 1);
-}
-*/
 
 TEST(GraftDefineIOStruct, initedSuccess)
 {
