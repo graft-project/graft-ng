@@ -156,6 +156,8 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
     )
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
 
