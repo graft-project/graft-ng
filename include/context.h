@@ -8,12 +8,11 @@
 #include <thread>
 #include <mutex>
 #include <map>
+#include <vector>
+#include <chrono>
 
 #include "graft_utility.hpp"
 #include "graft_constants.h"
-
-#include <iostream>
-#include <vector>
 
 namespace graft
 {
@@ -174,6 +173,15 @@ struct Context
         bool hasKey(const std::string& key)
         {
             return m_map.hasKey(key);
+        }
+
+        template<typename T>
+        void set(const std::string& key, T val, std::chrono::seconds ttl)
+        {
+            static_assert(std::is_nothrow_move_constructible<T>::value,
+                          "not move constructible");
+            boost::any tmp(std::forward<T>(val));
+            m_map.addOrUpdate(key, std::move(tmp), ttl);
         }
 
         template<typename T>
