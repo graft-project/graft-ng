@@ -103,7 +103,6 @@ void Manager::initThreadPool(int threadCount, int workersQueueSize)
 
 Manager::~Manager()
 {
-    this->stop();
 }
 
 void Manager::notifyJobReady()
@@ -435,7 +434,7 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
             return;
         }
         int method = translateMethod(hm->method.p, hm->method.len);
-	    if (method < 0) return;
+        if (method < 0) return;
 
         Router::JobParams prms;
         if (manager->matchRoute(uri, method, prms))
