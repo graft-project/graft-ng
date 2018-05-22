@@ -393,7 +393,6 @@ void GraftServer::serve(mg_mgr *mgr)
         mg_mgr_poll(mgr, 1000);
         if (Manager::from(mgr)->stopped())
             break;
-        mg_mgr_poll(mgr, 1000);
     }
     mg_mgr_free(mgr);
 }
