@@ -63,16 +63,10 @@ struct CryptonodeHandlersTest : public ::testing::Test
         graft::registerGetInfoRequest(router);
         graft::registerSendRawTxRequest(router);
 
-        Manager manager(sopts);
-        manager.addRouter(router);
-        manager.enableRouting();
-        this->manager = &manager;
-        server.serve(manager.get_mg_mgr());
-    }
-
-    void stopServer()
-    {
-
+        this->manager = new Manager(sopts);
+        manager->addRouter(router);
+        manager->enableRouting();
+        server.serve(manager->get_mg_mgr());
     }
 
     CryptonodeHandlersTest()
@@ -99,6 +93,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
     ~CryptonodeHandlersTest()
     {
+        delete manager;
     }
 
 
@@ -145,6 +140,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
     static void SetUpTestCase()
     {
+
     }
 
     static void TearDownTestCase()
@@ -180,7 +176,7 @@ TEST_F(CryptonodeHandlersTest, getinfo)
     EXPECT_TRUE(resp.tx_count > 0);
     LOG_PRINT_L2("Stopping server...");
     manager->stop();
-    // server_thread.join();
+    server_thread.join();
     LOG_PRINT_L2("Server stopped, Server thread done...");
 }
 
