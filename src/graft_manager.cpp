@@ -24,7 +24,8 @@ void Manager::sendToThreadPool(ClientRequest_ptr cr)
     assert(m_cntJobDone <= m_cntJobSent);
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
     {//check overflow
-        processReadyJobBlock();
+        cr->onTooBusy();
+        return;
     }
     assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
     ++m_cntJobSent;
@@ -105,13 +106,18 @@ void Manager::notifyJobReady()
     mg_notify(&m_mgr);
 }
 
-void Manager::doWork(uint64_t m_cnt)
+void Manager::doWork(uint64_t cnt)
 {
-    //job overflow is possible, and we can pop jobs without notification, thus m_cnt useless
-    bool res = true;
-    while(res)
+    //When multiple threads write to the output queue of the thread pool.
+    //It is possible that a hole appears when a thread has not completed to set
+    //the cell data in the queue. The hole leads to failure of pop operations.
+    //Thus, it is better to process as many cells as we can without waiting when
+    //the cell will be filled, instead of basing on the counter.
+    //We cannot lose any cell because a notification follows the hole completion.
+
+    while(true)
     {
-        res = tryProcessReadyJob();
+        bool res = tryProcessReadyJob();
         if(!res) break;
     }
 }
@@ -202,6 +208,7 @@ void ClientRequest::respondToClientAndDie(const std::string &s)
     case Status::Ok: code = 200; break;
     case Status::InternalError:
     case Status::Error: code = 500; break;
+    case Status::Busy: code = 503; break;
     case Status::Drop: code = 400; break;
     default: assert(false); break;
     }
@@ -218,6 +225,12 @@ void ClientRequest::respondToClientAndDie(const std::string &s)
     m_client->handler = static_empty_ev_handler;
     m_client = nullptr;
     releaseItself();
+}
+
+void ClientRequest::onTooBusy()
+{
+    m_ctx.local.setError("Service Unavailable", Status::Busy);
+    respondToClientAndDie("Thread pool overflow");
 }
 
 void ClientRequest::createJob(Manager &manager)
