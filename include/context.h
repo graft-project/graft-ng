@@ -185,6 +185,13 @@ struct Context
         }
 
         template<typename T>
+        T get(const std::string& key, T defval)
+        {
+            return boost::any_cast<T>(
+                        m_map.valueFor(key, boost::any(defval)));
+        }
+
+        template<typename T>
         bool apply(const std::string& key, std::function<bool(T&)> f)
         {
             return m_map.apply(key, [f](boost::any& a)
