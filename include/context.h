@@ -176,7 +176,7 @@ struct Context
         }
 
         template<typename T>
-        void set(const std::string& key, T val, std::chrono::seconds ttl)
+        void set(const std::string& key, T&& val, std::chrono::seconds ttl)
         {
             static_assert(std::is_nothrow_move_constructible<T>::value,
                           "not move constructible");
@@ -188,7 +188,10 @@ struct Context
         T get(const std::string& key, T defval)
         {
             return boost::any_cast<T>(
-                        m_map.valueFor(key, boost::any(defval)));
+                m_map.valueFor(
+                    key, boost::any(std::forward(defval))
+                )
+            );
         }
 
         template<typename T>
