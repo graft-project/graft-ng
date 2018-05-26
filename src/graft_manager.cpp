@@ -15,9 +15,7 @@ void Manager::sendCrypton(ClientRequest_ptr cr)
 {
     ++m_cntCryptoNodeSender;
     CryptoNodeSender::Ptr cns = CryptoNodeSender::Create();
-    auto out = cr->get_output().get();
-    std::string s(out.first, out.second);
-    cns->send(*this, cr, s);
+    cns->send(*this, cr);
 }
 
 void Manager::sendToThreadPool(ClientRequest_ptr cr)
@@ -138,17 +136,70 @@ void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_thread
     m_threadPoolInputSize = m_threadPoolInputSize_;
 }
 
-void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr, const std::string &data)
+void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr)
 {
     m_cr = cr;
-    m_data = data;
+
     const ServerOpts& opts = manager.get_c_opts();
-    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, opts.cryptonode_rpc_address.c_str(),
-                             "Content-Type: application/json\r\n",
-                             (m_data.empty())? nullptr : m_data.c_str()); //last nullptr means GET
+    std::string default_host = opts.cryptonode_rpc_address.c_str();
+    Output& output = cr->get_output();
+    std::string uri = output.uri;
+
+    if(!uri.empty() && uri[0] == '$')
+    {//substitutions
+        auto it = Output::uri_substitutions.find(uri.substr(1));
+        if(it == Output::uri_substitutions.end())
+            throw std::runtime_error("cannot find uri substitution");
+        uri = it->second;
+    }
+
+    std::string port;
+#define V(n) std::string n
+        V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
+#undef V
+    while(!uri.empty())
+    {
+        mg_str mg_uri{uri.c_str(), uri.size()};
+        //[scheme://[user_info@]]host[:port][/path][?query][#fragment]
+        unsigned int mg_port;
+        mg_str mg_scheme, mg_user_info, mg_host, mg_path, mg_query, mg_fragment;
+        int res = mg_parse_uri(mg_uri, &mg_scheme, &mg_user_info, &mg_host, &mg_port, &mg_path, &mg_query, &mg_fragment);
+        if(res<0) break;
+        port = std::to_string(mg_port);
+#define V(n) n = std::string(mg_##n.p, mg_##n.len)
+        V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
+#undef V
+        break;
+    }
+
+    if(!output.proto.empty()) scheme = output.proto;
+    if(!output.host.empty()) host = output.host;
+    if(!output.port.empty()) port = output.port;
+    if(host.empty()) host = default_host;
+
+    std::string url;
+    if(!scheme.empty())
+    {
+        url += scheme + "://";
+        if(!user_info.empty()) url += user_info + '@';
+    }
+    url += host;
+    if(!port.empty()) url += ':' + port;
+    if(!path.empty()) url += '/' + path;
+    if(!query.empty()) url += '?' + query;
+    if(!fragment.empty()) url += '#' + fragment;
+
+    std::string extra_headers = output.combine_headers();
+    if(extra_headers.empty())
+    {
+        extra_headers = "Content-Type: application/json\r\n";
+    }
+    std::string& body = output.body;
+    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
+                             extra_headers.c_str(),
+                             (body.empty())? nullptr : body.c_str()); //last nullptr means GET
     assert(m_crypton);
     m_crypton->user_data = this;
-    //len + data
 }
 
 void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
@@ -172,7 +223,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     case MG_EV_HTTP_REPLY:
     {
         http_message* hm = static_cast<http_message*>(ev_data);
-        m_cr->get_input().load(hm->body.p, hm->body.len);
+        m_cr->get_input() = *hm;
         setError(Status::Ok);
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
         Manager::from(crypton)->onCryptonDone(*this);
