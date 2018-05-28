@@ -126,6 +126,7 @@ public:
     void onNewClient(ClientRequest_ptr cr);
     void onClientDone(ClientRequest_ptr cr);
 
+    void onJobDone();
     void onJobDone(GJ& gj);
 
     void onCryptonDone(CryptoNodeSender& cns);
@@ -237,14 +238,14 @@ private:
     {
     }
 public:
-    void respondToClientAndDie(const std::string& s);
-
     void createJob(Manager& manager);
 
     void onJobDone(GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
 
     void onCryptonDone(CryptoNodeSender& cns);
+    void onTooBusy();
 private:
+    void respondToClientAndDie(const std::string& s);
     void processResult();
     void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
     Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
