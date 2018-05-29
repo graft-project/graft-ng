@@ -105,7 +105,6 @@ namespace graft
     public:
         InOutHttpBase& operator = (const InOutHttpBase& ) = default;
     public:
-        bool isHttp() const { return m_isHttp; }
         void reset() { *this = InOutHttpBase(); }
         std::string combine_headers();
     public:
@@ -135,7 +134,6 @@ namespace graft
         std::string extra_headers;
     private:
         void set_str_field(const http_message& hm, const mg_str& str_fld, std::string& fld);
-        bool m_isHttp = false;
     };
 
     class OutHttp final : public InOutHttpBase

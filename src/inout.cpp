@@ -21,7 +21,6 @@ void InOutHttpBase::set_str_field(const http_message& hm, const mg_str& str_fld,
 
 InOutHttpBase& InOutHttpBase::operator = (const http_message& hm)
 {
-    m_isHttp = true;
     //fill corresponding fields from hm
     set_str_field(hm, hm.body, body);
     set_str_field(hm, hm.method, method);
