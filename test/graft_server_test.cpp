@@ -139,6 +139,44 @@ TEST(InOut, serialization)
     output.loadT<serializer::Nothing>(a);
 }
 
+TEST(InOut, makeUri)
+{
+    {
+        graft::Output output;
+        std::string default_uri = "http://123.123.123.123:1234";
+        std::string url = output.makeUri(default_uri);
+        EXPECT_EQ(url, default_uri);
+    }
+    {
+        graft::Output output;
+        graft::Output::uri_substitutions.insert({"my_ip", "1.2.3.4"});
+        output.proto = "https";
+        output.port = "4321";
+        output.uri = "$my_ip";
+        std::string url = output.makeUri("");
+        EXPECT_EQ(url, output.proto + "://1.2.3.4:" + output.port);
+    }
+    {
+        graft::Output output;
+        graft::Output::uri_substitutions.insert({"my_path", "http://site.com:1234/endpoint?q=1&n=2"});
+        output.proto = "https";
+        output.port = "4321";
+        output.uri = "$my_path";
+        std::string url = output.makeUri("");
+        EXPECT_EQ(url, "https://site.com:4321/endpoint?q=1&n=2");
+    }
+    {
+        graft::Output output;
+        graft::Output::uri_substitutions.insert({"my_path", "endpoint?q=1&n=2"});
+        output.proto = "https";
+        output.host = "mysite.com";
+        output.port = "4321";
+        output.uri = "$my_path";
+        std::string url = output.makeUri("");
+        EXPECT_EQ(url, "https://mysite.com:4321/endpoint?q=1&n=2");
+    }
+}
+
 TEST(Context, simple)
 {
     graft::GlobalContextMap m;

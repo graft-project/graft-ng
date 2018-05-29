@@ -141,54 +141,9 @@ void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr)
     m_cr = cr;
 
     const ServerOpts& opts = manager.get_c_opts();
-    std::string default_host = opts.cryptonode_rpc_address.c_str();
+    std::string default_uri = opts.cryptonode_rpc_address.c_str();
     Output& output = cr->get_output();
-    std::string uri = output.uri;
-
-    if(!uri.empty() && uri[0] == '$')
-    {//substitutions
-        auto it = Output::uri_substitutions.find(uri.substr(1));
-        if(it == Output::uri_substitutions.end())
-            throw std::runtime_error("cannot find uri substitution");
-        uri = it->second;
-    }
-
-    std::string port;
-#define V(n) std::string n
-        V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
-#undef V
-    while(!uri.empty())
-    {
-        mg_str mg_uri{uri.c_str(), uri.size()};
-        //[scheme://[user_info@]]host[:port][/path][?query][#fragment]
-        unsigned int mg_port;
-        mg_str mg_scheme, mg_user_info, mg_host, mg_path, mg_query, mg_fragment;
-        int res = mg_parse_uri(mg_uri, &mg_scheme, &mg_user_info, &mg_host, &mg_port, &mg_path, &mg_query, &mg_fragment);
-        if(res<0) break;
-        port = std::to_string(mg_port);
-#define V(n) n = std::string(mg_##n.p, mg_##n.len)
-        V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
-#undef V
-        break;
-    }
-
-    if(!output.proto.empty()) scheme = output.proto;
-    if(!output.host.empty()) host = output.host;
-    if(!output.port.empty()) port = output.port;
-    if(host.empty()) host = default_host;
-
-    std::string url;
-    if(!scheme.empty())
-    {
-        url += scheme + "://";
-        if(!user_info.empty()) url += user_info + '@';
-    }
-    url += host;
-    if(!port.empty()) url += ':' + port;
-    if(!path.empty()) url += '/' + path;
-    if(!query.empty()) url += '?' + query;
-    if(!fragment.empty()) url += '#' + fragment;
-
+    std::string url = output.makeUri(default_uri);
     std::string extra_headers = output.combine_headers();
     if(extra_headers.empty())
     {

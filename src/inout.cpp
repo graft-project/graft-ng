@@ -5,34 +5,32 @@ namespace graft
 {
 std::unordered_map<std::string, std::string> OutHttp::uri_substitutions;
 
-//following #define depends on hm such as const http_message&
-#define SET_STR_FLD(fld) \
-    { \
-        if(hm.fld.len == 0) \
-        { \
-            fld.clear(); \
-        } \
-        else \
-        { \
-            int off = hm.fld.p - hm.message.p; \
-            assert(0<hm.fld.len && 0<=off && off+hm.fld.len<=hm.message.len); \
-            fld = std::string(hm.fld.p, hm.fld.len); \
-        } \
+void InOutHttpBase::set_str_field(const http_message& hm, const mg_str& str_fld, std::string& fld)
+{
+    if(str_fld.len == 0)
+    {
+        fld.clear();
     }
-#define SET_ALL_FLD() \
-    { \
-        SET_STR_FLD(body); \
-        SET_STR_FLD(method); \
-        SET_STR_FLD(uri); \
-        SET_STR_FLD(proto); \
-        resp_code = hm.resp_code; \
-        SET_STR_FLD(resp_status_msg); \
-        SET_STR_FLD(query_string); \
+    else
+    {
+        int off = str_fld.p - hm.message.p;
+        assert(0<str_fld.len && 0<=off && off+str_fld.len<=hm.message.len);
+        fld = std::string(str_fld.p, str_fld.len);
     }
+}
+
 InOutHttpBase& InOutHttpBase::operator = (const http_message& hm)
 {
     m_isHttp = true;
-    SET_ALL_FLD();
+    //fill corresponding fields from hm
+    set_str_field(hm, hm.body, body);
+    set_str_field(hm, hm.method, method);
+    set_str_field(hm, hm.uri, uri);
+    set_str_field(hm, hm.proto, proto);
+    resp_code = hm.resp_code;
+    set_str_field(hm, hm.resp_status_msg, resp_status_msg);
+    set_str_field(hm, hm.query_string, query_string);
+    //fill headers from hm
     for(int i = 0; i < MG_MAX_HTTP_HEADERS; ++i)
     {
         const mg_str& h_n = hm.header_names[i];
@@ -45,8 +43,6 @@ InOutHttpBase& InOutHttpBase::operator = (const http_message& hm)
     }
     return *this;
 }
-#undef SET_ALL_FLD
-#undef SET_STR_FLD
 
 std::string InOutHttpBase::combine_headers()
 {
@@ -56,6 +52,62 @@ std::string InOutHttpBase::combine_headers()
         s += pair.first + ": " + pair.second + "\r\n";
     }
     return s;
+}
+
+std::string OutHttp::makeUri(const std::string& default_uri) const
+{
+    std::string uri_ = uri;
+
+    if(!uri_.empty() && uri_[0] == '$')
+    {//substitutions
+        auto it = Output::uri_substitutions.find(uri_.substr(1));
+        if(it == Output::uri_substitutions.end())
+            throw std::runtime_error("cannot find uri substitution");
+        uri_ = it->second;
+    }
+
+    if(uri_.empty()) uri_ = default_uri;
+
+    std::string port_;
+#define V(n) std::string n##_
+        V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
+#undef V
+    while(!uri_.empty())
+    {
+        mg_str mg_uri{uri_.c_str(), uri_.size()};
+        //[scheme://[user_info@]]host[:port][/path][?query][#fragment]
+        unsigned int mg_port = 0;
+        mg_str mg_scheme, mg_user_info, mg_host, mg_path, mg_query, mg_fragment;
+        int res = mg_parse_uri(mg_uri, &mg_scheme, &mg_user_info, &mg_host, &mg_port, &mg_path, &mg_query, &mg_fragment);
+        if(res<0) break;
+        if(mg_port)
+        port_ = std::to_string(mg_port);
+#define V(n) n##_ = std::string(mg_##n.p, mg_##n.len)
+        V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
+#undef V
+        break;
+    }
+
+    if(!proto.empty()) scheme_ = proto;
+    if(!host.empty()) host_ = host;
+    if(!port.empty()) port_ = port;
+
+    std::string url;
+    if(!scheme_.empty())
+    {
+        url += scheme_ + "://";
+        if(!user_info_.empty()) url += user_info_ + '@';
+    }
+    url += host_;
+    if(!port_.empty()) url += ':' + port_;
+    if(!path_.empty())
+    {
+        if(path_[0]!='/') path_ = '/' + path_;
+        url += path_;
+    }
+    if(!query_.empty()) url += '?' + query_;
+    if(!fragment_.empty()) url += '#' + fragment_;
+    return url;
 }
 
 } //namespace graft

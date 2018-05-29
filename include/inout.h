@@ -14,6 +14,7 @@
 #include "graft_macros.h"
 
 struct http_message; //from mongoose.h
+struct mg_str; //from mongoose.h
 
 #define GRAFT_DEFINE_IO_STRUCT(__S__, ...) \
     struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> { \
@@ -133,6 +134,7 @@ namespace graft
         std::vector<std::pair<std::string, std::string>> headers;
         std::string extra_headers;
     private:
+        void set_str_field(const http_message& hm, const mg_str& str_fld, std::string& fld);
         bool m_isHttp = false;
     };
 
@@ -167,6 +169,8 @@ namespace graft
         {
             return body;
         }
+    public:
+        std::string makeUri(const std::string& default_uri) const;
     public:
         std::string host;
         std::string port;
