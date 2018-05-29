@@ -11,6 +11,8 @@
 
 namespace graft {
 
+// here we testing how supernode can proxy "sendrawtransaction" call to cryptonode
+
 GRAFT_DEFINE_IO_STRUCT_INITED(TransactionInfo,
                               (uint64_t, amount, 0),
                               (uint64_t, fee, 0),
