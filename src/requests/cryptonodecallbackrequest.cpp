@@ -32,6 +32,16 @@
 #include <misc_log_ex.h>
 
 
+/*
+  /cryptonode_callback. this enpoint will be handling following methods:
+  1. /cryptonode_callback/tx_to_sign - called by cryptonode. . called asyncronously, so result will be sent back later to
+     cryptonode_address/json_rpc/, method = tx_to_sign_reply. in reply there will be either signed tx or rejected tx
+  2. /cryptonode_
+
+
+
+*/
+
 namespace {
     static const char * PATH = "/cryptonode_callback";
 
@@ -41,20 +51,20 @@ namespace {
 
 namespace graft {
 
-GRAFT_DEFINE_IO_STRUCT_INITED(TxToSendCallbackRequest,
-                              (crypto::public_key, auth_supernode_addr, crypto::public_key()),
-                              (crypto::hash, hash, crypto::hash()),
-                              (crypto::signature, signature, crypto::signature()),
+GRAFT_DEFINE_IO_STRUCT_INITED(TxToSignCallbackRequest,
+                              (std::string, auth_supernode_addr, ""),
+                              (std::string, hash, ""),
+                              (std::string, signature, ""),
                               (std::string, tx_as_blob, "")
                               );
 
-GRAFT_DEFINE_IO_STRUCT_INITED(TxToSendCallbackResponse,
+GRAFT_DEFINE_IO_STRUCT_INITED(TxToSignCallbackResponse,
                               (std::string, status, "")
                               );
 
-GRAFT_DEFINE_JSON_RPC_REQUEST(TxToSendCallbackJsonRpcRequest, TxToSendCallbackRequest);
-GRAFT_DEFINE_JSON_RPC_RESPONSE(TxToSendCallbackJsonRpcResponse, TxToSendCallbackResponse);
-GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(TxToSendCallbackJsonRpcResponseResult, TxToSendCallbackResponse);
+GRAFT_DEFINE_JSON_RPC_REQUEST(TxToSignCallbackJsonRpcRequest, TxToSignCallbackRequest);
+GRAFT_DEFINE_JSON_RPC_RESPONSE(TxToSignCallbackJsonRpcResponse, TxToSignCallbackResponse);
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(TxToSignCallbackJsonRpcResponseResult, TxToSignCallbackResponse);
 
 
 /**
