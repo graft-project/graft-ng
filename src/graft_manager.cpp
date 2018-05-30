@@ -1,4 +1,8 @@
+#include <string.h>
+
 #include "graft_manager.h"
+#include "router.h"
+#include <sstream>
 
 namespace graft {
 
@@ -21,7 +25,8 @@ void Manager::sendToThreadPool(ClientRequest_ptr cr)
     assert(m_cntJobDone <= m_cntJobSent);
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
     {//check overflow
-        processReadyJobBlock();
+        cr->onTooBusy();
+        return;
     }
     assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
     ++m_cntJobSent;
@@ -102,21 +107,31 @@ void Manager::notifyJobReady()
     mg_notify(&m_mgr);
 }
 
-void Manager::doWork(uint64_t m_cnt)
+void Manager::doWork(uint64_t cnt)
 {
-    //job overflow is possible, and we can pop jobs without notification, thus m_cnt useless
-    bool res = true;
-    while(res)
+    //When multiple threads write to the output queue of the thread pool.
+    //It is possible that a hole appears when a thread has not completed to set
+    //the cell data in the queue. The hole leads to failure of pop operations.
+    //Thus, it is better to process as many cells as we can without waiting when
+    //the cell will be filled, instead of basing on the counter.
+    //We cannot lose any cell because a notification follows the hole completion.
+
+    while(true)
     {
-        res = tryProcessReadyJob();
+        bool res = tryProcessReadyJob();
         if(!res) break;
     }
+}
+
+void Manager::onJobDone()
+{
+    ++m_cntJobDone;
 }
 
 void Manager::onJobDone(GJ& gj)
 {
     gj.get_cr()->onJobDone(&gj);
-    ++m_cntJobDone;
+    onJobDone();
     //gj will be destroyed on exit
 }
 
@@ -134,34 +149,17 @@ void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_thread
     m_threadPoolInputSize = m_threadPoolInputSize_;
 }
 
-
 void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr, const std::string &data)
 {
     m_cr = cr;
     m_data = data;
-    m_crypton = mg_connect(manager.get_mg_mgr(),"localhost:1234", static_ev_handler);
+    const ServerOpts& opts = manager.get_c_opts();
+    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, opts.cryptonode_rpc_address.c_str(),
+                             "Content-Type: application/json\r\n",
+                             (m_data.empty())? nullptr : m_data.c_str()); //last nullptr means GET
+    assert(m_crypton);
     m_crypton->user_data = this;
     //len + data
-    help_send_pstring(m_crypton, m_data);
-}
-
-void CryptoNodeSender::help_send_pstring(mg_connection *nc, const std::string &data)
-{
-    int len = data.size();
-    mg_send(nc, &len, sizeof(len));
-    mg_send(nc, data.c_str(), data.size());
-}
-
-bool CryptoNodeSender::help_recv_pstring(mg_connection *nc, void *ev_data, std::string &data)
-{
-    int cnt = *(int*)ev_data;
-    if(cnt < sizeof(int)) return false;
-    mbuf& buf = nc->recv_mbuf;
-    int len = *(int*)buf.buf;
-    if(len + sizeof(len) < cnt) return false;
-    data = std::string(buf.buf + sizeof(len), len);
-    mbuf_remove(&buf, len + sizeof(len));
-    return true;
 }
 
 void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
@@ -169,13 +167,32 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     assert(crypton == this->m_crypton);
     switch (ev)
     {
-    case MG_EV_RECV:
+    case MG_EV_CONNECT:
     {
-        std::string s;
-        bool ok = help_recv_pstring(crypton, ev_data, s);
-        if(!ok) break;
-        m_cr->get_input().load(s.c_str(), s.size());
+        int& err = *static_cast<int*>(ev_data);
+        if(err != 0)
+        {
+            std::ostringstream ss;
+            ss << "cryptonode connect failed: " << strerror(err);
+            setError(Status::Error, ss.str().c_str());
+            Manager::from(crypton)->onCryptonDone(*this);
+            crypton->handler = static_empty_ev_handler;
+            releaseItself();
+        }
+    } break;
+    case MG_EV_HTTP_REPLY:
+    {
+        http_message* hm = static_cast<http_message*>(ev_data);
+        m_cr->get_input().load(hm->body.p, hm->body.len);
+        setError(Status::Ok);
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
+        Manager::from(crypton)->onCryptonDone(*this);
+        crypton->handler = static_empty_ev_handler;
+        releaseItself();
+    } break;
+    case MG_EV_CLOSE:
+    {
+        setError(Status::Error, "cryptonode connection unexpectedly closed");
         Manager::from(crypton)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
@@ -195,14 +212,29 @@ void ClientRequest::respondToClientAndDie(const std::string &s)
     case Status::Ok: code = 200; break;
     case Status::InternalError:
     case Status::Error: code = 500; break;
+    case Status::Busy: code = 503; break;
     case Status::Drop: code = 400; break;
     default: assert(false); break;
     }
-    mg_http_send_error(m_client, code, s.c_str());
+    if(Status::Ok == m_ctx.local.getLastStatus())
+    {
+        mg_send_head(m_client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
+        mg_send(m_client, s.c_str(), s.size());
+    }
+    else
+    {
+        mg_http_send_error(m_client, code, s.c_str());
+    }
     m_client->flags |= MG_F_SEND_AND_CLOSE;
     m_client->handler = static_empty_ev_handler;
     m_client = nullptr;
     releaseItself();
+}
+
+void ClientRequest::onTooBusy()
+{
+    m_ctx.local.setError("Service Unavailable", Status::Busy);
+    respondToClientAndDie("Thread pool overflow");
 }
 
 void ClientRequest::createJob(Manager &manager)
@@ -240,12 +272,16 @@ void ClientRequest::createJob(Manager &manager)
     if(m_prms.h3.worker_action)
     {
         manager.get_threadPool().post(
-                GJ_ptr( get_itself(), &manager.get_resQueue(), &manager )
-                );
+                    GJ_ptr( get_itself(), &manager.get_resQueue(), &manager ),
+                    true
+                    );
     }
     else
     {
+        //special case when worker_action is absent
         onJobDone(nullptr);
+        //next call is required to fix counters that prevents overflow
+        manager.onJobDone();
     }
 }
 
@@ -313,6 +349,12 @@ void ClientRequest::processResult()
 
 void ClientRequest::onCryptonDone(CryptoNodeSender &cns)
 {
+    if(Status::Ok != cns.getStatus())
+    {
+        setError(cns.getError().c_str(), cns.getStatus());
+        processResult();
+        return;
+    }
     //here you can send a job to the thread pool or send response to client
     //cns will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
@@ -338,52 +380,49 @@ void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
     }
 }
 
+constexpr std::pair<const char *, int> GraftServer::m_methods[];
+
 void GraftServer::serve(mg_mgr *mgr)
 {
-    ServerOpts& opts = Manager::from(mgr)->get_opts();
+    const ServerOpts& opts = Manager::from(mgr)->get_c_opts();
 
-    mg_connection* nc = mg_bind(mgr, opts.http_address.c_str(), ev_handler);
-    mg_set_protocol_http_websocket(nc);
+    mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http),
+                  *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
+
+    mg_set_protocol_http_websocket(nc_http);
+    mg_set_protocol_coap(nc_coap);
+
 #ifdef OPT_BUILD_TESTS
     ready = true;
 #endif
     for (;;)
     {
-        mg_mgr_poll(mgr, 1000);
+        mg_mgr_poll(mgr, 10000);
         if(Manager::from(mgr)->exit) break;
     }
     mg_mgr_free(mgr);
 }
 
-void GraftServer::setCryptonodeRPCAddress(const std::string &address)
+int GraftServer::translateMethod(const char *method, std::size_t len)
 {
-    // TODO implement me
-}
-
-void GraftServer::setCryptonodeP2PAddress(const std::string &address)
-{
-    // TODO implement me
-}
-
-int GraftServer::methodFromString(const std::string& method)
-{
-#define _M(x) std::make_pair(#x, METHOD_##x)
-    static const std::pair<std::string, int> methods[] = {
-        _M(GET), _M(POST), _M(DELETE), _M(HEAD) //, _M(CONNECT)
-    };
-
-    for (const auto& m : methods)
+    for (const auto& m : m_methods)
     {
-        if (m.first == method)
+        if (::strncmp(m.first, method, len) == 0)
             return m.second;
     }
+    return -1;
+}
+
+int GraftServer::translateMethod(int i)
+{
+    return m_methods[i].second;
 }
 
 void GraftServer::ev_handler_empty(mg_connection *client, int ev, void *ev_data)
 {
 }
 
-void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
+void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 {
     Manager* manager = Manager::from(client);
 
@@ -400,19 +439,20 @@ void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
             manager->exit = true;
             return;
         }
-        std::string s_method(hm->method.p, hm->method.len);
-        int method = methodFromString(s_method);
+        int method = translateMethod(hm->method.p, hm->method.len);
+	if (method < 0) return;
 
-        Router& router = manager->get_router();
         Router::JobParams prms;
-        if(router.match(uri, method, prms))
+        if (manager->matchRoute(uri, method, prms))
         {
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
-            ClientRequest* ptr = ClientRequest::Create(client, prms, manager->get_gcm()).get();
+
+	    ClientRequest* ptr = ClientRequest::Create(client, prms, manager->get_gcm()).get();
             client->user_data = ptr;
             client->handler = ClientRequest::static_ev_handler;
-            manager->onNewClient( ptr->get_itself() );
+
+            manager->onNewClient(ptr->get_itself());
         }
         else
         {
@@ -423,7 +463,7 @@ void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
     }
     case MG_EV_ACCEPT:
     {
-        ServerOpts& opts = manager->get_opts();
+        const ServerOpts& opts = manager->get_c_opts();
 
         mg_set_timer(client, mg_time() + opts.http_connection_timeout);
         break;
@@ -439,8 +479,56 @@ void GraftServer::ev_handler(mg_connection *client, int ev, void *ev_data)
     }
 }
 
+void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
+{
+    uint32_t res;
+    Manager* manager = Manager::from(client);
+    std::string uri;
+    struct mg_coap_message *cm = (struct mg_coap_message *) ev_data;
 
+    if (ev >= MG_COAP_EVENT_BASE)
+      if (!cm || cm->code_class != MG_COAP_CODECLASS_REQUEST) return;
 
+    switch (ev)
+    {
+    case MG_EV_COAP_CON:
+        res = mg_coap_send_ack(client, cm->msg_id);
+        // No break
+    case MG_EV_COAP_NOC:
+    {
+        struct mg_coap_option *opt = cm->options;
+#define COAP_OPT_URI 11
+        for (; opt; opt = opt->next)
+        {
+            if (opt->number = COAP_OPT_URI)
+            {
+                uri += "/";
+                uri += std::string(opt->value.p, opt->value.len);
+            }
+        }
 
+        int method = translateMethod(cm->code_detail - 1);
+
+        Router::JobParams prms;
+        if (manager->matchRoute(uri, method, prms))
+        {
+            mg_str& body = cm->payload;
+            prms.input.load(body.p, body.len);
+
+            ClientRequest* clr = ClientRequest::Create(client, prms, manager->get_gcm()).get();
+            client->user_data = clr;
+            client->handler = ClientRequest::static_ev_handler;
+
+            manager->onNewClient(clr->get_itself());
+        }
+        break;
+    }
+    case MG_EV_COAP_ACK:
+    case MG_EV_COAP_RST:
+        break;
+    default:
+        break;
+    }
+}
 
 }//namespace graft
