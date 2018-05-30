@@ -73,6 +73,114 @@ TEST(InOut, common)
     EXPECT_EQ(s_out, s);
 }
 
+namespace graft { namespace serializer {
+
+template<typename T>
+struct Nothing
+{
+    static std::string serialize(const T& t)
+    {
+        return "";
+    }
+    static void deserialize(const std::string& s, T& t)
+    {
+    }
+};
+
+} }
+
+TEST(InOut, serialization)
+{
+    using namespace graft;
+
+    GRAFT_DEFINE_IO_STRUCT(J,
+        (int,x),
+        (int,y)
+    );
+
+    J j;
+
+    Input input;
+    input.body = "{\"x\":1,\"y\":2}";
+        j.x = 5; j.y = 6;
+    j = input.get<J, serializer::JSON<J>>();
+        EXPECT_EQ(j.x, 1); EXPECT_EQ(j.y, 2);
+    j = input.get<J>();
+        EXPECT_EQ(j.x, 1); EXPECT_EQ(j.y, 2);
+        j.x = 5; j.y = 6;
+    j = input.getT<serializer::JSON, J>();
+        EXPECT_EQ(j.x, 1); EXPECT_EQ(j.y, 2);
+
+    Output output;
+    output.load<J, serializer::JSON<J>>(j);
+    output.load<J>(j);
+    output.load<>(j);
+        EXPECT_EQ(input.body, output.body);
+        output.body.clear();
+    output.load(j);
+        EXPECT_EQ(input.body, output.body);
+    output.body.clear();
+    output.loadT<serializer::JSON, J>(j);
+    output.loadT<serializer::JSON>(j);
+    output.loadT<>(j);
+        EXPECT_EQ(input.body, output.body);
+        output.body.clear();
+    output.loadT(j);
+        EXPECT_EQ(input.body, output.body);
+
+    struct A
+    {
+        int x;
+        int y;
+    };
+
+    A a;
+
+    a = input.get<A, serializer::Nothing<A>>();
+    a = input.getT<serializer::Nothing, A>();
+    output.load<A, serializer::Nothing<A>>(a);
+    output.loadT<serializer::Nothing, A>(a);
+    output.loadT<serializer::Nothing>(a);
+}
+
+TEST(InOut, makeUri)
+{
+    {
+        graft::Output output;
+        std::string default_uri = "http://123.123.123.123:1234";
+        std::string url = output.makeUri(default_uri);
+        EXPECT_EQ(url, default_uri);
+    }
+    {
+        graft::Output output;
+        graft::Output::uri_substitutions.insert({"my_ip", "1.2.3.4"});
+        output.proto = "https";
+        output.port = "4321";
+        output.uri = "$my_ip";
+        std::string url = output.makeUri("");
+        EXPECT_EQ(url, output.proto + "://1.2.3.4:" + output.port);
+    }
+    {
+        graft::Output output;
+        graft::Output::uri_substitutions.insert({"my_path", "http://site.com:1234/endpoint?q=1&n=2"});
+        output.proto = "https";
+        output.port = "4321";
+        output.uri = "$my_path";
+        std::string url = output.makeUri("");
+        EXPECT_EQ(url, "https://site.com:4321/endpoint?q=1&n=2");
+    }
+    {
+        graft::Output output;
+        graft::Output::uri_substitutions.insert({"my_path", "endpoint?q=1&n=2"});
+        output.proto = "https";
+        output.host = "mysite.com";
+        output.port = "4321";
+        output.uri = "$my_path";
+        std::string url = output.makeUri("");
+        EXPECT_EQ(url, "https://mysite.com:4321/endpoint?q=1&n=2");
+    }
+}
+
 TEST(Context, simple)
 {
     graft::GlobalContextMap m;
