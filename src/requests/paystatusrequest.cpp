@@ -7,12 +7,13 @@ Status payStatusHandler(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
     PayStatusRequest in = input.get<PayStatusRequest>();
-    if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
+    int current_status = ctx.global.get(in.PaymentID + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::None));
+    if (in.PaymentID.empty() || current_status == 0)
     {
         return errorInvalidPaymentID(output);
     }
     PayStatusResponse out;
-    out.Status = ctx.global[in.PaymentID + CONTEXT_KEY_STATUS];
+    out.Status = current_status;
     output.load(out);
     return Status::Ok;
 }

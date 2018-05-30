@@ -189,7 +189,7 @@ struct Context
         {
             return boost::any_cast<T>(
                 m_map.valueFor(
-                    key, boost::any(std::forward(defval))
+                    key, boost::any(std::forward<T>(defval))
                 )
             );
         }

@@ -7,7 +7,8 @@ Status rejectPayHandler(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
     RejectPayRequest in = input.get<RejectPayRequest>();
-    if (in.PaymentID.empty() || !ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
+    int current_status = ctx.global.get(in.PaymentID + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::None));
+    if (in.PaymentID.empty() || current_status == 0)
     {
         return errorInvalidPaymentID(output);
     }

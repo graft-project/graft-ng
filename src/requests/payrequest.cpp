@@ -8,11 +8,11 @@ Status payWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
     PayRequest in = input.get<PayRequest>();
+    int current_status = ctx.global.get(in.PaymentID + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::None));
     if (!in.Address.empty() && !in.Amount.empty()
             && !in.PaymentID.empty() && in.BlockNumber >= 0 //TODO: Change to `BlockNumber > 0`
-            && ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_STATUS))
+            && current_status != 0)
     {
-        int current_status = ctx.global[in.PaymentID + CONTEXT_KEY_STATUS];
         if (errorFinishedPayment(current_status, output))
         {
             return Status::Error;
