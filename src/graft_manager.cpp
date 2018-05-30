@@ -159,6 +159,7 @@ void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr, const std::s
                              (m_data.empty())? nullptr : m_data.c_str()); //last nullptr means GET
     assert(m_crypton);
     m_crypton->user_data = this;
+    mg_set_timer(m_crypton, mg_time() + opts.cryptonode_request_timeout);
     //len + data
 }
 
@@ -182,6 +183,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     } break;
     case MG_EV_HTTP_REPLY:
     {
+        mg_set_timer(crypton, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
         m_cr->get_input().load(hm->body.p, hm->body.len);
         setError(Status::Ok);
@@ -192,7 +194,17 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     } break;
     case MG_EV_CLOSE:
     {
+        mg_set_timer(crypton, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
+        Manager::from(crypton)->onCryptonDone(*this);
+        crypton->handler = static_empty_ev_handler;
+        releaseItself();
+    } break;
+    case MG_EV_TIMER:
+    {
+        mg_set_timer(crypton, 0);
+        setError(Status::Error, "cryptonode request timout");
+        crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
         Manager::from(crypton)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();

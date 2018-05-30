@@ -85,6 +85,7 @@ int main(int argc, const char** argv)
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
         const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
         sopts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
+        sopts.cryptonode_request_timeout = server_conf.get<double>("request-timeout");
         //sopts.cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
 
         graft::Manager manager(sopts);
