@@ -15,9 +15,7 @@ void Manager::sendCrypton(ClientRequest_ptr cr)
 {
     ++m_cntCryptoNodeSender;
     CryptoNodeSender::Ptr cns = CryptoNodeSender::Create();
-    auto out = cr->get_output().get();
-    std::string s(out.first, out.second);
-    cns->send(*this, cr, s);
+    cns->send(*this, cr);
 }
 
 void Manager::sendToThreadPool(ClientRequest_ptr cr)
@@ -149,18 +147,26 @@ void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_thread
     m_threadPoolInputSize = m_threadPoolInputSize_;
 }
 
-void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr, const std::string &data)
+void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr)
 {
     m_cr = cr;
-    m_data = data;
+
     const ServerOpts& opts = manager.get_c_opts();
-    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, opts.cryptonode_rpc_address.c_str(),
-                             "Content-Type: application/json\r\n",
-                             (m_data.empty())? nullptr : m_data.c_str()); //last nullptr means GET
+    std::string default_uri = opts.cryptonode_rpc_address.c_str();
+    Output& output = cr->get_output();
+    std::string url = output.makeUri(default_uri);
+    std::string extra_headers = output.combine_headers();
+    if(extra_headers.empty())
+    {
+        extra_headers = "Content-Type: application/json\r\n";
+    }
+    std::string& body = output.body;
+    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
+                             extra_headers.c_str(),
+                             (body.empty())? nullptr : body.c_str()); //last nullptr means GET
     assert(m_crypton);
     m_crypton->user_data = this;
     mg_set_timer(m_crypton, mg_time() + opts.cryptonode_request_timeout);
-    //len + data
 }
 
 void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
@@ -185,7 +191,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     {
         mg_set_timer(crypton, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
-        m_cr->get_input().load(hm->body.p, hm->body.len);
+        m_cr->get_input() = *hm;
         setError(Status::Ok);
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
         Manager::from(crypton)->onCryptonDone(*this);

@@ -205,7 +205,7 @@ public:
 
     ClientRequest_ptr& get_cr() { return m_cr; }
 
-    void send(Manager& manager, ClientRequest_ptr cr, const std::string& data);
+    void send(Manager& manager, ClientRequest_ptr cr);
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
 private:
@@ -219,7 +219,6 @@ private:
 private:
     mg_connection *m_crypton = nullptr;
     ClientRequest_ptr m_cr;
-    std::string m_data;
     Status m_status = Status::None;
     std::string m_error;
 };
