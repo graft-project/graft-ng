@@ -78,8 +78,23 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(TxToSignCallbackJsonRpcResponseResult, TxT
 Status cryptonodeCallbacksHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
-    LOG_PRINT_L2(PATH << "called with payload: " << input.toString());
+    LOG_PRINT_L0(PATH << "called with payload: " << input.toString());
 
+    JsonRpcRequestHeader req_header = input.get<JsonRpcRequestHeader>();
+    // TODO: probably make sense to implement the same 'macros-driven' framework like in monero to easily add handlers for each method
+    if (req_header.method == "tx_to_sign") {
+        TxToSignCallbackJsonRpcResponseResult resp;
+        resp.id = req_header.id;
+        resp.result.status = "OK";
+        output.load(resp);
+        //
+        // here we need to asynchronously process "tx_to_sign" and callback cryptonode with "tx_to_sign_reply" method;
+        // TODO: figure out how to run this async task with constraints of this framework,
+        //
+        return Status::Ok;
+    } else {
+        return Status::Error;
+    }
 }
 
 void registerCryptonodeCallbacksRequest(graft::Router &router)

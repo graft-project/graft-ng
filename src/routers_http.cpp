@@ -1,5 +1,6 @@
 #include "router.h"
 #include "graft_manager.h"
+#include "requests.h"
 
 namespace graft {
 
@@ -13,9 +14,8 @@ namespace graft {
     {
         Router http_router("/dapi/v2.0");
         Router::Handler3 h3_test1(http_test, nullptr, nullptr);
-
         http_router.addRoute("/test", METHOD_GET, h3_test1);
-
+        registerRTARequests(http_router);
         m.addRouter(http_router);
     }
 }

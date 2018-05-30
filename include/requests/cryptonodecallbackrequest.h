@@ -9,11 +9,8 @@
 
 namespace graft {
 
-
-
-
-
 void registerCryptonodeCallbacksRequest(graft::Router &router);
+
 }
 
 #endif // CRYPTONODECALLBACKREQUEST_H
