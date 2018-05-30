@@ -70,6 +70,7 @@ add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 
 set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/graft_manager.cpp
+    ${PROJECT_SOURCE_DIR}/src/inout.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
     ${PROJECT_SOURCE_DIR}/src/requests.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
