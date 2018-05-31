@@ -186,7 +186,7 @@ namespace graft
         {
             fixup_tail(&head);
 
-            node const *current = &head;
+            node *current = &head;
             std::unique_lock<std::mutex> lk(head.m);
 
             while (node* const next = current->next.get())
