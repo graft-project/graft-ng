@@ -54,19 +54,20 @@ using namespace std::chrono_literals;
 
 struct CryptonodeHandlersTest : public ::testing::Test
 {
-
-
+    // this     is blocking function that will not end until manager stopped explicitly
     void startServer()
     {
         ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 4, 4, "localhost:28881/sendrawtransaction"};
+        Manager mgr(sopts);
+        manager = &mgr;
         Router router;
         graft::registerGetInfoRequest(router);
         graft::registerSendRawTxRequest(router);
-
-        this->manager = new Manager(sopts);
         manager->addRouter(router);
         manager->enableRouting();
-        server.serve(manager->get_mg_mgr());
+        GraftServer srv;
+        server = &srv;
+        server->serve(manager->get_mg_mgr());
     }
 
     CryptonodeHandlersTest()
@@ -83,7 +84,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
         LOG_PRINT_L0("Server thread started..");
 
-        while (!server.ready) {
+        while (!server->ready) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
@@ -93,7 +94,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
     ~CryptonodeHandlersTest()
     {
-        delete manager;
+
     }
 
 
@@ -152,8 +153,8 @@ struct CryptonodeHandlersTest : public ::testing::Test
     virtual void TearDown() override
     { }
 
-    GraftServer server;
-    Manager   * manager;
+    GraftServer *server;
+    Manager     *manager;
     std::thread server_thread;
 };
 
