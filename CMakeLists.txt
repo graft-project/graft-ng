@@ -27,8 +27,10 @@ add_custom_target(
     )
 
 add_custom_command(
-    OUTPUT ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
-    COMMAND ""
+    OUTPUT ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
     )
 
 ExternalProject_Add(
@@ -78,7 +80,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
-    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
     )
 
 set(GS_INCLUDE_DIRS
