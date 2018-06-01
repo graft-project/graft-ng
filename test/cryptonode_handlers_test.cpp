@@ -57,16 +57,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
     // this     is blocking function that will not end until manager stopped explicitly
     void startServer()
     {
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 4, 4, "localhost:28881/sendrawtransaction"};
-        Manager mgr(sopts);
-        manager = &mgr;
-        Router router;
-        graft::registerGetInfoRequest(router);
-        graft::registerSendRawTxRequest(router);
-        manager->addRouter(router);
-        manager->enableRouting();
-        GraftServer srv;
-        server = &srv;
+
         server->serve(manager->get_mg_mgr());
     }
 
@@ -77,6 +68,16 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L0("L0");
         LOG_PRINT_L1("L1");
         LOG_PRINT_L2("L2");
+
+        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 4, 4, "localhost:28281/sendrawtransaction"};
+        manager = std::unique_ptr<Manager>(new Manager(sopts));
+
+        Router router;
+        graft::registerGetInfoRequest(router);
+        graft::registerSendRawTxRequest(router);
+        manager->addRouter(router);
+        manager->enableRouting();
+        server = std::unique_ptr<GraftServer>(new GraftServer);
 
         server_thread = std::thread([this]() {
             this->startServer();
@@ -153,8 +154,10 @@ struct CryptonodeHandlersTest : public ::testing::Test
     virtual void TearDown() override
     { }
 
-    GraftServer *server;
-    Manager     *manager;
+
+    std::unique_ptr<GraftServer> server;
+    std::unique_ptr<Manager>     manager;
+
     std::thread server_thread;
 };
 
@@ -201,6 +204,7 @@ TEST_F(CryptonodeHandlersTest, sendrawtx)
     wallet.init("localhost:28881");
     wallet.refresh();
     wallet.store();
+    std::cout << "wallet addr: " <<  wallet.get_account().get_public_address_str(true) << std::endl;
 
     const uint64_t AMOUNT_1_GRFT = 10000000000000;
     // send to itself
