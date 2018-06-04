@@ -12,6 +12,7 @@ enum class Status : int
     Drop,
     Busy,
     InternalError,
+    Stop, //for timer events
 };
 
 }//namespace graft

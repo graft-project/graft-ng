@@ -817,6 +817,49 @@ TEST_F(GraftServerTest, cryptonTimeout)
     }
 }
 
+TEST_F(GraftServerTest, timerEvents)
+{
+    constexpr int ms_all = 5000, ms_step = 100, N = 5;
+    int cntrs_all[5]; for(int& v:cntrs_all){ v = 0; }
+    int cntrs[N]; for(int& v:cntrs){ v = 0; }
+    auto finish = std::chrono::steady_clock::now()+std::chrono::milliseconds(ms_all);
+    auto make_timer = [=,&cntrs_all,&cntrs](int i, int ms)
+    {
+        auto action = [=,&cntrs_all,&cntrs](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+        {
+            ++cntrs_all[i];
+            if(ctx.local.getLastStatus() == graft::Status::Forward)
+                return graft::Status::Ok;
+            ++cntrs[i];
+            if(finish < std::chrono::steady_clock::now()) return graft::Status::Stop;
+            Sstr ss; ss.s = std::to_string(cntrs[i]) + " " + std::to_string(cntrs[i]);
+            output.load(ss);
+            return graft::Status::Forward;
+        };
+
+        graft::RequestBase* rb = graft::RequestBase::Create<graft::TimerRequest>(
+                    *pmanager,
+                    graft::Router::Handler3(nullptr, action, nullptr),
+                    std::chrono::milliseconds(ms)
+                    ).get();
+    };
+
+    for(int i=0; i<N; ++i)
+    {
+        make_timer(i, (i+1)*ms_step);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(int(ms_all*1.1)));
+
+    for(int i=0; i<N; ++i)
+    {
+        int n = ms_all/((i+1)*ms_step);
+        EXPECT_LE(n-1, cntrs[i]);
+        EXPECT_LE(cntrs[i], n+1);
+        EXPECT_EQ(cntrs_all[i]+1, 2*cntrs[i]);
+    }
+}
+
 TEST_F(GraftServerTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
     graft::Context ctx(pmanager->get_gcm());
