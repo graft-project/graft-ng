@@ -10,7 +10,11 @@ Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
     SaleRequest in = input.get<SaleRequest>();
     if (!in.Address.empty() && !in.Amount.empty())
     {
-        std::string payment_id = generatePaymentID();
+        std::string payment_id = in.PaymentID;
+        if (payment_id.empty())
+        {
+            payment_id = generatePaymentID();
+        }
         if (ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE))
         {
             ErrorResponse err;
@@ -22,15 +26,12 @@ Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
         uint64_t amount = convertAmount(in.Amount);
         if (amount <= 0)
         {
-            ErrorResponse err;
-            err.code = ERROR_AMOUNT_INVALID;
-            err.message = MESSAGE_AMOUNT_INVALID;
-            output.load(err);
-            return Status::Error;
+            return errorInvalidAmount(output);
         }
-        SaleData data(in.Address, 0, amount);
+        // TODO: Validate address
+        SaleData data(in.Address, 0, amount); // TODO: Use correct BlockNumber
         ctx.global[payment_id + CONTEXT_KEY_SALE] = data;
-        ctx.global[payment_id + CONTEXT_KEY_SALE_STATUS] = static_cast<int>(RTAStatus::InProgress);
+        ctx.global[payment_id + CONTEXT_KEY_STATUS] = static_cast<int>(RTAStatus::Waiting);
         if (!in.SaleDetails.empty())
         {
             ctx.global[payment_id + CONTEXT_KEY_SALE_DETAILS] = in.SaleDetails;
@@ -42,14 +43,7 @@ Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
         output.load(out);
         return Status::Ok;
     }
-    else
-    {
-        ErrorResponse err;
-        err.code = ERROR_INVALID_PARAMS;
-        err.message = MESSAGE_INVALID_PARAMS;
-        output.load(err);
-        return Status::Error;
-    }
+    return errorInvalidParams(output);
 }
 
 void registerSaleRequest(graft::Router &router)

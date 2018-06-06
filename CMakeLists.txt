@@ -74,10 +74,15 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/graft_manager.cpp
     ${PROJECT_SOURCE_DIR}/src/inout.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
+    ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/requests.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/saledetailsrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/payrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/paystatusrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
     ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
