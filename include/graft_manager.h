@@ -279,6 +279,8 @@ private:
         start();
     }
 public:
+    static TimerRequest* Create(Manager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms);
+
     virtual void onEvent() override;
 private:
     virtual void respondAndDie(const std::string& s) override;

@@ -351,6 +351,12 @@ void RequestBase::onCryptonDone(CryptoNodeSender &cns)
     }
 }
 
+TimerRequest* TimerRequest::Create(Manager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
+{
+    RequestBase* rb = RequestBase::Create<TimerRequest>(manager, h3, timeout_ms).get();
+    return static_cast<TimerRequest*>(rb);
+}
+
 void TimerRequest::onEvent()
 {
     m_manager.onNewClient(get_itself());

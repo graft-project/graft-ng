@@ -840,11 +840,12 @@ TEST_F(GraftServerTest, timerEvents)
             return graft::Status::Forward;
         };
 
-        graft::RequestBase* rb = graft::RequestBase::Create<graft::TimerRequest>(
+        graft::TimerRequest* trequest = graft::TimerRequest::Create(
                     *pmanager,
                     graft::Router::Handler3(nullptr, action, nullptr),
                     std::chrono::milliseconds(ms)
-                    ).get();
+                    );
+        ASSERT_TRUE(trequest);
     };
 
     for(int i=0; i<N; ++i)
