@@ -83,14 +83,14 @@ int main(int argc, const char** argv)
         const boost::property_tree::ptree& server_conf = config.get_child("server");
         sopts.http_address = server_conf.get<string>("http-address");
         sopts.coap_address = server_conf.get<string>("coap-address");
-        sopts.poll_value = server_conf.get<int>("poll-value");
+        sopts.timer_poll_interval_ms = server_conf.get<int>("timer-poll-interval-ms");
         sopts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
         sopts.workers_count = server_conf.get<int>("workers-count");
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
 
         const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
         sopts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
-        sopts.cryptonode_request_timeout = server_conf.get<double>("request-timeout");
+        sopts.cryptonode_request_timeout = cryptonode_conf.get<double>("request-timeout");
         //sopts.cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
 
         const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");

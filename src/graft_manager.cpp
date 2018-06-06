@@ -3,7 +3,6 @@
 #include "graft_manager.h"
 #include "router.h"
 #include <sstream>
-#include "timer.h"
 
 namespace graft {
 
@@ -436,7 +435,7 @@ void GraftServer::serve(mg_mgr *mgr)
 #endif
     for (;;)
     {
-        mg_mgr_poll(mgr, opts.poll_value);
+        mg_mgr_poll(mgr, opts.timer_poll_interval_ms);
         manager->get_timerList().eval();
         if(manager->exit) break;
     }
