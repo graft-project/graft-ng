@@ -89,6 +89,7 @@ int main(int argc, const char** argv)
 
         const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
         sopts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
+        sopts.cryptonode_request_timeout = server_conf.get<double>("request-timeout");
         //sopts.cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
 
         const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");

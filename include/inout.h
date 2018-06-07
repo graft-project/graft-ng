@@ -77,6 +77,17 @@ namespace graft
 {
     namespace serializer
     {
+        class JsonParseError : public std::runtime_error
+        {
+        public:
+            JsonParseError(const rapidjson::ParseResult &pr)
+                : std::runtime_error( std::string("Json parse error, code: ") + std::to_string(pr.Code())
+                                  + ", offset: " + std::to_string(pr.Offset()))
+            {
+            }
+        };
+
+
         template<typename T>
         struct JSON
         {
@@ -89,6 +100,8 @@ namespace graft
                 t = T::fromJson(s);
             }
         };
+
+
     } //namespace serializer
 
     class InOutHttpBase
@@ -187,13 +200,46 @@ namespace graft
         InHttp(const http_message& hm) : InOutHttpBase(hm)
         { }
 
-        template<typename T, typename S = serializer::JSON<T>>
+        /*!
+         * \brief get - parses object from JSON. Throws ParseError exception in case parse error
+         * \return   Object of type T
+         */
+        template<typename T>
+        T get() const
+        {
+            T result;
+            try {
+                serializer::JSON<T>::deserialize(body, result);
+            } catch (const rapidjson::ParseResult &pr) {
+                throw serializer::JsonParseError(pr);
+            }
+            return result;
+        }
+
+        /*!
+         * \brief get - overloaded method not throwning exception
+         * \param result - reference to result object of type T
+         * \return  - true on success
+         */
+        template<typename T>
+        bool get(T& result) const
+        {
+            try {
+                result = this->get<T>();
+                return true;
+            } catch (const serializer::JsonParseError & /*err*/) {
+                return false;
+            }
+        }
+
+        template<typename T, typename S>
         T get() const
         {
             T t;
             S::deserialize(body, t);
             return t;
         }
+
 
         template<template<typename> typename S = serializer::JSON, typename T>
         T getT() const
@@ -209,6 +255,11 @@ namespace graft
             body.assign(buf, buf + size);
         }
 
+        void load(const std::string &data)
+        {
+            this->load(data.c_str(), data.size());
+        }
+
         void assign(const OutHttp& out)
         {
             static_cast<InOutHttpBase&>(*this) = static_cast<const InOutHttpBase&>(out);
@@ -217,6 +268,11 @@ namespace graft
         void reset()
         {
             InOutHttpBase::reset();
+        }
+
+        std::string data() const
+        {
+            return body;
         }
     };
 

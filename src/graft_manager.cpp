@@ -100,6 +100,10 @@ void Manager::initThreadPool(int threadCount, int workersQueueSize)
     setThreadPool(std::move(thread_pool), std::move(resQueue), maxinputSize);
 }
 
+Manager::~Manager()
+{
+}
+
 void Manager::notifyJobReady()
 {
     mg_notify(&m_mgr);
@@ -140,6 +144,16 @@ void Manager::onCryptonDone(CryptoNodeSender& cns)
     //cns will be destroyed on exit
 }
 
+void Manager::stop()
+{
+    this->m_exit = true;
+}
+
+bool Manager::stopped() const
+{
+    return this->m_exit;
+}
+
 void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_threadPoolInputSize_)
 {
     m_threadPool = std::unique_ptr<ThreadPoolX>(new ThreadPoolX(std::move(tp)));
@@ -166,6 +180,7 @@ void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr)
                              (body.empty())? nullptr : body.c_str()); //last nullptr means GET
     assert(m_crypton);
     m_crypton->user_data = this;
+    mg_set_timer(m_crypton, mg_time() + opts.cryptonode_request_timeout);
 }
 
 void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
@@ -188,6 +203,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     } break;
     case MG_EV_HTTP_REPLY:
     {
+        mg_set_timer(crypton, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
         m_cr->get_input() = *hm;
         setError(Status::Ok);
@@ -198,7 +214,17 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     } break;
     case MG_EV_CLOSE:
     {
+        mg_set_timer(crypton, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
+        Manager::from(crypton)->onCryptonDone(*this);
+        crypton->handler = static_empty_ev_handler;
+        releaseItself();
+    } break;
+    case MG_EV_TIMER:
+    {
+        mg_set_timer(crypton, 0);
+        setError(Status::Error, "cryptonode request timout");
+        crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
         Manager::from(crypton)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
@@ -403,8 +429,9 @@ void GraftServer::serve(mg_mgr *mgr)
 #endif
     for (;;)
     {
-        mg_mgr_poll(mgr, 10000);
-        if(Manager::from(mgr)->exit) break;
+        mg_mgr_poll(mgr, 1000);
+        if (Manager::from(mgr)->stopped())
+            break;
     }
     mg_mgr_free(mgr);
 }
@@ -440,13 +467,14 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 
         struct http_message *hm = (struct http_message *) ev_data;
         std::string uri(hm->uri.p, hm->uri.len);
+        // TODO: why this is hardcoded ?
         if(uri == "/root/exit")
         {
-            manager->exit = true;
+            manager->stop();
             return;
         }
         int method = translateMethod(hm->method.p, hm->method.len);
-	if (method < 0) return;
+        if (method < 0) return;
 
         Router::JobParams prms;
         if (manager->matchRoute(uri, method, prms))
