@@ -35,6 +35,19 @@ If you don't want to download the installation script manually, you can simply r
 ```bash
 curl -s https://cmake.org/files/v3.11/cmake-3.11.1-Linux-x86_64.sh | bash -e
 ```
+### Prepare sources
+
+Clone repository:
+
+```bash
+git clone https://github.com/graft-project/graft-ng.git
+```
+Initialize and update submodules:
+
+```bash
+git submodule init
+git submodule update --recursive
+```
 
 ### Build instructions
 

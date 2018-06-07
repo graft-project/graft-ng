@@ -18,21 +18,6 @@ set(ExternalProjectCMakeArgs
     -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/BUILD
     )
 
-#update all submodules
-add_custom_target(
-    git_update
-    COMMAND git submodule init
-    COMMAND git submodule update --recursive
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    )
-
-add_custom_command(
-    OUTPUT ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
-    ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
-    )
-
 ExternalProject_Add(
     libr3
     DOWNLOAD_COMMAND ""
@@ -85,7 +70,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
-    ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
+    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 
 set(GS_INCLUDE_DIRS
