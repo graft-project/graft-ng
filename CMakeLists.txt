@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11.1)
+cmake_minimum_required(VERSION 3.10)
 
 project(graft_server)
 
@@ -48,7 +48,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs}
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DBUILD_SHARED_LIBS=ON # TODO: fix so cryptonode's libs can be statically linked
     )
 
 set(CMAKE_CXX_STANDARD 14)
@@ -68,6 +68,9 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/payrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/paystatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
@@ -85,14 +88,51 @@ set(GS_LIBS
     ${PROJECT_BINARY_DIR}/BUILD/lib/libr3.a
     ${PROJECT_BINARY_DIR}/BUILD/lib/liblib3rdparty.a
     pcre
+    dl
     )
 
 
-set(Boost_USE_STATIC_LIBS OFF) 
-set(Boost_USE_MULTITHREADED ON)  
-set(Boost_USE_STATIC_RUNTIME OFF) 
+set(CRYPTONODE_INCLUDE_DIRS
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/external/easylogging++
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/external
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/src
+    )
 
-find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options)
+set(CRYPTONODE_LIB_DIRS
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/lib
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/common
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/crypto
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/cryptonote_basic
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/cryptonote_core
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/mnemonics
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/ringct
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/wallet
+    )
+
+set(CRYPTONODE_LIBS
+    easylogging
+    epee
+    cryptonote_core
+    cryptonote_basic
+    cncrypto
+    wallet # if linked statically: once we add any call to this library from source code, weird linker errors happening
+    mnemonics
+    ringct
+    common
+    )
+
+set(COMMON_LIBS
+    readline
+    )
+
+#set(Boost_USE_STATIC_LIBS ON)
+#set(Boost_USE_MULTITHREADED ON)
+#set(Boost_USE_STATIC_RUNTIME ON)
+
+find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread)
 
 if(NOT Boost_FOUND)
     die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
@@ -103,28 +143,28 @@ endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 # cryptonode dependencies
 # TODO: modify cryptonode CMakeLists.txt so it installs all required headers/libs
-include_directories(${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include)
-include_directories(${PROJECT_SOURCE_DIR}/modules/cryptonode/external/easylogging++)
-link_directories(${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src)
-link_directories(${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++)
+include_directories(${CRYPTONODE_INCLUDE_DIRS})
+link_directories(${CRYPTONODE_LIB_DIRS})
 
 add_executable(graft_server
     ${GS_SOURCES}
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
 
+
 target_include_directories(graft_server PRIVATE
     ${GS_INCLUDE_DIRS}
     )
 
 target_link_libraries(graft_server PRIVATE
-    epee
-    easylogging
+    ${CRYPTONODE_LIBS}
     ${GS_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
     )
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
 
@@ -152,27 +192,44 @@ if (OPT_BUILD_TESTS)
         ExternalProject_Get_Property(googletest BINARY_DIR)
         set(GT_LIBS
             ${BINARY_DIR}/googlemock/gtest/${CMAKE_FIND_LIBRARY_PREFIXES}gtest.a
-            ${BINARY_DIR}/googlemock/gtest/${CMAKE_FIND_LIBRARY_PREFIXES}gtest_main.a
             )
 
         add_executable(graft_server_test
                 ${GS_SOURCES}
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/json_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
         target_include_directories(graft_server_test PRIVATE
                 ${GS_INCLUDE_DIRS}
                 ${GT_INCLUDE_DIRS}
+                ${CRYPTONODE_INCLUDES}
+
         )
 
         target_link_libraries(graft_server_test
-                ${GS_LIBS}
-                ${GT_LIBS}
-                ${CMAKE_THREAD_LIBS_INIT}
-        )
+            PRIVATE
+            ${CRYPTONODE_LIBS}
+            ${GT_LIBS}
+            ${GS_LIBS}
+            ${Boost_LIBRARIES}
+            )
+
 
         target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
         add_dependencies(graft_server_test libr3 cryptonode googletest)
+
+        if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
+            add_custom_command(
+                TARGET graft_server POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_SOURCE_DIR}/data/test_wallet.keys
+                ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
+        endif()
+
 endif (OPT_BUILD_TESTS)
 
 # copy config file to build directory
