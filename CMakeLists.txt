@@ -63,7 +63,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DBUILD_SHARED_LIBS=ON
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DBUILD_SHARED_LIBS=ON # TODO: fix so cryptonode's libs can be statically linked
     )
 
 set(CMAKE_CXX_STANDARD 14)
@@ -225,7 +225,7 @@ if (OPT_BUILD_TESTS)
 
         )
 
-    target_link_libraries(graft_server_test 
+        target_link_libraries(graft_server_test
             PRIVATE
             ${CRYPTONODE_LIBS}
             ${GT_LIBS}
