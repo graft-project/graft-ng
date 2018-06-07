@@ -86,6 +86,15 @@ TEST(JsonRPCFormat, request_parse)
     LOG_PRINT_L0("Params size: " << req.params.size());
 }
 
+TEST(JsonRPCFormat, malformed_source)
+{
+    std::string json_rpc_req = "{\"json\":\"2.0\", +,;\"id\":\"0\",\"method\",:\"Hello\",\"params\": {\"return_success\" : \"false\"} }";
+    Input in; in.load(json_rpc_req);
+    JsonRpcTestRequest req;
+    EXPECT_ANY_THROW(in.get<JsonRpcTestRequest>());
+    EXPECT_FALSE(in.get(req));
+}
+
 TEST(JsonRPCFormat, error_and_result_parse)
 {
     using namespace graft;

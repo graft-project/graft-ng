@@ -68,3 +68,12 @@ TEST(GraftDefineIOStruct, initedSuccess)
     EXPECT_EQ(pt3.tx_hash, "456");
     EXPECT_EQ(pt3.unlock_time, 3);
 }
+
+TEST(JsonParseTest, malformed_source)
+{
+    std::string json_rpc_error     = " {\"json\":\"2.0;123,,,\",+,\"id\":3355185,\"error\":{\"code\":123,\"message\":\"Error Message\"}}";
+    Input in; in.load(json_rpc_error);
+    JsonRpcErrorResponse resp;
+    EXPECT_ANY_THROW(in.get<JsonRpcErrorResponse>());
+    EXPECT_FALSE(in.get(resp));
+}
