@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <tuple>
+#include <unordered_map>
 #include <boost/hana.hpp>
 
 #include "reflective-rapidjson/reflector-boosthana.h"
@@ -11,6 +12,9 @@
 #include "reflective-rapidjson/types.h"
 
 #include "graft_macros.h"
+
+struct http_message; //from mongoose.h
+struct mg_str; //from mongoose.h
 
 #define GRAFT_DEFINE_IO_STRUCT(__S__, ...) \
     struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> { \
@@ -71,54 +75,145 @@
 
 namespace graft 
 {
-    class OutJson
+    namespace serializer
+    {
+        class JsonParseError : public std::runtime_error
+        {
+        public:
+            JsonParseError(const rapidjson::ParseResult &pr)
+                : std::runtime_error( std::string("Json parse error, code: ") + std::to_string(pr.Code())
+                                  + ", offset: " + std::to_string(pr.Offset()))
+            {
+            }
+        };
+
+
+        template<typename T>
+        struct JSON
+        {
+            static std::string serialize(const T& t)
+            {
+                return t.toJson().GetString();
+            }
+            static void deserialize(const std::string& s, T& t)
+            {
+                t = T::fromJson(s);
+            }
+        };
+
+
+    } //namespace serializer
+
+    class InOutHttpBase
+    {
+    protected:
+        InOutHttpBase() = default;
+        InOutHttpBase(const InOutHttpBase& ) = default;
+        InOutHttpBase(InOutHttpBase&& ) = default;
+        InOutHttpBase& operator = (InOutHttpBase&& ) = default;
+        ~InOutHttpBase() = default;
+
+        InOutHttpBase(const http_message& hm) { operator =(hm); }
+        InOutHttpBase& operator = (const http_message& hm);
+    public:
+        InOutHttpBase& operator = (const InOutHttpBase& ) = default;
+    public:
+        void reset() { *this = InOutHttpBase(); }
+        std::string combine_headers();
+    public:
+        //These fields are from mongoose http_message
+        std::string body;
+        std::string method;
+        std::string uri;
+        std::string proto;
+        int resp_code;
+        std::string resp_status_msg;
+        std::string query_string;
+        //Both headers and extra_headers deal with HTTP headers.
+        //headers is name-value pairs.
+        //extra_headers looks like "Content-Type: text/plane\r\nHeaderName: HeaderValue\r\n..."
+        //When they are part of Input, and the Input is the result of a client request or
+        //upstream response, extra_headers is empty and headers is filled accordingly.
+        //When they are part of Output, and it is requested to do upstream forward,
+        //the framework will combine resulting headers as
+        //extra_headers + "name0: value0\r\n" + "name1: value1\r\n" ...;
+        //The resulting value will be passed to mongoose
+        //So it is preferable that worker_action makes Output so that headers is empty and
+        //extra_headers is set to required complete value. This is for performance purpose.
+        //You can use combine_headers() to do this, like following
+        //  output.extra_headers = output.combine_headers();
+        //  output.headers.clear();
+        std::vector<std::pair<std::string, std::string>> headers;
+        std::string extra_headers;
+    private:
+        void set_str_field(const http_message& hm, const mg_str& str_fld, std::string& fld);
+    };
+
+    class OutHttp final : public InOutHttpBase
     {
     public:
-        template <typename T>
-        void load(const T& out)
+        OutHttp() = default;
+        OutHttp(const OutHttp&) = default;
+        OutHttp(OutHttp&&) = default;
+        OutHttp& operator = (const OutHttp&) = default;
+        OutHttp& operator = (OutHttp&&) = default;
+        ~OutHttp() = default;
+
+        template<typename T, typename S = serializer::JSON<T>>
+        void load(const T& t)
         {
-            m_buf.assign(out.toJson().GetString());
+            body = S::serialize(t);
+        }
+
+        template<template<typename> typename S = serializer::JSON, typename T>
+        void loadT(const T& t)
+        {
+            body = S<T>::serialize(t);
         }
 
         std::pair<const char *, size_t> get() const
         {
-            return std::make_pair(m_buf.c_str(), m_buf.length());
+            return std::make_pair(body.c_str(), body.length());
         }
 
         std::string data() const
         {
-            return m_buf;
+            return body;
         }
-    private:
-        std::string m_buf;
+    public:
+        std::string makeUri(const std::string& default_uri) const;
+    public:
+        std::string host;
+        std::string port;
+        static std::unordered_map<std::string, std::string> uri_substitutions;
     };
 
-    class JsonParseError : public std::runtime_error
+    class InHttp final : public InOutHttpBase
     {
     public:
-        JsonParseError(const rapidjson::ParseResult &pr)
-            : std::runtime_error( std::string("Json parse error, code: ") + std::to_string(pr.Code())
-                                  + ", offset: " + std::to_string(pr.Offset()))
-        {
-        }
-    };
-
-    class InJson
-    {
-    public:
+        InHttp() = default;
+        InHttp(const InHttp&) = default;
+        InHttp(InHttp&&) = default;
+        InHttp& operator = (const InHttp&) = default;
+        InHttp& operator = (InHttp&&) = default;
+        ~InHttp() = default;
+        InHttp(const http_message& hm) : InOutHttpBase(hm)
+        { }
 
         /*!
          * \brief get - parses object from JSON. Throws ParseError exception in case parse error
          * \return   Object of type T
          */
-        template <typename T>
+        template<typename T>
         T get() const
         {
+            T result;
             try {
-                return T::fromJson(m_buf);
+                serializer::JSON<T>::deserialize(body, result);
             } catch (const rapidjson::ParseResult &pr) {
-                throw JsonParseError(pr);
+                throw serializer::JsonParseError(pr);
             }
+            return result;
         }
 
         /*!
@@ -126,38 +221,62 @@ namespace graft
          * \param result - reference to result object of type T
          * \return  - true on success
          */
-        template <typename T>
-        bool get(T& result)
+        template<typename T>
+        bool get(T& result) const
         {
             try {
-                result = T::fromJson(m_buf);
+                result = this->get<T>();
                 return true;
-            } catch (const rapidjson::ParseResult &/*err*/) {
+            } catch (const serializer::JsonParseError & /*err*/) {
                 return false;
             }
         }
 
-        void load(const char *buf, size_t size) { m_buf.assign(buf, buf + size); }
-        void load(const std::string &buf) { m_buf = buf; }
-
-        void assign(const OutJson& o)
+        template<typename T, typename S>
+        T get() const
         {
-            const char *buf; size_t size;
-            std::tie(buf, size) = o.get();
-            load(buf, size);
+            T t;
+            S::deserialize(body, t);
+            return t;
+        }
+
+
+        template<template<typename> typename S = serializer::JSON, typename T>
+        T getT() const
+        {
+            T t;
+            S<T>::deserialize(body, t);
+            return t;
+        }
+
+        void load(const char *buf, size_t size)
+        {
+            InOutHttpBase::reset();
+            body.assign(buf, buf + size);
+        }
+
+        void load(const std::string &data)
+        {
+            this->load(data.c_str(), data.size());
+        }
+
+        void assign(const OutHttp& out)
+        {
+            static_cast<InOutHttpBase&>(*this) = static_cast<const InOutHttpBase&>(out);
         }
 
         void reset()
         {
-            m_buf.clear();
+            InOutHttpBase::reset();
         }
-        // for debugging
-        const std::string &toString() const { return m_buf; }
-    private:
-        std::string m_buf;
+
+        std::string data() const
+        {
+            return body;
+        }
     };
 
-    using Input = InJson;
-    using Output = OutJson;
+    using Input = InHttp;
+    using Output = OutHttp;
 } //namespace graft
 

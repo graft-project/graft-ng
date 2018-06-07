@@ -65,11 +65,14 @@ public:
      * @brief post Post job to thread pool.
      * @param handler Handler to be called from thread pool worker. It has
      * to be callable as 'handler()'.
+     * @param to_any_queue If true, attempts to post into each worker queue
+     * until success. Throws the exception otherwise. If false only one
+     * attempt will be made.
      * @throw std::overflow_error if worker's queue is full.
      * @note All exceptions thrown by handler will be suppressed.
      */
     template <typename Handler>
-    void post(Handler&& handler, bool block = false);
+    void post(Handler&& handler, bool to_any_queue = false);
 
     int dump_info()
     {
@@ -148,17 +151,15 @@ inline bool ThreadPoolImpl<Task, Queue>::tryPost(Handler&& handler)
 
 template <typename Task, template<typename> class Queue>
 template <typename Handler>
-inline void ThreadPoolImpl<Task, Queue>::post(Handler&& handler, bool block)
+inline void ThreadPoolImpl<Task, Queue>::post(Handler&& handler, bool to_any_queue)
 {
-    while(true)
+    int try_count = (to_any_queue)? m_workers.size() : 1;
+    for(int i = 0; i < try_count; ++i)
     {
-        const auto ok = tryPost(std::forward<Handler>(handler));
+        bool ok = tryPost(std::forward<Handler>(handler));
         if(ok) return;
-        if (!block)
-        {
-            throw std::runtime_error("thread pool queue is full");
-        }
     }
+    throw std::runtime_error("thread pool queue is full");
 }
 
 template <typename Task, template<typename> class Queue>

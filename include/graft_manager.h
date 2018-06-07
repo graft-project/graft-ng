@@ -79,6 +79,7 @@ struct ServerOpts
     std::string http_address;
     std::string coap_address;
     double http_connection_timeout;
+    double cryptonode_request_timeout;
     int workers_count;
     int worker_queue_len;
     std::string cryptonode_rpc_address;
@@ -126,6 +127,7 @@ public:
     void onNewClient(ClientRequest_ptr cr);
     void onClientDone(ClientRequest_ptr cr);
 
+    void onJobDone();
     void onJobDone(GJ& gj);
 
     void onCryptonDone(CryptoNodeSender& cns);
@@ -207,7 +209,7 @@ public:
 
     ClientRequest_ptr& get_cr() { return m_cr; }
 
-    void send(Manager& manager, ClientRequest_ptr cr, const std::string& data);
+    void send(Manager& manager, ClientRequest_ptr cr);
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
 private:
@@ -221,7 +223,6 @@ private:
 private:
     mg_connection *m_crypton = nullptr;
     ClientRequest_ptr m_cr;
-    std::string m_data;
     Status m_status = Status::None;
     std::string m_error;
 };
@@ -237,14 +238,14 @@ private:
     {
     }
 public:
-    void respondToClientAndDie(const std::string& s);
-
     void createJob(Manager& manager);
 
     void onJobDone(GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
 
     void onCryptonDone(CryptoNodeSender& cns);
+    void onTooBusy();
 private:
+    void respondToClientAndDie(const std::string& s);
     void processResult();
     void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
     Status getLastStatus() const { return m_ctx.local.getLastStatus(); }

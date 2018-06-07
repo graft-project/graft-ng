@@ -68,7 +68,7 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
         //  3. if http status code is ok (200) read body and parse it
         //  4. handle parsed response and prepare reply to the client
 
-        LOG_PRINT_L2("response from cryptonode (input) : " << input.toString());
+        LOG_PRINT_L2("response from cryptonode (input) : " << input.data());
         LOG_PRINT_L2("response from cryptonode (output) : " << output.data());
 
         Status status = ctx.local.getLastStatus();

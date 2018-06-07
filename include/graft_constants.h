@@ -10,6 +10,7 @@ enum class Status : int
     Forward,
     Error,
     Drop,
+    Busy,
     InternalError,
 };
 

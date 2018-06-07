@@ -66,14 +66,17 @@ int main(int argc, const char** argv)
 
     try {
         boost::property_tree::ini_parser::read_ini(config_filename, config);
-        // now we have only 5 parameters
-        // cryptonode
-        // 1. rpc-address <IP>:<PORT>
-        // 2. p2p-address <IP>:<PORT>
-        // server
-        // 3. address <IP>:<PORT>
-        // 4. workers-count <integer>
-        // 5. worker-queue-len <integer>
+        // now we have only following parameters
+        // [server]
+        //  address <IP>:<PORT>
+        //  workers-count <integer>
+        //  worker-queue-len <integer>
+        // [cryptonode]
+        //  rpc-address <IP>:<PORT>
+        //  p2p-address <IP>:<PORT> #maybe
+        // [upstream]
+        //  uri_name=uri_value #pairs for uri substitution
+        //
 
         graft::ServerOpts sopts;
 
@@ -83,9 +86,19 @@ int main(int argc, const char** argv)
         sopts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
         sopts.workers_count = server_conf.get<int>("workers-count");
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
+
         const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
         sopts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
+        sopts.cryptonode_request_timeout = server_conf.get<double>("request-timeout");
         //sopts.cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
+
+        const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
+        std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf](auto it)
+        {
+            std::string name(it.first);
+            std::string val(uri_subst_conf.get<string>(name));
+            graft::OutHttp::uri_substitutions.insert({std::move(name), std::move(val)});
+        });
 
         graft::Manager manager(sopts);
 

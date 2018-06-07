@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11.1)
+cmake_minimum_required(VERSION 3.10)
 
 project(graft_server)
 
@@ -27,8 +27,10 @@ add_custom_target(
     )
 
 add_custom_command(
-    OUTPUT ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
-    COMMAND ""
+    OUTPUT ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
     )
 
 ExternalProject_Add(
@@ -61,7 +63,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs}
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DBUILD_SHARED_LIBS=ON
     )
 
 set(CMAKE_CXX_STANDARD 14)
@@ -70,16 +72,23 @@ add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 
 set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/graft_manager.cpp
+    ${PROJECT_SOURCE_DIR}/src/inout.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
+    ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/requests.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/saledetailsrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/payrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/paystatusrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
+    ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
-    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_BINARY_DIR}/BUILD/mongoose/mongoose.c
     )
 
 set(GS_INCLUDE_DIRS
@@ -94,15 +103,9 @@ set(GS_LIBS
     ${PROJECT_BINARY_DIR}/BUILD/lib/libr3.a
     ${PROJECT_BINARY_DIR}/BUILD/lib/liblib3rdparty.a
     pcre
+    dl
     )
 
-set(CRYPTONODE_LIBS
-    epee
-    easylogging
-    wallet
-    common
-    cryptonote_basic
-    )
 
 set(CRYPTONODE_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include
@@ -114,16 +117,35 @@ set(CRYPTONODE_INCLUDE_DIRS
 set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/lib
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/common
-    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/wallet
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/crypto
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/cryptonote_basic
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/cryptonote_core
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/mnemonics
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/ringct
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/wallet
     )
 
+set(CRYPTONODE_LIBS
+    easylogging
+    epee
+    cryptonote_core
+    cryptonote_basic
+    cncrypto
+    wallet # if linked statically: once we add any call to this library from source code, weird linker errors happening
+    mnemonics
+    ringct
+    common
+    )
 
-set(Boost_USE_STATIC_LIBS OFF) 
-set(Boost_USE_MULTITHREADED ON)  
-set(Boost_USE_STATIC_RUNTIME OFF) 
+set(COMMON_LIBS
+    readline
+    )
+
+#set(Boost_USE_STATIC_LIBS ON)
+#set(Boost_USE_MULTITHREADED ON)
+#set(Boost_USE_STATIC_RUNTIME ON)
 
 find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread)
 
@@ -203,18 +225,14 @@ if (OPT_BUILD_TESTS)
 
         )
 
-        target_link_libraries(graft_server_test
+    target_link_libraries(graft_server_test 
+            PRIVATE
             ${CRYPTONODE_LIBS}
-            ${GS_LIBS}
             ${GT_LIBS}
-            ${CMAKE_THREAD_LIBS_INIT}
-            ${Boost_SYSTEM_LIBRARY}
-            ${Boost_FILESYSTEM_LIBRARY}
-            ${Boost_SERIALIZATION_LIBRARY}
-            ${Boost_THREAD_LIBRARY}
-        )
+            ${GS_LIBS}
+            ${Boost_LIBRARIES}
+            )
 
-        link_directories(${CRYPTONODE_LIB_PATHS})
 
         target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
         add_dependencies(graft_server_test libr3 cryptonode googletest)

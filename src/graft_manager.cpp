@@ -15,9 +15,7 @@ void Manager::sendCrypton(ClientRequest_ptr cr)
 {
     ++m_cntCryptoNodeSender;
     CryptoNodeSender::Ptr cns = CryptoNodeSender::Create();
-    auto out = cr->get_output().get();
-    std::string s(out.first, out.second);
-    cns->send(*this, cr, s);
+    cns->send(*this, cr);
 }
 
 void Manager::sendToThreadPool(ClientRequest_ptr cr)
@@ -25,7 +23,8 @@ void Manager::sendToThreadPool(ClientRequest_ptr cr)
     assert(m_cntJobDone <= m_cntJobSent);
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
     {//check overflow
-        processReadyJobBlock();
+        cr->onTooBusy();
+        return;
     }
     assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
     ++m_cntJobSent;
@@ -110,21 +109,31 @@ void Manager::notifyJobReady()
     mg_notify(&m_mgr);
 }
 
-void Manager::doWork(uint64_t m_cnt)
+void Manager::doWork(uint64_t cnt)
 {
-    //job overflow is possible, and we can pop jobs without notification, thus m_cnt useless
-    bool res = true;
-    while(res)
+    //When multiple threads write to the output queue of the thread pool.
+    //It is possible that a hole appears when a thread has not completed to set
+    //the cell data in the queue. The hole leads to failure of pop operations.
+    //Thus, it is better to process as many cells as we can without waiting when
+    //the cell will be filled, instead of basing on the counter.
+    //We cannot lose any cell because a notification follows the hole completion.
+
+    while(true)
     {
-        res = tryProcessReadyJob();
+        bool res = tryProcessReadyJob();
         if(!res) break;
     }
+}
+
+void Manager::onJobDone()
+{
+    ++m_cntJobDone;
 }
 
 void Manager::onJobDone(GJ& gj)
 {
     gj.get_cr()->onJobDone(&gj);
-    ++m_cntJobDone;
+    onJobDone();
     //gj will be destroyed on exit
 }
 
@@ -152,17 +161,26 @@ void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_thread
     m_threadPoolInputSize = m_threadPoolInputSize_;
 }
 
-void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr, const std::string &data)
+void CryptoNodeSender::send(Manager &manager, ClientRequest_ptr cr)
 {
     m_cr = cr;
-    m_data = data;
+
     const ServerOpts& opts = manager.get_c_opts();
-    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, opts.cryptonode_rpc_address.c_str(),
-                             "Content-Type: application/json\r\n",
-                             (m_data.empty())? nullptr : m_data.c_str()); //last nullptr means GET
+    std::string default_uri = opts.cryptonode_rpc_address.c_str();
+    Output& output = cr->get_output();
+    std::string url = output.makeUri(default_uri);
+    std::string extra_headers = output.combine_headers();
+    if(extra_headers.empty())
+    {
+        extra_headers = "Content-Type: application/json\r\n";
+    }
+    std::string& body = output.body;
+    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
+                             extra_headers.c_str(),
+                             (body.empty())? nullptr : body.c_str()); //last nullptr means GET
     assert(m_crypton);
     m_crypton->user_data = this;
-    //len + data
+    mg_set_timer(m_crypton, mg_time() + opts.cryptonode_request_timeout);
 }
 
 void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
@@ -185,8 +203,9 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     } break;
     case MG_EV_HTTP_REPLY:
     {
+        mg_set_timer(crypton, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
-        m_cr->get_input().load(hm->body.p, hm->body.len);
+        m_cr->get_input() = *hm;
         setError(Status::Ok);
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
         Manager::from(crypton)->onCryptonDone(*this);
@@ -195,7 +214,17 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     } break;
     case MG_EV_CLOSE:
     {
+        mg_set_timer(crypton, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
+        Manager::from(crypton)->onCryptonDone(*this);
+        crypton->handler = static_empty_ev_handler;
+        releaseItself();
+    } break;
+    case MG_EV_TIMER:
+    {
+        mg_set_timer(crypton, 0);
+        setError(Status::Error, "cryptonode request timout");
+        crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
         Manager::from(crypton)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
@@ -215,6 +244,7 @@ void ClientRequest::respondToClientAndDie(const std::string &s)
     case Status::Ok: code = 200; break;
     case Status::InternalError:
     case Status::Error: code = 500; break;
+    case Status::Busy: code = 503; break;
     case Status::Drop: code = 400; break;
     default: assert(false); break;
     }
@@ -231,6 +261,12 @@ void ClientRequest::respondToClientAndDie(const std::string &s)
     m_client->handler = static_empty_ev_handler;
     m_client = nullptr;
     releaseItself();
+}
+
+void ClientRequest::onTooBusy()
+{
+    m_ctx.local.setError("Service Unavailable", Status::Busy);
+    respondToClientAndDie("Thread pool overflow");
 }
 
 void ClientRequest::createJob(Manager &manager)
@@ -268,12 +304,16 @@ void ClientRequest::createJob(Manager &manager)
     if(m_prms.h3.worker_action)
     {
         manager.get_threadPool().post(
-                GJ_ptr( get_itself(), &manager.get_resQueue(), &manager )
-                );
+                    GJ_ptr( get_itself(), &manager.get_resQueue(), &manager ),
+                    true
+                    );
     }
     else
     {
+        //special case when worker_action is absent
         onJobDone(nullptr);
+        //next call is required to fix counters that prevents overflow
+        manager.onJobDone();
     }
 }
 

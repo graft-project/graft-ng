@@ -47,7 +47,7 @@ Status sendRawTxHandler(const Router::vars_t& vars, const graft::Input& input,
         return Status::Forward;
     } else {
     // response from cryptonode
-        LOG_PRINT_L2("response from cryptonode : " << input.toString());
+        LOG_PRINT_L2("response from cryptonode : " << input.data());
         SendRawTxResponse resp = input.get<SendRawTxResponse>();
         if (resp.status == "OK") { // positive reply
             output.load(resp);
