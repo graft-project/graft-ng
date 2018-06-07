@@ -93,9 +93,11 @@ public:
     Manager(const ServerOpts& sopts)
         : m_sopts(sopts)
     {
+        // TODO: validate options, throw exception if any mandatory options missing
         mg_mgr_init(&m_mgr, this, cb_event);
         initThreadPool(sopts.workers_count, sopts.worker_queue_len);
     }
+    ~Manager();
 
     void notifyJobReady();
 
@@ -134,6 +136,8 @@ public:
     void onJobDone(GJ& gj);
 
     void onCryptonDone(CryptoNodeSender& cns);
+    void stop();
+    bool stopped() const;
 
 private:
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
@@ -160,7 +164,7 @@ private:
     ServerOpts m_sopts;
     TimerList<BaseTask_ptr> m_timerList;
 public:
-    bool exit = false;
+    std::atomic_bool m_exit {false};
 };
 
 template<typename C>

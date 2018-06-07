@@ -106,6 +106,10 @@ void Manager::initThreadPool(int threadCount, int workersQueueSize)
     setThreadPool(std::move(thread_pool), std::move(resQueue), maxinputSize);
 }
 
+Manager::~Manager()
+{
+}
+
 void Manager::notifyJobReady()
 {
     mg_notify(&m_mgr);
@@ -144,6 +148,16 @@ void Manager::onCryptonDone(CryptoNodeSender& cns)
     cns.get_cr()->onCryptonDone(cns);
     ++m_cntCryptoNodeSenderDone;
     //cns will be destroyed on exit
+}
+
+void Manager::stop()
+{
+    this->m_exit = true;
+}
+
+bool Manager::stopped() const
+{
+    return this->m_exit;
 }
 
 void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_threadPoolInputSize_)
@@ -443,7 +457,8 @@ void GraftServer::serve(mg_mgr *mgr)
     {
         mg_mgr_poll(mgr, opts.timer_poll_interval_ms);
         manager->get_timerList().eval();
-        if(manager->exit) break;
+        if (Manager::from(mgr)->stopped())
+            break;
     }
     mg_mgr_free(mgr);
 }
@@ -479,13 +494,14 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 
         struct http_message *hm = (struct http_message *) ev_data;
         std::string uri(hm->uri.p, hm->uri.len);
+        // TODO: why this is hardcoded ?
         if(uri == "/root/exit")
         {
-            manager->exit = true;
+            manager->stop();
             return;
         }
         int method = translateMethod(hm->method.p, hm->method.len);
-	if (method < 0) return;
+        if (method < 0) return;
 
         Router::JobParams prms;
         if (manager->matchRoute(uri, method, prms))
