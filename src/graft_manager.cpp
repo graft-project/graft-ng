@@ -11,14 +11,14 @@ std::atomic_bool GraftServer::ready;
 #endif
 
 
-void Manager::sendCrypton(RequestBase_ptr cr)
+void Manager::sendCrypton(BaseTask_ptr cr)
 {
     ++m_cntCryptoNodeSender;
     CryptoNodeSender::Ptr cns = CryptoNodeSender::Create();
     cns->send(*this, cr);
 }
 
-void Manager::sendToThreadPool(RequestBase_ptr cr)
+void Manager::sendToThreadPool(BaseTask_ptr cr)
 {
     assert(m_cntJobDone <= m_cntJobSent);
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
@@ -29,6 +29,12 @@ void Manager::sendToThreadPool(RequestBase_ptr cr)
     assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
     ++m_cntJobSent;
     cr->createJob();
+}
+
+void Manager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms)
+{
+    BaseTask* rb = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms).get();
+    assert(rb);
 }
 
 void Manager::cb_event(mg_mgr *mgr, uint64_t cnt)
@@ -47,15 +53,15 @@ Manager *Manager::from(mg_connection *cn)
     return from(cn->mgr);
 }
 
-void Manager::onNewClient(RequestBase_ptr cr)
+void Manager::onNewClient(BaseTask_ptr cr)
 {
-    ++m_cntRequestBase;
+    ++m_cntBaseTask;
     sendToThreadPool(cr);
 }
 
-void Manager::onClientDone(RequestBase_ptr cr)
+void Manager::onClientDone(BaseTask_ptr cr)
 {
-    ++m_cntRequestBaseDone;
+    ++m_cntBaseTaskDone;
 }
 
 bool Manager::tryProcessReadyJob()
@@ -147,7 +153,7 @@ void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_thread
     m_threadPoolInputSize = m_threadPoolInputSize_;
 }
 
-void CryptoNodeSender::send(Manager &manager, RequestBase_ptr cr)
+void CryptoNodeSender::send(Manager &manager, BaseTask_ptr cr)
 {
     m_cr = cr;
 
@@ -166,7 +172,7 @@ void CryptoNodeSender::send(Manager &manager, RequestBase_ptr cr)
                              (body.empty())? nullptr : body.c_str()); //last nullptr means GET
     assert(m_crypton);
     m_crypton->user_data = this;
-    mg_set_timer(m_crypton, mg_time() + opts.cryptonode_request_timeout);
+    mg_set_timer(m_crypton, mg_time() + opts.upstream_request_timeout);
 }
 
 void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
@@ -220,13 +226,13 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     }
 }
 
-void RequestBase::onTooBusy()
+void BaseTask::onTooBusy()
 {
     m_ctx.local.setError("Service Unavailable", Status::Busy);
     respondAndDie("Thread pool overflow");
 }
 
-void RequestBase::createJob()
+void BaseTask::createJob()
 {
     if(m_prms.h3.pre_action)
     {
@@ -274,7 +280,7 @@ void RequestBase::createJob()
     }
 }
 
-void RequestBase::onJobDone(GJ* gj)
+void BaseTask::onJobDone(GJ* gj)
 {
     //post_action if not empty, will be called in any case, even if worker_action results as some kind of error or exception.
     //But, in case pre_action finishes as error both worker_action and post_action will be skipped.
@@ -307,7 +313,7 @@ void RequestBase::onJobDone(GJ* gj)
     processResult();
 }
 
-void RequestBase::processResult()
+void BaseTask::processResult()
 {
     switch(getLastStatus())
     {
@@ -336,7 +342,7 @@ void RequestBase::processResult()
     }
 }
 
-void RequestBase::onCryptonDone(CryptoNodeSender &cns)
+void BaseTask::onCryptonDone(CryptoNodeSender &cns)
 {
     if(Status::Ok != cns.getStatus())
     {
@@ -351,18 +357,12 @@ void RequestBase::onCryptonDone(CryptoNodeSender &cns)
     }
 }
 
-TimerRequest* TimerRequest::Create(Manager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
-{
-    RequestBase* rb = RequestBase::Create<TimerRequest>(manager, h3, timeout_ms).get();
-    return static_cast<TimerRequest*>(rb);
-}
-
-void TimerRequest::onEvent()
+void PeriodicTask::onEvent()
 {
     m_manager.onNewClient(get_itself());
 }
 
-void TimerRequest::respondAndDie(const std::string& s)
+void PeriodicTask::respondAndDie(const std::string& s)
 {
     if(m_ctx.local.getLastStatus() == Status::Stop)
     {
@@ -371,7 +371,7 @@ void TimerRequest::respondAndDie(const std::string& s)
     }
     start();
 }
-void TimerRequest::start()
+void PeriodicTask::start()
 {
     auto& tl = m_manager.get_timerList();
     tl.push(m_timeout_ms, get_itself());
@@ -492,7 +492,7 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
         {
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
-            RequestBase* rb_ptr = RequestBase::Create<ClientRequest>(client, prms).get();
+            BaseTask* rb_ptr = BaseTask::Create<ClientRequest>(client, prms).get();
             assert(dynamic_cast<ClientRequest*>(rb_ptr));
             ClientRequest* ptr = static_cast<ClientRequest*>(rb_ptr);
 
@@ -562,7 +562,7 @@ void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
             mg_str& body = cm->payload;
             prms.input.load(body.p, body.len);
 
-            RequestBase* rb_ptr = RequestBase::Create<ClientRequest>(client, prms).get();
+            BaseTask* rb_ptr = BaseTask::Create<ClientRequest>(client, prms).get();
             assert(dynamic_cast<ClientRequest*>(rb_ptr));
             ClientRequest* ptr = static_cast<ClientRequest*>(rb_ptr);
 
