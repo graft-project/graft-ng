@@ -315,7 +315,7 @@ private:
 class GraftServer final
 {
 public:
-    GraftServer() : ready(false) { }
+    GraftServer() : m_ready(false) { }
     void serve(mg_mgr* mgr);
 private:
     static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
@@ -329,7 +329,9 @@ private:
         _M(GET), _M(POST), _M(PUT), _M(DELETE), _M(HEAD) //, _M(CONNECT)
     };
 public:
-    std::atomic_bool ready;
+    bool ready() const { return m_ready; }
+private:
+    std::atomic_bool m_ready;
 };
 
 }//namespace graft

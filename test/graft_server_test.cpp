@@ -733,7 +733,7 @@ protected:
         t_CN = std::thread([]{ TempCryptoNodeServer::run(); });
         t_srv = std::thread([]{ run_server(); });
 
-        while(!TempCryptoNodeServer::ready || !pserver || !pserver.load()->ready)
+        while(!TempCryptoNodeServer::ready || !pserver || !pserver.load()->ready())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }

@@ -186,7 +186,7 @@ struct JsonRpcTest : public ::testing::Test
             this->startServer();
         });
         LOG_PRINT_L0("Server thread started..");
-        while (!server.ready) {
+        while (!server.ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
