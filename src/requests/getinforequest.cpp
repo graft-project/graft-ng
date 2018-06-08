@@ -55,7 +55,7 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
     LOG_PRINT_L2(__FUNCTION__);
     if (!ctx.local.hasKey(__FUNCTION__)) {
         LOG_PRINT_L2("call from client, forwarding to cryptonode...");
-        JsonRpcRequestEmpty req;
+        JsonRpcRequestHeader req;
         req.method = "get_info";
         output.load(req);
         ctx.local[__FUNCTION__] = true;

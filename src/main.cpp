@@ -105,6 +105,7 @@ int main(int argc, const char** argv)
 
         graft::setCoapRouters(manager);
         graft::setHttpRouters(manager);
+
         manager.enableRouting();
 
         graft::GraftServer server;
