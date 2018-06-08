@@ -314,11 +314,8 @@ private:
 
 class GraftServer final
 {
-#ifdef OPT_BUILD_TESTS
 public:
-    static std::atomic_bool ready;
-#endif
-public:
+    GraftServer() : ready(false) { }
     void serve(mg_mgr* mgr);
 private:
     static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
@@ -331,6 +328,8 @@ private:
     constexpr static std::pair<const char *, int> m_methods[] = {
         _M(GET), _M(POST), _M(PUT), _M(DELETE), _M(HEAD) //, _M(CONNECT)
     };
+public:
+    std::atomic_bool ready;
 };
 
 }//namespace graft

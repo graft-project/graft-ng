@@ -6,11 +6,6 @@
 
 namespace graft {
 
-#ifdef OPT_BUILD_TESTS
-std::atomic_bool GraftServer::ready;
-#endif
-
-
 void Manager::sendCrypton(BaseTask_ptr cr)
 {
     ++m_cntCryptoNodeSender;
