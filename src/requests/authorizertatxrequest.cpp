@@ -32,6 +32,9 @@
 
 namespace graft {
 
+static const char * PATH = "/dapi/2.0/authorize_rta_tx";
+
+
 Status authorizeRtaTxHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
@@ -63,9 +66,8 @@ Status authorizeRtaTxHandler(const Router::vars_t& vars, const graft::Input& inp
 void registerAuthorizeRtaTxRequest(graft::Router &router)
 {
     Router::Handler3 h3(nullptr, authorizeRtaTxHandler, nullptr);
-    const char * path = "/dapi/2.0/authorize_rta_tx";
-    router.addRoute(path, METHOD_POST, h3);
-    LOG_PRINT_L2("route " << path << " registered");
+    router.addRoute(PATH, METHOD_POST, h3);
+    LOG_PRINT_L2("route " << PATH << " registered");
 }
 
 

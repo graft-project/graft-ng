@@ -12,20 +12,16 @@
 namespace graft {
 
 // This request issued by a wallet. Served with REST insterface
-
-
-
 GRAFT_DEFINE_IO_STRUCT_INITED(AuthorizeRtaTxRequest,
                               (std::string, tx_as_hex, ""),
                               (TransactionInfo, tx_info, TransactionInfo())
                               );
 
 
-
 GRAFT_DEFINE_IO_STRUCT_INITED(AuthorizeRtaTxResponse,
                               (std::string, status, ""),
                               // TODO: another fields (supernode_addr:signature pairs at least)
-                              (std::vector<std::string>, signatures, std::vector<std::string>())
+                              (std::string, signature, std::string())
                               );
 
 
