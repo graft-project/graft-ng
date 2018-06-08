@@ -69,7 +69,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L1("L1");
         LOG_PRINT_L2("L2");
 
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 4, 4, "localhost:28281/sendrawtransaction"};
+        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
         manager = std::unique_ptr<Manager>(new Manager(sopts));
 
         Router router;
