@@ -26,27 +26,27 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "txtosignrequest.h"
+#include "authorizertatxrequest.h"
 #include "requestdefines.h"
 #include <misc_log_ex.h>
 
 namespace graft {
 
-Status txToSignHandler(const Router::vars_t& vars, const graft::Input& input,
+Status authorizeRtaTxHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
     // call from client
     if (!ctx.local.hasKey(__FUNCTION__)) {
         LOG_PRINT_L2("call from client, forwarding to cryptonode...");
         // just forward input to cryptonode
-        TxToSignRequest req = input.get<TxToSignRequest>();
+        AuthorizeRtaTxRequest req = input.get<AuthorizeRtaTxRequest>();
         output.load(req);
         ctx.local[__FUNCTION__] = true;
         return Status::Forward;
     } else {
         // response from cryptonode
         LOG_PRINT_L2("response from cryptonode : " << input.data());
-        TxToSignResponse resp = input.get<TxToSignResponse>();
+        AuthorizeRtaTxResponse resp = input.get<AuthorizeRtaTxResponse>();
         if (resp.status == "OK") { // positive reply
             output.load(resp);
             return Status::Ok;
@@ -60,9 +60,9 @@ Status txToSignHandler(const Router::vars_t& vars, const graft::Input& input,
     }
 }
 
-void registerTxToSignRequest(graft::Router &router)
+void registerAuthorizeRtaTxRequest(graft::Router &router)
 {
-    Router::Handler3 h3(nullptr, txToSignHandler, nullptr);
+    Router::Handler3 h3(nullptr, authorizeRtaTxHandler, nullptr);
     const char * path = "/dapi/2.0/authorize_rta_tx";
     router.addRoute(path, METHOD_POST, h3);
     LOG_PRINT_L2("route " << path << " registered");

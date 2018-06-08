@@ -11,7 +11,7 @@
 
 #include "sendrawtxrequest.h"
 #include "cryptonodecallbackrequest.h"
-#include "txtosignrequest.h"
+#include "authorizertatxrequest.h"
 
 
 namespace graft {
@@ -27,7 +27,7 @@ void registerRTARequests(graft::Router &router)
     graft::registerPayRequest(router);
     graft::registerPayStatusRequest(router);
     graft::registerRejectPayRequest(router);
-    graft::registerTxToSignRequest(router);
+    graft::registerAuthorizeRtaTxRequest(router);
     graft::registerCryptonodeCallbacksRequest(router);
 
 }
