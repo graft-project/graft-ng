@@ -7,6 +7,7 @@
 #include "thread_pool.h"
 #include "inout.h"
 #include "context.h"
+#include "timer.h"
 
 #include "CMakeConfig.h"
 
@@ -14,14 +15,14 @@ namespace graft {
 
 class Manager;
 
-class ClientRequest;
-using ClientRequest_ptr = std::shared_ptr<ClientRequest>;
+class BaseTask;
+using BaseTask_ptr = std::shared_ptr<BaseTask>;
 
 class CryptoNodeSender;
 
 class GJ_ptr;
 using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
-using GJ = GraftJob<ClientRequest_ptr, TPResQueue, Manager>;
+using GJ = GraftJob<BaseTask_ptr, TPResQueue, Manager>;
 
 //////////////
 /// \brief The GJ_ptr class
@@ -79,10 +80,11 @@ struct ServerOpts
     std::string http_address;
     std::string coap_address;
     double http_connection_timeout;
-    double cryptonode_request_timeout;
+    double upstream_request_timeout;
     int workers_count;
     int worker_queue_len;
     std::string cryptonode_rpc_address;
+    int timer_poll_interval_ms;
 };
 
 class Manager
@@ -101,13 +103,15 @@ public:
 
     void doWork(uint64_t cnt);
 
-    void sendCrypton(ClientRequest_ptr cr);
-    void sendToThreadPool(ClientRequest_ptr cr);
+    void sendCrypton(BaseTask_ptr cr);
+    void sendToThreadPool(BaseTask_ptr cr);
 
     void addRouter(Router& r) { m_root.addRouter(r); }
 
     bool enableRouting() { return m_root.arm(); }
     bool matchRoute(const std::string& target, int method, Router::JobParams& params) { return m_root.match(target, method, params); }
+
+    void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
 
     ////getters
     mg_mgr* get_mg_mgr() { return &m_mgr; }
@@ -115,6 +119,7 @@ public:
     TPResQueue& get_resQueue() { return *m_resQueue.get(); }
     GlobalContextMap& get_gcm() { return m_gcm; }
     const ServerOpts& get_c_opts() const { return m_sopts; }
+    TimerList<BaseTask_ptr>& get_timerList() { return m_timerList; }
 
     ////static functions
     static void cb_event(mg_mgr* mgr, uint64_t cnt);
@@ -124,8 +129,8 @@ public:
     static Manager* from(mg_connection* cn);
 
     ////events
-    void onNewClient(ClientRequest_ptr cr);
-    void onClientDone(ClientRequest_ptr cr);
+    void onNewClient(BaseTask_ptr cr);
+    void onClientDone(BaseTask_ptr cr);
 
     void onJobDone();
     void onJobDone(GJ& gj);
@@ -145,8 +150,8 @@ private:
     Router::Root m_root;
     GlobalContextMap m_gcm;
 
-    uint64_t m_cntClientRequest = 0;
-    uint64_t m_cntClientRequestDone = 0;
+    uint64_t m_cntBaseTask = 0;
+    uint64_t m_cntBaseTaskDone = 0;
     uint64_t m_cntCryptoNodeSender = 0;
     uint64_t m_cntCryptoNodeSenderDone = 0;
     uint64_t m_cntJobSent = 0;
@@ -157,6 +162,7 @@ private:
     std::unique_ptr<TPResQueue> m_resQueue;
 
     ServerOpts m_sopts;
+    TimerList<BaseTask_ptr> m_timerList;
 public:
     std::atomic_bool m_exit {false};
 };
@@ -190,10 +196,10 @@ public:
 public:
     Ptr get_itself() { return m_itself; }
 
-    template<typename ...ARGS>
+    template<typename T=C, typename ...ARGS>
     static const Ptr Create(ARGS&&... args)
     {
-        return (new C(std::forward<ARGS>(args)...))->m_itself;
+        return (new T(std::forward<ARGS>(args)...))->m_itself;
     }
     void releaseItself() { m_itself.reset(); }
 protected:
@@ -207,9 +213,9 @@ class CryptoNodeSender : public ItselfHolder<CryptoNodeSender>, StaticMongooseHa
 public:
     CryptoNodeSender() = default;
 
-    ClientRequest_ptr& get_cr() { return m_cr; }
+    BaseTask_ptr& get_cr() { return m_cr; }
 
-    void send(Manager& manager, ClientRequest_ptr cr);
+    void send(Manager& manager, BaseTask_ptr cr);
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
 private:
@@ -222,30 +228,33 @@ private:
     }
 private:
     mg_connection *m_crypton = nullptr;
-    ClientRequest_ptr m_cr;
+    BaseTask_ptr m_cr;
     Status m_status = Status::None;
     std::string m_error;
 };
 
-class ClientRequest : public ItselfHolder<ClientRequest>, public StaticMongooseHandler<ClientRequest>
+class BaseTask : public ItselfHolder<BaseTask>
 {
-private:
-    friend class ItselfHolder<ClientRequest>;
-    ClientRequest(mg_connection *client, Router::JobParams& prms, GlobalContextMap& gcm)
-        : m_prms(prms)
-        , m_client(client)
-        , m_ctx(gcm)
+protected:
+    friend class ItselfHolder<BaseTask>;
+    BaseTask(Manager& manager, const Router::JobParams& prms)
+        : m_manager(manager)
+        , m_prms(prms)
+        , m_ctx(manager.get_gcm())
     {
     }
 public:
-    void createJob(Manager& manager);
+    virtual ~BaseTask() { }
 
+    virtual void onEvent() { }
+
+    void createJob();
+public:
     void onJobDone(GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
-
     void onCryptonDone(CryptoNodeSender& cns);
-    void onTooBusy();
-private:
-    void respondToClientAndDie(const std::string& s);
+    void onTooBusy(); //called on the thread pool overflow
+protected:
+    virtual void respondAndDie(const std::string& s) = 0;
     void processResult();
     void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
     Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
@@ -257,13 +266,50 @@ public:
     const Router::Handler3& get_h3() const { return m_prms.h3; }
     Context& get_ctx() { return m_ctx; }
 private:
+    friend class StaticMongooseHandler<BaseTask>;
+protected:
+    Manager& m_manager;
+    Router::JobParams m_prms;
+    Output m_output;
+    Context m_ctx;
+};
+
+class PeriodicTask : public BaseTask
+{
+private:
+    friend class ItselfHolder<BaseTask>;
+    PeriodicTask(Manager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
+        : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
+        , m_timeout_ms(timeout_ms)
+    {
+        start();
+    }
+public:
+    virtual void onEvent() override;
+private:
+    virtual void respondAndDie(const std::string& s) override;
+
+    void start();
+private:
+    std::chrono::milliseconds m_timeout_ms;
+};
+
+class ClientRequest : public BaseTask, public StaticMongooseHandler<ClientRequest>
+{
+private:
+    friend class ItselfHolder<BaseTask>;
+    ClientRequest(mg_connection *client, Router::JobParams& prms)
+        : BaseTask(*Manager::from(client), prms)
+        , m_client(client)
+    {
+    }
+private:
+    virtual void respondAndDie(const std::string& s) override;
+private:
     friend class StaticMongooseHandler<ClientRequest>;
     void ev_handler(mg_connection *client, int ev, void *ev_data);
 private:
-    Router::JobParams m_prms;
-    Output m_output;
     mg_connection *m_client;
-    Context m_ctx;
 };
 
 class GraftServer final

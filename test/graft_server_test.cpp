@@ -499,10 +499,11 @@ private:
         sopts.http_address = "127.0.0.1:9084";
         sopts.coap_address = "127.0.0.1:9086";
         sopts.http_connection_timeout = .001;
-        sopts.cryptonode_request_timeout = .001;
+        sopts.upstream_request_timeout = .005;
         sopts.workers_count = 0;
         sopts.worker_queue_len = 0;
         sopts.cryptonode_rpc_address = "127.0.0.1:1234";
+        sopts.timer_poll_interval_ms = 50;
 
         graft::Manager manager(sopts);
         pmanager = &manager;
@@ -814,10 +815,55 @@ TEST_F(GraftServerTest, cryptonTimeout)
     EXPECT_EQ(client.get_resp_code(), 500);
     EXPECT_EQ(client.get_body(), "");
     auto int_us = std::chrono::duration_cast<std::chrono::microseconds>(end - begin);
-    EXPECT_LT(int_us.count(), 5000); //less than 5 ms
+    EXPECT_LT(int_us.count(), 10000); //less than 10 ms
     while(!crypton_ready)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
+
+TEST_F(GraftServerTest, timerEvents)
+{
+    constexpr int ms_all = 5000, ms_step = 100, N = 5;
+    int cntrs_all[N]; for(int& v:cntrs_all){ v = 0; }
+    int cntrs[N]; for(int& v:cntrs){ v = 0; }
+    auto finish = std::chrono::steady_clock::now()+std::chrono::milliseconds(ms_all);
+    auto make_timer = [=,&cntrs_all,&cntrs](int i, int ms)
+    {
+        auto action = [=,&cntrs_all,&cntrs](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+        {
+            ++cntrs_all[i];
+            if(ctx.local.getLastStatus() == graft::Status::Forward)
+                return graft::Status::Ok;
+            EXPECT_TRUE(cntrs[i]==0 && ctx.local.getLastStatus() == graft::Status::None
+                        || ctx.local.getLastStatus() == graft::Status::Ok);
+            if(finish < std::chrono::steady_clock::now()) return graft::Status::Stop;
+            ++cntrs[i];
+            Sstr ss; ss.s = std::to_string(cntrs[i]) + " " + std::to_string(cntrs[i]);
+            output.load(ss);
+            return graft::Status::Forward;
+        };
+
+        pmanager->addPeriodicTask(
+                    graft::Router::Handler3(nullptr, action, nullptr),
+                    std::chrono::milliseconds(ms)
+                    );
+    };
+
+    for(int i=0; i<N; ++i)
+    {
+        make_timer(i, (i+1)*ms_step);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(int(ms_all*1.1)));
+
+    for(int i=0; i<N; ++i)
+    {
+        int n = ms_all/((i+1)*ms_step);
+        n -= (pmanager->get_c_opts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
+        EXPECT_LE(n-2, cntrs[i]);
+        EXPECT_LE(cntrs[i], n+1);
+        EXPECT_EQ(cntrs_all[i]-1, 2*cntrs[i]);
     }
 }
 
