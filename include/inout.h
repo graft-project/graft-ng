@@ -181,6 +181,11 @@ namespace graft
             return body;
         }
     public:
+        /*!
+         * \brief makeUri - please document what it does
+         * \param default_uri
+         * \return
+         */
         std::string makeUri(const std::string& default_uri) const;
     public:
         std::string host;

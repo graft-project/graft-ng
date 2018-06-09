@@ -36,7 +36,8 @@
 #include <requests.h>
 #include <requests/getinforequest.h>
 #include <requests/sendrawtxrequest.h>
-
+#include <requests/authorizertatxrequest.h>
+#include <requests/sendtxauthresponserequest.h>
 
 
 // cryptonode includes
@@ -69,12 +70,16 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L1("L1");
         LOG_PRINT_L2("L2");
 
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 4, 4, "localhost:28281/sendrawtransaction"};
+        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 4, 4, "http://localhost:28281", 500};
         manager = std::unique_ptr<Manager>(new Manager(sopts));
 
         Router router;
+
         graft::registerGetInfoRequest(router);
         graft::registerSendRawTxRequest(router);
+        graft::registerSendTxAuthResponseRequest(router);
+        graft::registerAuthorizeRtaTxRequest(router);
+
         manager->addRouter(router);
         manager->enableRouting();
         server = std::unique_ptr<GraftServer>(new GraftServer);
@@ -170,6 +175,8 @@ TEST_F(CryptonodeHandlersTest, getinfo)
 
     std::string response_s = send_request("http://localhost:8855/cryptonode/getinfo");
     EXPECT_FALSE(response_s.empty());
+    server_thread.join();
+    return;
 
     LOG_PRINT_L2("response: " << response_s);
     Input in; in.load(response_s);
