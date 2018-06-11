@@ -324,7 +324,7 @@ TEST(Context, multithreaded)
     std::atomic<uint64_t> g_count(0);
     std::function<bool(uint64_t&)> f = [](uint64_t& v)->bool { ++v; return true; };
     int pass_cnt;
-    {//get pass count so that overall will take about 100 ms
+    {//get pass count so that overall will take about 1000 ms
         graft::Context ctx(m);
         auto begin = std::chrono::high_resolution_clock::now();
         std::for_each(v_keys.begin(), v_keys.end(), [&] (auto& key)
@@ -333,12 +333,14 @@ TEST(Context, multithreaded)
             ++g_count;
         });
         auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::high_resolution_clock::duration d = std::chrono::milliseconds(100);
+        std::chrono::high_resolution_clock::duration d = std::chrono::milliseconds(1000);
         pass_cnt = d.count() / (end - begin).count();
     }
 
+    EXPECT_LE(2, pass_cnt);
+
     //forward and backward passes
-    bool stop = false;
+    std::atomic_int stop(0);
 
     auto f_f = [&] ()
     {
@@ -353,7 +355,7 @@ TEST(Context, multithreaded)
                 cnt = ++g_count;
             });
         }
-        stop = true;
+        ++stop;
     };
     auto f_b = [&] ()
     {
@@ -368,14 +370,14 @@ TEST(Context, multithreaded)
                 cnt = ++g_count;
             });
         }
-        stop = true;
+        ++stop;
     };
 
     std::thread tf(f_f);
     std::thread tb(f_b);
 
     int main_count = 0;
-    while( !stop )
+    while( stop < 2)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         ++g_count;

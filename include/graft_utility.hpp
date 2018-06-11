@@ -96,17 +96,15 @@ namespace graft
             current->next = std::move(new_node);
         }
 
-        void update_time_next(node *current)
+        void update_time_next_unlock(node *current, std::unique_lock<std::mutex>& lk)
         {
-            std::unique_lock<std::mutex> lk(current->m);
-
             node* const next = current->next.get();
             std::unique_ptr<node> n = std::move(current->next);
             current->next = std::move(next->next);
+            lk.unlock();
 
             n->update_time();
-	    lk.unlock();
-	    insert(n);
+            insert(n);
         }
 
     public:
@@ -149,9 +147,9 @@ namespace graft
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
-                lk.unlock();
 
-                if (timeUpdate) update_time_next(current);
+                if (timeUpdate) update_time_next_unlock(current, lk);
+                else lk.unlock();
 
                 f(*next->data);
                 current = next;
@@ -169,14 +167,14 @@ namespace graft
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
-                lk.unlock();
-
                 if (p(*next->data))
                 {
-                    update_time_next(current);
+                    update_time_next_unlock(current, lk);
                     return next->data;
                 }
+                else lk.unlock();
                 current = next;
+
                 lk = std::move(next_lk);
             }
             return std::shared_ptr<T>();
@@ -192,13 +190,13 @@ namespace graft
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
-                lk.unlock();
 
                 if (p(*next->data))
                 {
-                    update_time_next(current);
+                    update_time_next_unlock(current, lk);
                     return f(*next->data);
                 }
+                else lk.unlock();
                 current = next;
                 lk = std::move(next_lk);
             }
@@ -223,8 +221,7 @@ namespace graft
                 }
                 else
                 {
-                    lk.unlock();
-                    update_time_next(current);
+                    update_time_next_unlock(current, lk);
                     current = next;
                     lk = std::move(next_lk);
                 }
