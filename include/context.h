@@ -173,7 +173,7 @@ struct Context
          * \brief getServerOptions - exposes server's options
          * \return
          */
-        const ServerOpts *getServerOptions() const { return m_serverOpts; }
+        const ServerOpts *getConfig() const { return m_serverOpts; }
 
         template<typename T>
         T operator[](const std::string& key) const
