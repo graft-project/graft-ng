@@ -179,6 +179,24 @@ TEST(InOut, makeUri)
         std::string url = output.makeUri("");
         EXPECT_EQ(url, "https://mysite.com:4321/endpoint?q=1&n=2");
     }
+    {
+        graft::Output output;
+        std::string default_uri = "localhost:28881";
+        output.path = "json_rpc";
+        std::string url = output.makeUri(default_uri);
+        EXPECT_EQ(url, "localhost:28881/json_rpc");
+
+        output.path = "/json_rpc";
+        output.proto = "https";
+        url = output.makeUri(default_uri);
+        EXPECT_EQ(url, "https://localhost:28881/json_rpc");
+
+        output.path = "/json_rpc";
+        output.proto = "https";
+        output.uri = "http://aaa.bbb:12345/something";
+        url = output.makeUri(default_uri);
+        EXPECT_EQ(url, "https://aaa.bbb:12345/json_rpc");
+    }
 }
 
 TEST(Context, simple)
@@ -390,9 +408,9 @@ public:
     static graft::Router::Handler3 h3_test;
     static std::thread t_CN;
     static std::thread t_srv;
-    static bool run_server_ready;
     static bool crypton_ready;
     static graft::Manager* pmanager;
+    static std::atomic<graft::GraftServer*> pserver;
 
     const std::string uri_base = "http://localhost:9084/root/";
     const std::string dapi_url = "http://localhost:9084/dapi";
@@ -513,6 +531,7 @@ private:
         EXPECT_EQ(res, true);
 
         graft::GraftServer gs;
+        pserver = &gs;
         gs.serve(manager.get_mg_mgr());
     }
 
@@ -732,7 +751,7 @@ protected:
         t_CN = std::thread([]{ TempCryptoNodeServer::run(); });
         t_srv = std::thread([]{ run_server(); });
 
-        while(!TempCryptoNodeServer::ready || !graft::GraftServer::ready)
+        while(!TempCryptoNodeServer::ready || !pserver || !pserver.load()->ready())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
@@ -763,9 +782,9 @@ std::deque<graft::Status> GraftServerTest::res_que_action;
 graft::Router::Handler3 GraftServerTest::h3_test;
 std::thread GraftServerTest::t_CN;
 std::thread GraftServerTest::t_srv;
-bool GraftServerTest::run_server_ready = false;
 bool GraftServerTest::crypton_ready = false;
 graft::Manager* GraftServerTest::pmanager = nullptr;
+std::atomic<graft::GraftServer*> GraftServerTest::pserver(nullptr);
 
 bool GraftServerTest::TempCryptoNodeServer::ready = false;
 bool GraftServerTest::TempCryptoNodeServer::stop = false;

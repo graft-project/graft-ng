@@ -6,11 +6,6 @@
 
 namespace graft {
 
-#ifdef OPT_BUILD_TESTS
-std::atomic_bool GraftServer::ready;
-#endif
-
-
 void Manager::sendCrypton(BaseTask_ptr cr)
 {
     ++m_cntCryptoNodeSender;
@@ -450,9 +445,8 @@ void GraftServer::serve(mg_mgr *mgr)
     mg_set_protocol_http_websocket(nc_http);
     mg_set_protocol_coap(nc_coap);
 
-#ifdef OPT_BUILD_TESTS
-    ready = true;
-#endif
+    m_ready = true;
+
     for (;;)
     {
         mg_mgr_poll(mgr, opts.timer_poll_interval_ms);

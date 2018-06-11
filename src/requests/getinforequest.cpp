@@ -58,8 +58,9 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
         JsonRpcRequestHeader req;
         req.method = "get_info";
         output.load(req);
-        output.uri = "/json_rpc";
-        LOG_PRINT_L2("makeUri: " << output.makeUri(""));
+        output.path = "/json_rpc";
+        // alternatively, it could be done like this:
+        // output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc";
         ctx.local[__FUNCTION__] = true;
         return Status::Forward;
     } else {

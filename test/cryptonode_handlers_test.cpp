@@ -71,6 +71,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L2("L2");
 
         ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 4, 4, "http://localhost:28281", 500};
+
         manager = std::unique_ptr<Manager>(new Manager(sopts));
 
         Router router;
@@ -90,7 +91,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
         LOG_PRINT_L0("Server thread started..");
 
-        while (!server->ready) {
+        while (!server->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }

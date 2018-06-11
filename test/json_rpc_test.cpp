@@ -161,7 +161,7 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 256, 256};
+        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
@@ -186,7 +186,7 @@ struct JsonRpcTest : public ::testing::Test
             this->startServer();
         });
         LOG_PRINT_L0("Server thread started..");
-        while (!server.ready) {
+        while (!server.ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }

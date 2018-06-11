@@ -190,6 +190,7 @@ namespace graft
     public:
         std::string host;
         std::string port;
+        std::string path;
         static std::unordered_map<std::string, std::string> uri_substitutions;
     };
 
