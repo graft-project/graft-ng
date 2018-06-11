@@ -179,6 +179,24 @@ TEST(InOut, makeUri)
         std::string url = output.makeUri("");
         EXPECT_EQ(url, "https://mysite.com:4321/endpoint?q=1&n=2");
     }
+    {
+        graft::Output output;
+        std::string default_uri = "localhost:28881";
+        output.path = "json_rpc";
+        std::string url = output.makeUri(default_uri);
+        EXPECT_EQ(url, "localhost:28881/json_rpc");
+
+        output.path = "/json_rpc";
+        output.proto = "https";
+        url = output.makeUri(default_uri);
+        EXPECT_EQ(url, "https://localhost:28881/json_rpc");
+
+        output.path = "/json_rpc";
+        output.proto = "https";
+        output.uri = "http://aaa.bbb:12345/something";
+        url = output.makeUri(default_uri);
+        EXPECT_EQ(url, "https://aaa.bbb:12345/json_rpc");
+    }
 }
 
 TEST(Context, simple)

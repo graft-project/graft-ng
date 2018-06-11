@@ -90,6 +90,7 @@ std::string OutHttp::makeUri(const std::string& default_uri) const
     if(!proto.empty()) scheme_ = proto;
     if(!host.empty()) host_ = host;
     if(!port.empty()) port_ = port;
+    if(!path.empty()) path_ = path;
 
     std::string url;
     if(!scheme_.empty())
