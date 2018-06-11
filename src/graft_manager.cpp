@@ -356,7 +356,7 @@ void BaseTask::processResult()
     }
 }
 
-void BaseTask::onCryptonDone(CryptoNodeSender &cns)
+    void BaseTask::onCryptonDone(CryptoNodeSender &cns)
 {
     if(Status::Ok != cns.getStatus())
     {

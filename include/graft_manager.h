@@ -8,6 +8,7 @@
 #include "inout.h"
 #include "context.h"
 #include "timer.h"
+#include "serveropts.h"
 
 #include "CMakeConfig.h"
 
@@ -75,17 +76,7 @@ using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJ_ptr)>
 
 ///////////////////////////////////
 
-struct ServerOpts
-{
-    std::string http_address;
-    std::string coap_address;
-    double http_connection_timeout;
-    double upstream_request_timeout;
-    int workers_count;
-    int worker_queue_len;
-    std::string cryptonode_rpc_address;
-    int timer_poll_interval_ms;
-};
+
 
 class Manager
 {
@@ -240,7 +231,7 @@ protected:
     BaseTask(Manager& manager, const Router::JobParams& prms)
         : m_manager(manager)
         , m_prms(prms)
-        , m_ctx(manager.get_gcm())
+        , m_ctx(manager.get_gcm(), &manager.get_c_opts())
     {
     }
 public:

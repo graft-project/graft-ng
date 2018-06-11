@@ -13,6 +13,7 @@
 
 #include "graft_utility.hpp"
 #include "graft_constants.h"
+#include "serveropts.h"
 
 namespace graft
 {
@@ -103,6 +104,9 @@ struct Context
         {
             return m_error;
         }
+
+
+
     protected:
         Status m_last_status = Status::None;
         std::string m_error;
@@ -123,6 +127,12 @@ struct Context
     {
     private:
         GlobalContextMap& m_map;
+        const graft::ServerOpts *m_serverOpts = nullptr;
+
+        Global(GlobalContextMap& map, const ServerOpts * opts)
+            : m_map(map), m_serverOpts(opts) {}
+
+        friend class Context;
 
         class Proxy
         {
@@ -150,13 +160,20 @@ struct Context
         private:
             GlobalContextMap& m_map;
             const std::string& m_key;
+
         };
 
     public:
-        Global(GlobalContextMap& map) : m_map(map) {}
+
         ~Global() = default;
         Global(const Global&) = delete;
         Global(Global&&) = delete;
+
+        /*!
+         * \brief getServerOptions - exposes server's options
+         * \return
+         */
+        const ServerOpts *getServerOptions() const { return m_serverOpts; }
 
         template<typename T>
         T operator[](const std::string& key) const
@@ -208,7 +225,7 @@ struct Context
         }
     };
 
-    Context(GlobalContextMap& map) : global(map) {}
+    Context(GlobalContextMap& map, const ServerOpts *sopts = nullptr) : global(map, sopts) {}
 
     Local local;
     Global global;
