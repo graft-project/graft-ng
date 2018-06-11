@@ -390,9 +390,9 @@ public:
     static graft::Router::Handler3 h3_test;
     static std::thread t_CN;
     static std::thread t_srv;
-    static bool run_server_ready;
     static bool crypton_ready;
     static graft::Manager* pmanager;
+    static std::atomic<graft::GraftServer*> pserver;
 
     const std::string uri_base = "http://localhost:9084/root/";
     const std::string dapi_url = "http://localhost:9084/dapi";
@@ -513,6 +513,7 @@ private:
         EXPECT_EQ(res, true);
 
         graft::GraftServer gs;
+        pserver = &gs;
         gs.serve(manager.get_mg_mgr());
     }
 
@@ -732,7 +733,7 @@ protected:
         t_CN = std::thread([]{ TempCryptoNodeServer::run(); });
         t_srv = std::thread([]{ run_server(); });
 
-        while(!TempCryptoNodeServer::ready || !graft::GraftServer::ready)
+        while(!TempCryptoNodeServer::ready || !pserver || !pserver.load()->ready())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
@@ -763,9 +764,9 @@ std::deque<graft::Status> GraftServerTest::res_que_action;
 graft::Router::Handler3 GraftServerTest::h3_test;
 std::thread GraftServerTest::t_CN;
 std::thread GraftServerTest::t_srv;
-bool GraftServerTest::run_server_ready = false;
 bool GraftServerTest::crypton_ready = false;
 graft::Manager* GraftServerTest::pmanager = nullptr;
+std::atomic<graft::GraftServer*> GraftServerTest::pserver(nullptr);
 
 bool GraftServerTest::TempCryptoNodeServer::ready = false;
 bool GraftServerTest::TempCryptoNodeServer::stop = false;

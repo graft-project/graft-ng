@@ -216,6 +216,7 @@ if (OPT_BUILD_TESTS)
             ${GT_LIBS}
             ${GS_LIBS}
             ${Boost_LIBRARIES}
+            ${CMAKE_THREAD_LIBS_INIT}
             )
 
 
