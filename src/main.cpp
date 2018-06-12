@@ -1,7 +1,6 @@
 #include "graft_manager.h"
 #include "requests.h"
 
-#include <misc_log_ex.h>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 // #include <boost/tokenizer.hpp>
@@ -15,20 +14,46 @@ namespace graft {
   void setHttpRouters(Manager& m);
 }
 
+void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
+{
+    int log_level = 3;
+    bool log_console = true;
+    std::string log_filename;
+
+    //from config
+    const boost::property_tree::ptree& log_conf = config.get_child("logging");
+    boost::optional<int> level  = log_conf.get_optional<int>("loglevel");
+    if(level) log_level = level.get();
+    boost::optional<std::string> log_file  = log_conf.get_optional<string>("logfile");
+    if(log_file) log_filename = log_file.get();
+    boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
+    if(log_to_console) log_console = log_to_console.get();
+
+    //override from cmdline
+    if (vm.count("log-level")) log_level = vm["log-level"].as<int>();
+    if (vm.count("log-file")) log_filename = vm["log-file"].as<string>();
+    if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
+
+    mlog_configure(log_filename, log_console);
+    mlog_set_log_level(log_level);
+}
+
+
 int main(int argc, const char** argv)
 {
-    int log_level = 1;
     string config_filename;
 
+    po::variables_map vm;
 
     try {
         po::options_description desc("Allowed options");
         desc.add_options()
                 ("help", "produce help message")
                 ("config-file", po::value<string>(), "config filename (config.ini by default)")
-                ("log-level", po::value<int>(), "log-level. (3 by default)");
+                ("log-level", po::value<int>(), "log-level. (3 by default)")
+                ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
+                ("log-file", po::value<string>(), "log file");
 
-        po::variables_map vm;
         po::store(po::parse_command_line(argc, argv, desc), vm);
         po::notify(vm);
 
@@ -40,9 +65,7 @@ int main(int argc, const char** argv)
         if (vm.count("config-file")) {
             config_filename = vm["config-file"].as<string>();
         }
-        if (vm.count("log-level")) {
-            log_level = vm["log-level"].as<int>();
-        }
+
     }
     catch(exception& e) {
         cerr << "error: " << e.what() << "\n";
@@ -51,8 +74,7 @@ int main(int argc, const char** argv)
     catch(...) {
         cerr << "Exception of unknown type!\n";
     }
-    mlog_configure("", true);
-    mlog_set_log_level(log_level);
+
     // load config
     boost::property_tree::ptree config;
     namespace fs = boost::filesystem;
@@ -60,9 +82,8 @@ int main(int argc, const char** argv)
     if (config_filename.empty()) {
         fs::path selfpath = argv[0];
         selfpath = selfpath.remove_filename();
-        config_filename  = (selfpath /= "config.ini").string();
+        config_filename  = (selfpath / "config.ini").string();
     }
-
 
     try {
         boost::property_tree::ini_parser::read_ini(config_filename, config);
@@ -77,6 +98,8 @@ int main(int argc, const char** argv)
         // [upstream]
         //  uri_name=uri_value #pairs for uri substitution
         //
+
+        init_log(config, vm);
 
         graft::ServerOpts sopts;
 

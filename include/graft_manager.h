@@ -8,8 +8,24 @@
 #include "inout.h"
 #include "context.h"
 #include "timer.h"
+#include <misc_log_ex.h>
 
 #include "CMakeConfig.h"
+
+#define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << inet_ntoa(client->sa.sin.sin_addr) << ":" << ntohs(client->sa.sin.sin_port) << "]" << x)
+
+#define LOG_PRINT_RQS(level,x) \
+{ \
+    ClientRequest* cr = dynamic_cast<ClientRequest*>(get_itself().get()); \
+    if(cr) \
+    { \
+        LOG_PRINT_CLN(level,cr->get_client(),x); \
+    } \
+    else \
+    { \
+        LOG_PRINT_L##level(x); \
+    } \
+}
 
 namespace graft {
 
@@ -265,6 +281,7 @@ public:
     Output& get_output() { return m_output; }
     const Router::Handler3& get_h3() const { return m_prms.h3; }
     Context& get_ctx() { return m_ctx; }
+    const char* getStrStatus();
 private:
     friend class StaticMongooseHandler<BaseTask>;
 protected:
@@ -308,6 +325,8 @@ private:
 private:
     friend class StaticMongooseHandler<ClientRequest>;
     void ev_handler(mg_connection *client, int ev, void *ev_data);
+public:
+    const mg_connection* get_client() const { return m_client; }
 private:
     mg_connection *m_client;
 };
