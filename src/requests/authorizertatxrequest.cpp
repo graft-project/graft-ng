@@ -29,38 +29,54 @@
 #include "authorizertatxrequest.h"
 #include "requestdefines.h"
 #include <misc_log_ex.h>
+#include <random>
+#include <functional>
+
+namespace {
+
+bool randomBool() {
+    static auto gen = std::bind(std::uniform_int_distribution<>(0,1),std::default_random_engine());
+    return gen();
+}
+}
+
 
 namespace graft {
 
-static const char * PATH = "/dapi/2.0/authorize_rta_tx";
+static const char * PATH = "/authorize_rta_tx"; // root router already has prefix "/dapi/v2.0" so we don't need a prefix here
 
 
 Status authorizeRtaTxHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
     // call from client
-    if (!ctx.local.hasKey(__FUNCTION__)) {
-        LOG_PRINT_L2("call from client, forwarding to cryptonode...");
-        // just forward input to cryptonode
-        AuthorizeRtaTxRequest req = input.get<AuthorizeRtaTxRequest>();
-        output.load(req);
-        ctx.local[__FUNCTION__] = true;
-        return Status::Forward;
-    } else {
-        // response from cryptonode
-        LOG_PRINT_L2("response from cryptonode : " << input.data());
-        AuthorizeRtaTxResponse resp = input.get<AuthorizeRtaTxResponse>();
-        if (resp.status == "OK") { // positive reply
-            output.load(resp);
-            return Status::Ok;
-        } else {
-            ErrorResponse ret;
-            ret.code = ERROR_INTERNAL_ERROR;
-            // ret.message = resp.reason;
-            output.load(ret);
-            return Status::Error;
-        }
+    LOG_PRINT_L2("authorize rta tx");
+    AuthorizeRtaTxRequest req;
+    bool parsed = input.get<AuthorizeRtaTxRequest>(req);
+
+    AuthorizeRtaTxResponse resp;
+
+    if (!parsed) {
+        resp.Status = ERROR_INVALID_REQUEST;
+        output.load(resp);
+        return Status::Error;
     }
+
+    resp.tx_id = req.tx_info.id;
+    resp.supernode_addr = req.supernode_addr;
+
+    if (randomBool()) {
+        // return "signed"
+        resp.Status = STATUS_OK;
+        resp.signature = "1234567890";
+    } else {
+        // return "failed"
+        resp.Status = ERROR_RTA_FAILED;
+        resp.message  = "Failed to validate tx";
+    }
+
+    output.load(resp);
+    return Status::Ok;
 }
 
 void registerAuthorizeRtaTxRequest(graft::Router &router)

@@ -17,7 +17,8 @@ GRAFT_DEFINE_IO_STRUCT_INITED(TransactionInfo,
                               (uint64_t, amount, 0),
                               (uint64_t, fee, 0),
                               (std::string, dest_address, ""),
-                              (std::string, id, "")
+                              (std::string, id, ""),
+                              (std::string, tx_blob, "")
                               );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SendRawTxRequest,
