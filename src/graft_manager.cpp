@@ -469,6 +469,9 @@ int GraftServer::translateMethod(const char *method, std::size_t len)
 
 int GraftServer::translateMethod(int i)
 {
+    constexpr int size = sizeof(m_methods)/sizeof(m_methods[0]);
+    assert(i<size);
+    //looks like it is problem here
     return m_methods[i].second;
 }
 
@@ -564,6 +567,7 @@ void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
             }
         }
 
+        //not clear
         int method = translateMethod(cm->code_detail - 1);
 
         Router::JobParams prms;

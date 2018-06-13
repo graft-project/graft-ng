@@ -7,6 +7,7 @@
 #include <utility>
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 
 #include "r3.h"
 #include "inout.h"
@@ -78,7 +79,7 @@ public:
             if (err != 0)
                 std::cout << "error: " << std::string(errstr) << std::endl;
 
-            return (err == 0);
+            return m_compiled = (err == 0);
         }
 
         bool match(const std::string& target, int method, JobParams& params)
@@ -104,11 +105,53 @@ public:
             return ret;
         }
 
-        void addRouter(RouterT<In, Out>& r) { m_routers.push_front(std::move(r)); }
+        void addRouter(RouterT& r) { m_routers.push_front(std::move(r)); }
+
+    public:
+        std::string dbgDumpRouters() const
+        {
+            std::string res;
+            int idx = 0;
+            for(const RouterT& r : m_routers)
+            {
+                std::ostringstream ss;
+                ss << "router[" << idx++ << "]->" << std::endl;
+                res += ss.str();
+                res += r.dbgDumpRouter("\t");
+            }
+            return res;
+        }
+
+        void dbgDumpR3Tree(int level = 0) const
+        {
+            assert(m_compiled);
+            r3_tree_dump(m_node, level);
+        }
+
+        std::string dbgCheckConflictRoutes() const
+        {
+            //route -> method bits
+            std::map<std::string,int> map;
+            for(const RouterT& r : m_routers)
+            {
+                for(const Route& rr : r.m_routes)
+                {
+                    auto it = map.find(rr.endpoint);
+                    if(it == map.end())
+                    {
+                        map[rr.endpoint] = rr.methods;
+                        continue;
+                    }
+                    if(it->second & rr.methods) return rr.endpoint;
+                    it->second &= rr.methods;
+                }
+            }
+        }
 
     private:
+        bool m_compiled = false;
         R3Node *m_node;
-        std::forward_list<RouterT<In, Out>> m_routers;
+        std::forward_list<RouterT> m_routers;
     };
 
     RouterT(const std::string& prefix = std::string()) : m_endpointPrefix(prefix) { }
@@ -130,6 +173,35 @@ public:
         m_routes.push_front({m_endpointPrefix + endpoint, methods, std::move(ph3)});
     }
 
+public:
+    std::string dbgDumpRouter(const std::string prefix = "") const
+    {
+        constexpr const char* methpow[] = {"", "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"};
+        std::ostringstream ss;
+        for(const Route& r : m_routes)
+        {
+            assert((r.methods&0xFE)==r.methods);
+            std::string sm;
+            for(unsigned int b=1, idx=0; idx<8; b<<=1, ++idx)
+            {
+                if(!(r.methods&b)) continue;
+                if(!sm.empty()) sm += '|';
+                sm += methpow[idx];
+            }
+            auto ptrs = [](auto& ptr)->std::string
+            {
+                if(ptr == nullptr) return "nullptr";
+                std::ostringstream ss;
+                ss << &ptr;
+                return ss.str();
+            };
+            ss << prefix << sm << " " << r.endpoint << " (" <<
+                  ptrs(r.h3.pre_action) << "," <<
+                  ptrs(r.h3.worker_action) << "," <<
+                  ptrs(r.h3.post_action) << ")" << std::endl;
+        }
+        return ss.str();
+    }
 private:
     struct Route
     {
