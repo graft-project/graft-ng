@@ -60,94 +60,14 @@ public:
         Root() { m_node = r3_tree_create(10); }
         ~Root() { r3_tree_free(m_node); }
 
-        bool arm()
-        {
-            std::for_each(m_routers.begin(), m_routers.end(),
-                [this](RouterT<In, Out>& ro)
-                {
-                    std::for_each(ro.m_routes.begin(), ro.m_routes.end(),
-                        [this](Route& r)
-                        {
-                            r3_tree_insert_route(m_node, r.methods, r.endpoint.c_str(), &r);
-                        }
-                    );
-                }
-            );
-            char *errstr = NULL;
-            int err = r3_tree_compile(m_node, &errstr);
-
-            if (err != 0)
-                std::cout << "error: " << std::string(errstr) << std::endl;
-
-            return m_compiled = (err == 0);
-        }
-
-        bool match(const std::string& target, int method, JobParams& params)
-        {
-            bool ret = false;
-
-            match_entry *entry = match_entry_create(target.c_str());
-            entry->request_method = method;
-
-            R3Route *m = r3_tree_match_route(m_node, entry);
-            if (m)
-            {
-                for (size_t i = 0; i < entry->vars.tokens.size; i++)
-                    params.vars.emplace_back(std::make_pair(
-                        std::move(std::string(entry->vars.slugs.entries[i].base, entry->vars.slugs.entries[i].len)),
-                        std::move(std::string(entry->vars.tokens.entries[i].base, entry->vars.tokens.entries[i].len))
-                    ));
-
-                params.h3 = static_cast<Route*>(m->data)->h3;
-                ret = true;
-            }
-            match_entry_free(entry);
-            return ret;
-        }
-
+        bool arm();
+        bool match(const std::string& target, int method, JobParams& params);
         void addRouter(RouterT& r) { m_routers.push_front(std::move(r)); }
 
     public:
-        std::string dbgDumpRouters() const
-        {
-            std::string res;
-            int idx = 0;
-            for(const RouterT& r : m_routers)
-            {
-                std::ostringstream ss;
-                ss << "router[" << idx++ << "]->" << std::endl;
-                res += ss.str();
-                res += r.dbgDumpRouter("\t");
-            }
-            return res;
-        }
-
-        void dbgDumpR3Tree(int level = 0) const
-        {
-            assert(m_compiled);
-            r3_tree_dump(m_node, level);
-        }
-
-        std::string dbgCheckConflictRoutes() const
-        {
-            //route -> method bits
-            std::map<std::string,int> map;
-            for(const RouterT& r : m_routers)
-            {
-                for(const Route& rr : r.m_routes)
-                {
-                    auto it = map.find(rr.endpoint);
-                    if(it == map.end())
-                    {
-                        map[rr.endpoint] = rr.methods;
-                        continue;
-                    }
-                    if(it->second & rr.methods) return rr.endpoint;
-                    it->second &= rr.methods;
-                }
-            }
-        }
-
+        std::string dbgDumpRouters() const;
+        void dbgDumpR3Tree(int level = 0) const;
+        std::string dbgCheckConflictRoutes() const;
     private:
         bool m_compiled = false;
         R3Node *m_node;
@@ -174,34 +94,8 @@ public:
     }
 
 public:
-    std::string dbgDumpRouter(const std::string prefix = "") const
-    {
-        constexpr const char* methpow[] = {"", "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"};
-        std::ostringstream ss;
-        for(const Route& r : m_routes)
-        {
-            assert((r.methods&0xFE)==r.methods);
-            std::string sm;
-            for(unsigned int b=1, idx=0; idx<8; b<<=1, ++idx)
-            {
-                if(!(r.methods&b)) continue;
-                if(!sm.empty()) sm += '|';
-                sm += methpow[idx];
-            }
-            auto ptrs = [](auto& ptr)->std::string
-            {
-                if(ptr == nullptr) return "nullptr";
-                std::ostringstream ss;
-                ss << &ptr;
-                return ss.str();
-            };
-            ss << prefix << sm << " " << r.endpoint << " (" <<
-                  ptrs(r.h3.pre_action) << "," <<
-                  ptrs(r.h3.worker_action) << "," <<
-                  ptrs(r.h3.post_action) << ")" << std::endl;
-        }
-        return ss.str();
-    }
+    std::string dbgDumpRouter(const std::string prefix = "") const;
+
 private:
     struct Route
     {
