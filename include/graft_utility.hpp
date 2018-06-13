@@ -96,12 +96,12 @@ namespace graft
             current->next = std::move(new_node);
         }
 
-        void update_time_next_unlock(node *current, std::unique_lock<std::mutex>& lk)
+        void update_time_next_unlock(node *current, std::unique_lock<std::mutex>& lk_current)
         {
             node* const next = current->next.get();
             std::unique_ptr<node> n = std::move(current->next);
             current->next = std::move(next->next);
-            lk.unlock();
+            lk_current.unlock();
 
             n->update_time();
             insert(n);
