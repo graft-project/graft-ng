@@ -41,7 +41,7 @@ Status payWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
 void registerPayRequest(Router &router)
 {
     Router::Handler3 h3(nullptr, payWorkerHandler, nullptr);
-    router.addRoute("/dapi/pay", METHOD_POST, h3);
+    router.addRoute("/pay", METHOD_POST, h3);
 }
 
 }
