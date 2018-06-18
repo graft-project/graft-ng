@@ -73,6 +73,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 
@@ -80,6 +81,7 @@ set(GS_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/mongoose
     ${PROJECT_SOURCE_DIR}/modules/libr3/include
     ${PROJECT_SOURCE_DIR}/include/requests
+    ${PROJECT_SOURCE_DIR}/include/rta
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_BINARY_DIR}
     )
