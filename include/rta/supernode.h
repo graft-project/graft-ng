@@ -21,10 +21,32 @@ public:
      * \param wallet_path - filename of the existing wallet or new wallet. in case filename doesn't exists, new wallet will be created
      * \param wallet_password  - wallet's password. wallet_path doesn't exists - this password will be used to protect new wallet;
      * \param daemon_address  - address of the cryptonode daemon
+     * \param testnet         - testnet flag
+     * \param seed_language   - seed language
      */
-    Supernode(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address,
+    Supernode(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address, bool testnet = false,
               const std::string &seed_language = std::string());
     ~Supernode();
+    /*!
+     * \brief setDaemonAddress - setup connection with the cryptonode daemon
+     * \param address          - address in "hostname:port" form
+     * \return                 - true on success
+     */
+    bool setDaemonAddress(const std::string &address);
+
+    /*!
+     * \brief refresh         - get latest blocks from the daemon
+     * \return                - true on success
+     */
+    bool refresh();
+
+    /*!
+     * \brief testnet        - to check if wallet is testnet wallet
+     * \return               - true if testnet
+     */
+    bool testnet() const;
+
+
     /*!
      * \brief stakeAmount - returns stake amount
      * \return            - stake amount in atomic units
@@ -55,20 +77,37 @@ public:
      * \param path                     - path to wallet files to be created
      * \param account_public_address   - public address of read-only wallet
      * \param viewkey                  - private view key
+     * \param testnet                  - testnet flag
      * \return                         - pointer to Supernode object on success
      */
     static Supernode * createFromViewOnlyWallet(const std::string &path,
-                                       const cryptonote::account_public_address &address,
-                                       const crypto::secret_key& viewkey = crypto::secret_key());
+                                       const std::string &address,
+                                       const crypto::secret_key& viewkey = crypto::secret_key(), bool testnet = false);
 
+    /*!
+     * \brief exportViewkey - exports stake wallet private viewkey
+     * \return private viewkey
+     */
     crypto::secret_key exportViewkey();
 
-    // bool signMessage(const std::string &msg, crypto::signature &signature);
-    // bool verifySignature();
-    bool connectToDaemon(const std::string &address);
+    /*!
+     * \brief signMessage - signs message. internally hashes the message and signs the hash
+     * \param msg         - input message
+     * \param signature   - output signature
+     */
+    void signMessage(const std::string &msg, crypto::signature &signature);
+
+    /*!
+     * \brief verifySignature - verifies signature
+     * \param msg             - message to verify
+     * \param signature       - signer's signature
+     * \return                - true if signature valid
+     */
+    bool verifySignature(const std::string &msg, const string &address, const crypto::signature &signature);
+
 
 private:
-    Supernode();
+    Supernode(bool testnet = false);
 
 private:
     tools::wallet2 m_wallet;

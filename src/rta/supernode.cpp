@@ -1,15 +1,20 @@
 #include "supernode.h"
 #include <misc_log_ex.h>
+#include <cryptonote_basic/cryptonote_basic_impl.h>
 #include <boost/filesystem.hpp>
 #include <iostream>
 
 namespace graft {
 
-Supernode::Supernode(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address,
+Supernode::Supernode(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address, bool testnet,
                      const std::string &seed_language)
+    : m_wallet(testnet)
 {
     bool keys_file_exists;
     bool wallet_file_exists;
+
+    tools::wallet2::wallet_exists(wallet_path, keys_file_exists, wallet_file_exists);
+
     LOG_PRINT_L3("keys_file_exists: " << std::boolalpha << keys_file_exists << std::noboolalpha
                  << "  wallet_file_exists: " << std::boolalpha << wallet_file_exists << std::noboolalpha);
 
@@ -25,6 +30,7 @@ Supernode::Supernode(const std::string &wallet_path, const std::string &wallet_p
     }
     // TODO:
     m_wallet.init(daemon_address);
+    m_wallet.store();
 }
 
 Supernode::~Supernode()
@@ -55,11 +61,12 @@ bool Supernode::importKeyImages(const std::vector<Supernode::KeyImage> &key_imag
     return height > 0;
 }
 
-Supernode *Supernode::createFromViewOnlyWallet(const std::string &path, const cryptonote::account_public_address &address, const secret_key &viewkey)
+Supernode *Supernode::createFromViewOnlyWallet(const std::string &path, const std::string &address, const secret_key &viewkey, bool testnet)
 {
     Supernode * result = nullptr;
     bool keys_file_exists;
     bool wallet_file_exists;
+    // TODO: password
     std::string password = "";
     tools::wallet2::wallet_exists(path, keys_file_exists, wallet_file_exists);
 
@@ -67,9 +74,15 @@ Supernode *Supernode::createFromViewOnlyWallet(const std::string &path, const cr
         LOG_ERROR("attempting to generate view only wallet, but specified file(s) exist. Exiting to not risk overwriting.");
         return result;
     }
-    result = new Supernode();
-    result->m_wallet.generate(path, password, address, viewkey);
 
+    cryptonote::account_public_address wallet_addr;
+    if (!cryptonote::get_account_address_from_str(wallet_addr, testnet, address)) {
+        LOG_ERROR("Error parsing address");
+        return result;
+    }
+
+    result = new Supernode(testnet);
+    result->m_wallet.generate(path, password, wallet_addr, viewkey);
     return result;
 }
 
@@ -78,12 +91,45 @@ crypto::secret_key Supernode::exportViewkey()
     return m_wallet.get_account().get_keys().m_view_secret_key;
 }
 
-bool Supernode::connectToDaemon(const std::string &address)
+
+void Supernode::signMessage(const std::string &msg, crypto::signature &signature)
 {
-    m_wallet.init(address);
+    crypto::hash hash;
+    crypto::cn_fast_hash(msg.data(), msg.size(), hash);
+    const cryptonote::account_keys &keys = m_wallet.get_account().get_keys();
+    crypto::generate_signature(hash, keys.m_account_address.m_spend_public_key, keys.m_spend_secret_key, signature);
 }
 
-Supernode::Supernode()
+bool Supernode::verifySignature(const std::string &msg, const std::string &address, const crypto::signature &signature)
+{
+    cryptonote::account_public_address wallet_addr;
+    if (!cryptonote::get_account_address_from_str(wallet_addr, m_wallet.testnet(), address)) {
+        LOG_ERROR("Error parsing address");
+        return false;
+    }
+    crypto::hash hash;
+    crypto::cn_fast_hash(msg.data(), msg.size(), hash);
+    return crypto::check_signature(hash, wallet_addr.m_spend_public_key, signature);
+}
+
+
+bool Supernode::setDaemonAddress(const std::string &address)
+{
+    return m_wallet.init(address);
+}
+
+bool Supernode::refresh()
+{
+    m_wallet.refresh();
+}
+
+bool Supernode::testnet() const
+{
+    return m_wallet.testnet();
+}
+
+Supernode::Supernode(bool testnet)
+    : m_wallet(testnet)
 {
 
 }
