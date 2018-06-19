@@ -12,6 +12,7 @@
 #include "requestdefines.h"
 #include "inout.h"
 #include <deque>
+#include <jsonrpc.h>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -1498,4 +1499,76 @@ TEST_F(GraftServerCommonTest, testRTAFullFlow)
     response.load(res.data(), res.length());
     sale_status_response = response.get<graft::SaleStatusResponse>();
     EXPECT_EQ(static_cast<int>(graft::RTAStatus::Success), sale_status_response.Status);
+}
+
+/////////////////////////////////
+// GraftServerForwardTest fixture
+
+class GraftServerForwardTest : public GraftServerTestBase
+{
+public:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            data = std::string(hm->body.p, hm->body.len);
+            std::string method(hm->method.p, hm->method.len);
+            headers = "Content-Type: application/json\r\nConnection: close";
+            return true;
+        }
+    };
+};
+
+TEST_F(GraftServerForwardTest, inner)
+{
+    TempCryptoN crypton;
+    crypton.run();
+    MainServer mainServer;
+    graft::registerForwardRequests(mainServer.router);
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    std::string s = client.get_body();
+    EXPECT_EQ(s, post_data);
+
+    mainServer.stop_and_wait_for();
+    crypton.stop_and_wait_for();
+}
+
+GRAFT_DEFINE_IO_STRUCT(GetVersionResp,
+                       (std::string, status),
+                       (uint32_t, version)
+                       );
+
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JRResponseResult, GetVersionResp);
+
+//you can run cryptonodes and enable this tests using
+//--gtest_also_run_disabled_tests
+//https://github.com/google/googletest/blob/master/googletest/docs/advanced.md
+TEST_F(GraftServerForwardTest, DISABLED_getVersion)
+{
+    MainServer mainServer;
+    mainServer.sopts.cryptonode_rpc_address = "localhost:38281";
+    graft::registerForwardRequests(mainServer.router);
+    mainServer.run();
+
+    graft::JsonRpcRequestEmpty request;
+    request.method = "get_version";
+
+    std::string post_data = request.toJson().GetString();
+    Client client;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    std::string response_s = client.get_body();
+
+    graft::Input in; in.load(response_s);
+    JRResponseResult result = in.get<JRResponseResult>();
+
+    mainServer.stop_and_wait_for();
 }
