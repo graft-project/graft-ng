@@ -74,6 +74,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 

@@ -35,6 +35,7 @@
 // cryptonode includes
 
 #include <rta/supernode.h>
+#include <rta/fullsupernodelist.h>
 #include <misc_log_ex.h>
 
 using namespace graft;
@@ -133,4 +134,58 @@ TEST_F(SupernodeTest, signAndVerify)
     EXPECT_FALSE(sn2.verifySignature(msg1, sn1.walletAddress(), sign2));
     EXPECT_FALSE(sn2.verifySignature(msg2, sn1.walletAddress(), sign1));
     EXPECT_TRUE(sn2.verifySignature(msg2, sn1.walletAddress(), sign2));
+}
+
+struct FullSupernodeListTest : public ::testing::Test
+{
+    FullSupernodeListTest()
+    {
+        mlog_configure("", true);
+        mlog_set_log_level(1);
+    }
+};
+
+
+TEST_F(FullSupernodeListTest, basic)
+{
+    MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
+
+    const std::string wallet_path1 = "test_supernode1";
+    const std::string wallet_path2 = "test_supernode2";
+    const std::string daemon_addr = "localhost:28881";
+    const bool testnet = true;
+
+    FullSupernodeList sn_list;
+
+    Supernode sn1(wallet_path1, "", daemon_addr, testnet);
+    sn1.refresh();
+
+    // create view only supernode
+    crypto::secret_key viewkey = sn1.exportViewkey();
+    std::vector<Supernode::KeyImage> key_images;
+    sn1.exportKeyImages(key_images);
+
+    boost::filesystem::path temp_path = boost::filesystem::unique_path();
+    Supernode * sn1_viewonly = Supernode::createFromViewOnlyWallet(temp_path.native(), sn1.walletAddress(), viewkey, testnet);
+    LOG_PRINT_L0("temp wallet path: " << temp_path.native());
+
+    sn1_viewonly->setDaemonAddress(daemon_addr);
+    sn1_viewonly->refresh();
+
+    EXPECT_TRUE(sn_list.add(sn1_viewonly));
+    EXPECT_EQ(sn_list.size(), 1);
+
+    EXPECT_TRUE(sn_list.exists(sn1_viewonly->walletAddress()));
+    FullSupernodeList::SupernodePtr sn1_viewonly_ptr = sn_list.get(sn1_viewonly->walletAddress());
+
+    EXPECT_TRUE(sn1_viewonly_ptr.get() != nullptr);
+    EXPECT_FALSE(sn_list.exists("123213123123"));
+
+    EXPECT_TRUE(sn_list.update(sn1.walletAddress(), key_images));
+    EXPECT_TRUE(sn1_viewonly_ptr->stakeAmount() == sn1.stakeAmount());
+
+    EXPECT_FALSE(sn_list.remove("123213"));
+    EXPECT_TRUE(sn_list.remove(sn1.walletAddress()));
+
+    EXPECT_TRUE(sn_list.size() == 0);
 }
