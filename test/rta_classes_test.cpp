@@ -48,10 +48,8 @@ struct SupernodeTest : public ::testing::Test
         mlog_configure("", true);
         mlog_set_log_level(1);
     }
-
-
-
 };
+
 
 
 
@@ -70,7 +68,7 @@ TEST_F(SupernodeTest, open)
     EXPECT_TRUE(sn1.stakeAmount() > 0);
 }
 
-TEST_F(SupernodeTest, viewOnly)
+TEST_F(SupernodeTest, watchOnly)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
 
@@ -94,8 +92,19 @@ TEST_F(SupernodeTest, viewOnly)
     sn2->setDaemonAddress(daemon_addr);
     sn2->refresh();
     sn2->importKeyImages(key_images);
+
+
     EXPECT_TRUE(sn2->walletAddress() == sn1.walletAddress());
     EXPECT_TRUE(sn2->stakeAmount() == sn1.stakeAmount());
+
+
+    Supernode sn3(temp_path.native(), "", daemon_addr, testnet);
+
+    // watch-only wallet
+    std::string msg = "123";
+    crypto::signature sign;
+    EXPECT_FALSE(sn3.signMessage(msg, sign));
+
 }
 
 
@@ -124,5 +133,4 @@ TEST_F(SupernodeTest, signAndVerify)
     EXPECT_FALSE(sn2.verifySignature(msg1, sn1.walletAddress(), sign2));
     EXPECT_FALSE(sn2.verifySignature(msg2, sn1.walletAddress(), sign1));
     EXPECT_TRUE(sn2.verifySignature(msg2, sn1.walletAddress(), sign2));
-
 }

@@ -92,12 +92,18 @@ crypto::secret_key Supernode::exportViewkey()
 }
 
 
-void Supernode::signMessage(const std::string &msg, crypto::signature &signature)
+bool Supernode::signMessage(const std::string &msg, crypto::signature &signature)
 {
+    if (m_wallet.watch_only()) {
+        LOG_ERROR("Attempting to sign with watch-only wallet");
+        return false;
+    }
+
     crypto::hash hash;
     crypto::cn_fast_hash(msg.data(), msg.size(), hash);
     const cryptonote::account_keys &keys = m_wallet.get_account().get_keys();
     crypto::generate_signature(hash, keys.m_account_address.m_spend_public_key, keys.m_spend_secret_key, signature);
+    return true;
 }
 
 bool Supernode::verifySignature(const std::string &msg, const std::string &address, const crypto::signature &signature)
@@ -111,6 +117,7 @@ bool Supernode::verifySignature(const std::string &msg, const std::string &addre
     crypto::cn_fast_hash(msg.data(), msg.size(), hash);
     return crypto::check_signature(hash, wallet_addr.m_spend_public_key, signature);
 }
+
 
 
 bool Supernode::setDaemonAddress(const std::string &address)
@@ -128,10 +135,19 @@ bool Supernode::testnet() const
     return m_wallet.testnet();
 }
 
+void Supernode::getScoreHash(const crypto::hash &block_hash, crypto::hash &result)
+{
+    cryptonote::blobdata data = m_wallet.get_account().get_public_address_str(testnet());
+    data += epee::string_tools::pod_to_hex(block_hash);
+    crypto::cn_fast_hash(data.c_str(), data.size(), result);
+}
+
 Supernode::Supernode(bool testnet)
     : m_wallet(testnet)
 {
 
 }
 
-}
+
+
+} // namespace graft

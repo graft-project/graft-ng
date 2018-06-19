@@ -7,6 +7,7 @@
 #include <cryptonote_basic/cryptonote_basic.h>
 #include <wallet/wallet2.h>
 
+
 namespace graft {
 
 /*!
@@ -63,7 +64,8 @@ public:
      * \param key_images      - destination vector
      * \return                - true on success
      */
-    bool exportKeyImages(std::vector<KeyImage> &key_images);
+    bool exportKeyImages(std::vector<Supernode::KeyImage> &key_images);
+
 
     /*!
      * \brief importKeyImages - imports key images
@@ -94,8 +96,9 @@ public:
      * \brief signMessage - signs message. internally hashes the message and signs the hash
      * \param msg         - input message
      * \param signature   - output signature
+     * \return            - true if successfully signed. false if wallet is watch-only
      */
-    void signMessage(const std::string &msg, crypto::signature &signature);
+    bool signMessage(const std::string &msg, crypto::signature &signature);
 
     /*!
      * \brief verifySignature - verifies signature
@@ -104,6 +107,14 @@ public:
      * \return                - true if signature valid
      */
     bool verifySignature(const std::string &msg, const string &address, const crypto::signature &signature);
+
+    /*!
+     * \brief getScoreHash  - calculates supernode score (TODO: as 265-bit integer)
+     * \param block_hash    - block hash used in calculation
+     * \param result        - result will be written here;
+     * \return              - true on success
+     */
+    void getScoreHash(const crypto::hash &block_hash, crypto::hash &result);
 
 
 private:
