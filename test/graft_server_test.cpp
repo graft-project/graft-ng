@@ -1568,7 +1568,7 @@ TEST_F(GraftServerForwardTest, DISABLED_getVersion)
     std::string response_s = client.get_body();
 
     graft::Input in; in.load(response_s);
-    JRResponseResult result = in.get<JRResponseResult>();
+    EXPECT_NO_THROW( JRResponseResult result = in.get<JRResponseResult>() );
 
     mainServer.stop_and_wait_for();
 }

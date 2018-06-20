@@ -3,7 +3,7 @@
 #include <forward_list>
 #include <functional>
 #include <string>
-#include <vector>
+#include <map>
 #include <utility>
 #include <algorithm>
 #include <iostream>
@@ -18,7 +18,7 @@ template<typename In, typename Out>
 class RouterT
 {
 public:
-    using vars_t = std::vector<std::pair<std::string, std::string>>;
+    using vars_t = std::multimap<std::string, std::string>;
     using Handler = std::function<Status (const vars_t&, const In&, Context&, Out& ) >;
 
     struct Handler3
@@ -92,11 +92,10 @@ public:
             if (m)
             {
                 for (size_t i = 0; i < entry->vars.tokens.size; i++)
-                    params.vars.emplace_back(std::make_pair(
+                    params.vars.emplace(std::make_pair(
                         std::move(std::string(entry->vars.slugs.entries[i].base, entry->vars.slugs.entries[i].len)),
                         std::move(std::string(entry->vars.tokens.entries[i].base, entry->vars.tokens.entries[i].len))
                     ));
-
                 params.h3 = static_cast<Route*>(m->data)->h3;
                 ret = true;
             }
