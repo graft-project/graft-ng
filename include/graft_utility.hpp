@@ -7,6 +7,9 @@
 #include <functional>
 #include <chrono>
 #include <mutex>
+//#include <shared_mutex>
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
 
 namespace graft
 {
@@ -57,56 +60,6 @@ namespace graft
 
         node head;
 
-        void fixup_tail(node *current)
-        {
-            std::unique_lock<std::mutex> lk(current->m);
-            while (node* const next = current->next.get())
-            {
-                std::unique_lock<std::mutex> next_lk(next->m);
-
-                if (next->expired())
-                {
-                    std::unique_ptr<node> old_next = std::move(current->next);
-                    current->next = std::move(next->next);
-                    next_lk.unlock();
-                }
-                else return;
-            }
-        }
-
-        void insert(std::unique_ptr<node>& new_node)
-        {
-            std::unique_lock<std::mutex> lk(head.m);
-
-            node* current = &head;
-            while (node* next = current->next.get())
-            {
-                std::unique_lock<std::mutex> next_lk(next->m);
-                if (*new_node <= *next)
-                {
-                    new_node->next = std::move(current->next);
-                    current->next = std::move(new_node);
-                    return;
-                }
-                lk.unlock();
-                current = next;
-                lk = std::move(next_lk);
-            }
-            new_node->next = std::move(current->next);
-            current->next = std::move(new_node);
-        }
-
-        void update_time_next_unlock(node *current, std::unique_lock<std::mutex>& lk_current)
-        {
-            node* const next = current->next.get();
-            std::unique_ptr<node> n = std::move(current->next);
-            current->next = std::move(next->next);
-            lk_current.unlock();
-
-            n->update_time();
-            insert(n);
-        }
-
     public:
         using func = std::function<bool(T&)>;
 
@@ -129,27 +82,18 @@ namespace graft
             head.next = std::move(new_node);
         }
 
-        void insert(T const& value, ch::seconds ttl = ch::seconds(0))
-        {
-            fixup_tail(&head);
-
-            std::unique_ptr<node> new_node(new node(value, ttl));
-            insert(new_node);
-        }
-
         void forEach(func f, bool timeUpdate = false)
         {
-            fixup_tail(&head);
-
             node* current = &head;
             std::unique_lock<std::mutex> lk(head.m);
 
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
+                lk.unlock();
 
-                if (timeUpdate) update_time_next_unlock(current, lk);
-                else lk.unlock();
+                if (timeUpdate)
+                    next->update_time();
 
                 f(*next->data);
                 current = next;
@@ -159,22 +103,18 @@ namespace graft
 
         std::shared_ptr<T> findFirstOf(func p)
         {
-            fixup_tail(&head);
-
-            node *current = &head;
+            node const *current = &head;
             std::unique_lock<std::mutex> lk(head.m);
-
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
+                lk.unlock();
                 if (p(*next->data))
                 {
-                    update_time_next_unlock(current, lk);
+                    next->update_time();
                     return next->data;
                 }
-                else lk.unlock();
                 current = next;
-
                 lk = std::move(next_lk);
             }
             return std::shared_ptr<T>();
@@ -182,21 +122,17 @@ namespace graft
 
         bool findAndApplyFirstOf(func p, func f)
         {
-            fixup_tail(&head);
-
-            node *current = &head;
+            node const *current = &head;
             std::unique_lock<std::mutex> lk(head.m);
-
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
-
+                lk.unlock();
                 if (p(*next->data))
                 {
-                    update_time_next_unlock(current, lk);
+                    next->update_time();
                     return f(*next->data);
                 }
-                else lk.unlock();
                 current = next;
                 lk = std::move(next_lk);
             }
@@ -205,11 +141,8 @@ namespace graft
 
         void removeIf(func p)
         {
-            fixup_tail(&head);
-
             node *current = &head;
             std::unique_lock<std::mutex> lk(head.m);
-
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
@@ -221,7 +154,7 @@ namespace graft
                 }
                 else
                 {
-                    update_time_next_unlock(current, lk);
+                    lk.unlock();
                     current = next;
                     lk = std::move(next_lk);
                 }
@@ -251,6 +184,8 @@ namespace graft
             }
 
         public:
+            mutable boost::shared_mutex blk;
+
             Value valueFor(Key const& key, Value const& default_value)
             {
                 BucketPtr const found_entry = findEntryFor(key);
@@ -262,7 +197,7 @@ namespace graft
             {
                 BucketPtr const found_entry = findEntryFor(key);
                 if (found_entry == nullptr)
-                    m_data.insert(BucketValue(key,value), ttl);
+                    m_data.pushFront(BucketValue(key,value), ttl);
                 else
                     found_entry->second = value;
             }
@@ -290,15 +225,31 @@ namespace graft
                         {return f(item.second);}
                 );
             }
+
+            void cleanup()
+            {
+                m_data.removeIf(
+                    [&](BucketValue const& item)
+                    { return item.second.expired(); }
+                );
+            }
         };
 
         std::vector<std::unique_ptr<BucketType>> m_buckets;
         Hash m_hasher;
+        typename std::vector<std::unique_ptr<BucketType>>::iterator m_bit;
 
         BucketType& getBucket(Key const& key) const
         {
             const std::size_t bucket_index = m_hasher(key) % m_buckets.size();
             return *m_buckets[bucket_index];
+        }
+
+        BucketType& getNextBucket() const
+        {
+            BucketType& b = *(*m_bit);
+            m_bit = (m_bit + 1 == m_buckets.end()) ? m_buckets.begin() : m_bit + 1;
+            return b;
         }
 
     public:
@@ -307,6 +258,8 @@ namespace graft
         {
             for (int i = 0; i < num_buckets; ++i)
                 m_buckets[i].reset(new BucketType);
+
+            m_bit = m_buckets.begin();
         }
 
         TSHashtable(const TSHashtable& other) = delete;
@@ -314,7 +267,9 @@ namespace graft
 
         Value valueFor(Key const& key, Value const& default_value = Value()) const
         {
-            return getBucket(key).valueFor(key, default_value);
+            BucketType& b = getBucket(key);
+            boost::shared_lock<boost::shared_mutex> lock(b.blk);
+            return b.valueFor(key, default_value);
         }
 
         void addOrUpdate(const Key& key, const Value& value, ch::seconds ttl = ch::seconds(0))
@@ -324,17 +279,30 @@ namespace graft
 
         void remove(const Key& key)
         {
-            getBucket(key).remove(key);
+            BucketType& b = getBucket(key);
+            boost::shared_lock<boost::shared_mutex> lock(b.blk);
+            b.remove(key);
         }
 
         bool hasKey(Key const& key) const
         {
-            return getBucket(key).hasKey(key);
+            BucketType& b = getBucket(key);
+            boost::shared_lock<boost::shared_mutex> lock(b.blk);
+            return b.hasKey(key);
         }
 
         bool apply(Key const& key, std::function<bool(Value&)> f)
         {
-            return getBucket(key).applyFor(key, f);
+            BucketType& b = getBucket(key);
+            boost::shared_lock<boost::shared_mutex> lock(b.blk);
+            return b.applyFor(key, f);
+        }
+
+        void cleanup()
+        {
+            BucketType& b = getNextBucket();
+            boost::unique_lock<boost::shared_mutex> lock(b.blk);
+            b.cleanup();
         }
     };
 }
