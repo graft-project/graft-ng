@@ -243,20 +243,16 @@ void BaseTask::onTooBusy()
     respondAndDie("Thread pool overflow");
 }
 
+const char* BaseTask::getStrStatus(Status s)
+{
+    assert(s<=Status::Stop);
+    static const char *status_str[] = { GRAFT_STATUS_LIST(EXP_TO_STR) };
+    return status_str[static_cast<int>(s)];
+}
+
 const char* BaseTask::getStrStatus()
 {
-#define CASE(x) case Status::x: return #x;
-    switch(m_ctx.local.getLastStatus())
-    {
-    CASE(Ok);
-    CASE(Forward);
-    CASE(InternalError);
-    CASE(Error);
-    CASE(Drop);
-    CASE(Stop);
-    default: assert(false); break;
-    }
-#undef CASE
+    return getStrStatus(m_ctx.local.getLastStatus());
 }
 
 void BaseTask::createJob()

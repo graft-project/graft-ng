@@ -282,6 +282,7 @@ public:
     const Router::Handler3& get_h3() const { return m_prms.h3; }
     Context& get_ctx() { return m_ctx; }
     const char* getStrStatus();
+    static const char* getStrStatus(Status s);
 private:
     friend class StaticMongooseHandler<BaseTask>;
 protected:
