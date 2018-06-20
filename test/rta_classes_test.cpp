@@ -85,7 +85,7 @@ TEST_F(SupernodeTest, watchOnly)
     std::vector<Supernode::KeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
-    boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / sn1.walletAddress();
+    boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
     Supernode * sn2 = Supernode::createFromViewOnlyWallet(temp_path.native(), sn1.walletAddress(), viewkey, testnet);
     LOG_PRINT_L0("temp wallet path: " << temp_path.native());
     ASSERT_TRUE(sn2 != nullptr);
@@ -168,7 +168,7 @@ TEST_F(FullSupernodeListTest, basic)
     std::vector<Supernode::KeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
-    boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / sn1.walletAddress();
+    boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
     Supernode * sn1_viewonly = Supernode::createFromViewOnlyWallet(temp_path.native(), sn1.walletAddress(), viewkey, testnet);
     LOG_PRINT_L0("temp wallet path: " << temp_path.native());
 
