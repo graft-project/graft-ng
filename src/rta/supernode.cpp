@@ -36,6 +36,7 @@ Supernode::Supernode(const std::string &wallet_path, const std::string &wallet_p
 Supernode::~Supernode()
 {
     m_wallet.store();
+    LOG_PRINT_L0("deleting supernode");
 }
 
 uint64_t Supernode::stakeAmount() const

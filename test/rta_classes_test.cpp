@@ -158,7 +158,7 @@ TEST_F(FullSupernodeListTest, basic)
     const std::string daemon_addr = "localhost:28881";
     const bool testnet = true;
 
-    FullSupernodeList sn_list;
+    FullSupernodeList sn_list(daemon_addr, true);
 
     Supernode sn1(wallet_path1, "", daemon_addr, testnet);
     sn1.refresh();
@@ -191,4 +191,78 @@ TEST_F(FullSupernodeListTest, basic)
     EXPECT_TRUE(sn_list.remove(sn1.walletAddress()));
 
     EXPECT_TRUE(sn_list.size() == 0);
+}
+
+
+TEST_F(FullSupernodeListTest, loadFromDir)
+{
+    MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
+
+    const std::string daemon_addr = "localhost:28881";
+    const bool testnet = true;
+
+    FullSupernodeList sn_list(daemon_addr, testnet);
+    size_t loadedItems = sn_list.loadFromDir(".");
+    EXPECT_EQ(loadedItems, sn_list.items().size());
+    LOG_PRINT_L0("loaded: " << loadedItems << " items");
+}
+
+TEST_F(FullSupernodeListTest, buildAuthSample)
+{
+    MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
+
+    const std::string daemon_addr = "localhost:28881";
+    const bool testnet = true;
+
+    FullSupernodeList sn_list(daemon_addr, testnet);
+    size_t loadedItems = sn_list.loadFromDir(".");
+
+    std::string hash_str;
+    sn_list.getBlockHash(2, hash_str);
+
+
+    crypto::hash h;
+    epee::string_tools::hex_to_pod(hash_str, h);
+
+    std::vector<FullSupernodeList::SupernodePtr> auth_sample;
+    sn_list.selectTierSupernodes(h, FullSupernodeList::TIER1_STAKE_AMOUNT, FullSupernodeList::TIER2_STAKE_AMOUNT, auth_sample);
+    ASSERT_EQ(auth_sample.size(), 2);
+    std::cout << "tier1 sn1: " << auth_sample.at(0)->walletAddress() << std::endl;
+    std::cout << "tier1 sn2: " << auth_sample.at(1)->walletAddress() << std::endl;
+    auth_sample.clear();
+
+//    sn_list.selectTierSupernodes(h, FullSupernodeList::TIER2_STAKE_AMOUNT, auth_sample);
+//    ASSERT_EQ(auth_sample.size(), 2);
+//    auth_sample.clear();
+
+//    sn_list.selectTierSupernodes(h, FullSupernodeList::TIER3_STAKE_AMOUNT, auth_sample);
+//    ASSERT_EQ(auth_sample.size(), 2);
+//    auth_sample.clear();
+
+//    sn_list.selectTierSupernodes(h, FullSupernodeList::TIER4_STAKE_AMOUNT, auth_sample);
+//    ASSERT_EQ(auth_sample.size(), 2);
+//    auth_sample.clear();
+
+//    sn_list.buildAuthSample(2, auth_sample);
+//    ASSERT_EQ(auth_sample.size(), 8);
+
+
+ }
+
+
+TEST_F(FullSupernodeListTest, getBlockHash)
+{
+    MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
+
+    const std::string daemon_addr = "localhost:28881";
+    const bool testnet = true;
+
+    FullSupernodeList sn_list(daemon_addr, testnet);
+
+    std::string hash;
+
+    sn_list.getBlockHash(2, hash);
+
+    EXPECT_EQ(hash, "49ba02f1a31f33ed707d5cbbb706aa02851c68d795cc916058abe5ea3f4afcbf");
+
 }

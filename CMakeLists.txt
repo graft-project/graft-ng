@@ -75,6 +75,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 
@@ -135,7 +136,7 @@ set(COMMON_LIBS
 #set(Boost_USE_MULTITHREADED ON)
 #set(Boost_USE_STATIC_RUNTIME ON)
 
-find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread)
+find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread regex)
 
 if(NOT Boost_FOUND)
     die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
@@ -168,6 +169,8 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+
     )
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
 
