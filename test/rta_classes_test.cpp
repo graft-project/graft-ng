@@ -58,14 +58,14 @@ TEST_F(SupernodeTest, open)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
 
-    const std::string wallet_path = "test_supernode1";
+    const std::string wallet_path = "supernode_tier1_1";
     const std::string daemon_addr = "localhost:28881";
     const bool testnet = true;
 
 
     Supernode sn1(wallet_path, "", daemon_addr, testnet);
     sn1.refresh();
-    EXPECT_TRUE(sn1.walletAddress() == "F9bkNUPVg1JEX81HRrRVaP6MUnpzxXaqtEBjEMFwQu1DZwgg4mVtCW2C35FhYNXed858MaMB7Z531PxUthMGmPS13kmkv1K");
+    EXPECT_TRUE(sn1.walletAddress() == "F4xWex5prppRooAqBZ7aBxTCRsPrzvKhGhWiy41Zt4DVX6iTk1HJqZiPNcgW4NkhE77mF7gRkYLRQhGKEG1rAs8NSp7aU93");
     EXPECT_TRUE(sn1.stakeAmount() > 0);
 }
 
@@ -73,7 +73,7 @@ TEST_F(SupernodeTest, watchOnly)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
 
-    const std::string wallet_path = "test_supernode1";
+    const std::string wallet_path = "supernode_tier1_1";
     const std::string daemon_addr = "localhost:28881";
     const bool testnet = true;
 
@@ -85,7 +85,7 @@ TEST_F(SupernodeTest, watchOnly)
     std::vector<Supernode::KeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
-    boost::filesystem::path temp_path = boost::filesystem::unique_path();
+    boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / sn1.walletAddress();
     Supernode * sn2 = Supernode::createFromViewOnlyWallet(temp_path.native(), sn1.walletAddress(), viewkey, testnet);
     LOG_PRINT_L0("temp wallet path: " << temp_path.native());
     ASSERT_TRUE(sn2 != nullptr);
@@ -98,10 +98,12 @@ TEST_F(SupernodeTest, watchOnly)
     EXPECT_TRUE(sn2->walletAddress() == sn1.walletAddress());
     EXPECT_TRUE(sn2->stakeAmount() == sn1.stakeAmount());
 
-
-    Supernode sn3(temp_path.native(), "", daemon_addr, testnet);
+    delete sn2;
 
     // watch-only wallet
+    Supernode sn3(temp_path.native(), "", daemon_addr, testnet);
+
+
     std::string msg = "123";
     crypto::signature sign;
     EXPECT_FALSE(sn3.signMessage(msg, sign));
@@ -113,8 +115,8 @@ TEST_F(SupernodeTest, signAndVerify)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
 
-    const std::string wallet_path1 = "test_supernode1";
-    const std::string wallet_path2 = "test_supernode2";
+    const std::string wallet_path1 = "supernode_tier1_1";
+    const std::string wallet_path2 = "supernode_tier1_2";
     const std::string daemon_addr = "localhost:28881";
     const bool testnet = true;
     const std::string msg1 = "TEST TEST TEST TEST";
@@ -150,8 +152,9 @@ TEST_F(FullSupernodeListTest, basic)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
 
-    const std::string wallet_path1 = "test_supernode1";
-    const std::string wallet_path2 = "test_supernode2";
+    const std::string wallet_path1 = "supernode_tier1_1";
+    const std::string wallet_path2 = "supernode_tier1_2";
+
     const std::string daemon_addr = "localhost:28881";
     const bool testnet = true;
 
@@ -165,7 +168,7 @@ TEST_F(FullSupernodeListTest, basic)
     std::vector<Supernode::KeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
-    boost::filesystem::path temp_path = boost::filesystem::unique_path();
+    boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / sn1.walletAddress();
     Supernode * sn1_viewonly = Supernode::createFromViewOnlyWallet(temp_path.native(), sn1.walletAddress(), viewkey, testnet);
     LOG_PRINT_L0("temp wallet path: " << temp_path.native());
 
