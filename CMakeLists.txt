@@ -243,5 +243,5 @@ if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
         TARGET graft_server POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_SOURCE_DIR}/data/*
-        ${CMAKE_CURRENT_BINARY_DIR}/`)
+        ${CMAKE_CURRENT_BINARY_DIR}/)
 endif()
