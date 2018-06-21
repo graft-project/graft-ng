@@ -6,6 +6,7 @@
 #include <boost/property_tree/ini_parser.hpp>
 // #include <boost/tokenizer.hpp>
 #include <boost/filesystem.hpp>
+#include <csignal>
 
 namespace po = boost::program_options;
 using namespace std;
@@ -15,11 +16,19 @@ namespace graft {
   void setHttpRouters(Manager& m);
 }
 
+static graft::GraftServer server;
+static void signal_handler_stop(int sig_num) {
+    LOG_PRINT_L0("Stoping server");
+    server.stop();
+}
+
 int main(int argc, const char** argv)
 {
+    std::signal(SIGINT, signal_handler_stop);
+    std::signal(SIGTERM, signal_handler_stop);
+
     int log_level = 1;
     string config_filename;
-
 
     try {
         po::options_description desc("Allowed options");
@@ -51,6 +60,7 @@ int main(int argc, const char** argv)
     catch(...) {
         cerr << "Exception of unknown type!\n";
     }
+
     mlog_configure("", true);
     mlog_set_log_level(log_level);
     // load config
@@ -106,8 +116,6 @@ int main(int argc, const char** argv)
         graft::setCoapRouters(manager);
         graft::setHttpRouters(manager);
         manager.enableRouting();
-
-        graft::GraftServer server;
 
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
         server.serve(manager.get_mg_mgr());
