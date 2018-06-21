@@ -165,11 +165,6 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, std::vector<FullSuperno
     return true;
 }
 
-bool FullSupernodeList::setDaemonAddress(const string &address)
-{
-
-}
-
 std::vector<string> FullSupernodeList::items() const
 {
     vector<string> result;
