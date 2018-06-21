@@ -95,9 +95,9 @@ size_t FullSupernodeList::loadFromDir(const string &base_dir)
                 LOG_ERROR("Can't add supernode " << sn->walletAddress() << ", already exists");
                 delete sn;
             } else {
+                LOG_PRINT_L1("Added supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
                 ++result;
             }
-
         }
     }
     return result;
@@ -153,7 +153,6 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, std::vector<FullSuperno
 
     auto build_tier_sample = [&](uint64_t tier_min, uint64_t tier_max) {
         selectTierSupernodes(block_hash, tier_min, tier_max, tier_supernodes);
-        LOG_PRINT_L0("copying tier_superhodes: " << tier_supernodes.size());
         std::copy(tier_supernodes.begin(), tier_supernodes.end(), out_it);
         tier_supernodes.clear();
     };
@@ -182,29 +181,32 @@ std::vector<string> FullSupernodeList::items() const
     return result;
 }
 
-bool FullSupernodeList::getBlockHash(uint64_t height, string &hash)
+bool FullSupernodeList::getBlockHash(uint64_t height, std::string &hash)
 {
-    //std::string ret;
     bool result = m_rpc_client.get_block_hash(height, hash);
-//    if (result) {
-//        epee::string_tools::hex_to_pod(ret, hash);
-//    }
     return result;
 }
 
 bool FullSupernodeList::bestSupernode(std::vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result)
 {
-    if (arg.size() == 0)
+    if (arg.size() == 0) {
+        LOG_ERROR("empty input");
         return false;
+    }
 
     std::vector<SupernodePtr>::iterator best = std::max_element(arg.begin(), arg.end(), [&](const SupernodePtr a, const SupernodePtr b) {
         crypto::hash hash_a, hash_b;
         a->getScoreHash(block_hash, hash_a);
         b->getScoreHash(block_hash, hash_b);
-        return hash_to_int256(hash_a) < hash_to_int256(hash_b);
+        uint256_t a_value = hash_to_int256(hash_a);
+        uint256_t b_value = hash_to_int256(hash_b);
+        // LOG_PRINT_L0("a_value: " << a_value << ", b_value: " << b_value);
+        return a_value < b_value;
+
     });
     result = *best;
     arg.erase(best);
+    return true;
 }
 
 void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,

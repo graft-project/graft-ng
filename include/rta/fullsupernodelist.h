@@ -58,9 +58,6 @@ public:
     bool setDaemonAddress(const std::string & address);
     std::vector<std::string> items() const;
     bool getBlockHash(uint64_t height, std::string &hash);
-
-
-
     void selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
                               std::vector<SupernodePtr> &output);
     bool bestSupernode(std::vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result);

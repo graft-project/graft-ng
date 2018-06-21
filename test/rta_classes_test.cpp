@@ -207,6 +207,16 @@ TEST_F(FullSupernodeListTest, loadFromDir)
     LOG_PRINT_L0("loaded: " << loadedItems << " items");
 }
 
+template<typename T>
+void print_container(std::ostream& os, const T& container, const std::string& delimiter)
+{
+    std::copy(std::begin(container),
+              std::end(container),
+              std::ostream_iterator<typename T::value_type>(os, delimiter.c_str()));
+    os << std::endl;
+}
+
+
 TEST_F(FullSupernodeListTest, buildAuthSample)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
@@ -220,31 +230,129 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     std::string hash_str;
     sn_list.getBlockHash(2, hash_str);
 
+    std::vector<std::string> tier1_addresses = {
+        "F4xWex5prppRooAqBZ7aBxTCRsPrzvKhGhWiy41Zt4DVX6iTk1HJqZiPNcgW4NkhE77mF7gRkYLRQhGKEG1rAs8NSp7aU93",
+        "FBHdqDnz8YNU3TscB1X7eH25XLKaHmba9Vws2xwDtLKJWS7vZrii1vHVKAMGgRVz6WVcd2jN7qC1YEB4ZALUag2d9h1nnEu",
+        "F5pbAMAzbRbhQSpEQ39nHXQr8QXMHXMmbWbMHcCh9HLrez7Y3aAckkH3PeG1Lctyr24ZZex72DKqgR5EFXJeukoo3mxvXZh",
+        "F8fNpx9sz6o3dxT5wDPReKP2LDA14J85jD9wUKdVEzwJPbpZwB8eZvYd97iwNfa4epNAPZYDngcNBZcNHxgoGMdXSwi8n7a",
+    };
+
+    std::vector<std::string> tier2_addresses = {
+        "F3vUsEKRUiTTpVrAAoTmSm61JVUR3P858FAzAFavH7McNa5jKbjBveHDroH33bb4N3Nu6z42n8Y9fQXfiNPvT2Yn8gAaLtv",
+        "F5CfDKxtW5ciHCkqK4p6cK2CymvtVq9Wce8fpo1u5WZLbLbvMFHauvsdCj2xeUTqiE4J4cpaEdsn29fA4RpWJssRV7P6ZUo",
+        "FC8kKPRQx3uCYN9UrdUee9AjF5ctSSFdefefWxcsFAXhjN1Gq8r8EDPhVoMfUU29JvbqRzhEKmfAfgRiwjcmwYHbTy7u3Th",
+        "F4H2PxxHkxj9HDs3fMdk3k4EBDSSBJJdzhsAKTeGrjzSinVHdiTFWgg36wGzQmGYagRtpP76EYGkWN4VV8o6XhJtFABs4eE"
+    };
+
+    std::vector<std::string> tier3_addresses = {
+        "FAyX1kJwtUSdhJ72A43newLeuPk7Rm75sCvdwhnJJMug9x2CzuGhAjB1nXtfgUWZWhTWebJir4T2Ffb1NPJFctXVGBzzsph",
+        "F9XxcuGqBuej38dxBcdhzwHkRJM1xdpgnbDyEsAxjELmL4ucM7Kcxub7Ytn6cHzvPe5tcf9FpPPji9UFeN3NVCczSi6B2mK",
+        "FBJjByj4JznQNhMLEaF4A2FsJj4snnPkkfhxbLBhPuyoGKcigSiycWpfiGtF6gPrrLZN9uQPYCRaC9Yu43mZXntxE6K1hvn",
+        "F8BBj21k8425DNS2bMKfogSxT16Jxw9dPCoMHjNzQFoiYgeahufZ1mARRHBP8crtng4sNa2cB1i54KE4Xhs65WufAM8fTRp"
+    };
+
+    std::vector<std::string> tier4_addresses = {
+        "FAemK2QsWwsDAxgCKsTJUbhk1XwAu1eg4eVkYNbYSkQzLP8wobvgG7ia1tXcpSY6k4f7rFmypq6wHKT4fYJJ3XFL1KRgNrj",
+        "F865TCzRThmY9KMGsDGq7ZMKa5QubVm4ah9UocfiVS5CfcXCM9cRu6m9rgubfsTMsSHLmX98zNzW5TUF5tcBCcWeNKrTZPq",
+        "FCz3wRQnmKBFU2fjH2PPuhiTd8Ys77uE2h1RPLUybwi7MPCHkTEz1ep3NnQQz146LGUejkf9L32Y29YUwxkyUsDiMsseqTh",
+        "FBjcwvA2NBeYVbWLR6dJ9i442JrP9GeJkFCQaV7mZnA7KCWtnWPTZK1Gj616pPLxnHCgseqFHge144pEqaMjdXrcG2J1jNZ"
+    };
+
+    std::sort(tier1_addresses.begin(), tier1_addresses.end());
+    std::sort(tier2_addresses.begin(), tier2_addresses.end());
+    std::sort(tier3_addresses.begin(), tier3_addresses.end());
+    std::sort(tier4_addresses.begin(), tier4_addresses.end());
+
+
+
 
     crypto::hash h;
     epee::string_tools::hex_to_pod(hash_str, h);
 
     std::vector<FullSupernodeList::SupernodePtr> auth_sample;
-    sn_list.selectTierSupernodes(h, FullSupernodeList::TIER1_STAKE_AMOUNT, FullSupernodeList::TIER2_STAKE_AMOUNT, auth_sample);
-    ASSERT_EQ(auth_sample.size(), 2);
-    std::cout << "tier1 sn1: " << auth_sample.at(0)->walletAddress() << std::endl;
-    std::cout << "tier1 sn2: " << auth_sample.at(1)->walletAddress() << std::endl;
-    auth_sample.clear();
+    std::vector<FullSupernodeList::SupernodePtr> auth_sample2;
+    // test if result is reproducable
+    sn_list.buildAuthSample(2122, auth_sample);
+    sn_list.buildAuthSample(2122, auth_sample2);
+    ASSERT_EQ(auth_sample.size(), 8);
+    ASSERT_EQ(auth_sample2.size(), 8);
+    std::vector<std::string> auth_sample1_addresses, auth_sample2_addresses;
 
-//    sn_list.selectTierSupernodes(h, FullSupernodeList::TIER2_STAKE_AMOUNT, auth_sample);
-//    ASSERT_EQ(auth_sample.size(), 2);
-//    auth_sample.clear();
+    for (const auto & it: auth_sample) {
+        auth_sample1_addresses.push_back(it->walletAddress());
+    }
+    for (const auto & it: auth_sample2) {
+        auth_sample2_addresses.push_back(it->walletAddress());
+    }
 
-//    sn_list.selectTierSupernodes(h, FullSupernodeList::TIER3_STAKE_AMOUNT, auth_sample);
-//    ASSERT_EQ(auth_sample.size(), 2);
-//    auth_sample.clear();
+    EXPECT_TRUE(auth_sample1_addresses == auth_sample2_addresses);
 
-//    sn_list.selectTierSupernodes(h, FullSupernodeList::TIER4_STAKE_AMOUNT, auth_sample);
-//    ASSERT_EQ(auth_sample.size(), 2);
-//    auth_sample.clear();
+    std::set<std::string> s1(auth_sample1_addresses.begin(), auth_sample1_addresses.end());
+    EXPECT_TRUE(s1.size() == 8);
 
-//    sn_list.buildAuthSample(2, auth_sample);
-//    ASSERT_EQ(auth_sample.size(), 8);
+    std::vector<std::string> tier1_as_addresses, tier2_as_addresses, tier3_as_addresses, tier4_as_addresses;
+
+    for (const auto & it: auth_sample) {
+        if (it->stakeAmount() >= FullSupernodeList::TIER1_STAKE_AMOUNT && it->stakeAmount() < FullSupernodeList::TIER2_STAKE_AMOUNT)
+            tier1_as_addresses.push_back(it->walletAddress());
+        else if (it->stakeAmount() >= FullSupernodeList::TIER2_STAKE_AMOUNT && it->stakeAmount() < FullSupernodeList::TIER3_STAKE_AMOUNT)
+            tier2_as_addresses.push_back(it->walletAddress());
+        else if (it->stakeAmount() >= FullSupernodeList::TIER3_STAKE_AMOUNT && it->stakeAmount() < FullSupernodeList::TIER4_STAKE_AMOUNT)
+            tier3_as_addresses.push_back(it->walletAddress());
+        else if (it->stakeAmount() >= FullSupernodeList::TIER4_STAKE_AMOUNT)
+            tier4_as_addresses.push_back(it->walletAddress());
+    }
+
+    EXPECT_EQ(tier1_as_addresses.size(), 2);
+    EXPECT_EQ(tier2_as_addresses.size(), 2);
+    EXPECT_EQ(tier3_as_addresses.size(), 2);
+    EXPECT_EQ(tier4_as_addresses.size(), 2);
+
+    // make sure we have correct addresses in auth sample;
+    std::sort(tier1_as_addresses.begin(), tier1_as_addresses.end());
+    std::sort(tier2_as_addresses.begin(), tier2_as_addresses.end());
+    std::sort(tier3_as_addresses.begin(), tier3_as_addresses.end());
+    std::sort(tier4_as_addresses.begin(), tier4_as_addresses.end());
+
+    std::vector<std::string> tier1_intersection, tier2_intersection, tier3_intersection, tier4_intersection;
+
+    std::set_intersection(tier1_addresses.begin(), tier1_addresses.end(),
+                          tier1_as_addresses.begin(), tier1_as_addresses.end(),
+                          std::back_inserter(tier1_intersection));
+//    std::cout << "tier1 supernodes: " << std::endl;
+//    print_container(std::cout, tier1_intersection, ", \n");
+
+    EXPECT_TRUE(tier1_as_addresses == tier1_intersection);
+
+
+
+    std::set_intersection(tier2_addresses.begin(), tier2_addresses.end(),
+                          tier2_as_addresses.begin(), tier2_as_addresses.end(),
+                          std::back_inserter(tier2_intersection));
+//    std::cout << "tier2 supernodes: " << std::endl;
+//    print_container(std::cout, tier2_intersection, ", \n");
+
+    EXPECT_TRUE(tier2_as_addresses == tier2_intersection);
+
+
+
+    std::set_intersection(tier3_addresses.begin(), tier3_addresses.end(),
+                          tier3_as_addresses.begin(), tier3_as_addresses.end(),
+                          std::back_inserter(tier3_intersection));
+//    std::cout << "tier3 supernodes: " << std::endl;
+//    print_container(std::cout, tier3_intersection, ", \n");
+    EXPECT_TRUE(tier3_as_addresses == tier3_intersection);
+
+    std::set_intersection(tier4_addresses.begin(), tier4_addresses.end(),
+                          tier4_as_addresses.begin(), tier4_as_addresses.end(),
+                          std::back_inserter(tier4_intersection));
+//    std::cout << "tier4 supernodes: " << std::endl;
+//    print_container(std::cout, tier4_as_addresses, ", \n");
+//    print_container(std::cout, tier4_intersection, ", \n");
+//    print_container(std::cout, tier4_addresses, ", \n");
+
+    EXPECT_TRUE(tier4_as_addresses == tier4_intersection);
+    EXPECT_FALSE(tier4_as_addresses == tier2_intersection);
 
 
  }
@@ -266,3 +374,5 @@ TEST_F(FullSupernodeListTest, getBlockHash)
     EXPECT_EQ(hash, "49ba02f1a31f33ed707d5cbbb706aa02851c68d795cc916058abe5ea3f4afcbf");
 
 }
+
+
