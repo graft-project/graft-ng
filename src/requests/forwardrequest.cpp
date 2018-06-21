@@ -19,17 +19,21 @@ void registerForwardRequest(Router &router)
                 throw std::runtime_error("multiple 'forward' vars found");
             }
             output.body = input.body;
+            std::cout << "request path='" << path << "' body='" << output.body << "'\n";
             output.path = path;
+//            if(path == "getblocks.bin") dump = true;
             return graft::Status::Forward;
         }
         if(ctx.local.getLastStatus() == graft::Status::Forward)
         {
             output.body = input.body;
+            std::cout << "response body='" << output.body << "'\n";
             return graft::Status::Ok;
         }
         return graft::Status::Error;
     };
 
+    //METHOD_GET is required here because some GET requests from the wallet has body
     router.addRoute("/{forward:gethashes.bin|json_rpc|getblocks.bin|gettransactions|sendrawtransaction|getheight}",
                                METHOD_POST|METHOD_GET, graft::Router::Handler3(forward,nullptr,nullptr));
 }

@@ -12,6 +12,8 @@
 #include "inout.h"
 #include "context.h"
 
+//bool dump = false;
+
 namespace graft {
 
 template<typename In, typename Out>

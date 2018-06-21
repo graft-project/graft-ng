@@ -162,6 +162,153 @@ void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_thread
     m_threadPoolInputSize = m_threadPoolInputSize_;
 }
 
+/*
+namespace mg
+{
+/ *
+ * Format and print message `x` with the given level `l`. Example:
+ *
+ * ```c
+ * LOG(LL_INFO, ("my info message: %d", 123));
+ * LOG(LL_DEBUG, ("my debug message: %d", 123));
+ * ```
+ * /
+#define LOG(l, x)                                                    \
+  do {                                                               \
+    if (cs_log_print_prefix(l, __func__, __FILE__)) cs_log_printf x; \
+  } while (0)
+
+/ *
+ * Log level; `LL_INFO` is the default. Use `cs_log_set_level()` to change it.
+ * /
+enum cs_log_level {
+  LL_NONE = -1,
+  LL_ERROR = 0,
+  LL_WARN = 1,
+  LL_INFO = 2,
+  LL_DEBUG = 3,
+  LL_VERBOSE_DEBUG = 4,
+
+  _LL_MIN = -2,
+  _LL_MAX = 5,
+};
+
+#define MG_SET_PTRPTR(_ptr, _v) \
+  do {                          \
+    if (_ptr) *(_ptr) = _v;     \
+  } while (0)
+
+struct mg_connection *mg_connect_http_base_x(
+    struct mg_mgr *mgr, MG_CB(mg_event_handler_t ev_handler, void *user_data),
+    struct mg_connect_opts opts, const char *scheme1, const char *scheme2,
+    const char *scheme_ssl1, const char *scheme_ssl2, const char *url,
+    struct mg_str *path, struct mg_str *user_info, struct mg_str *host) {
+  struct mg_connection *nc = NULL;
+  unsigned int port_i = 0;
+  int use_ssl = 0;
+  struct mg_str scheme, query, fragment;
+  char conn_addr_buf[2];
+  char *conn_addr = conn_addr_buf;
+
+  if (mg_parse_uri(mg_mk_str(url), &scheme, user_info, host, &port_i, path,
+                   &query, &fragment) != 0) {
+    MG_SET_PTRPTR(opts.error_string, "cannot parse url");
+    goto out;
+  }
+
+  / * If query is present, do not strip it. Pass to the caller. * /
+  if (query.len > 0) path->len += query.len + 1;
+
+  if (scheme.len == 0 || mg_vcmp(&scheme, scheme1) == 0 ||
+      (scheme2 != NULL && mg_vcmp(&scheme, scheme2) == 0)) {
+    use_ssl = 0;
+    if (port_i == 0) port_i = 80;
+  } else if (mg_vcmp(&scheme, scheme_ssl1) == 0 ||
+             (scheme2 != NULL && mg_vcmp(&scheme, scheme_ssl2) == 0)) {
+    use_ssl = 1;
+    if (port_i == 0) port_i = 443;
+  } else {
+    goto out;
+  }
+
+  mg_asprintf(&conn_addr, sizeof(conn_addr_buf), "tcp://%.*s:%u",
+              (int) host->len, host->p, port_i);
+  if (conn_addr == NULL) goto out;
+
+  LOG(LL_DEBUG, ("%s use_ssl? %d %s", url, use_ssl, conn_addr));
+  if (use_ssl) {
+#if MG_ENABLE_SSL
+    / *
+     * Schema requires SSL, but no SSL parameters were provided in opts.
+     * In order to maintain backward compatibility, use a faux-SSL with no
+     * verification.
+     * /
+    if (opts.ssl_ca_cert == NULL) {
+      opts.ssl_ca_cert = "*";
+    }
+#else
+    MG_SET_PTRPTR(opts.error_string, "ssl is disabled");
+    goto out;
+#endif
+  }
+
+  if ((nc = mg_connect_opt(mgr, conn_addr, MG_CB(ev_handler, user_data),
+                           opts)) != NULL) {
+    mg_set_protocol_http_websocket(nc);
+  }
+
+out:
+  if (conn_addr != NULL && conn_addr != conn_addr_buf) MG_FREE(conn_addr);
+  return nc;
+}
+
+struct mg_connection *mg_connect_http_opt_x(
+    struct mg_mgr *mgr, MG_CB(mg_event_handler_t ev_handler, void *user_data),
+    struct mg_connect_opts opts, const char *url, const char *extra_headers,
+    const char *post_data) {
+  struct mg_str user = MG_NULL_STR, null_str = MG_NULL_STR;
+  struct mg_str host = MG_NULL_STR, path = MG_NULL_STR;
+  struct mbuf auth;
+  struct mg_connection *nc =
+      mg_connect_http_base_x(mgr, MG_CB(ev_handler, user_data), opts, "http",
+                           NULL, "https", NULL, url, &path, &user, &host);
+
+  if (nc == NULL) {
+    return NULL;
+  }
+
+  mbuf_init(&auth, 0);
+  if (user.len > 0) {
+    mg_basic_auth_header(user, null_str, &auth);
+  }
+
+  if (post_data == NULL) post_data = "";
+  if (extra_headers == NULL) extra_headers = "";
+  if (path.len == 0) path = mg_mk_str("/");
+  if (host.len == 0) host = mg_mk_str("");
+
+  mg_printf(nc, "%s %.*s HTTP/1.1\r\nHost: %.*s\r\nContent-Length: %" SIZE_T_FMT
+                "\r\n%.*s%s\r\n%s",
+            (post_data[0] == '\0' ? "GET" : "POST"), (int) path.len, path.p,
+            (int) (path.p - host.p), host.p, strlen(post_data), (int) auth.len,
+            (auth.buf == NULL ? "" : auth.buf), extra_headers, post_data);
+
+  mbuf_free(&auth);
+  return nc;
+}
+
+struct mg_connection *mg_connect_http_x(
+    struct mg_mgr *mgr, MG_CB(mg_event_handler_t ev_handler, void *user_data),
+    const char *url, const char *extra_headers, const char *post_data) {
+  struct mg_connect_opts opts;
+  memset(&opts, 0, sizeof(opts));
+  return mg_connect_http_opt_x(mgr, MG_CB(ev_handler, user_data), opts, url,
+                             extra_headers, post_data);
+}
+
+}
+*/
+
 void CryptoNodeSender::send(Manager &manager, BaseTask_ptr cr)
 {
     m_cr = cr;
@@ -176,9 +323,11 @@ void CryptoNodeSender::send(Manager &manager, BaseTask_ptr cr)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
+//    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
+    m_crypton = mg::mg_connect_http_x(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
                              extra_headers.c_str(),
-                             (body.empty())? nullptr : body.c_str()); //last nullptr means GET
+//                             (body.empty())? nullptr : body.c_str()); //last nullptr means GET
+                             body); //body.empty() means GET
     assert(m_crypton);
     m_crypton->user_data = this;
     mg_set_timer(m_crypton, mg_time() + opts.upstream_request_timeout);
@@ -362,6 +511,7 @@ void BaseTask::onCryptonDone(CryptoNodeSender &cns)
     //here you can send a job to the thread pool or send response to client
     //cns will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
+        if(!get_itself()) return; //it is possible that client has closed connection already
         m_manager.sendToThreadPool(get_itself());
     }
 }
@@ -402,12 +552,18 @@ void ClientRequest::respondAndDie(const std::string &s)
     {
         mg_send_head(m_client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
         mg_send(m_client, s.c_str(), s.size());
+//        if(dump)
+        {
+//            std::fstream
+//            fopen()
+        }
     }
     else
     {
         mg_http_send_error(m_client, code, s.c_str());
     }
     m_client->flags |= MG_F_SEND_AND_CLOSE;
+    m_manager.onClientDone(get_itself());
     m_client->handler = static_empty_ev_handler;
     m_client = nullptr;
     releaseItself();
@@ -422,9 +578,10 @@ void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
     case MG_EV_CLOSE:
     {
         assert(get_itself());
-        if(get_itself()) break;
+        if(!get_itself()) break;
         m_manager.onClientDone(get_itself());
-        client->handler = static_empty_ev_handler;
+        m_client->handler = static_empty_ev_handler;
+        m_client = nullptr;
         releaseItself();
     } break;
     default:
@@ -482,6 +639,14 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 
     switch (ev)
     {
+    case MG_EV_HTTP_MULTIPART_REQUEST:
+    case MG_EV_HTTP_PART_BEGIN:
+    case MG_EV_HTTP_PART_DATA:
+    case MG_EV_HTTP_PART_END:
+    case MG_EV_HTTP_MULTIPART_REQUEST_END:
+    {
+        std::cout << std::endl << "MG_EV_HTTP_MULTIPART_REQUEST" << std::endl;
+    } break;
     case MG_EV_HTTP_REQUEST:
     {
         mg_set_timer(client, 0);

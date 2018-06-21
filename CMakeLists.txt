@@ -73,7 +73,8 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
-    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+#    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     )
 
 set(GS_INCLUDE_DIRS
@@ -166,7 +167,7 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     )
-target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
+target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1 MG_ENABLE_HTTP_STREAMING_MULTIPART=1)
 
 add_dependencies(graft_server libr3 cryptonode)
 
@@ -220,7 +221,7 @@ if (OPT_BUILD_TESTS)
             )
 
 
-        target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
+        target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1 MG_ENABLE_HTTP_STREAMING_MULTIPART=1)
         add_dependencies(graft_server_test libr3 cryptonode googletest)
 
         if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
