@@ -1,6 +1,13 @@
 #include "mongoosex.h"
 
-#include "mongoose.c"
+//#include "mongoose.c"
+extern "C" {
+struct mg_connection *mg_connect_http_base(
+    struct mg_mgr *mgr, MG_CB(mg_event_handler_t ev_handler, void *user_data),
+    struct mg_connect_opts opts, const char *scheme1, const char *scheme2,
+    const char *scheme_ssl1, const char *scheme_ssl2, const char *url,
+    struct mg_str *path, struct mg_str *user_info, struct mg_str *host);
+}
 
 namespace mg
 {

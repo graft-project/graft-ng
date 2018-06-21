@@ -73,7 +73,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
-#    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     )
 
