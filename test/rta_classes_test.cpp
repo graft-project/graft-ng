@@ -207,6 +207,19 @@ TEST_F(FullSupernodeListTest, loadFromDir)
     LOG_PRINT_L0("loaded: " << loadedItems << " items");
 }
 
+TEST_F(FullSupernodeListTest, loadFromDir2)
+{
+    MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
+
+    const std::string daemon_addr = "localhost:28881";
+    const bool testnet = true;
+
+    FullSupernodeList sn_list(daemon_addr, testnet);
+    size_t loadedItems = sn_list.loadFromDirThreaded(".");
+    EXPECT_EQ(loadedItems, sn_list.items().size());
+    LOG_PRINT_L0("loaded: " << loadedItems << " items");
+}
+
 template<typename T>
 void print_container(std::ostream& os, const T& container, const std::string& delimiter)
 {
@@ -293,13 +306,13 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     std::vector<std::string> tier1_as_addresses, tier2_as_addresses, tier3_as_addresses, tier4_as_addresses;
 
     for (const auto & it: auth_sample) {
-        if (it->stakeAmount() >= FullSupernodeList::TIER1_STAKE_AMOUNT && it->stakeAmount() < FullSupernodeList::TIER2_STAKE_AMOUNT)
+        if (it->stakeAmount() >= Supernode::TIER1_STAKE_AMOUNT && it->stakeAmount() < Supernode::TIER2_STAKE_AMOUNT)
             tier1_as_addresses.push_back(it->walletAddress());
-        else if (it->stakeAmount() >= FullSupernodeList::TIER2_STAKE_AMOUNT && it->stakeAmount() < FullSupernodeList::TIER3_STAKE_AMOUNT)
+        else if (it->stakeAmount() >= Supernode::TIER2_STAKE_AMOUNT && it->stakeAmount() < Supernode::TIER3_STAKE_AMOUNT)
             tier2_as_addresses.push_back(it->walletAddress());
-        else if (it->stakeAmount() >= FullSupernodeList::TIER3_STAKE_AMOUNT && it->stakeAmount() < FullSupernodeList::TIER4_STAKE_AMOUNT)
+        else if (it->stakeAmount() >= Supernode::TIER3_STAKE_AMOUNT && it->stakeAmount() < Supernode::TIER4_STAKE_AMOUNT)
             tier3_as_addresses.push_back(it->walletAddress());
-        else if (it->stakeAmount() >= FullSupernodeList::TIER4_STAKE_AMOUNT)
+        else if (it->stakeAmount() >= Supernode::TIER4_STAKE_AMOUNT)
             tier4_as_addresses.push_back(it->walletAddress());
     }
 

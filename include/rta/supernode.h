@@ -17,6 +17,16 @@ class Supernode
 {
 public:
     using KeyImage = std::pair<crypto::key_image, crypto::signature>;
+
+    //  50,000 GRFT –  tier 1
+    //  90,000 GRFT –  tier 2
+    //  150,000 GRFT – tier 3
+    //  250,000 GRFT – tier 4
+    static const uint64_t TIER1_STAKE_AMOUNT = COIN *  50000;
+    static const uint64_t TIER2_STAKE_AMOUNT = COIN *  90000;
+    static const uint64_t TIER3_STAKE_AMOUNT = COIN * 150000;
+    static const uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
+
     /*!
      * \brief Supernode - constructs supernode
      * \param wallet_path - filename of the existing wallet or new wallet. in case filename doesn't exists, new wallet will be created
@@ -85,6 +95,9 @@ public:
     static Supernode * createFromViewOnlyWallet(const std::string &path,
                                        const std::string &address,
                                        const crypto::secret_key& viewkey = crypto::secret_key(), bool testnet = false);
+
+    static Supernode * load(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address, bool testnet = false,
+                                       const std::string &seed_language = std::string());
 
     /*!
      * \brief exportViewkey - exports stake wallet private viewkey

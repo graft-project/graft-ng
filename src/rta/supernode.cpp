@@ -1,4 +1,6 @@
 #include "supernode.h"
+#include "fullsupernodelist.h"
+
 #include <misc_log_ex.h>
 #include <cryptonote_basic/cryptonote_basic_impl.h>
 #include <boost/filesystem.hpp>
@@ -85,6 +87,22 @@ Supernode *Supernode::createFromViewOnlyWallet(const std::string &path, const st
     result = new Supernode(testnet);
     result->m_wallet.generate(path, password, wallet_addr, viewkey);
     return result;
+}
+
+Supernode *Supernode::load(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet, const string &seed_language)
+{
+    Supernode * sn = new Supernode(wallet_path, wallet_password, daemon_address, testnet);
+
+    sn->refresh();
+    if (sn->stakeAmount() < Supernode::TIER1_STAKE_AMOUNT) {
+       LOG_ERROR("wallet " << sn->walletAddress() << " doesn't have enough stake to be supernode: " << sn->stakeAmount());
+       delete sn;
+       return nullptr;
+    } else {
+       LOG_PRINT_L1("Loaded supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
+    }
+
+    return sn;
 }
 
 crypto::secret_key Supernode::exportViewkey()

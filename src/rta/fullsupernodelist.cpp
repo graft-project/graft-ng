@@ -6,6 +6,7 @@
 #include <misc_log_ex.h>
 // using WalletManager for
 #include <wallet/api/wallet_manager.h>
+#include <iostream>
 
 namespace fs = boost::filesystem;
 using namespace boost::multiprecision;
@@ -65,15 +66,18 @@ FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
 
 FullSupernodeList::~FullSupernodeList()
 {
+    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
     m_list.clear();
 }
 
 bool FullSupernodeList::add(Supernode *item)
 {
-    // TODO: multithreading/locking
+    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
     if (exists(item->walletAddress()))
         return false;
     m_list.insert(std::make_pair(item->walletAddress(), SupernodePtr{item}));
+    LOG_PRINT_L0("added supernode: " << item->walletAddress());
+    LOG_PRINT_L0("list size: " << m_list.size());
 
     return true;
 }
@@ -82,15 +86,10 @@ size_t FullSupernodeList::loadFromDir(const string &base_dir)
 {
     vector<string> wallets = findWallets(base_dir);
     size_t result = 0;
-    LOG_PRINT_L0("found walletsL " << wallets.size());
+    LOG_PRINT_L0("found wallets: " << wallets.size());
     for (const auto &wallet_path : wallets) {
-        LOG_PRINT_L0("loading wallet: " << wallet_path);
-        Supernode * sn = new Supernode(wallet_path, "", m_daemon_address, m_testnet);
-        sn->refresh();
-        if (sn->stakeAmount() < TIER1_STAKE_AMOUNT) {
-           LOG_ERROR("wallet " << sn->walletAddress() << " doesn't have enough stake to be supernode: " << sn->stakeAmount());
-           delete sn;
-        } else {
+        Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
+        if (sn)  {
             if (!this->add(sn)) {
                 LOG_ERROR("Can't add supernode " << sn->walletAddress() << ", already exists");
                 delete sn;
@@ -103,23 +102,67 @@ size_t FullSupernodeList::loadFromDir(const string &base_dir)
     return result;
 }
 
+size_t FullSupernodeList::loadFromDirThreaded(const string &base_dir)
+{
+    vector<string> wallets = findWallets(base_dir);
+    LOG_PRINT_L0("found wallets: " << wallets.size());
+    boost::asio::io_service ioservice;
+    boost::thread_group threadpool;
+    size_t threads = wallets.size();
+    std::unique_ptr<boost::asio::io_service::work> work(new boost::asio::io_service::work(ioservice));
+
+    for (int i = 0; i < threads; i++) {
+        threadpool.create_thread(boost::bind(&boost::asio::io_service::run, &ioservice));
+    }
+
+    auto worker = [&](const std::string &wallet_path) {
+        Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
+        if (sn) {
+            if (!this->add(sn))
+                delete sn;
+        } else {
+            LOG_ERROR("Error loading supernode wallet from: " << wallet_path);
+        }
+    };
+
+    for (const auto &wallet_path : wallets) {
+        LOG_PRINT_L0("posting wallet " << wallet_path);
+        ioservice.dispatch(boost::bind<void>(worker, wallet_path));
+    }
+
+
+    work.reset();
+    while (!ioservice.stopped())
+        ioservice.poll();
+    threadpool.join_all();
+    ioservice.stop();
+
+    return m_list.size();
+}
+
 bool FullSupernodeList::remove(const string &address)
 {
+    boost::unique_lock<boost::shared_mutex> readerLock(m_access);
     m_list.erase(address) > 0;
 }
 
 size_t FullSupernodeList::size() const
 {
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     return m_list.size();
 }
 
 bool FullSupernodeList::exists(const string &address) const
 {
+
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     return m_list.find(address) != m_list.end();
 }
 
 bool FullSupernodeList::update(const string &address, const std::vector<Supernode::KeyImage> &key_images)
 {
+
+    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
     auto it = m_list.find(address);
     if (it != m_list.end()) {
         return it->second->importKeyImages(key_images);
@@ -129,6 +172,7 @@ bool FullSupernodeList::update(const string &address, const std::vector<Supernod
 
 FullSupernodeList::SupernodePtr FullSupernodeList::get(const string &address) const
 {
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     auto it = m_list.find(address);
     if (it != m_list.end())
         return it->second;
@@ -157,10 +201,10 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, std::vector<FullSuperno
         tier_supernodes.clear();
     };
 
-    build_tier_sample(TIER1_STAKE_AMOUNT, TIER2_STAKE_AMOUNT);
-    build_tier_sample(TIER2_STAKE_AMOUNT, TIER3_STAKE_AMOUNT);
-    build_tier_sample(TIER3_STAKE_AMOUNT, TIER4_STAKE_AMOUNT);
-    build_tier_sample(TIER4_STAKE_AMOUNT, std::numeric_limits<uint64_t>::max());
+    build_tier_sample(Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT);
+    build_tier_sample(Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT);
+    build_tier_sample(Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT);
+    build_tier_sample(Supernode::TIER4_STAKE_AMOUNT, std::numeric_limits<uint64_t>::max());
 
     return true;
 }
@@ -169,7 +213,7 @@ std::vector<string> FullSupernodeList::items() const
 {
     vector<string> result;
     result.reserve(m_list.size());
-
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     for (auto const& it: m_list)
         result.push_back(it.first);
 
@@ -209,9 +253,13 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
 {
     // copy all the items with the stake not less than given tier_min_stake
     std::vector<SupernodePtr> all_tier_items;
-    for (const auto &it : m_list) {
-        if (it.second->stakeAmount() >= tier_min_stake && it.second->stakeAmount() < tier_max_stake)
-            all_tier_items.push_back(it.second);
+
+    {
+        boost::shared_lock<boost::shared_mutex> readerLock(m_access);
+        for (const auto &it : m_list) {
+            if (it.second->stakeAmount() >= tier_min_stake && it.second->stakeAmount() < tier_max_stake)
+                all_tier_items.push_back(it.second);
+        }
     }
 
     for (int i = 0; i < ITEMS_PER_TIER; ++i) {
