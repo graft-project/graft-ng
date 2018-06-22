@@ -176,9 +176,9 @@ void CryptoNodeSender::send(Manager &manager, BaseTask_ptr cr)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
+    m_crypton = mg::mg_connect_http_x(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
                              extra_headers.c_str(),
-                             (body.empty())? nullptr : body.c_str()); //last nullptr means GET
+                             body); //body.empty() means GET
     assert(m_crypton);
     m_crypton->user_data = this;
     mg_set_timer(m_crypton, mg_time() + opts.upstream_request_timeout);
@@ -362,6 +362,7 @@ void BaseTask::onCryptonDone(CryptoNodeSender &cns)
     //here you can send a job to the thread pool or send response to client
     //cns will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
+        if(!get_itself()) return; //it is possible that a client has closed connection already
         m_manager.sendToThreadPool(get_itself());
     }
 }
@@ -408,6 +409,7 @@ void ClientRequest::respondAndDie(const std::string &s)
         mg_http_send_error(m_client, code, s.c_str());
     }
     m_client->flags |= MG_F_SEND_AND_CLOSE;
+    m_manager.onClientDone(get_itself());
     m_client->handler = static_empty_ev_handler;
     m_client = nullptr;
     releaseItself();
@@ -422,9 +424,10 @@ void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
     case MG_EV_CLOSE:
     {
         assert(get_itself());
-        if(get_itself()) break;
+        if(!get_itself()) break;
         m_manager.onClientDone(get_itself());
-        client->handler = static_empty_ev_handler;
+        m_client->handler = static_empty_ev_handler;
+        m_client = nullptr;
         releaseItself();
     } break;
     default:
