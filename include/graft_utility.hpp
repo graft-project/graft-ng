@@ -44,12 +44,9 @@ namespace graft
                     ).time_since_epoch() + ttl;
             }
 
-            bool expired()
+            bool expired(std::chrono::seconds now_sec)
             {
-                return expires <=
-                    ch::time_point_cast<ch::seconds>(
-                        ch::steady_clock::now()
-                    ).time_since_epoch();
+                return expires <= now_sec;
             }
 
             bool operator <=(const node& rhs) const
@@ -160,6 +157,26 @@ namespace graft
                 }
             }
         }
+
+        void unsafe_cleanup()
+        {
+            ch::seconds now_sec = ch::time_point_cast<ch::seconds>(
+                            ch::steady_clock::now()
+                        ).time_since_epoch();
+            node *current = &head;
+            while (node* const next = current->next.get())
+            {
+                if (next->expired(now_sec))
+                {
+                    std::unique_ptr<node> old_next = std::move(current->next);
+                    current->next = std::move(next->next);
+                }
+                else
+                {
+                    current = next;
+                }
+            }
+        }
     };
 
     template <typename Key, typename Value, typename Hash=std::hash<Key> >
@@ -228,10 +245,7 @@ namespace graft
 
             void cleanup()
             {
-                m_data.removeIf(
-                    [&](BucketValue const& item)
-                    { return item.second.expired(); }
-                );
+                m_data.unsafe_cleanup();
             }
         };
 
@@ -245,10 +259,10 @@ namespace graft
             return *m_buckets[bucket_index];
         }
 
-        BucketType& getNextBucket() const
+        BucketType& getNextBucket()
         {
             BucketType& b = *(*m_bit);
-            m_bit = (m_bit + 1 == m_buckets.end()) ? m_buckets.begin() : m_bit + 1;
+            if(++m_bit == m_buckets.end()) m_bit = m_buckets.begin();
             return b;
         }
 
@@ -257,7 +271,7 @@ namespace graft
             : m_buckets(num_buckets), m_hasher(h)
         {
             for (int i = 0; i < num_buckets; ++i)
-                m_buckets[i].reset(new BucketType);
+                m_buckets[i] = std::make_unique<BucketType>();
 
             m_bit = m_buckets.begin();
         }

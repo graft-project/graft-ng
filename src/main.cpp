@@ -15,6 +15,19 @@ namespace graft {
   void setHttpRouters(Manager& m);
 }
 
+void addGlobalCtxCleaner(graft::Manager& manager, int ms)
+{
+    auto cleaner = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        graft::Context::GlobalFriend::cleanup(ctx.global);
+        return graft::Status::Ok;
+    };
+    manager.addPeriodicTask(
+                graft::Router::Handler3(nullptr, cleaner, nullptr),
+                std::chrono::milliseconds(ms)
+                );
+}
+
 int main(int argc, const char** argv)
 {
     int log_level = 1;
@@ -88,6 +101,7 @@ int main(int argc, const char** argv)
         sopts.workers_count = server_conf.get<int>("workers-count");
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
         sopts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
+        int lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
 
         const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
         sopts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
@@ -102,6 +116,8 @@ int main(int argc, const char** argv)
         });
 
         graft::Manager manager(sopts);
+
+        addGlobalCtxCleaner(manager, lru_timeout_ms);
 
         graft::setCoapRouters(manager);
         graft::setHttpRouters(manager);

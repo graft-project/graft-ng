@@ -339,6 +339,8 @@ TEST(Context, multithreaded)
 
     EXPECT_LE(2, pass_cnt);
 
+    const int th_count = 4;
+
     //forward and backward passes
     std::atomic_int stop(0);
 
@@ -350,7 +352,7 @@ TEST(Context, multithreaded)
         {
             std::for_each(v_keys.begin(), v_keys.end(), [&] (auto& key)
             {
-                while(!stop && cnt == g_count);
+                while( stop < th_count - 1 && cnt == g_count);
                 ctx.global.apply(key, f);
                 cnt = ++g_count;
             });
@@ -365,7 +367,7 @@ TEST(Context, multithreaded)
         {
             std::for_each(v_keys.rbegin(), v_keys.rend(), [&] (auto& key)
             {
-                while(!stop && cnt == g_count);
+                while( stop < th_count - 1 && cnt == g_count);
                 ctx.global.apply(key, f);
                 cnt = ++g_count;
             });
@@ -373,18 +375,24 @@ TEST(Context, multithreaded)
         ++stop;
     };
 
-    std::thread tf(f_f);
-    std::thread tb(f_b);
+    std::thread ths[th_count];
+    for(int i=0; i < th_count; ++i)
+    {
+        ths[i] = (i%2)? std::thread(f_f) : std::thread(f_b);
+    }
 
     int main_count = 0;
-    while( stop < 2)
+    while( stop < th_count )
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         ++g_count;
         ++main_count;
     }
-    tf.join();
-    tb.join();
+
+    for(int i=0; i < th_count; ++i)
+    {
+        ths[i].join();
+    }
 
     uint64_t sum = 0;
     {
