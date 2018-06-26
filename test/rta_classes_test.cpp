@@ -30,6 +30,7 @@
 #include <misc_log_ex.h>
 #include <gtest/gtest.h>
 #include <boost/scoped_ptr.hpp>
+#include <thread_pool/thread_pool.hpp>
 
 
 // cryptonode includes
@@ -213,11 +214,12 @@ TEST_F(FullSupernodeListTest, loadFromDir2)
 
     const std::string daemon_addr = "localhost:28881";
     const bool testnet = true;
-
+    size_t found_wallets = 0;
     FullSupernodeList sn_list(daemon_addr, testnet);
-    size_t loadedItems = sn_list.loadFromDirThreaded(".");
+    size_t loadedItems = sn_list.loadFromDirThreaded(".", found_wallets);
+    LOG_PRINT_L0(" !!! loaded: " << loadedItems << " items");
     EXPECT_EQ(loadedItems, sn_list.items().size());
-    LOG_PRINT_L0("loaded: " << loadedItems << " items");
+    EXPECT_EQ(found_wallets, loadedItems);
 }
 
 template<typename T>
@@ -389,3 +391,18 @@ TEST_F(FullSupernodeListTest, getBlockHash)
 }
 
 
+
+TEST_F(FullSupernodeListTest, threadPool)
+{
+    tp::ThreadPool thread_pool;
+
+    for (int i = 0; i < 10; ++i) {
+        thread_pool.post([]() {
+            LOG_PRINT_L0("worker thread starting") ;
+            boost::this_thread::sleep(
+                        boost::posix_time::milliseconds(1000)
+                        );
+            LOG_PRINT_L0("worker thread done");
+        });
+    }
+}

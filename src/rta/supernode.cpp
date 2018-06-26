@@ -94,7 +94,7 @@ Supernode *Supernode::load(const string &wallet_path, const string &wallet_passw
     Supernode * sn = new Supernode(wallet_path, wallet_password, daemon_address, testnet);
 
     sn->refresh();
-    if (sn->stakeAmount() < Supernode::TIER1_STAKE_AMOUNT) {
+    if (false/*sn->stakeAmount() < Supernode::TIER1_STAKE_AMOUNT*/) {
        LOG_ERROR("wallet " << sn->walletAddress() << " doesn't have enough stake to be supernode: " << sn->stakeAmount());
        delete sn;
        return nullptr;

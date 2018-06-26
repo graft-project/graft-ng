@@ -44,10 +44,11 @@ public:
     
     /*!
      * \brief loadFromDirThreaded - loads list from directory.
-     * \param base_dir
-     * \return
+     * \param base_dir            - directory where to search for wallets
+     * \param found_wallets       - number of found wallets
+     * \return                    - number of loaded supernodes
      */
-    size_t loadFromDirThreaded(const std::string &base_dir);
+    size_t loadFromDirThreaded(const std::string &base_dir, size_t &found_wallets);
     
     /*!
      * \brief remove  - removes Supernode from list. closes it's wallet and frees memory
@@ -105,6 +106,8 @@ public:
      * \return             - true on success
      */
     bool getBlockHash(uint64_t height, std::string &hash);
+
+    void refreshAsync();
 
 private:
     void selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
