@@ -49,7 +49,7 @@ public:
      * \brief refresh         - get latest blocks from the daemon
      * \return                - true on success
      */
-    bool refresh();
+    void refresh();
 
     /*!
      * \brief testnet        - to check if wallet is testnet wallet

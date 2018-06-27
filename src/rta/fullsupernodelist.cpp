@@ -1,14 +1,14 @@
 #include "fullsupernodelist.h"
+#include <wallet/api/wallet_manager.h>
+#include <misc_log_ex.h>
 
-#include <algorithm>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/filesystem.hpp>
-#include <misc_log_ex.h>
-// using WalletManager for
-#include <wallet/api/wallet_manager.h>
+
+#include <algorithm>
 #include <iostream>
-#include <thread_pool/thread_pool.hpp>
 #include <future>
+
 
 namespace fs = boost::filesystem;
 using namespace boost::multiprecision;
@@ -58,12 +58,67 @@ namespace {
 
 namespace graft {
 
+namespace utils {
+
+class ThreadPool
+{
+public:
+    ThreadPool(size_t threads = 0);
+    template <typename Callable>
+    void enqueue(Callable job);
+    void run();
+    std::future<void> runAsync();
+
+private:
+    boost::asio::io_service m_ioservice;
+    boost::thread_group m_threadpool;
+    std::unique_ptr<boost::asio::io_service::work> m_work;
+};
+
+ThreadPool::ThreadPool(size_t threads)
+{
+    m_work = std::unique_ptr<boost::asio::io_service::work>{new boost::asio::io_service::work(m_ioservice)};
+    if (threads == 0) {
+        threads = boost::thread::hardware_concurrency();
+    }
+    for (int i = 0; i < threads; i++) {
+        m_threadpool.create_thread(boost::bind(&boost::asio::io_service::run, &m_ioservice));
+    }
+}
+
+
+template<typename Callable>
+void ThreadPool::enqueue(Callable job)
+{
+    m_ioservice.dispatch(job);
+}
+
+void ThreadPool::run()
+{
+    m_work.reset();
+    m_work.reset();
+    while (!m_ioservice.stopped())
+        m_ioservice.poll();
+    m_threadpool.join_all();
+    m_ioservice.stop();
+}
+
+std::future<void> ThreadPool::runAsync()
+{
+    return std::async(std::launch::async, [&]() {
+       this->run();
+    });
+}
+
+} // namespace utils;
+
 FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     : m_testnet(testnet)
     , m_daemon_address(daemon_address)
     , m_rpc_client(daemon_address, "", "")
+    , m_tp(new utils::ThreadPool())
 {
-
+    m_refresh_counter = 0;
 }
 
 FullSupernodeList::~FullSupernodeList()
@@ -105,11 +160,15 @@ size_t FullSupernodeList::loadFromDir(const string &base_dir)
     return result;
 }
 
+
+
 size_t FullSupernodeList::loadFromDirThreaded(const string &base_dir, size_t &found_wallets)
 {
     vector<string> wallets = findWallets(base_dir);
     LOG_PRINT_L0("found wallets: " << wallets.size());
     found_wallets = wallets.size();
+
+    utils::ThreadPool tp;
 
     auto worker = [&](const std::string &wallet_path) {
         Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
@@ -124,61 +183,13 @@ size_t FullSupernodeList::loadFromDirThreaded(const string &base_dir, size_t &fo
             LOG_ERROR("Error loading supernode wallet from: " << wallet_path);
         }
     };
-    {
-        tp::ThreadPool thread_pool;
-        for (const auto &wallet_path : wallets) {
-            LOG_PRINT_L0("posting wallet to the thread pool" << wallet_path);
-            thread_pool.post(boost::bind<void>(worker, wallet_path), true);
-            LOG_PRINT_L0("posted wallet " << wallet_path);
-        }
-        LOG_PRINT_L0("posted " << wallets.size() << " jobs");
+
+    for (const auto &wallet_path : wallets) {
+        tp.enqueue(boost::bind<void>(worker, wallet_path));
     }
+    tp.run();
     return this->size();
 }
-
-
-//size_t FullSupernodeList::loadFromDirThreaded(const string &base_dir, size_t &found_wallets)
-//{
-//    vector<string> wallets = findWallets(base_dir);
-//    LOG_PRINT_L0("found wallets: " << wallets.size());
-//    found_wallets = wallets.size();
-//    boost::asio::io_service ioservice;
-//    boost::thread_group threadpool;
-//    size_t threads = boost::thread::hardware_concurrency();
-//    std::unique_ptr<boost::asio::io_service::work> work(new boost::asio::io_service::work(ioservice));
-
-//    for (int i = 0; i < threads; i++) {
-//        threadpool.create_thread(boost::bind(&boost::asio::io_service::run, &ioservice));
-//    }
-
-//    auto worker = [&](const std::string &wallet_path) {
-//        Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
-//        if (sn) {
-//            if (!this->add(sn)) {
-//                LOG_ERROR("can't add supernode: " << sn->walletAddress());
-//                delete sn;
-//            } else {
-//                LOG_PRINT_L0("Loaded supernode: " << sn->walletAddress());
-//            }
-//        } else {
-//            LOG_ERROR("Error loading supernode wallet from: " << wallet_path);
-//        }
-//    };
-
-//    for (const auto &wallet_path : wallets) {
-//        LOG_PRINT_L1("posting wallet " << wallet_path);
-//        ioservice.dispatch(boost::bind<void>(worker, wallet_path));
-//        LOG_PRINT_L1("wallet sent to thread pool " << wallet_path);
-//    }
-
-//    work.reset();
-//    while (!ioservice.stopped())
-//        ioservice.poll();
-//    threadpool.join_all();
-//    ioservice.stop();
-
-//    return this->size();
-//}
 
 bool FullSupernodeList::remove(const string &address)
 {
@@ -266,19 +277,27 @@ bool FullSupernodeList::getBlockHash(uint64_t height, std::string &hash)
     return result;
 }
 
-void FullSupernodeList::refreshAsync()
+std::future<void> FullSupernodeList::refreshAsync()
 {
-    std::async(std::launch::async, [&]() {
-        tp::ThreadPool thread_pool;
-        auto worker = [&](const std::string &address) {
-            SupernodePtr sn = this->get(address);
-            if (sn)
-                sn->refresh();
-        };
-        for (const auto & address : this->items()) {
-            worker(address);
+    m_refresh_counter = 0;
+    auto worker = [&](const std::string &address) {
+        SupernodePtr sn = this->get(address);
+        if (sn) {
+            sn->refresh();
+            ++m_refresh_counter;
         }
-    });
+    };
+
+    for (const auto &address : this->items()) {
+        m_tp->enqueue(boost::bind<void>(worker, address));
+    }
+
+    return m_tp->runAsync();
+}
+
+size_t FullSupernodeList::refreshedItems() const
+{
+    return m_refresh_counter;
 }
 
 bool FullSupernodeList::bestSupernode(std::vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result)
@@ -327,5 +346,7 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
         }
     }
 }
+
+
 
 }

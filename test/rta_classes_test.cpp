@@ -222,6 +222,25 @@ TEST_F(FullSupernodeListTest, loadFromDir2)
     EXPECT_EQ(found_wallets, loadedItems);
 }
 
+TEST_F(FullSupernodeListTest, refreshAsync)
+{
+    MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
+
+    const std::string daemon_addr = "localhost:28881";
+    const bool testnet = true;
+    size_t found_wallets = 0;
+    FullSupernodeList sn_list(daemon_addr, testnet);
+    size_t loadedItems = sn_list.loadFromDirThreaded(".", found_wallets);
+    LOG_PRINT_L0(" !!! loaded: " << loadedItems << " items");
+    MGINFO_YELLOW("*** ALL WALLETS LOADED, REFRESHING ***");
+
+    std::future<void> f = sn_list.refreshAsync();
+    MGINFO_YELLOW("*** REFRESH STARTED, WAITING ***");
+    f.wait();
+    MGINFO_YELLOW("*** ALL WALLETS REFRESHED ***");
+    EXPECT_EQ(loadedItems, sn_list.refreshedItems());
+}
+
 template<typename T>
 void print_container(std::ostream& os, const T& container, const std::string& delimiter)
 {

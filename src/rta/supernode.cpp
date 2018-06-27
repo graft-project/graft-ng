@@ -144,9 +144,9 @@ bool Supernode::setDaemonAddress(const std::string &address)
     return m_wallet.init(address);
 }
 
-bool Supernode::refresh()
+void Supernode::refresh()
 {
-    m_wallet.refresh();
+   m_wallet.refresh();
 }
 
 bool Supernode::testnet() const

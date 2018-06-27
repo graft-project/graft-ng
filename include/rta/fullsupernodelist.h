@@ -7,6 +7,7 @@
 
 #include <string>
 #include <vector>
+#include <future>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread.hpp>
 #include <unordered_map>
@@ -16,7 +17,9 @@
 
 namespace graft {
 
-
+namespace utils {
+    class ThreadPool;
+}
 
 class FullSupernodeList
 {
@@ -107,7 +110,19 @@ public:
      */
     bool getBlockHash(uint64_t height, std::string &hash);
 
-    void refreshAsync();
+    /*!
+     * \brief refreshAsync - starts asynchronous parallel refresh all supernodes using internal threadpool.
+     *                       number of parallel jobs equals to number of hardware CPU cores
+     *
+     * \return             - std::future to wait for result
+     */
+    std::future<void> refreshAsync();
+
+    /*!
+     * \brief refreshedItems - returns number of refreshed supernodes
+     * \return
+     */
+    size_t refreshedItems() const;
 
 private:
     void selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
@@ -120,6 +135,8 @@ private:
     bool m_testnet;
     DaemonRpcClient m_rpc_client;
     mutable boost::shared_mutex m_access;
+    std::unique_ptr<utils::ThreadPool> m_tp;
+    std::atomic_size_t m_refresh_counter;
 };
 
 } // namespace graft
