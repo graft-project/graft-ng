@@ -155,7 +155,7 @@ private:
     ServerOpts m_sopts;
     TimerList<BaseTask_ptr> m_timerList;
 public:
-    std::atomic_bool m_exit {false};
+    volatile std::atomic_bool m_exit {false};
 };
 
 template<typename C>
@@ -321,8 +321,10 @@ private:
     };
 public:
     bool ready() const { return m_ready; }
+    void stop() { if (m_manager) m_manager->stop(); }
 private:
     std::atomic_bool m_ready;
+    Manager *m_manager {nullptr};
 };
 
 }//namespace graft

@@ -125,7 +125,7 @@ struct Context
 
     class Global
     {
-    private:
+    protected:
         GlobalContextMap& m_map;
         const graft::ServerOpts *m_serverOpts = nullptr;
 
@@ -134,6 +134,7 @@ struct Context
 
         friend class Context;
 
+    private:
         class Proxy
         {
         public:
@@ -222,6 +223,18 @@ struct Context
         void remove(const std::string& key)
         {
             return m_map.remove(key);
+        }
+    };
+
+
+    class GlobalFriend : protected Global
+    {
+    public:
+        GlobalFriend() = delete;
+        static void cleanup(Global& global)
+        {
+            GlobalFriend& gf = static_cast<GlobalFriend&>(global);
+            gf.m_map.cleanup();
         }
     };
 

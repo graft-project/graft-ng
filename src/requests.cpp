@@ -8,6 +8,7 @@
 #include "payrequest.h"
 #include "paystatusrequest.h"
 #include "rejectpayrequest.h"
+#include "forwardrequest.h"
 
 #include "sendrawtxrequest.h"
 #include "authorizertatxrequest.h"
@@ -30,6 +31,12 @@ void registerRTARequests(graft::Router &router)
     graft::registerAuthorizeRtaTxRequest(router);
     graft::registerSendTxAuthResponseRequest(router);
     graft::registerSendSupernodeAnnounceRequest(router);
+}
+
+
+void registerForwardRequests(graft::Router &router)
+{
+    graft::registerForwardRequest(router);
 }
 
 }
