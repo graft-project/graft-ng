@@ -6,6 +6,7 @@
 #include <boost/property_tree/ini_parser.hpp>
 // #include <boost/tokenizer.hpp>
 #include <boost/filesystem.hpp>
+#include <csignal>
 
 namespace po = boost::program_options;
 using namespace std;
@@ -15,11 +16,33 @@ namespace graft {
   void setHttpRouters(Manager& m);
 }
 
+static graft::GraftServer server;
+static void signal_handler_stop(int sig_num)
+{
+    LOG_PRINT_L0("Stoping server");
+    server.stop();
+}
+
+void addGlobalCtxCleaner(graft::Manager& manager, int ms)
+{
+    auto cleaner = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        graft::Context::GlobalFriend::cleanup(ctx.global);
+        return graft::Status::Ok;
+    };
+    manager.addPeriodicTask(
+                graft::Router::Handler3(nullptr, cleaner, nullptr),
+                std::chrono::milliseconds(ms)
+                );
+}
+
 int main(int argc, const char** argv)
 {
+    std::signal(SIGINT, signal_handler_stop);
+    std::signal(SIGTERM, signal_handler_stop);
+
     int log_level = 1;
     string config_filename;
-
 
     try {
         po::options_description desc("Allowed options");
@@ -51,6 +74,7 @@ int main(int argc, const char** argv)
     catch(...) {
         cerr << "Exception of unknown type!\n";
     }
+
     mlog_configure("", true);
     mlog_set_log_level(log_level);
     // load config
@@ -89,6 +113,7 @@ int main(int argc, const char** argv)
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
         sopts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
         sopts.data_dir = server_conf.get<string>("data-dir");
+        int lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
 
         const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
         sopts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
@@ -104,13 +129,11 @@ int main(int argc, const char** argv)
 
         graft::Manager manager(sopts);
 
+        addGlobalCtxCleaner(manager, lru_timeout_ms);
+
         graft::setCoapRouters(manager);
         graft::setHttpRouters(manager);
         manager.enableRouting();
-
-
-
-        graft::GraftServer server;
 
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
         server.serve(manager.get_mg_mgr());
