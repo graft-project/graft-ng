@@ -17,9 +17,11 @@ namespace graft {
 }
 
 static graft::GraftServer server;
-static void signal_handler_stop(int sig_num) {
+static void signal_handler_stop(int sig_num)
+{
     LOG_PRINT_L0("Stoping server");
     server.stop();
+}
 
 void addGlobalCtxCleaner(graft::Manager& manager, int ms)
 {
