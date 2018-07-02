@@ -292,7 +292,6 @@ bool FullSupernodeList::bestSupernode(std::vector<SupernodePtr> &arg, const cryp
         b->getScoreHash(block_hash, hash_b);
         uint256_t a_value = hash_to_int256(hash_a);
         uint256_t b_value = hash_to_int256(hash_b);
-        // LOG_PRINT_L0("a_value: " << a_value << ", b_value: " << b_value);
         return a_value < b_value;
 
     });
