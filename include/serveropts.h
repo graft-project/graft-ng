@@ -15,8 +15,10 @@ struct ServerOpts
     int worker_queue_len;
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
-    // data directory - where
+    // data directory - base directory where supernode stake wallet and other supernodes wallets are located
     std::string data_dir;
+    // testnet flag
+    bool testnet;
 };
 
 }
