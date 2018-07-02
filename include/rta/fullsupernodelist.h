@@ -1,18 +1,17 @@
 #ifndef FULLSUPERNODELIST_H
 #define FULLSUPERNODELIST_H
 
-#include <rta/supernode.h>
-#include <rta/DaemonRpcClient.h>
+#include "rta/supernode.h"
+#include "rta/DaemonRpcClient.h"
 #include <cryptonote_config.h>
 
 #include <string>
 #include <vector>
 #include <future>
-#include <boost/shared_ptr.hpp>
-#include <boost/thread.hpp>
 #include <unordered_map>
 
-
+#include <boost/shared_ptr.hpp>
+#include <boost/thread.hpp>
 
 
 namespace graft {
@@ -128,6 +127,8 @@ private:
     void selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
                               std::vector<SupernodePtr> &output);
     bool bestSupernode(std::vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result);
+
+    bool loadWallet(const std::string &wallet_path);
 
 private:
     std::unordered_map<std::string, SupernodePtr> m_list;
