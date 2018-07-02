@@ -51,6 +51,26 @@ ExternalProject_Add(
     CMAKE_ARGS ${ExternalProjectCMakeArgs} -DBUILD_SHARED_LIBS=ON # TODO: fix so cryptonode's libs can be statically linked
     )
 
+ExternalProject_Add(
+    zstd
+    DOWNLOAD_COMMAND ""
+    DOWNLOAD_DIR ${PROJECT_SOURCE_DIR}
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/modules/zstd/build/cmake
+    BINARY_DIR ${PROJECT_BINARY_DIR}/BUILD/zstd
+    STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/zstd
+    TMP_DIR ${PROJECT_BINARY_DIR}/TMP/zstd
+#    INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
+    INSTALL_DIR ""
+    INSTALL_COMMAND ""
+#    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DBUILD_SHARED_LIBS=ON # TODO: fix so cryptonode's libs can be statically linked
+
+#    TEST_COMMAND ""
+#    UPDATE_COMMAND ""
+#    PATCH_COMMAND ""
+#    CONFIGURE_COMMAND ""
+#    BUILD_BYPRODUCTS ""
+    )
+
 set(CMAKE_CXX_STANDARD 14)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
@@ -78,11 +98,19 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+#    ${PROJECT_SOURCE_DIR}/src/boost/iostreams/filter/zstd.cpp
+#    ${PROJECT_SOURCE_DIR}/src/boost/iostreams/filter/gzip.cpp
+#    ${PROJECT_SOURCE_DIR}/src/boost/iostreams/filter/zlib.cpp
+#    gzip.cpp
+#    zlib.cpp
+#    ${Boost_INCLUDE_DIR}/gzip.cpp
+#    /usr/source/boost/iostreams/filter/zstd.cpp
     )
 
 set(GS_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/mongoose
     ${PROJECT_SOURCE_DIR}/modules/libr3/include
+    ${PROJECT_SOURCE_DIR}/modules/zstd/lib
     ${PROJECT_SOURCE_DIR}/include/requests
     ${PROJECT_SOURCE_DIR}/include/rta
     ${PROJECT_SOURCE_DIR}/include
@@ -92,6 +120,7 @@ set(GS_INCLUDE_DIRS
 set(GS_LIBS
     ${PROJECT_BINARY_DIR}/BUILD/lib/libr3.a
     ${PROJECT_BINARY_DIR}/BUILD/lib/liblib3rdparty.a
+    ${PROJECT_BINARY_DIR}/BUILD/zstd/lib/libzstd.a
     pcre
     dl
     )
@@ -137,7 +166,13 @@ set(COMMON_LIBS
 #set(Boost_USE_MULTITHREADED ON)
 #set(Boost_USE_STATIC_RUNTIME ON)
 
+<<<<<<< Updated upstream
 find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread regex)
+=======
+find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system iostreams filesystem program_options serialization thread)
+
+#find_package(Boost REQUIRED COMPONENTS system iostreams filesystem program_options serialization thread)
+>>>>>>> Stashed changes
 
 if(NOT Boost_FOUND)
     die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
@@ -175,7 +210,7 @@ target_link_libraries(graft_server PRIVATE
     )
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
 
-add_dependencies(graft_server libr3 cryptonode)
+add_dependencies(graft_server libr3 cryptonode zstd)
 
 ##################
 ### tests section
@@ -225,11 +260,12 @@ if (OPT_BUILD_TESTS)
             ${GS_LIBS}
             ${Boost_LIBRARIES}
             ${CMAKE_THREAD_LIBS_INIT}
+            #zlib
             )
 
 
-        target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
-        add_dependencies(graft_server_test libr3 cryptonode googletest)
+        target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1 ZSTD_STATIC_LINKING_ONLY=1)
+        add_dependencies(graft_server_test libr3 cryptonode zstd googletest)
 
         if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
             add_custom_command(

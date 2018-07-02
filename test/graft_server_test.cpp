@@ -13,6 +13,7 @@
 #include "inout.h"
 #include <deque>
 #include <jsonrpc.h>
+#include <fstream>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -405,6 +406,382 @@ TEST(Context, multithreaded)
         });
     }
     EXPECT_EQ(sum, g_count-main_count);
+}
+
+void write_pascal_file(const std::string& s, const char* fname)
+{
+    std::ofstream fs(fname, std::ios::binary | std::ios::trunc);
+    size_t sz = s.size();
+    fs.write(reinterpret_cast<char*>(&sz), sizeof(sz));
+    fs.write(s.c_str(), s.size());
+    fs.close();
+}
+
+std::string read_pascal_file(const char* fname)
+{
+    std::ifstream fs(fname, std::ios::binary | std::ios::in);
+    if(!fs) return std::string();
+    size_t sz = 0;
+    fs.read(reinterpret_cast<char*>(&sz), sizeof(sz));
+    std::string s; s.resize(sz);
+    fs.read(&s[0], sz);
+    fs.close();
+    return s;
+}
+
+std::string read_bin_file(const char* fname)
+{
+    std::ifstream fs(fname, std::ios::binary | std::ios::in);
+    if(!fs) return std::string();
+    std::ostringstream oss;
+    std::copy(std::istreambuf_iterator<char>(fs),
+              std::istreambuf_iterator<char>( ),
+              std::ostreambuf_iterator<char>(oss));
+    return oss.str();
+/*
+    size_t sz = 0;
+    fs.read(reinterpret_cast<char*>(&sz), sizeof(sz));
+    std::string s; s.resize(sz);
+    fs.read(&s[0], sz);
+    fs.close();
+    return s;
+*/
+}
+
+//#include <zstd.hpp>
+#include <boost/iostreams/device/file_descriptor.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filter/zstd.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/copy.hpp>
+
+TEST(ZSTD, Common)
+{
+    std::stringstream co;
+    std::stringstream oss("aaaaaa aaaa aaaaa aaaaa "); //(std::ios::binary);
+    namespace io = boost::iostreams;
+    io::filtering_ostream out;
+//    out.push(io::zstd::compressor() zstd compressor());
+//    out.push(compressor());
+//    out.push(base64_encoder());
+//    out.push(io::zstd_compressor(1, 0x1000));
+//    out.push(io::zstd_compressor());
+//    out.push(io::gzip_compressor());
+    out.push(oss);
+    out << "aaaa";
+
+//    io::copy(out, co);
+//    std::copy(out, co);
+/*
+    out << "aaaotgijeogmoegmoefgmo foij0fgii43jfn 4foi34fno3f o4fij34ifj3f fok34fok34fj 4prfk3f3jf" << std::endl;
+    out.flush();
+*/
+    std::string s = co.str();
+    std::cout << "s.size() = " << s.size()  << " '" << s << "'" <<std::endl;
+}
+
+#define ZSTD_STATIC_LINKING_ONLY
+#include <zstd.h>
+
+
+
+#include <dictBuilder/zdict.h>
+
+class zstd_streambuf : public std::streambuf
+{
+    std::streambuf* sbuf_;
+    size_t insize;
+//    char* buffer_;
+    // context for the compression
+    ZSTD_CStream* zcs;
+    int compressionLevel = 3;
+    ZSTD_outBuffer output;
+    ZSTD_inBuffer input;
+public:
+    zstd_streambuf(std::streambuf* sbuf)
+        : sbuf_(sbuf)
+    {
+        zcs = ZSTD_createCStream();
+        size_t res = ZSTD_initCStream(zcs, compressionLevel);
+        input.size = ZSTD_CStreamInSize();
+        input.src = new char[input.size];
+        input.pos = input.size;
+        // initialize compression context
+    }
+    ~zstd_streambuf()
+    {
+        ZSTD_freeCStream(zcs);
+//        delete[] this->buffer_;
+        delete[] input.src;
+    }
+    int underflow() override
+    {
+        if (this->gptr() == this->egptr())
+        {
+/*
+            ZSTD_inBuffer in;
+            in.src = sbuf_->eback();
+            in.size = (sbuf_->egptr() - sbuf_->eback());
+            in.pos = (sbuf_->gptr() - sbuf_->eback());
+*/
+            size_t size = this->sbuf_->in_avail();
+            size = std::min(size, size_t(1024));
+/*
+            ZSTD_inBuffer in;
+            in.src = buffer_;
+            in.size = insize;
+            in.pos = 0;
+*/
+            this->sbuf_->sgetn(buffer_, size);
+
+            ZSTD_inBuffer out;
+            ZSTD_compressStream(zcs)
+//            auto sz =
+//            for(size_t i=0; i<size; ++i) buffer_[i] = 'a';
+            // decompress data into buffer_, obtaining its own input from
+            // this->sbuf_; if necessary resize buffer
+            // the next statement assumes "size" characters were produced (if
+            // no more characters are available, size == 0.
+            this->setg(this->buffer_, this->buffer_, this->buffer_ + size);
+        }
+        return this->gptr() == this->egptr()
+             ? std::char_traits<char>::eof()
+             : std::char_traits<char>::to_int_type(*this->gptr());
+    }
+};
+
+TEST(ZSTD, Stream)
+{
+    std::istringstream iss("aaa sss ddd");
+    zstd_streambuf zsb(iss.rdbuf());
+    std::istream in(&zsb);
+    std::copy(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>(), std::ostreambuf_iterator<char>(std::cout));
+//    std::copy(in, std::cout);
+}
+
+void trainDict(const std::vector<std::string>& samples, const char* fname)
+{
+//*  Tips: In general, a reasonable dictionary has a size of ~ 100 KB.
+//*        In general, it's recommended to provide a few thousands samples, though this can vary a lot.
+//*        It's recommended that total size of all samples be about ~x100 times the target size of dictionary.
+    const int dictSz = 100*0x400;
+    std::string dict; dict.resize(dictSz);
+    std::vector<size_t> sampSizes; sampSizes.reserve(samples.size());
+    size_t sampBufSz = 0;
+    for(auto& s : samples) { sampBufSz += s.size(); sampSizes.push_back(s.size()); }
+    std::string sampBuf; sampBuf.reserve(sampBufSz);
+    for(auto& s : samples) { sampBuf += s; }
+
+    size_t sz = ZDICT_trainFromBuffer(&dict[0], dict.size(), &sampBuf[0], &sampSizes[0], sampSizes.size());
+    dict.resize(sz);
+    write_pascal_file(dict, fname);
+/*
+    {//save dictionary
+        std::ofstream fs(fname, std::ios::binary | std::ios::trunc);
+        size_t sz = dict.size();
+        fs.write(reinterpret_cast<char*>(&sz), sizeof(sz));
+        fs.write(dict.c_str(), dict.size());
+        fs.close();
+    }
+*/
+}
+
+void temp_make_trainDict(const std::string sample, const char* fname)
+{
+    std::vector<std::string> samples;
+    samples.push_back(sample);
+//    std::string samps = sample;
+    int64_t t = 0x35ac9475ca479553;
+    for(int i=0; i<3000; ++i)
+    {
+        std::string s = sample;
+        for(auto& ch : s)
+        {
+            ch ^= t;
+            bool sign = (t<0); t<<=1; if(sign) ++t;
+            t += 0x5e;
+        }
+        samples.push_back(s);
+    }
+    std::cout << "\n\tt = 0x" << std::hex << t << std::dec << std::endl;
+    trainDict(samples, fname);
+}
+
+std::string compress(const std::string& s, bool wdict = true, int compressionLevel = 1, int* time_mu = 0)
+{
+    //Note: to decompress we need to specify original data size,
+    //  so it is convinient to save the size prior compressed data.
+    //  The only problem is network ordering.
+    if(!wdict)
+    {
+        auto begin = std::chrono::high_resolution_clock::now();
+        size_t pre_sz = ZSTD_compressBound(s.size());
+        std::string d; d.resize(pre_sz + sizeof(size_t));
+        size_t& orig_sz = *reinterpret_cast<size_t*>(&d[0]);
+        orig_sz = s.size();
+        size_t sz = ZSTD_compress(&d[sizeof(size_t)], d.size()-sizeof(size_t), &s[0], s.size(), compressionLevel);
+        d.resize(sz + sizeof(size_t));
+        auto end = std::chrono::high_resolution_clock::now();
+        if(time_mu) *time_mu = std::chrono::duration_cast<std::chrono::microseconds>(end-begin).count();
+        return d;
+    }
+    static ZSTD_CCtx* cctx = nullptr;
+    static ZSTD_CDict* cdict = nullptr;
+    static int lvl = 0;
+    if(lvl != compressionLevel)
+    {
+        lvl = compressionLevel;
+        if(cctx){ ZSTD_freeCCtx(cctx); cctx = nullptr; }
+        cctx = ZSTD_createCCtx();
+        if(cdict){ ZSTD_freeCDict(cdict); cdict = nullptr; }
+        std::string dict = read_pascal_file("dict.x");
+        if(!dict.empty())
+        {
+            cdict = ZSTD_createCDict(&dict[0], dict.size(), compressionLevel);
+        }
+    }
+    //
+    auto begin = std::chrono::high_resolution_clock::now();
+    size_t pre_sz = ZSTD_compressBound(s.size());
+    std::string d; d.resize(pre_sz + sizeof(size_t));
+    size_t& orig_sz = *reinterpret_cast<size_t*>(&d[0]);
+    orig_sz = s.size();
+    size_t sz = ZSTD_compress_usingCDict(cctx, &d[sizeof(size_t)], d.size()-sizeof(size_t), &s[0], s.size(), cdict);
+    d.resize(sz + sizeof(size_t));
+    auto end = std::chrono::high_resolution_clock::now();
+    if(time_mu) *time_mu = std::chrono::duration_cast<std::chrono::microseconds>(end-begin).count();
+    return d;
+}
+
+std::string decompress(const std::string& s, bool wdict = true, int compressionLevel = 1, int* time_mu = 0)
+{
+    if(!wdict)
+    {
+        auto begin = std::chrono::high_resolution_clock::now();
+        const size_t& sz = *reinterpret_cast<const size_t*>(&s[0]);
+        std::string d; d.resize(sz);
+        size_t res = ZSTD_decompress(&d[0], d.size(), &s[sizeof(size_t)], s.size() - sizeof(size_t));
+        EXPECT_EQ(res, d.size());
+        auto end = std::chrono::high_resolution_clock::now();
+        if(time_mu) *time_mu = std::chrono::duration_cast<std::chrono::microseconds>(end-begin).count();
+        return d;
+    }
+    static ZSTD_DCtx* dctx = nullptr;
+    static ZSTD_DDict* ddict = nullptr;
+    static int lvl = 0;
+    if(lvl != compressionLevel)
+    {
+        lvl = compressionLevel;
+        if(dctx){ ZSTD_freeDCtx(dctx); dctx = nullptr; }
+        dctx = ZSTD_createDCtx();
+        if(ddict){ ZSTD_freeDDict(ddict); ddict = nullptr; }
+        std::string dict = read_pascal_file("dict.x");
+        if(!dict.empty())
+        {
+            ddict = ZSTD_createDDict(&dict[0], dict.size());
+        }
+    }
+    //
+    auto begin = std::chrono::high_resolution_clock::now();
+    const size_t& sz = *reinterpret_cast<const size_t*>(&s[0]);
+    std::string d; d.resize(sz);
+    size_t res = ZSTD_decompress_usingDDict(dctx, &d[0], d.size(), &s[sizeof(size_t)], s.size() - sizeof(size_t), ddict);
+    EXPECT_EQ(res, d.size());
+    auto end = std::chrono::high_resolution_clock::now();
+    if(time_mu) *time_mu = std::chrono::duration_cast<std::chrono::microseconds>(end-begin).count();
+    return d;
+}
+
+TEST(ZSTD, CommonZSTD)
+{
+    std::string s;
+    {
+        const char* fname = "req_dump.x";
+/*
+        std::ifstream fs(fname, std::ios::binary | std::ios::in);
+        EXPECT_TRUE(fs);
+        if(!fs)
+        {
+            std::cout << "Cannot open file with data:" << fname << std::endl;
+            return;
+        }
+        size_t sz = 0;
+        fs.read(reinterpret_cast<char*>(&sz), sizeof(sz));
+        s.resize(sz);
+        fs.read(&s[0], sz);
+        fs.close();
+*/
+        s = read_pascal_file(fname);
+        //
+        temp_make_trainDict(s, "dict.x");
+        //temp increase source size in 100 times
+        std::string r;
+        int k = 0xaacc55dd;
+        for(int i = 0; i<100; ++i)
+        {
+            std::string s1 = s;
+//            for(auto& ch : s1) { ch+=k; ++k; bool s = k<0; k <<=1; if if(k%2) k*=3, ++k; else k/=2; }
+            for(auto& ch : s1) { ch+=k; bool s = k<0; k <<=1; if(s) k|=1; }
+            r += s1;
+        }
+        s = r;
+    }
+    s = read_pascal_file("dump_cache.x");
+//    s = read_bin_file("test_wallet_0622");
+    std::cout << "\ncompression input size = " << s.size() << std::endl;
+    int orig_sz = s.size();
+    for(int lvl = 1; lvl <= ZSTD_maxCLevel(); ++lvl)
+    {
+        int t0_mu_c = 0, t0_mu_d = 0, t1_mu_c = 0, t1_mu_d = 0;
+        size_t sz0 = 0, sz1 = 0;
+        {//wo dict
+            std::string co = compress(s, false, lvl, &t0_mu_c);
+            sz0 = co.size();
+            std::string de = decompress(co, false, lvl, &t0_mu_d);
+            EXPECT_EQ(de, s);
+        }
+/*
+        {//w dict
+            std::string co = compress(s, true, lvl, &t1_mu_c);
+            sz1 = co.size();
+            std::string de = decompress(co, true, lvl, &t1_mu_d);
+            EXPECT_EQ(de, s);
+        }
+        {//w dict
+            std::string co = compress(s, true, lvl, &t1_mu_c);
+            sz1 = co.size();
+            std::string de = decompress(co, true, lvl, &t1_mu_d);
+            EXPECT_EQ(de, s);
+        }
+*/
+        std::cout << "level " << lvl << "\t" << 100*sz0/orig_sz << "%\t" <<
+                     t0_mu_c/1000 << "ms; " << std::endl;
+/*
+        std::cout << "level " << lvl << " sz0 = " << sz0 << "; sz1 = " << sz1 <<
+                     "; t0_c = " << t0_mu_c << "mu; t1_c = " << t1_mu_c <<
+                     "mu; t0_d = " << t0_mu_d << "mu; t1_d = " << t1_mu_d << "mu" <<
+                     "\t dt_c = " << 100*(t0_mu_c - t1_mu_c)/t0_mu_c << "%\t dt_d = " << 100*(t0_mu_d - t1_mu_d)/t0_mu_d << "%" << std::endl;
+*/
+/*
+        auto begin = std::chrono::high_resolution_clock::now();
+        size_t pre_sz = ZSTD_compressBound(s.size());
+        std::string co; co.resize(pre_sz);
+        size_t sz = ZSTD_compress(&co[0], co.size(), s.c_str(), s.size(), lvl);
+        co.resize(sz);
+        auto end = std::chrono::high_resolution_clock::now();
+
+        std::cout << "level " << lvl << " sz = " << sz << "; time = " <<
+                     std::chrono::duration_cast<std::chrono::microseconds>(end-begin).count() << "mu" << std::endl;
+
+        //decompress
+        std::string de; de.resize(s.size());
+        size_t de_sz = ZSTD_decompress(&de[0], de.size(), co.c_str(), co.size());
+        EXPECT_EQ(de_sz, de.size());
+        EXPECT_EQ(de, s);
+*/
+    }
 }
 
 /////////////////////////////////
