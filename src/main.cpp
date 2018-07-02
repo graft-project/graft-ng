@@ -135,6 +135,21 @@ int main(int argc, const char** argv)
         graft::setHttpRouters(manager);
         manager.enableRouting();
 
+        {//check conflicts in routes
+            std::string s = manager.dbgCheckConflictRoutes();
+            if(!s.empty())
+            {
+                std::cout << std::endl << "==> manager.dbgDumpRouters()" << std::endl;
+                std::cout << manager.dbgDumpRouters();
+
+                //if you really need dump of r3tree uncomment two following lines
+                //std::cout << std::endl << std::endl << "==> manager.dbgDumpR3Tree()" << std::endl;
+                //manager.dbgDumpR3Tree();
+
+                throw std::runtime_error("Routes conflict found:" + s);
+            }
+        }
+
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
         server.serve(manager.get_mg_mgr());
 

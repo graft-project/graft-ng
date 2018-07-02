@@ -470,6 +470,8 @@ int GraftServer::translateMethod(const char *method, std::size_t len)
 
 int GraftServer::translateMethod(int i)
 {
+    constexpr int size = sizeof(m_methods)/sizeof(m_methods[0]);
+    assert(i<size);
     return m_methods[i].second;
 }
 
