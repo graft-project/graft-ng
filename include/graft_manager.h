@@ -85,6 +85,8 @@ struct ServerOpts
     int worker_queue_len;
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
+    // data directory - where
+    std::string data_dir;
 };
 
 class Manager
@@ -145,6 +147,11 @@ private:
 
     bool tryProcessReadyJob();
     void processReadyJobBlock();
+public:
+    std::string dbgDumpRouters() const { return m_root.dbgDumpRouters(); }
+    void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
+    //returns conflicting endpoint
+    std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
 private:
     mg_mgr m_mgr;
     Router::Root m_root;
@@ -164,7 +171,7 @@ private:
     ServerOpts m_sopts;
     TimerList<BaseTask_ptr> m_timerList;
 public:
-    std::atomic_bool m_exit {false};
+    volatile std::atomic_bool m_exit {false};
 };
 
 template<typename C>
@@ -330,8 +337,10 @@ private:
     };
 public:
     bool ready() const { return m_ready; }
+    void stop() { if (m_manager) m_manager->stop(); }
 private:
     std::atomic_bool m_ready;
+    Manager *m_manager {nullptr};
 };
 
 }//namespace graft
