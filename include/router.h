@@ -3,7 +3,7 @@
 #include <forward_list>
 #include <functional>
 #include <string>
-#include <vector>
+#include <map>
 #include <utility>
 #include <algorithm>
 #include <iostream>
@@ -19,7 +19,7 @@ template<typename In, typename Out>
 class RouterT
 {
 public:
-    using vars_t = std::vector<std::pair<std::string, std::string>>;
+    using vars_t = std::multimap<std::string, std::string>;
     using Handler = std::function<Status (const vars_t&, const In&, Context&, Out& ) >;
 
     struct Handler3

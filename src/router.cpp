@@ -38,7 +38,7 @@ bool RouterT<In,Out>::Root::match(const std::string& target, int method, JobPara
     if (m)
     {
         for (size_t i = 0; i < entry->vars.tokens.size; i++)
-            params.vars.emplace_back(std::make_pair(
+            params.vars.emplace(std::make_pair(
                 std::move(std::string(entry->vars.slugs.entries[i].base, entry->vars.slugs.entries[i].len)),
                 std::move(std::string(entry->vars.tokens.entries[i].base, entry->vars.tokens.entries[i].len))
             ));

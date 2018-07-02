@@ -121,9 +121,9 @@ struct Context
 
     class Global
     {
-    private:
+    protected:
         GlobalContextMap& m_map;
-
+    private:
         class Proxy
         {
         public:
@@ -205,6 +205,17 @@ struct Context
         void remove(const std::string& key)
         {
             return m_map.remove(key);
+        }
+    };
+
+    class GlobalFriend : protected Global
+    {
+    public:
+        GlobalFriend() = delete;
+        static void cleanup(Global& global)
+        {
+            GlobalFriend& gf = static_cast<GlobalFriend&>(global);
+            gf.m_map.cleanup();
         }
     };
 
