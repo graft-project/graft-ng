@@ -51,7 +51,7 @@ string Supernode::walletAddress() const
     return m_wallet.get_account().get_public_address_str(m_wallet.testnet());
 }
 
-bool Supernode::exportKeyImages(std::vector<Supernode::KeyImage> &key_images)
+bool Supernode::exportKeyImages(std::vector<Supernode::KeyImage> &key_images) const
 {
     key_images = m_wallet.export_key_images();
     return !key_images.empty();
@@ -105,13 +105,13 @@ Supernode *Supernode::load(const string &wallet_path, const string &wallet_passw
     return sn;
 }
 
-crypto::secret_key Supernode::exportViewkey()
+crypto::secret_key Supernode::exportViewkey() const
 {
     return m_wallet.get_account().get_keys().m_view_secret_key;
 }
 
 
-bool Supernode::signMessage(const std::string &msg, crypto::signature &signature)
+bool Supernode::signMessage(const std::string &msg, crypto::signature &signature) const
 {
     if (m_wallet.watch_only()) {
         LOG_ERROR("Attempting to sign with watch-only wallet");
@@ -125,7 +125,7 @@ bool Supernode::signMessage(const std::string &msg, crypto::signature &signature
     return true;
 }
 
-bool Supernode::verifySignature(const std::string &msg, const std::string &address, const crypto::signature &signature)
+bool Supernode::verifySignature(const std::string &msg, const std::string &address, const crypto::signature &signature) const
 {
     cryptonote::account_public_address wallet_addr;
     if (!cryptonote::get_account_address_from_str(wallet_addr, m_wallet.testnet(), address)) {
@@ -154,7 +154,7 @@ bool Supernode::testnet() const
     return m_wallet.testnet();
 }
 
-void Supernode::getScoreHash(const crypto::hash &block_hash, crypto::hash &result)
+void Supernode::getScoreHash(const crypto::hash &block_hash, crypto::hash &result) const
 {
     cryptonote::blobdata data = m_wallet.get_account().get_public_address_str(testnet());
     data += epee::string_tools::pod_to_hex(block_hash);

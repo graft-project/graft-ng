@@ -74,7 +74,7 @@ public:
      * \param key_images      - destination vector
      * \return                - true on success
      */
-    bool exportKeyImages(std::vector<Supernode::KeyImage> &key_images);
+    bool exportKeyImages(std::vector<Supernode::KeyImage> &key_images) const;
 
 
     /*!
@@ -103,7 +103,7 @@ public:
      * \brief exportViewkey - exports stake wallet private viewkey
      * \return private viewkey
      */
-    crypto::secret_key exportViewkey();
+    crypto::secret_key exportViewkey() const;
 
     /*!
      * \brief signMessage - signs message. internally hashes the message and signs the hash
@@ -111,7 +111,7 @@ public:
      * \param signature   - output signature
      * \return            - true if successfully signed. false if wallet is watch-only
      */
-    bool signMessage(const std::string &msg, crypto::signature &signature);
+    bool signMessage(const std::string &msg, crypto::signature &signature) const;
 
     /*!
      * \brief verifySignature - verifies signature
@@ -119,7 +119,7 @@ public:
      * \param signature       - signer's signature
      * \return                - true if signature valid
      */
-    bool verifySignature(const std::string &msg, const string &address, const crypto::signature &signature);
+    bool verifySignature(const std::string &msg, const string &address, const crypto::signature &signature) const;
 
     /*!
      * \brief getScoreHash  - calculates supernode score (TODO: as 265-bit integer)
@@ -127,7 +127,7 @@ public:
      * \param result        - result will be written here;
      * \return              - true on success
      */
-    void getScoreHash(const crypto::hash &block_hash, crypto::hash &result);
+    void getScoreHash(const crypto::hash &block_hash, crypto::hash &result) const;
 
 
 private:
