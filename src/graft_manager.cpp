@@ -458,8 +458,9 @@ constexpr std::pair<const char *, int> GraftServer::m_methods[];
 
 void GraftServer::serve(mg_mgr *mgr)
 {
-    Manager* manager = Manager::from(mgr);
-    const ServerOpts& opts = manager->get_c_opts();
+    m_manager = Manager::from(mgr);
+
+    const ServerOpts& opts = m_manager->get_c_opts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http),
                   *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
@@ -472,8 +473,8 @@ void GraftServer::serve(mg_mgr *mgr)
     for (;;)
     {
         mg_mgr_poll(mgr, opts.timer_poll_interval_ms);
-        manager->get_timerList().eval();
-        if (Manager::from(mgr)->stopped())
+        m_manager->get_timerList().eval();
+        if (m_manager->stopped())
             break;
     }
     mg_mgr_free(mgr);
@@ -491,6 +492,8 @@ int GraftServer::translateMethod(const char *method, std::size_t len)
 
 int GraftServer::translateMethod(int i)
 {
+    constexpr int size = sizeof(m_methods)/sizeof(m_methods[0]);
+    assert(i<size);
     return m_methods[i].second;
 }
 

@@ -3,10 +3,11 @@
 #include <forward_list>
 #include <functional>
 #include <string>
-#include <vector>
+#include <map>
 #include <utility>
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 
 #include "r3.h"
 #include "inout.h"
@@ -18,7 +19,7 @@ template<typename In, typename Out>
 class RouterT
 {
 public:
-    using vars_t = std::vector<std::pair<std::string, std::string>>;
+    using vars_t = std::multimap<std::string, std::string>;
     using Handler = std::function<Status (const vars_t&, const In&, Context&, Out& ) >;
 
     struct Handler3
@@ -59,56 +60,17 @@ public:
         Root() { m_node = r3_tree_create(10); }
         ~Root() { r3_tree_free(m_node); }
 
-        bool arm()
-        {
-            std::for_each(m_routers.begin(), m_routers.end(),
-                [this](RouterT<In, Out>& ro)
-                {
-                    std::for_each(ro.m_routes.begin(), ro.m_routes.end(),
-                        [this](Route& r)
-                        {
-                            r3_tree_insert_route(m_node, r.methods, r.endpoint.c_str(), &r);
-                        }
-                    );
-                }
-            );
-            char *errstr = NULL;
-            int err = r3_tree_compile(m_node, &errstr);
+        bool arm();
+        bool match(const std::string& target, int method, JobParams& params);
+        void addRouter(RouterT& r) { m_routers.push_front(std::move(r)); }
 
-            if (err != 0)
-                std::cout << "error: " << std::string(errstr) << std::endl;
-
-            return (err == 0);
-        }
-
-        bool match(const std::string& target, int method, JobParams& params)
-        {
-            bool ret = false;
-
-            match_entry *entry = match_entry_create(target.c_str());
-            entry->request_method = method;
-
-            R3Route *m = r3_tree_match_route(m_node, entry);
-            if (m)
-            {
-                for (size_t i = 0; i < entry->vars.tokens.size; i++)
-                    params.vars.emplace_back(std::make_pair(
-                        std::move(std::string(entry->vars.slugs.entries[i].base, entry->vars.slugs.entries[i].len)),
-                        std::move(std::string(entry->vars.tokens.entries[i].base, entry->vars.tokens.entries[i].len))
-                    ));
-
-                params.h3 = static_cast<Route*>(m->data)->h3;
-                ret = true;
-            }
-            match_entry_free(entry);
-            return ret;
-        }
-
-        void addRouter(RouterT<In, Out>& r) { m_routers.push_front(std::move(r)); }
-
+        std::string dbgDumpRouters() const;
+        void dbgDumpR3Tree(int level = 0) const;
+        std::string dbgCheckConflictRoutes() const;
     private:
+        bool m_compiled = false;
         R3Node *m_node;
-        std::forward_list<RouterT<In, Out>> m_routers;
+        std::forward_list<RouterT> m_routers;
     };
 
     RouterT(const std::string& prefix = std::string()) : m_endpointPrefix(prefix) { }
@@ -129,6 +91,9 @@ public:
     {
         m_routes.push_front({m_endpointPrefix + endpoint, methods, std::move(ph3)});
     }
+
+public:
+    std::string dbgDumpRouter(const std::string prefix = "") const;
 
 private:
     struct Route

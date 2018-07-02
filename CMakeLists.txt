@@ -58,6 +58,7 @@ add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/graft_manager.cpp
     ${PROJECT_SOURCE_DIR}/src/inout.cpp
+    ${PROJECT_SOURCE_DIR}/src/router.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
     ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/requests.cpp
@@ -70,9 +71,12 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     )
 
@@ -80,6 +84,7 @@ set(GS_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/mongoose
     ${PROJECT_SOURCE_DIR}/modules/libr3/include
     ${PROJECT_SOURCE_DIR}/include/requests
+    ${PROJECT_SOURCE_DIR}/include/rta
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_BINARY_DIR}
     )
@@ -132,7 +137,7 @@ set(COMMON_LIBS
 #set(Boost_USE_MULTITHREADED ON)
 #set(Boost_USE_STATIC_RUNTIME ON)
 
-find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread)
+find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread regex)
 
 if(NOT Boost_FOUND)
     die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
@@ -165,6 +170,8 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+
     )
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
 
@@ -200,6 +207,7 @@ if (OPT_BUILD_TESTS)
                 ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
@@ -238,6 +246,6 @@ if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
     add_custom_command(
         TARGET graft_server POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/data/config.ini
-        ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
+        ${CMAKE_SOURCE_DIR}/data/*
+        ${CMAKE_CURRENT_BINARY_DIR}/)
 endif()
