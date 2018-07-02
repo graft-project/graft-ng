@@ -189,7 +189,7 @@ bool FullSupernodeList::exists(const string &address) const
     return m_list.find(address) != m_list.end();
 }
 
-bool FullSupernodeList::update(const string &address, const std::vector<Supernode::KeyImage> &key_images)
+bool FullSupernodeList::update(const string &address, const vector<Supernode::KeyImage> &key_images)
 {
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
@@ -209,10 +209,10 @@ FullSupernodeList::SupernodePtr FullSupernodeList::get(const string &address) co
     return SupernodePtr(nullptr);
 }
 
-bool FullSupernodeList::buildAuthSample(uint64_t height, std::vector<FullSupernodeList::SupernodePtr> &out)
+bool FullSupernodeList::buildAuthSample(uint64_t height, vector<FullSupernodeList::SupernodePtr> &out)
 {
     crypto::hash block_hash;
-    std::string  block_hash_str;
+    string  block_hash_str;
 
     if (!getBlockHash(height, block_hash_str)) {
         LOG_ERROR("getBlockHash error");
@@ -220,14 +220,14 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, std::vector<FullSuperno
     }
 
     epee::string_tools::hex_to_pod(block_hash_str, block_hash);
-    std::vector<SupernodePtr> tier_supernodes;
+    vector<SupernodePtr> tier_supernodes;
 
 
-    auto out_it = std::back_inserter(out);
+    auto out_it = back_inserter(out);
 
     auto build_tier_sample = [&](uint64_t tier_min, uint64_t tier_max) {
         selectTierSupernodes(block_hash, tier_min, tier_max, tier_supernodes);
-        std::copy(tier_supernodes.begin(), tier_supernodes.end(), out_it);
+        copy(tier_supernodes.begin(), tier_supernodes.end(), out_it);
         tier_supernodes.clear();
     };
 
@@ -239,7 +239,7 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, std::vector<FullSuperno
     return true;
 }
 
-std::vector<string> FullSupernodeList::items() const
+vector<string> FullSupernodeList::items() const
 {
     vector<string> result;
     result.reserve(m_list.size());
@@ -250,7 +250,7 @@ std::vector<string> FullSupernodeList::items() const
     return result;
 }
 
-bool FullSupernodeList::getBlockHash(uint64_t height, std::string &hash)
+bool FullSupernodeList::getBlockHash(uint64_t height, string &hash)
 {
     bool result = m_rpc_client.get_block_hash(height, hash);
     return result;
@@ -279,14 +279,14 @@ size_t FullSupernodeList::refreshedItems() const
     return m_refresh_counter;
 }
 
-bool FullSupernodeList::bestSupernode(std::vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result)
+bool FullSupernodeList::bestSupernode(vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result)
 {
     if (arg.size() == 0) {
         LOG_ERROR("empty input");
         return false;
     }
 
-    std::vector<SupernodePtr>::iterator best = std::max_element(arg.begin(), arg.end(), [&](const SupernodePtr a, const SupernodePtr b) {
+    vector<SupernodePtr>::iterator best = max_element(arg.begin(), arg.end(), [&](const SupernodePtr a, const SupernodePtr b) {
         crypto::hash hash_a, hash_b;
         a->getScoreHash(block_hash, hash_a);
         b->getScoreHash(block_hash, hash_b);
@@ -303,10 +303,10 @@ bool FullSupernodeList::bestSupernode(std::vector<SupernodePtr> &arg, const cryp
 
 
 void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
-                                             std::vector<SupernodePtr> &output)
+                                             vector<SupernodePtr> &output)
 {
     // copy all the items with the stake not less than given tier_min_stake
-    std::vector<SupernodePtr> all_tier_items;
+    vector<SupernodePtr> all_tier_items;
 
     {
         boost::shared_lock<boost::shared_mutex> readerLock(m_access);
@@ -338,7 +338,6 @@ bool FullSupernodeList::loadWallet(const std::string &wallet_path)
         } else {
             LOG_PRINT_L1("Added supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
             result = true;
-
         }
     }
     return result;
