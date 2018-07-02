@@ -119,7 +119,7 @@ public:
      * \param signature       - signer's signature
      * \return                - true if signature valid
      */
-    bool verifySignature(const std::string &msg, const string &address, const crypto::signature &signature) const;
+    bool verifySignature(const std::string &msg, const std::string &address, const crypto::signature &signature) const;
 
     /*!
      * \brief getScoreHash  - calculates supernode score (TODO: as 265-bit integer)

@@ -6,10 +6,12 @@
 #include <boost/filesystem.hpp>
 #include <iostream>
 
+using namespace std;
+
 namespace graft {
 
-Supernode::Supernode(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address, bool testnet,
-                     const std::string &seed_language)
+Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
+                     const string &seed_language)
     : m_wallet(testnet)
 {
     bool keys_file_exists;
@@ -17,8 +19,8 @@ Supernode::Supernode(const std::string &wallet_path, const std::string &wallet_p
 
     tools::wallet2::wallet_exists(wallet_path, keys_file_exists, wallet_file_exists);
 
-    LOG_PRINT_L3("keys_file_exists: " << std::boolalpha << keys_file_exists << std::noboolalpha
-                 << "  wallet_file_exists: " << std::boolalpha << wallet_file_exists << std::noboolalpha);
+    LOG_PRINT_L3("keys_file_exists: " << boolalpha << keys_file_exists << noboolalpha
+                 << "  wallet_file_exists: " << boolalpha << wallet_file_exists << noboolalpha);
 
     // existing wallet, open it
     if (keys_file_exists) {
@@ -51,26 +53,26 @@ string Supernode::walletAddress() const
     return m_wallet.get_account().get_public_address_str(m_wallet.testnet());
 }
 
-bool Supernode::exportKeyImages(std::vector<Supernode::KeyImage> &key_images) const
+bool Supernode::exportKeyImages(vector<Supernode::KeyImage> &key_images) const
 {
     key_images = m_wallet.export_key_images();
     return !key_images.empty();
 }
 
-bool Supernode::importKeyImages(const std::vector<Supernode::KeyImage> &key_images)
+bool Supernode::importKeyImages(const vector<Supernode::KeyImage> &key_images)
 {
     uint64_t spent = 0, unspent = 0;
     uint64_t height = m_wallet.import_key_images(key_images, spent, unspent);
     return height > 0;
 }
 
-Supernode *Supernode::createFromViewOnlyWallet(const std::string &path, const std::string &address, const secret_key &viewkey, bool testnet)
+Supernode *Supernode::createFromViewOnlyWallet(const string &path, const string &address, const secret_key &viewkey, bool testnet)
 {
     Supernode * result = nullptr;
     bool keys_file_exists;
     bool wallet_file_exists;
     // TODO: password
-    std::string password = "";
+    string password = "";
     tools::wallet2::wallet_exists(path, keys_file_exists, wallet_file_exists);
 
     if (keys_file_exists) {
@@ -111,7 +113,7 @@ crypto::secret_key Supernode::exportViewkey() const
 }
 
 
-bool Supernode::signMessage(const std::string &msg, crypto::signature &signature) const
+bool Supernode::signMessage(const string &msg, crypto::signature &signature) const
 {
     if (m_wallet.watch_only()) {
         LOG_ERROR("Attempting to sign with watch-only wallet");
@@ -125,7 +127,7 @@ bool Supernode::signMessage(const std::string &msg, crypto::signature &signature
     return true;
 }
 
-bool Supernode::verifySignature(const std::string &msg, const std::string &address, const crypto::signature &signature) const
+bool Supernode::verifySignature(const string &msg, const string &address, const crypto::signature &signature) const
 {
     cryptonote::account_public_address wallet_addr;
     if (!cryptonote::get_account_address_from_str(wallet_addr, m_wallet.testnet(), address)) {
@@ -139,7 +141,7 @@ bool Supernode::verifySignature(const std::string &msg, const std::string &addre
 
 
 
-bool Supernode::setDaemonAddress(const std::string &address)
+bool Supernode::setDaemonAddress(const string &address)
 {
     return m_wallet.init(address);
 }
