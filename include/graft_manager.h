@@ -85,6 +85,8 @@ struct ServerOpts
     int worker_queue_len;
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
+    // data directory - where
+    std::string data_dir;
 };
 
 class Manager

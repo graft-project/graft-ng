@@ -17,9 +17,11 @@ namespace graft {
 }
 
 static graft::GraftServer server;
-static void signal_handler_stop(int sig_num) {
+static void signal_handler_stop(int sig_num)
+{
     LOG_PRINT_L0("Stoping server");
     server.stop();
+}
 
 void addGlobalCtxCleaner(graft::Manager& manager, int ms)
 {
@@ -110,6 +112,7 @@ int main(int argc, const char** argv)
         sopts.workers_count = server_conf.get<int>("workers-count");
         sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
         sopts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
+        sopts.data_dir = server_conf.get<string>("data-dir");
         int lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
 
         const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
