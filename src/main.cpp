@@ -113,10 +113,11 @@ int main(int argc, const char** argv)
             {
                 std::cout << std::endl << "==> manager.dbgDumpRouters()" << std::endl;
                 std::cout << manager.dbgDumpRouters();
-/*
-                std::cout << std::endl << std::endl << "==> manager.dbgDumpR3Tree()" << std::endl;
-                manager.dbgDumpR3Tree();
-*/
+
+                //if you really need dump of r3tree uncomment two following lines
+                //std::cout << std::endl << std::endl << "==> manager.dbgDumpR3Tree()" << std::endl;
+                //manager.dbgDumpR3Tree();
+
                 throw std::runtime_error("Routes conflict found:" + s);
             }
         }

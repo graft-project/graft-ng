@@ -64,7 +64,6 @@ public:
         bool match(const std::string& target, int method, JobParams& params);
         void addRouter(RouterT& r) { m_routers.push_front(std::move(r)); }
 
-    public:
         std::string dbgDumpRouters() const;
         void dbgDumpR3Tree(int level = 0) const;
         std::string dbgCheckConflictRoutes() const;
