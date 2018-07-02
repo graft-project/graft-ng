@@ -32,7 +32,6 @@ Supernode::Supernode(const string &wallet_path, const string &wallet_password, c
         crypto::secret_key recovery_val, secret_key;
         recovery_val = m_wallet.generate(wallet_path, wallet_password, secret_key, false, false);
     }
-    // TODO:
     m_wallet.init(daemon_address);
     m_wallet.store();
 }
