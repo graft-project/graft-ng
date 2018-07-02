@@ -128,6 +128,8 @@ private:
                               std::vector<SupernodePtr> &output);
     bool bestSupernode(std::vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result);
 
+    bool loadWallet(const std::string &wallet_path);
+
 private:
     std::unordered_map<std::string, SupernodePtr> m_list;
     std::string m_daemon_address;

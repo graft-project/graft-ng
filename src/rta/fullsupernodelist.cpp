@@ -1,4 +1,5 @@
 #include "fullsupernodelist.h"
+
 #include <wallet/api/wallet_manager.h>
 #include <misc_log_ex.h>
 
@@ -146,18 +147,9 @@ size_t FullSupernodeList::loadFromDir(const string &base_dir)
     size_t result = 0;
     LOG_PRINT_L0("found wallets: " << wallets.size());
     for (const auto &wallet_path : wallets) {
-        Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
-        if (sn)  {
-            if (!this->add(sn)) {
-                LOG_ERROR("Can't add supernode " << sn->walletAddress() << ", already exists");
-                delete sn;
-            } else {
-                LOG_PRINT_L1("Added supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
-                ++result;
-            }
-        }
+        loadWallet(wallet_path);
     }
-    return result;
+    return this->size();
 }
 
 
@@ -170,23 +162,10 @@ size_t FullSupernodeList::loadFromDirThreaded(const string &base_dir, size_t &fo
 
     utils::ThreadPool tp;
 
-    auto worker = [&](const std::string &wallet_path) {
-        Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
-        if (sn) {
-            if (!this->add(sn)) {
-                LOG_ERROR("can't add supernode: " << sn->walletAddress());
-                delete sn;
-            } else {
-                LOG_PRINT_L0("Loaded supernode: " << sn->walletAddress());
-            }
-        } else {
-            LOG_ERROR("Error loading supernode wallet from: " << wallet_path);
-        }
-    };
-
     for (const auto &wallet_path : wallets) {
-        tp.enqueue(boost::bind<void>(worker, wallet_path));
+        tp.enqueue(boost::bind<void>(&FullSupernodeList::loadWallet, this, wallet_path));
     }
+
     tp.run();
     return this->size();
 }
@@ -322,6 +301,8 @@ bool FullSupernodeList::bestSupernode(std::vector<SupernodePtr> &arg, const cryp
     return true;
 }
 
+
+
 void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
                                              std::vector<SupernodePtr> &output)
 {
@@ -347,6 +328,22 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
     }
 }
 
+bool FullSupernodeList::loadWallet(const std::string &wallet_path)
+{
+    bool result = false;
+    Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
+    if (sn)  {
+        if (!this->add(sn)) {
+            LOG_ERROR("Can't add supernode " << sn->walletAddress() << ", already exists");
+            delete sn;
+        } else {
+            LOG_PRINT_L1("Added supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
+            result = true;
+
+        }
+    }
+    return result;
+}
 
 
 }
