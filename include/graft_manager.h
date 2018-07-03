@@ -175,25 +175,18 @@ public:
 };
 
 template<typename C>
-class StaticMongooseHandler
+void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
 {
-public:
-    static void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
-    {
-        static bool entered = false;
-        assert(!entered); //recursive calls are dangerous
-        entered = true;
-        C* This = static_cast<C*>(nc->user_data);
-        assert(This);
-        This->ev_handler(nc, ev, ev_data);
-        entered = false;
-    }
-protected:
-    static void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
-    {
+    static bool entered = false;
+    assert(!entered); //recursive calls are dangerous
+    entered = true;
+    C* This = static_cast<C*>(nc->user_data);
+    assert(This);
+    This->ev_handler(nc, ev, ev_data);
+    entered = false;
+}
 
-    }
-};
+void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data);
 
 template<typename C>
 class ItselfHolder
@@ -215,7 +208,7 @@ private:
     Ptr m_itself;
 };
 
-class CryptoNodeSender : public ItselfHolder<CryptoNodeSender>, StaticMongooseHandler<CryptoNodeSender>
+class CryptoNodeSender : public ItselfHolder<CryptoNodeSender>
 {
 public:
     CryptoNodeSender() = default;
@@ -225,9 +218,9 @@ public:
     void send(Manager& manager, BaseTask_ptr cr);
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
-private:
-    friend class StaticMongooseHandler<CryptoNodeSender>;
+public:
     void ev_handler(mg_connection* crypton, int ev, void *ev_data);
+private:
     void setError(Status status, const std::string& error = std::string())
     {
         m_status = status;
@@ -272,8 +265,6 @@ public:
     Output& get_output() { return m_output; }
     const Router::Handler3& get_h3() const { return m_prms.h3; }
     Context& get_ctx() { return m_ctx; }
-private:
-    friend class StaticMongooseHandler<BaseTask>;
 protected:
     Manager& m_manager;
     Router::JobParams m_prms;
@@ -301,7 +292,7 @@ private:
     std::chrono::milliseconds m_timeout_ms;
 };
 
-class ClientRequest : public BaseTask, public StaticMongooseHandler<ClientRequest>
+class ClientRequest : public BaseTask
 {
 private:
     friend class ItselfHolder<BaseTask>;
@@ -312,8 +303,7 @@ private:
     }
 private:
     virtual void respondAndDie(const std::string& s) override;
-private:
-    friend class StaticMongooseHandler<ClientRequest>;
+public:
     void ev_handler(mg_connection *client, int ev, void *ev_data);
 private:
     mg_connection *m_client;

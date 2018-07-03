@@ -6,6 +6,11 @@
 
 namespace graft {
 
+void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
+{
+
+}
+
 void Manager::sendCrypton(BaseTask_ptr cr)
 {
     ++m_cntCryptoNodeSender;
@@ -176,7 +181,7 @@ void CryptoNodeSender::send(Manager &manager, BaseTask_ptr cr)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
+    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler<CryptoNodeSender>, url.c_str(),
                              extra_headers.c_str(),
                              (body.empty())? nullptr : body.c_str()); //last nullptr means GET
     assert(m_crypton);
@@ -510,7 +515,7 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
             ClientRequest* ptr = static_cast<ClientRequest*>(rb_ptr);
 
             client->user_data = ptr;
-            client->handler = ClientRequest::static_ev_handler;
+            client->handler = static_ev_handler<ClientRequest>;
 
             manager->onNewClient(ptr->get_itself());
         }
@@ -580,7 +585,7 @@ void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
             ClientRequest* ptr = static_cast<ClientRequest*>(rb_ptr);
 
             client->user_data = ptr;
-            client->handler = ClientRequest::static_ev_handler;
+            client->handler = static_ev_handler<ClientRequest>;
 
             manager->onNewClient(ptr->get_itself());
         }

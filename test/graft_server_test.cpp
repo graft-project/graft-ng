@@ -557,7 +557,7 @@ public:
     };
 public:
     //http client (its objects are created in the main thread)
-    class Client : public graft::StaticMongooseHandler<Client>
+    class Client
     {
     public:
         Client()
@@ -568,7 +568,7 @@ public:
         void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string())
         {
             m_exit = false; m_closed = false;
-            client = mg_connect_http(&m_mgr, static_ev_handler, url.c_str(),
+            client = mg_connect_http(&m_mgr, graft::static_ev_handler<Client>, url.c_str(),
                                      (extra_headers.empty())? nullptr : extra_headers.c_str(),
                                      (post_data.empty())? nullptr : post_data.c_str()); //last nullptr means GET
             assert(client);
@@ -595,8 +595,7 @@ public:
         {
             mg_mgr_free(&m_mgr);
         }
-    private:
-        friend class graft::StaticMongooseHandler<Client>;
+    public:
         void ev_handler(mg_connection* client, int ev, void *ev_data)
         {
             assert(client == this->client);
@@ -619,7 +618,7 @@ public:
                 m_resp_code = hm->resp_code;
                 m_body = std::string(hm->body.p, hm->body.len);
                 client->flags |= MG_F_CLOSE_IMMEDIATELY;
-                client->handler = static_empty_ev_handler;
+                client->handler = graft::static_empty_ev_handler;
                 m_exit = true;
             } break;
             case MG_EV_RECV:
@@ -630,7 +629,7 @@ public:
             } break;
             case MG_EV_CLOSE:
             {
-                client->handler = static_empty_ev_handler;
+                client->handler = graft::static_empty_ev_handler;
                 m_closed = true;
                 m_exit = true;
             } break;
