@@ -234,10 +234,6 @@ int main(int argc, const char** argv)
             graft::OutHttp::uri_substitutions.insert({std::move(name), std::move(val)});
         });
 
-        graft::Manager manager(sopts);
-
-
-        addGlobalCtxCleaner(manager, lru_timeout_ms);
 
         // create data directory if not exists
         boost::filesystem::path data_path(sopts.data_dir);
@@ -262,7 +258,9 @@ int main(int argc, const char** argv)
         }
 
         std::cout << boost::filesystem::absolute(data_path).string() << std::endl;
-
+        sopts.watchonly_wallets_path = watchonly_wallets_path.string();
+        graft::Manager manager(sopts);
+        addGlobalCtxCleaner(manager, lru_timeout_ms);
 
         // create supernode instance and put it into global context
         graft::FullSupernodeList::SupernodePtr supernode {new graft::Supernode(
@@ -287,6 +285,7 @@ int main(int argc, const char** argv)
         startSupernodePeriodicTasks(manager, stake_wallet_refresh_interval_ms);
 
         manager.enableRouting();
+
 
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
         server.serve(manager.get_mg_mgr());

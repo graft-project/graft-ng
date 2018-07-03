@@ -19,6 +19,9 @@ struct ServerOpts
     std::string data_dir;
     // testnet flag
     bool testnet;
+    // runtime parameters.
+    // path to watch-only wallets (supernodes)
+    std::string watchonly_wallets_path;
 };
 
 }

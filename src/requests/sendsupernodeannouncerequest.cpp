@@ -60,31 +60,72 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
     LOG_PRINT_L2(PATH << "called with payload: " << input.data());
 
     boost::shared_ptr<FullSupernodeList> fsl = ctx.global.get("fsl", boost::shared_ptr<FullSupernodeList>());
+    FullSupernodeList::SupernodePtr supernode = ctx.global.get("supernode", FullSupernodeList::SupernodePtr());
 
-    if (!fsl.get()) {
-        JsonRpcError error;
-        error.code = ERROR_INVALID_REQUEST;
-        error.message = "Internal error. Supernode list object missing";
-        JsonRpcErrorResponse errorResponse;
-        errorResponse.error = error;
-        errorResponse.json = "2.0";
-        output.load(errorResponse);
-        return Status::Error;
-    }
-
+    JsonRpcError error;
+    error.code = 0;
     SendSupernodeAnnounceJsonRpcRequest req;
-    if (!input.get(req) || req.params.empty()) { // can't parse request
-        JsonRpcError error;
-        error.code = ERROR_INVALID_REQUEST;
-        error.message = "Failed to parse request";
+
+    do {
+        if (!fsl.get()) {
+            error.code = ERROR_INTERNAL_ERROR;
+            error.message = "Internal error. Supernode list object missing";
+            break;
+        }
+
+        if (!supernode.get()) {
+            error.code = ERROR_INTERNAL_ERROR;
+            error.message = "Internal error. Supernode object missing";
+            break;
+        }
+
+
+        if (!input.get(req) || req.params.empty()) { // can't parse request
+            error.code = ERROR_INVALID_REQUEST;
+            error.message = "Failed to parse request";
+            break;
+        }
+
+        //  handle announce
+        const SupernodeAnnounce & announce = req.params[0];
+
+        // skip announces with our address
+        if (announce.address == supernode->walletAddress()) {
+            break;
+        }
+
+        if (fsl->exists(announce.address)) {
+            if (!fsl->get(announce.address)->updateFromAnnounce(announce)) {
+                error.code = ERROR_INTERNAL_ERROR;
+                error.message = "Failed to update supernode with announce";
+                break;
+            }
+        } else {
+            boost::filesystem::path p(ctx.global.getConfig()->watchonly_wallets_path);
+            p /= announce.address;
+            Supernode * s  = Supernode::createFromAnnounce(p.string(), announce, ctx.global.getConfig()->testnet);
+            if (!s) {
+                error.code = ERROR_INTERNAL_ERROR;
+                error.message = std::string("Cant create watch-only supernode wallet for address: ") + announce.address;
+                break;
+            }
+            if (!fsl->add(s)) {
+                error.code = ERROR_INTERNAL_ERROR;
+                error.message = "Can't add new supernode to list";
+                break;
+            }
+            s->refresh();
+        }
+    } while (false);
+
+
+    if (error.code != 0) {
         JsonRpcErrorResponse errorResponse;
         errorResponse.error = error;
         errorResponse.json = "2.0";
         output.load(errorResponse);
         return Status::Error;
     }
-
-    //  handle announce
 
     SendSupernodeAnnounceJsonRpcResponse response;
     response.id = req.id;
@@ -99,7 +140,7 @@ void registerSendSupernodeAnnounceRequest(graft::Router &router)
     Router::Handler3 h3(nullptr, sendSupernodeAnnounceHandler, nullptr);
 
     router.addRoute(PATH, METHOD_POST, h3);
-    LOG_PRINT_L2("route " << PATH << " registered");
+    LOG_PRINT_L0("route " << PATH << " registered");
 }
 
 
