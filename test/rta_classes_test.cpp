@@ -83,7 +83,7 @@ TEST_F(SupernodeTest, watchOnly)
 
     // create view only supernode
     crypto::secret_key viewkey = sn1.exportViewkey();
-    std::vector<Supernode::KeyImage> key_images;
+    std::vector<Supernode::SignedKeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
     boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
@@ -166,7 +166,7 @@ TEST_F(FullSupernodeListTest, basic)
 
     // create view only supernode
     crypto::secret_key viewkey = sn1.exportViewkey();
-    std::vector<Supernode::KeyImage> key_images;
+    std::vector<Supernode::SignedKeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
     boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();

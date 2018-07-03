@@ -52,13 +52,13 @@ string Supernode::walletAddress() const
     return m_wallet.get_account().get_public_address_str(m_wallet.testnet());
 }
 
-bool Supernode::exportKeyImages(vector<Supernode::KeyImage> &key_images) const
+bool Supernode::exportKeyImages(vector<Supernode::SignedKeyImage> &key_images) const
 {
     key_images = m_wallet.export_key_images();
     return !key_images.empty();
 }
 
-bool Supernode::importKeyImages(const vector<Supernode::KeyImage> &key_images)
+bool Supernode::importKeyImages(const vector<Supernode::SignedKeyImage> &key_images)
 {
     uint64_t spent = 0, unspent = 0;
     uint64_t height = m_wallet.import_key_images(key_images, spent, unspent);

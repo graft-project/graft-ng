@@ -189,7 +189,7 @@ bool FullSupernodeList::exists(const string &address) const
     return m_list.find(address) != m_list.end();
 }
 
-bool FullSupernodeList::update(const string &address, const vector<Supernode::KeyImage> &key_images)
+bool FullSupernodeList::update(const string &address, const vector<Supernode::SignedKeyImage> &key_images)
 {
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);

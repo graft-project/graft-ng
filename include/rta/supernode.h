@@ -16,7 +16,7 @@ namespace graft {
 class Supernode
 {
 public:
-    using KeyImage = std::pair<crypto::key_image, crypto::signature>;
+    using SignedKeyImage = std::pair<crypto::key_image, crypto::signature>;
 
     //  50,000 GRFT –  tier 1
     //  90,000 GRFT –  tier 2
@@ -74,7 +74,7 @@ public:
      * \param key_images      - destination vector
      * \return                - true on success
      */
-    bool exportKeyImages(std::vector<Supernode::KeyImage> &key_images) const;
+    bool exportKeyImages(std::vector<Supernode::SignedKeyImage> &key_images) const;
 
 
     /*!
@@ -82,7 +82,7 @@ public:
      * \param key_images      - source vector
      * \return                - true on success
      */
-    bool importKeyImages(const std::vector<KeyImage> &key_images);
+    bool importKeyImages(const std::vector<SignedKeyImage> &key_images);
 
     /*!
      * \brief createFromViewOnlyWallet - creates new Supernode object, creates underlying read-only stake wallet
