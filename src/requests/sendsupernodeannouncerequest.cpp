@@ -29,8 +29,11 @@
 #include "sendsupernodeannouncerequest.h"
 #include "requestdefines.h"
 #include "sendrawtxrequest.h"
-#include <misc_log_ex.h>
+#include "rta/fullsupernodelist.h"
+#include "rta/supernode.h"
 
+#include <misc_log_ex.h>
+#include <boost/shared_ptr.hpp>
 
 
 namespace {
@@ -38,35 +41,9 @@ namespace {
 
 }
 
-/*
-{
-    "json_rpc" : "2.0",
-    "method" : "SendSupernodeAnnounce",
-    "id" : "<unique_id>",
-    "params": {
-
-    }
-}
-
-*/
-
 
 namespace graft {
 
-GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeAnnounce,
-                              (uint64_t, timestamp, 0),
-                              (std::string, address, std::string()),
-                              (uint64_t, stake_amount, 0),
-                              (std::string, key_images, std::string())
-                              );
-
-
-GRAFT_DEFINE_IO_STRUCT_INITED(SendSupernodeAnnounceResponse,
-                              (int, Status, 0)
-                              );
-
-GRAFT_DEFINE_JSON_RPC_REQUEST(SendSupernodeAnnounceJsonRpcRequest, SupernodeAnnounce);
-GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SendSupernodeAnnounceJsonRpcResponse, SendSupernodeAnnounceResponse);
 
 
 /**
@@ -82,9 +59,21 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
 {
     LOG_PRINT_L2(PATH << "called with payload: " << input.data());
 
-    SendSupernodeAnnounceJsonRpcRequest req;
+    boost::shared_ptr<FullSupernodeList> fsl = ctx.global.get("fsl", boost::shared_ptr<FullSupernodeList>());
 
-    if (!input.get(req)) { // can't parse request
+    if (!fsl.get()) {
+        JsonRpcError error;
+        error.code = ERROR_INVALID_REQUEST;
+        error.message = "Internal error. Supernode list object missing";
+        JsonRpcErrorResponse errorResponse;
+        errorResponse.error = error;
+        errorResponse.json = "2.0";
+        output.load(errorResponse);
+        return Status::Error;
+    }
+
+    SendSupernodeAnnounceJsonRpcRequest req;
+    if (!input.get(req) || req.params.empty()) { // can't parse request
         JsonRpcError error;
         error.code = ERROR_INVALID_REQUEST;
         error.message = "Failed to parse request";
@@ -94,8 +83,8 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
         output.load(errorResponse);
         return Status::Error;
     }
-    // TODO: handle tx auth response callback
-    // send normal response
+
+    //  handle announce
 
     SendSupernodeAnnounceJsonRpcResponse response;
     response.id = req.id;

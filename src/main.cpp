@@ -1,8 +1,10 @@
 #include "graft_manager.h"
 #include "requests.h"
+#include "requests/sendsupernodeannouncerequest.h"
 #include "jsonrpc.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+
 
 
 #include <misc_log_ex.h>
@@ -62,6 +64,10 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
     auto supernodeRefreshWorker = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
 
+        LOG_PRINT_L0("input: " << input.data());
+        LOG_PRINT_L0("output: " << output.data());
+        LOG_PRINT_L0("last status: " << (int)ctx.local.getLastStatus());
+
         switch (ctx.local.getLastStatus()) {
         case graft::Status::Forward: // reply from cryptonode
             return graft::Status::Ok;
@@ -79,15 +85,23 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
             supernode->refresh();
 
             LOG_PRINT_L0("supernode stake amount: " << supernode->stakeAmount());
-            LOG_PRINT_L0("input: " << input.data());
-            LOG_PRINT_L0("output: " << output.data());
-            LOG_PRINT_L0("last status: " << (int)ctx.local.getLastStatus());
+
             // TODO: replace call with "send_supernode_announce"
-            graft::JsonRpcRequestHeader req;
-            req.method = "get_info";
+//            graft::JsonRpcRequestHeader req;
+//            req.method = "get_info";
+//            output.path = "/json_rpc";
+//            output.load(req);
+
+            graft::SupernodeAnnounce announce;
+            supernode->prepareAnnounce(announce);
+            graft::SendSupernodeAnnounceJsonRpcRequest req;
+            req.params.push_back(announce);
+            req.method = "send_supernode_announce";
+            req.id = 0;
             output.load(req);
-            output.path = "/json_rpc";
-            LOG_ERROR("Calling cryptonode");
+            output.path = "/json_rpc/rta";
+
+            LOG_PRINT_L0("Calling cryptonode");
             return graft::Status::Forward;
 
         }
@@ -257,6 +271,8 @@ int main(int argc, const char** argv)
                         sopts.cryptonode_rpc_address,
                         sopts.testnet
                         )};
+
+        supernode->setNetworkAddress(sopts.http_address + "/dapi/v2.0");
 
         manager.get_gcm().addOrUpdate("supernode", supernode);
 

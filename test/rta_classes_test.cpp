@@ -93,7 +93,8 @@ TEST_F(SupernodeTest, watchOnly)
 
     sn2->setDaemonAddress(daemon_addr);
     sn2->refresh();
-    sn2->importKeyImages(key_images);
+    uint64_t height = 0;
+    sn2->importKeyImages(key_images, height);
 
 
     EXPECT_TRUE(sn2->walletAddress() == sn1.walletAddress());

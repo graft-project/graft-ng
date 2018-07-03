@@ -195,7 +195,8 @@ bool FullSupernodeList::update(const string &address, const vector<Supernode::Si
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
     auto it = m_list.find(address);
     if (it != m_list.end()) {
-        return it->second->importKeyImages(key_images);
+        uint64_t height = 0;
+        return it->second->importKeyImages(key_images, height);
     }
     return false;
 }

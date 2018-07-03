@@ -1,6 +1,8 @@
 #ifndef SUPERNODE_H
 #define SUPERNODE_H
 
+#include "requests/sendsupernodeannouncerequest.h"
+
 #include <string>
 #include <vector>
 #include <crypto/crypto.h>
@@ -80,9 +82,10 @@ public:
     /*!
      * \brief importKeyImages - imports key images
      * \param key_images      - source vector
+     * \param height          - output height
      * \return                - true on success
      */
-    bool importKeyImages(const std::vector<SignedKeyImage> &key_images);
+    bool importKeyImages(const std::vector<SignedKeyImage> &key_images, uint64_t &height);
 
     /*!
      * \brief createFromViewOnlyWallet - creates new Supernode object, creates underlying read-only stake wallet
@@ -96,8 +99,36 @@ public:
                                        const std::string &address,
                                        const crypto::secret_key& viewkey = crypto::secret_key(), bool testnet = false);
 
+    /*!
+     * \brief load              - creates new Supernode object from existing wallet
+     * \param wallet_path       - path to existing  wallet file
+     * \param wallet_password   - wallet password
+     * \param daemon_address    - daemon address connection for supernode
+     * \param testnet           - testnet flag
+     * \param seed_language     - seed language
+     * \return                  - Supernode pointer on success
+     */
     static Supernode * load(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address, bool testnet = false,
                                        const std::string &seed_language = std::string());
+
+    /*!
+     * \brief updateFromAnnounce - updates supernode from announce (helper to extract signed key images from graft::SupernodeAnnounce)
+     * \param announce           - reference to graft::SupernodeAnnounce
+     * \return                   - true on success
+     */
+    bool updateFromAnnounce(const graft::SupernodeAnnounce &announce);
+
+    /*!
+     * \brief createFromAnnounce - creates new Supernode instance from announce
+     * \param path               - wallet file path
+     * \param announce           - announce object
+     * \param testnet            - testnet flag
+     * \return                   - Supernode pointer on success
+     */
+    static Supernode * createFromAnnounce(const std::string &path,
+                                          const graft::SupernodeAnnounce &announce, bool testnet);
+
+    bool prepareAnnounce(graft::SupernodeAnnounce &announce);
 
     /*!
      * \brief exportViewkey - exports stake wallet private viewkey
@@ -129,12 +160,16 @@ public:
      */
     void getScoreHash(const crypto::hash &block_hash, crypto::hash &result) const;
 
+    std::string networkAddress() const;
+    void setNetworkAddress(const std::string &networkAddress);
+
 
 private:
     Supernode(bool testnet = false);
 
 private:
     tools::wallet2 m_wallet;
+    std::string    m_network_address;
 };
 
 }

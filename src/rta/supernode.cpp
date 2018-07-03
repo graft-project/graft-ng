@@ -58,10 +58,10 @@ bool Supernode::exportKeyImages(vector<Supernode::SignedKeyImage> &key_images) c
     return !key_images.empty();
 }
 
-bool Supernode::importKeyImages(const vector<Supernode::SignedKeyImage> &key_images)
+bool Supernode::importKeyImages(const vector<Supernode::SignedKeyImage> &key_images, uint64_t &height)
 {
     uint64_t spent = 0, unspent = 0;
-    uint64_t height = m_wallet.import_key_images(key_images, spent, unspent);
+    height = m_wallet.import_key_images(key_images, spent, unspent);
     return height > 0;
 }
 
@@ -104,6 +104,91 @@ Supernode *Supernode::load(const string &wallet_path, const string &wallet_passw
     }
 
     return sn;
+}
+
+bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
+{
+    // check if address match
+    if (this->walletAddress() != announce.address) {
+        LOG_ERROR("wrong address. this address: " << this->walletAddress() << ", announce address: " << announce.address);
+        return false;
+    }
+
+    vector<SignedKeyImage> signed_key_images;
+
+    for (const SignedKeyImageStr &skis : announce.signed_key_images) {
+        crypto::key_image ki;
+        crypto::signature s;
+
+        if (!epee::string_tools::hex_to_pod(skis.key_image, ki)) {
+            LOG_ERROR("failed to parse key image: " << skis.key_image);
+            return false;
+        }
+
+        if (!epee::string_tools::hex_to_pod(skis.signature, s)) {
+            LOG_ERROR("failed to parse key signature: " << skis.signature);
+            return false;
+        }
+        signed_key_images.push_back(std::make_pair(ki, s));
+    }
+
+    uint64_t height = 0;
+    if (!importKeyImages(signed_key_images, height)) {
+        LOG_ERROR("failed to import key images");
+        return false;
+    }
+
+    if (height != announce.height) {
+        LOG_ERROR("height mismatch: announced height: " << announce.height << ", our height: " << height);
+        return false;
+    }
+    // TODO: check self amount vs announced amount
+    setNetworkAddress(announce.network_address);
+    return true;
+
+}
+
+Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnnounce &announce,  bool testnet)
+{
+    crypto::secret_key viewkey;
+    if (!epee::string_tools::hex_to_pod(announce.secret_viewkey, viewkey)) {
+        LOG_ERROR("Failed to parse secret viewkey from string: " << announce.secret_viewkey);
+        return false;
+    }
+
+    Supernode * result = Supernode::createFromViewOnlyWallet(path, announce.address, viewkey, testnet);
+
+    if (result) {
+        result->updateFromAnnounce(announce);
+    }
+
+    return result;
+}
+
+bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
+{
+    announce.timestamp = time(nullptr);
+    announce.secret_viewkey = epee::string_tools::pod_to_hex(this->exportViewkey());
+    announce.height = m_wallet.get_blockchain_current_height();
+
+    vector<Supernode::SignedKeyImage> signed_key_images;
+    if (!exportKeyImages(signed_key_images)) {
+        LOG_ERROR("Failed to export key images");
+        return false;
+    }
+
+    for (const SignedKeyImage &ski : signed_key_images) {
+        SignedKeyImageStr skis;
+        skis.key_image = epee::string_tools::pod_to_hex(ski.first);
+        skis.signature = epee::string_tools::pod_to_hex(ski.second);
+        announce.signed_key_images.push_back(skis);
+    }
+
+    announce.stake_amount = this->stakeAmount();
+    announce.address =  this->walletAddress();
+    announce.network_address = this->networkAddress();
+
+    return true;
 }
 
 crypto::secret_key Supernode::exportViewkey() const
@@ -160,6 +245,17 @@ void Supernode::getScoreHash(const crypto::hash &block_hash, crypto::hash &resul
     cryptonote::blobdata data = m_wallet.get_account().get_public_address_str(testnet());
     data += epee::string_tools::pod_to_hex(block_hash);
     crypto::cn_fast_hash(data.c_str(), data.size(), result);
+}
+
+string Supernode::networkAddress() const
+{
+    return m_network_address;
+}
+
+void Supernode::setNetworkAddress(const string &networkAddress)
+{
+    if (m_network_address != networkAddress)
+        m_network_address = networkAddress;
 }
 
 Supernode::Supernode(bool testnet)
