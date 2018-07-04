@@ -23,12 +23,18 @@ void Manager::sendToThreadPool(BaseTask_ptr bt)
     assert(m_cntJobDone <= m_cntJobSent);
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
     {//check overflow
-        bt->onTooBusy();
+        onTooBusyBT(bt);
         return;
     }
     assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
     ++m_cntJobSent;
     createJob(bt);
+}
+
+void Manager::onTooBusyBT(BaseTask_ptr bt)
+{
+    bt->m_ctx.local.setError("Service Unavailable", Status::Busy);
+    bt->respondAndDie("Thread pool overflow");
 }
 
 void Manager::createJob(BaseTask_ptr bt)
@@ -234,9 +240,24 @@ void Manager::onJobDone(GJ& gj)
 
 void Manager::onCryptonDone(CryptoNodeSender& cns)
 {
-    cns.get_cr()->onCryptonDone(cns);
+    onCryptonDoneBT(cns.get_cr(), cns);
     ++m_cntCryptoNodeSenderDone;
     //cns will be destroyed on exit
+}
+
+void Manager::onCryptonDoneBT(BaseTask_ptr bt, CryptoNodeSender &cns)
+{
+    if(Status::Ok != cns.getStatus())
+    {
+        bt->setError(cns.getError().c_str(), cns.getStatus());
+        bt->processResult();
+        return;
+    }
+    //here you can send a job to the thread pool or send response to client
+    //cns will be destroyed on exit, save its result
+    {//now always create a job and put it to the thread pool after CryptoNode
+        sendToThreadPool(bt);
+    }
 }
 
 void Manager::stop()
@@ -336,13 +357,6 @@ BaseTask::BaseTask(Manager& manager, const Router::JobParams& prms)
 {
 }
 
-
-void BaseTask::onTooBusy()
-{
-    m_ctx.local.setError("Service Unavailable", Status::Busy);
-    respondAndDie("Thread pool overflow");
-}
-
 void BaseTask::processResult()
 {
     switch(getLastStatus())
@@ -369,21 +383,6 @@ void BaseTask::processResult()
     {
         assert(false);
     } break;
-    }
-}
-
-void BaseTask::onCryptonDone(CryptoNodeSender &cns)
-{
-    if(Status::Ok != cns.getStatus())
-    {
-        setError(cns.getError().c_str(), cns.getStatus());
-        processResult();
-        return;
-    }
-    //here you can send a job to the thread pool or send response to client
-    //cns will be destroyed on exit, save its result
-    {//now always create a job and put it to the thread pool after CryptoNode
-        m_manager.sendToThreadPool(get_itself());
     }
 }
 

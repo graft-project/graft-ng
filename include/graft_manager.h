@@ -157,9 +157,6 @@ public:
     virtual void onEvent() { }
 
 public:
-    void onCryptonDone(CryptoNodeSender& cns);
-    void onTooBusy(); //called on the thread pool overflow
-protected:
     virtual void respondAndDie(const std::string& s) = 0;
 public:
     void processResult();
@@ -217,6 +214,8 @@ class Manager
 {
     void createJob(BaseTask_ptr bt);
     void onJobDoneBT(BaseTask_ptr bt, GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
+    void onCryptonDoneBT(BaseTask_ptr bt, CryptoNodeSender& cns);
+    void onTooBusyBT(BaseTask_ptr bt); //called on the thread pool overflow
 public:
     Manager(const ServerOpts& sopts)
         : m_sopts(sopts)
