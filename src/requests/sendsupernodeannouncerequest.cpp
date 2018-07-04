@@ -89,11 +89,6 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
         //  handle announce
         const SupernodeAnnounce & announce = req.params[0];
 
-        // skip announces with our address
-        if (announce.address == supernode->walletAddress()) {
-            break;
-        }
-
         if (fsl->exists(announce.address)) {
             if (!fsl->get(announce.address)->updateFromAnnounce(announce)) {
                 error.code = ERROR_INTERNAL_ERROR;
@@ -101,20 +96,30 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
                 break;
             }
         } else {
+            // this can't be executed here as it takes too much time, we need to respond "ok" and run
+            // this task asynchronously
+
             boost::filesystem::path p(ctx.global.getConfig()->watchonly_wallets_path);
             p /= announce.address;
-            Supernode * s  = Supernode::createFromAnnounce(p.string(), announce, ctx.global.getConfig()->testnet);
-            if (!s) {
-                error.code = ERROR_INTERNAL_ERROR;
-                error.message = std::string("Cant create watch-only supernode wallet for address: ") + announce.address;
-                break;
-            }
-            if (!fsl->add(s)) {
-                error.code = ERROR_INTERNAL_ERROR;
-                error.message = "Can't add new supernode to list";
-                break;
-            }
-            s->refresh();
+            std::string wallet_path = p.string();
+            std::string cryptonode_rpc_address = ctx.global.getConfig()->cryptonode_rpc_address;
+            bool testnet = ctx.global.getConfig()->testnet;
+
+            auto worker = [announce, wallet_path, cryptonode_rpc_address, testnet, fsl]() {
+                Supernode * s  = Supernode::createFromAnnounce(wallet_path, announce,
+                                                               cryptonode_rpc_address,
+                                                               testnet);
+                if (!s) {
+                    LOG_ERROR("Cant create watch-only supernode wallet for address: " << announce.address);
+                    return;
+                }
+                if (!fsl->add(s)) {
+                    LOG_ERROR("Can't add new supernode to list: " << s->walletAddress());
+                    delete s;
+                }
+            };
+            // run and forget, just enough for prototype;
+            std::thread(worker).detach();
         }
     } while (false);
 
