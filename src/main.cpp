@@ -239,11 +239,9 @@ int main(int argc, const char** argv)
                 throw std::runtime_error(ec.message());
             }
 
-
             if (!boost::filesystem::create_directories(stake_wallet_path, ec)) {
                 throw std::runtime_error(ec.message());
             }
-
 
             if (!boost::filesystem::create_directories(watchonly_wallets_path, ec)) {
                 throw std::runtime_error(ec.message());
@@ -269,6 +267,13 @@ int main(int argc, const char** argv)
 
         // create fullsupernode list instance and put it into global context
         boost::shared_ptr<graft::FullSupernodeList> fsl {new graft::FullSupernodeList(sopts.cryptonode_rpc_address, sopts.testnet)};
+        size_t found_wallets = 0;
+        size_t loaded_wallets = fsl->loadFromDirThreaded(watchonly_wallets_path.string(), found_wallets);
+
+        if (found_wallets != loaded_wallets) {
+            LOG_ERROR("found wallets: " << found_wallets << ", loaded wallets: " << loaded_wallets);
+        }
+
         manager.get_gcm().addOrUpdate("fsl", fsl);
 
         graft::setCoapRouters(manager);
