@@ -61,12 +61,12 @@ void addGlobalCtxCleaner(graft::Manager& manager, int ms)
 void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
 {
     // update supernode every interval_ms
-    auto supernodeRefreshWorker = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    auto supernodeRefreshWorker = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+            graft::Output& output)->graft::Status
     {
-
-        LOG_PRINT_L0("input: " << input.data());
-        LOG_PRINT_L0("output: " << output.data());
-        LOG_PRINT_L0("last status: " << (int)ctx.local.getLastStatus());
+        LOG_PRINT_L1("input: " << input.data());
+        LOG_PRINT_L1("output: " << output.data());
+        LOG_PRINT_L1("last status: " << (int)ctx.local.getLastStatus());
 
         switch (ctx.local.getLastStatus()) {
         case graft::Status::Forward: // reply from cryptonode
@@ -77,20 +77,14 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
 
             supernode = ctx.global.get("supernode", graft::FullSupernodeList::SupernodePtr(nullptr));
 
-            LOG_PRINT_L0("supernode: " << supernode.get());
+            LOG_PRINT_L1("supernode: " << supernode.get());
             if (!supernode.get()) {
                 LOG_ERROR("supernode is not set in global context");
                 return graft::Status::Error;
             }
             supernode->refresh();
 
-            LOG_PRINT_L0("supernode stake amount: " << supernode->stakeAmount());
-
-            // TODO: replace call with "send_supernode_announce"
-//            graft::JsonRpcRequestHeader req;
-//            req.method = "get_info";
-//            output.path = "/json_rpc";
-//            output.load(req);
+            LOG_PRINT_L1("supernode stake amount: " << supernode->stakeAmount());
 
             graft::SupernodeAnnounce announce;
             supernode->prepareAnnounce(announce);
@@ -99,13 +93,14 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
             req.method = "send_supernode_announce";
             req.id = 0;
             output.load(req);
+
             output.path = "/json_rpc/rta";
+            // DBG: without cryptonode
+            // output.path = "/dapi/v2.0/send_supernode_announce";
 
-            LOG_PRINT_L0("Calling cryptonode");
+            LOG_PRINT_L1("Calling cryptonode");
             return graft::Status::Forward;
-
         }
-
     };
 
     manager.addPeriodicTask(
@@ -275,7 +270,6 @@ int main(int argc, const char** argv)
         manager.get_gcm().addOrUpdate("supernode", supernode);
 
         // create fullsupernode list instance and put it into global context
-        LOG_PRINT_L0(sopts.cryptonode_rpc_address);
         boost::shared_ptr<graft::FullSupernodeList> fsl {new graft::FullSupernodeList(sopts.cryptonode_rpc_address, sopts.testnet)};
         manager.get_gcm().addOrUpdate("fsl", fsl);
 
