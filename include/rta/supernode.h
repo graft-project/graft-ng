@@ -40,6 +40,7 @@ public:
     Supernode(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address, bool testnet = false,
               const std::string &seed_language = std::string());
     ~Supernode();
+
     /*!
      * \brief setDaemonAddress - setup connection with the cryptonode daemon
      * \param address          - address in "hostname:port" form
@@ -126,7 +127,9 @@ public:
      * \return                   - Supernode pointer on success
      */
     static Supernode * createFromAnnounce(const std::string &path,
-                                          const graft::SupernodeAnnounce &announce, bool testnet);
+                                          const graft::SupernodeAnnounce &announce,
+                                          const std::string &daemon_address,
+                                          bool testnet);
 
     bool prepareAnnounce(graft::SupernodeAnnounce &announce);
 
@@ -162,7 +165,6 @@ public:
 
     std::string networkAddress() const;
     void setNetworkAddress(const std::string &networkAddress);
-
 
 private:
     Supernode(bool testnet = false);

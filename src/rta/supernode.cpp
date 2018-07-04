@@ -137,8 +137,8 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
         return false;
     }
 
-    if (height != announce.height) {
-        LOG_ERROR("height mismatch: announced height: " << announce.height << ", our height: " << height);
+    if (!signed_key_images.empty() && height == 0) {
+        LOG_ERROR("key images imported but height is 0");
         return false;
     }
     // TODO: check self amount vs announced amount
@@ -147,7 +147,8 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
 
 }
 
-Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnnounce &announce,  bool testnet)
+Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnnounce &announce, const std::string &daemon_address,
+                                         bool testnet)
 {
     crypto::secret_key viewkey;
     if (!epee::string_tools::hex_to_pod(announce.secret_viewkey, viewkey)) {
@@ -157,7 +158,11 @@ Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnno
 
     Supernode * result = Supernode::createFromViewOnlyWallet(path, announce.address, viewkey, testnet);
 
+
+    // XXX before importing key images, wallet needs to be connected to daemon and syncrhonized
     if (result) {
+        result->setDaemonAddress(daemon_address);
+        result->refresh();
         result->updateFromAnnounce(announce);
     }
 
