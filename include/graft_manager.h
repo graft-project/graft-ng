@@ -89,6 +89,132 @@ struct ServerOpts
     std::string data_dir;
 };
 
+template<typename C>
+void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
+{
+    static bool entered = false;
+    assert(!entered); //recursive calls are dangerous
+    entered = true;
+    C* This = static_cast<C*>(nc->user_data);
+    assert(This);
+    This->ev_handler(nc, ev, ev_data);
+    entered = false;
+}
+
+void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data);
+
+template<typename C>
+class ItselfHolder
+{
+public:
+    using Ptr = std::shared_ptr<C>;
+public:
+    Ptr get_itself() { return m_itself; }
+
+    template<typename T=C, typename ...ARGS>
+    static const Ptr Create(ARGS&&... args)
+    {
+        return (new T(std::forward<ARGS>(args)...))->m_itself;
+    }
+    void releaseItself() { m_itself.reset(); }
+protected:
+    ItselfHolder() : m_itself(static_cast<C*>(this)) { }
+private:
+    Ptr m_itself;
+};
+
+class CryptoNodeSender : public ItselfHolder<CryptoNodeSender>
+{
+public:
+    CryptoNodeSender() = default;
+
+    BaseTask_ptr& get_cr() { return m_cr; }
+
+    void send(Manager& manager, BaseTask_ptr cr);
+    Status getStatus() const { return m_status; }
+    const std::string& getError() const { return m_error; }
+public:
+    void ev_handler(mg_connection* crypton, int ev, void *ev_data);
+private:
+    void setError(Status status, const std::string& error = std::string())
+    {
+        m_status = status;
+        m_error = error;
+    }
+private:
+    mg_connection *m_crypton = nullptr;
+    BaseTask_ptr m_cr;
+    Status m_status = Status::None;
+    std::string m_error;
+};
+
+class BaseTask : public ItselfHolder<BaseTask>
+{
+protected:
+    friend class ItselfHolder<BaseTask>;
+    BaseTask(Manager& manager, const Router::JobParams& prms);
+public:
+    virtual ~BaseTask() { }
+
+    virtual void onEvent() { }
+
+    void createJob();
+public:
+    void onJobDone(GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
+    void onCryptonDone(CryptoNodeSender& cns);
+    void onTooBusy(); //called on the thread pool overflow
+protected:
+    virtual void respondAndDie(const std::string& s) = 0;
+    void processResult();
+    void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
+    Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
+    void setError(const char* str, Status status = Status::InternalError) { m_ctx.local.setError(str, status); }
+public:
+    const Router::vars_t& get_vars() const { return m_prms.vars; }
+    Input& get_input() { return m_prms.input; }
+    Output& get_output() { return m_output; }
+    const Router::Handler3& get_h3() const { return m_prms.h3; }
+    Context& get_ctx() { return m_ctx; }
+protected:
+    Manager& m_manager;
+    Router::JobParams m_prms;
+    Output m_output;
+    Context m_ctx;
+};
+
+class PeriodicTask : public BaseTask
+{
+private:
+    friend class ItselfHolder<BaseTask>;
+    PeriodicTask(Manager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
+        : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
+        , m_timeout_ms(timeout_ms)
+    {
+        start();
+    }
+public:
+    virtual void onEvent() override;
+private:
+    virtual void respondAndDie(const std::string& s) override;
+
+    void start();
+private:
+    std::chrono::milliseconds m_timeout_ms;
+};
+
+class ClientRequest : public BaseTask
+{
+private:
+    friend class ItselfHolder<BaseTask>;
+    ClientRequest(mg_connection *client, Router::JobParams& prms);
+private:
+    virtual void respondAndDie(const std::string& s) override;
+public:
+    void ev_handler(mg_connection *client, int ev, void *ev_data);
+private:
+    mg_connection *m_client;
+};
+
 class Manager
 {
 public:
@@ -172,141 +298,6 @@ private:
     TimerList<BaseTask_ptr> m_timerList;
 public:
     volatile std::atomic_bool m_exit {false};
-};
-
-template<typename C>
-void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
-{
-    static bool entered = false;
-    assert(!entered); //recursive calls are dangerous
-    entered = true;
-    C* This = static_cast<C*>(nc->user_data);
-    assert(This);
-    This->ev_handler(nc, ev, ev_data);
-    entered = false;
-}
-
-void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data);
-
-template<typename C>
-class ItselfHolder
-{
-public:
-    using Ptr = std::shared_ptr<C>;
-public:
-    Ptr get_itself() { return m_itself; }
-
-    template<typename T=C, typename ...ARGS>
-    static const Ptr Create(ARGS&&... args)
-    {
-        return (new T(std::forward<ARGS>(args)...))->m_itself;
-    }
-    void releaseItself() { m_itself.reset(); }
-protected:
-    ItselfHolder() : m_itself(static_cast<C*>(this)) { }
-private:
-    Ptr m_itself;
-};
-
-class CryptoNodeSender : public ItselfHolder<CryptoNodeSender>
-{
-public:
-    CryptoNodeSender() = default;
-
-    BaseTask_ptr& get_cr() { return m_cr; }
-
-    void send(Manager& manager, BaseTask_ptr cr);
-    Status getStatus() const { return m_status; }
-    const std::string& getError() const { return m_error; }
-public:
-    void ev_handler(mg_connection* crypton, int ev, void *ev_data);
-private:
-    void setError(Status status, const std::string& error = std::string())
-    {
-        m_status = status;
-        m_error = error;
-    }
-private:
-    mg_connection *m_crypton = nullptr;
-    BaseTask_ptr m_cr;
-    Status m_status = Status::None;
-    std::string m_error;
-};
-
-class BaseTask : public ItselfHolder<BaseTask>
-{
-protected:
-    friend class ItselfHolder<BaseTask>;
-    BaseTask(Manager& manager, const Router::JobParams& prms)
-        : m_manager(manager)
-        , m_prms(prms)
-        , m_ctx(manager.get_gcm())
-    {
-    }
-public:
-    virtual ~BaseTask() { }
-
-    virtual void onEvent() { }
-
-    void createJob();
-public:
-    void onJobDone(GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
-    void onCryptonDone(CryptoNodeSender& cns);
-    void onTooBusy(); //called on the thread pool overflow
-protected:
-    virtual void respondAndDie(const std::string& s) = 0;
-    void processResult();
-    void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
-    Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
-    void setError(const char* str, Status status = Status::InternalError) { m_ctx.local.setError(str, status); }
-public:
-    const Router::vars_t& get_vars() const { return m_prms.vars; }
-    Input& get_input() { return m_prms.input; }
-    Output& get_output() { return m_output; }
-    const Router::Handler3& get_h3() const { return m_prms.h3; }
-    Context& get_ctx() { return m_ctx; }
-protected:
-    Manager& m_manager;
-    Router::JobParams m_prms;
-    Output m_output;
-    Context m_ctx;
-};
-
-class PeriodicTask : public BaseTask
-{
-private:
-    friend class ItselfHolder<BaseTask>;
-    PeriodicTask(Manager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
-        : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
-        , m_timeout_ms(timeout_ms)
-    {
-        start();
-    }
-public:
-    virtual void onEvent() override;
-private:
-    virtual void respondAndDie(const std::string& s) override;
-
-    void start();
-private:
-    std::chrono::milliseconds m_timeout_ms;
-};
-
-class ClientRequest : public BaseTask
-{
-private:
-    friend class ItselfHolder<BaseTask>;
-    ClientRequest(mg_connection *client, Router::JobParams& prms)
-        : BaseTask(*Manager::from(client), prms)
-        , m_client(client)
-    {
-    }
-private:
-    virtual void respondAndDie(const std::string& s) override;
-public:
-    void ev_handler(mg_connection *client, int ev, void *ev_data);
-private:
-    mg_connection *m_client;
 };
 
 class GraftServer final

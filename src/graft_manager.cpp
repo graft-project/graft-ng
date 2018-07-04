@@ -240,6 +240,14 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     }
 }
 
+BaseTask::BaseTask(Manager& manager, const Router::JobParams& prms)
+    : m_manager(manager)
+    , m_prms(prms)
+    , m_ctx(manager.get_gcm())
+{
+}
+
+
 void BaseTask::onTooBusy()
 {
     m_ctx.local.setError("Service Unavailable", Status::Busy);
@@ -389,6 +397,12 @@ void PeriodicTask::start()
 {
     auto& tl = m_manager.get_timerList();
     tl.push(m_timeout_ms, get_itself());
+}
+
+ClientRequest::ClientRequest(mg_connection *client, Router::JobParams& prms)
+    : BaseTask(*Manager::from(client), prms)
+    , m_client(client)
+{
 }
 
 void ClientRequest::respondAndDie(const std::string &s)
