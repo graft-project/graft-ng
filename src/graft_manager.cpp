@@ -18,17 +18,106 @@ void Manager::sendCrypton(BaseTask_ptr cr)
     cns->send(*this, cr);
 }
 
-void Manager::sendToThreadPool(BaseTask_ptr cr)
+void Manager::sendToThreadPool(BaseTask_ptr bt)
 {
     assert(m_cntJobDone <= m_cntJobSent);
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
     {//check overflow
-        cr->onTooBusy();
+        bt->onTooBusy();
         return;
     }
     assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
     ++m_cntJobSent;
-    cr->createJob();
+    createJob(bt);
+}
+
+void Manager::createJob(BaseTask_ptr bt)
+{
+    auto& m_prms = bt->m_prms;
+    auto& m_ctx = bt->m_ctx;
+    auto& m_output = bt->m_output;
+
+    if(m_prms.h3.pre_action)
+    {
+        try
+        {
+            Status status = m_prms.h3.pre_action(m_prms.vars, m_prms.input, m_ctx, m_output);
+            bt->setLastStatus(status);
+            if(Status::Ok == status && (m_prms.h3.worker_action || m_prms.h3.post_action)
+                    || Status::Forward == status)
+            {
+                m_prms.input.assign(m_output);
+            }
+        }
+        catch(const std::exception& e)
+        {
+            bt->setError(e.what());
+            m_prms.input.reset();
+        }
+        catch(...)
+        {
+            bt->setError("unknown exeption");
+            m_prms.input.reset();
+        }
+
+        if(Status::Ok != bt->getLastStatus() && Status::Forward != bt->getLastStatus())
+        {
+            bt->processResult();
+            return;
+        }
+    }
+
+    if(m_prms.h3.worker_action)
+    {
+        get_threadPool().post(
+                    GJ_ptr( bt, &get_resQueue(), this ),
+                    true
+                    );
+    }
+    else
+    {
+        //special case when worker_action is absent
+        onJobDoneBT(bt, nullptr);
+        //next call is required to fix counters that prevents overflow
+        jobDone();
+    }
+}
+
+void Manager::onJobDoneBT(BaseTask_ptr bt, GJ* gj)
+{
+    auto& m_prms = bt->m_prms;
+    auto& m_ctx = bt->m_ctx;
+    auto& m_output = bt->m_output;
+
+    //post_action if not empty, will be called in any case, even if worker_action results as some kind of error or exception.
+    //But, in case pre_action finishes as error both worker_action and post_action will be skipped.
+    //post_action has a chance to fix result of pre_action. In case of error was before it it should just return that error.
+    if(m_prms.h3.post_action)
+    {
+        try
+        {
+            Status status = m_prms.h3.post_action(m_prms.vars, m_prms.input, m_ctx, m_output);
+            bt->setLastStatus(status);
+            if(Status::Forward == status)
+            {
+                m_prms.input.assign(m_output);
+            }
+        }
+        catch(const std::exception& e)
+        {
+            bt->setError(e.what());
+            m_prms.input.reset();
+        }
+        catch(...)
+        {
+            bt->setError("unknown exeption");
+            m_prms.input.reset();
+        }
+    }
+    //here you can send a request to cryptonode or send response to client
+    //gj will be destroyed on exit, save its result
+    //now it sends response to client
+    bt->processResult();
 }
 
 void Manager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms)
@@ -131,15 +220,15 @@ void Manager::doWork(uint64_t cnt)
     }
 }
 
-void Manager::onJobDone()
+void Manager::jobDone()
 {
     ++m_cntJobDone;
 }
 
 void Manager::onJobDone(GJ& gj)
 {
-    gj.get_cr()->onJobDone(&gj);
-    onJobDone();
+    onJobDoneBT(gj.get_cr(), &gj);
+    jobDone();
     //gj will be destroyed on exit
 }
 
@@ -252,87 +341,6 @@ void BaseTask::onTooBusy()
 {
     m_ctx.local.setError("Service Unavailable", Status::Busy);
     respondAndDie("Thread pool overflow");
-}
-
-void BaseTask::createJob()
-{
-    if(m_prms.h3.pre_action)
-    {
-        try
-        {
-            Status status = m_prms.h3.pre_action(m_prms.vars, m_prms.input, m_ctx, m_output);
-            setLastStatus(status);
-            if(Status::Ok == status && (m_prms.h3.worker_action || m_prms.h3.post_action)
-                    || Status::Forward == status)
-            {
-                m_prms.input.assign(m_output);
-            }
-        }
-        catch(const std::exception& e)
-        {
-            setError(e.what());
-            m_prms.input.reset();
-        }
-        catch(...)
-        {
-            setError("unknown exeption");
-            m_prms.input.reset();
-        }
-
-        if(Status::Ok != getLastStatus() && Status::Forward != getLastStatus())
-        {
-            processResult();
-            return;
-        }
-    }
-
-    if(m_prms.h3.worker_action)
-    {
-        m_manager.get_threadPool().post(
-                    GJ_ptr( get_itself(), &m_manager.get_resQueue(), &m_manager ),
-                    true
-                    );
-    }
-    else
-    {
-        //special case when worker_action is absent
-        onJobDone(nullptr);
-        //next call is required to fix counters that prevents overflow
-        m_manager.onJobDone();
-    }
-}
-
-void BaseTask::onJobDone(GJ* gj)
-{
-    //post_action if not empty, will be called in any case, even if worker_action results as some kind of error or exception.
-    //But, in case pre_action finishes as error both worker_action and post_action will be skipped.
-    //post_action has a chance to fix result of pre_action. In case of error was before it it should just return that error.
-    if(m_prms.h3.post_action)
-    {
-        try
-        {
-            Status status = m_prms.h3.post_action(m_prms.vars, m_prms.input, m_ctx, m_output);
-            setLastStatus(status);
-            if(Status::Forward == status)
-            {
-                m_prms.input.assign(m_output);
-            }
-        }
-        catch(const std::exception& e)
-        {
-            setError(e.what());
-            m_prms.input.reset();
-        }
-        catch(...)
-        {
-            setError("unknown exeption");
-            m_prms.input.reset();
-        }
-    }
-    //here you can send a request to cryptonode or send response to client
-    //gj will be destroyed on exit, save its result
-    //now it sends response to client
-    processResult();
 }
 
 void BaseTask::processResult()

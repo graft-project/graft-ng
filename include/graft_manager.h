@@ -18,8 +18,6 @@ class Manager;
 class BaseTask;
 using BaseTask_ptr = std::shared_ptr<BaseTask>;
 
-class CryptoNodeSender;
-
 class GJ_ptr;
 using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
 using GJ = GraftJob<BaseTask_ptr, TPResQueue, Manager>;
@@ -158,13 +156,12 @@ public:
 
     virtual void onEvent() { }
 
-    void createJob();
 public:
-    void onJobDone(GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
     void onCryptonDone(CryptoNodeSender& cns);
     void onTooBusy(); //called on the thread pool overflow
 protected:
     virtual void respondAndDie(const std::string& s) = 0;
+public:
     void processResult();
     void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
     Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
@@ -177,6 +174,7 @@ public:
     Context& get_ctx() { return m_ctx; }
 protected:
     Manager& m_manager;
+public:
     Router::JobParams m_prms;
     Output m_output;
     Context m_ctx;
@@ -217,6 +215,8 @@ private:
 
 class Manager
 {
+    void createJob(BaseTask_ptr bt);
+    void onJobDoneBT(BaseTask_ptr bt, GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
 public:
     Manager(const ServerOpts& sopts)
         : m_sopts(sopts)
@@ -259,8 +259,7 @@ public:
     ////events
     void onNewClient(BaseTask_ptr cr);
     void onClientDone(BaseTask_ptr cr);
-
-    void onJobDone();
+public:
     void onJobDone(GJ& gj);
 
     void onCryptonDone(CryptoNodeSender& cns);
@@ -273,6 +272,8 @@ private:
 
     bool tryProcessReadyJob();
     void processReadyJobBlock();
+
+    void jobDone();
 public:
     std::string dbgDumpRouters() const { return m_root.dbgDumpRouters(); }
     void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
