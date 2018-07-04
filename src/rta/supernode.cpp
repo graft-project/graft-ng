@@ -156,15 +156,26 @@ Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnno
         return false;
     }
 
-    Supernode * result = Supernode::createFromViewOnlyWallet(path, announce.address, viewkey, testnet);
+    Supernode * result = nullptr;
+    try {
+        result = Supernode::createFromViewOnlyWallet(path, announce.address, viewkey, testnet);
 
 
-    // XXX before importing key images, wallet needs to be connected to daemon and syncrhonized
-    if (result) {
-        result->setDaemonAddress(daemon_address);
-        result->refresh();
-        result->updateFromAnnounce(announce);
+        // XXX before importing key images, wallet needs to be connected to daemon and syncrhonized
+        if (result) {
+
+            result->setDaemonAddress(daemon_address);
+            result->refresh();
+            result->updateFromAnnounce(announce);
+
+        }
+
+    } catch (...) {
+        LOG_ERROR("wallet exception");
+        delete result;
+        result = nullptr;
     }
+
 
     return result;
 }
