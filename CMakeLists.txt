@@ -134,6 +134,7 @@ set(CRYPTONODE_LIBS
 set(COMMON_LIBS
     ssl
     crypto
+    readline
     )
 
 #set(Boost_USE_STATIC_LIBS ON)
@@ -228,6 +229,7 @@ if (OPT_BUILD_TESTS)
             ${GS_LIBS}
             ${Boost_LIBRARIES}
             ${CMAKE_THREAD_LIBS_INIT}
+            ${COMMON_LIBS}
             )
 
 
