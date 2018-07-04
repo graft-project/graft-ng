@@ -135,6 +135,11 @@ private:
 
     bool tryProcessReadyJob();
     void processReadyJobBlock();
+public:
+    std::string dbgDumpRouters() const { return m_root.dbgDumpRouters(); }
+    void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
+    //returns conflicting endpoint
+    std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
 private:
     mg_mgr m_mgr;
     Router::Root m_root;
