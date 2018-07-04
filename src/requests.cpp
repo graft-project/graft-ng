@@ -3,11 +3,18 @@
 #include "salestatusrequest.h"
 #include "rejectsalerequest.h"
 #include "getinforequest.h"
+
 #include "saledetailsrequest.h"
 #include "payrequest.h"
 #include "paystatusrequest.h"
 #include "rejectpayrequest.h"
 #include "forwardrequest.h"
+
+#include "sendrawtxrequest.h"
+#include "authorizertatxrequest.h"
+#include "sendtxauthresponserequest.h"
+#include "sendsupernodeannouncerequest.h"
+
 
 namespace graft {
 
@@ -21,6 +28,9 @@ void registerRTARequests(graft::Router &router)
     graft::registerPayRequest(router);
     graft::registerPayStatusRequest(router);
     graft::registerRejectPayRequest(router);
+    graft::registerAuthorizeRtaTxRequest(router);
+    graft::registerSendTxAuthResponseRequest(router);
+    graft::registerSendSupernodeAnnounceRequest(router);
 }
 
 

@@ -21,7 +21,7 @@ Status payStatusHandler(const Router::vars_t& vars, const graft::Input& input,
 void registerPayStatusRequest(Router &router)
 {
     Router::Handler3 h3(payStatusHandler, nullptr, nullptr);
-    router.addRoute("/dapi/pay_status", METHOD_POST, h3);
+    router.addRoute("/pay_status", METHOD_POST, h3);
 }
 
 }

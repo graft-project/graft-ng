@@ -78,7 +78,7 @@ public:
      * \param key_images - list of key images
      * \return           - true of successfully updated
      */
-    bool update(const std::string &address, const std::vector<Supernode::KeyImage> &key_images);
+    bool update(const std::string &address, const std::vector<Supernode::SignedKeyImage> &key_images);
 
     /*!
      * \brief get      - returns supernode instance (pointer)
@@ -122,6 +122,7 @@ public:
      * \return
      */
     size_t refreshedItems() const;
+
 
 private:
     void selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,

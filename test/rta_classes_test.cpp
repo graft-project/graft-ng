@@ -83,7 +83,7 @@ TEST_F(SupernodeTest, watchOnly)
 
     // create view only supernode
     crypto::secret_key viewkey = sn1.exportViewkey();
-    std::vector<Supernode::KeyImage> key_images;
+    std::vector<Supernode::SignedKeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
     boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
@@ -93,7 +93,8 @@ TEST_F(SupernodeTest, watchOnly)
 
     sn2->setDaemonAddress(daemon_addr);
     sn2->refresh();
-    sn2->importKeyImages(key_images);
+    uint64_t height = 0;
+    sn2->importKeyImages(key_images, height);
 
 
     EXPECT_TRUE(sn2->walletAddress() == sn1.walletAddress());
@@ -144,7 +145,7 @@ struct FullSupernodeListTest : public ::testing::Test
     FullSupernodeListTest()
     {
         mlog_configure("", true);
-        mlog_set_log_level(1);
+        mlog_set_log_level(2);
     }
 };
 
@@ -166,7 +167,7 @@ TEST_F(FullSupernodeListTest, basic)
 
     // create view only supernode
     crypto::secret_key viewkey = sn1.exportViewkey();
-    std::vector<Supernode::KeyImage> key_images;
+    std::vector<Supernode::SignedKeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
     boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
@@ -424,4 +425,42 @@ TEST_F(FullSupernodeListTest, threadPool)
             LOG_PRINT_L0("worker thread done");
         });
     }
+}
+
+
+TEST_F(FullSupernodeListTest, announce1)
+{
+
+    const std::string daemon_addr = "localhost:28881";
+    const bool testnet = true;
+    // create Supernode instance from existing wallet
+    Supernode sn ("supernode_tier1_1", "", daemon_addr, testnet);
+
+    sn.refresh();
+
+    ASSERT_TRUE(sn.stakeAmount() > 0);
+
+
+    boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+
+    FullSupernodeList fsl(daemon_addr, testnet);
+
+    SupernodeAnnounce announce;
+    ASSERT_TRUE(sn.prepareAnnounce(announce));
+
+
+    FullSupernodeList::SupernodePtr watch_only_sn1 {Supernode::createFromAnnounce(temp_path.string(), announce,
+                                                                                 daemon_addr, testnet)};
+    ASSERT_TRUE(watch_only_sn1.get() != nullptr);
+    watch_only_sn1->refresh();
+    EXPECT_EQ(watch_only_sn1->stakeAmount(), sn.stakeAmount());
+
+    temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+
+    announce.secret_viewkey = "";
+
+    FullSupernodeList::SupernodePtr watch_only_sn2 {Supernode::createFromAnnounce(temp_path.string(), announce,
+                                                                                 daemon_addr, testnet)};
+    ASSERT_TRUE(watch_only_sn2.get() == nullptr);
+
 }

@@ -136,8 +136,8 @@ bool FullSupernodeList::add(Supernode *item)
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
     m_list.insert(std::make_pair(item->walletAddress(), SupernodePtr{item}));
-    LOG_PRINT_L0("added supernode: " << item->walletAddress());
-    LOG_PRINT_L0("list size: " << m_list.size());
+    LOG_PRINT_L1("added supernode: " << item->walletAddress());
+    LOG_PRINT_L1("list size: " << m_list.size());
     return true;
 }
 
@@ -145,7 +145,7 @@ size_t FullSupernodeList::loadFromDir(const string &base_dir)
 {
     vector<string> wallets = findWallets(base_dir);
     size_t result = 0;
-    LOG_PRINT_L0("found wallets: " << wallets.size());
+    LOG_PRINT_L1("found wallets: " << wallets.size());
     for (const auto &wallet_path : wallets) {
         loadWallet(wallet_path);
     }
@@ -157,7 +157,7 @@ size_t FullSupernodeList::loadFromDir(const string &base_dir)
 size_t FullSupernodeList::loadFromDirThreaded(const string &base_dir, size_t &found_wallets)
 {
     vector<string> wallets = findWallets(base_dir);
-    LOG_PRINT_L0("found wallets: " << wallets.size());
+    LOG_PRINT_L1("found wallets: " << wallets.size());
     found_wallets = wallets.size();
 
     utils::ThreadPool tp;
@@ -189,13 +189,14 @@ bool FullSupernodeList::exists(const string &address) const
     return m_list.find(address) != m_list.end();
 }
 
-bool FullSupernodeList::update(const string &address, const vector<Supernode::KeyImage> &key_images)
+bool FullSupernodeList::update(const string &address, const vector<Supernode::SignedKeyImage> &key_images)
 {
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
     auto it = m_list.find(address);
     if (it != m_list.end()) {
-        return it->second->importKeyImages(key_images);
+        uint64_t height = 0;
+        return it->second->importKeyImages(key_images, height);
     }
     return false;
 }
