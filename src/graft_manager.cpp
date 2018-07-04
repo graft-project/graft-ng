@@ -34,8 +34,65 @@ void Manager::sendToThreadPool(BaseTask_ptr bt)
 void Manager::onTooBusyBT(BaseTask_ptr bt)
 {
     bt->m_ctx.local.setError("Service Unavailable", Status::Busy);
-    bt->respondAndDie("Thread pool overflow");
+    respondAndDieBT(bt,"Thread pool overflow");
 }
+
+void Manager::onEventBT(BaseTask_ptr bt)
+{
+    assert(dynamic_cast<PeriodicTask*>(bt.get()));
+    onNewClient(bt);
+}
+
+void Manager::respondAndDieBT(BaseTask_ptr bt, const std::string& s)
+{
+    PeriodicTask* pt = dynamic_cast<PeriodicTask*>(bt.get());
+    if(pt)
+    {
+        if(bt->m_ctx.local.getLastStatus() == Status::Stop)
+        {
+            bt->finalize();
+            return;
+        }
+        schedule(pt);
+    }
+    else
+    {
+        int code;
+        switch(bt->m_ctx.local.getLastStatus())
+        {
+        case Status::Ok: code = 200; break;
+        case Status::InternalError:
+        case Status::Error: code = 500; break;
+        case Status::Busy: code = 503; break;
+        case Status::Drop: code = 400; break;
+        default: assert(false); break;
+        }
+
+        ClientRequest* cr = dynamic_cast<ClientRequest*>(bt.get());
+
+        auto& m_ctx = cr->m_ctx;
+        auto& m_client = cr->m_client;
+        if(Status::Ok == m_ctx.local.getLastStatus())
+        {
+            mg_send_head(m_client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
+            mg_send(m_client, s.c_str(), s.size());
+        }
+        else
+        {
+            mg_http_send_error(m_client, code, s.c_str());
+        }
+        m_client->flags |= MG_F_SEND_AND_CLOSE;
+        m_client->handler = static_empty_ev_handler;
+        m_client = nullptr;
+        bt->finalize();
+    }
+}
+
+void Manager::schedule(PeriodicTask* pt)
+{
+    m_timerList.push(pt->m_timeout_ms, pt->get_itself());
+}
+
 
 void Manager::createJob(BaseTask_ptr bt)
 {
@@ -68,7 +125,7 @@ void Manager::createJob(BaseTask_ptr bt)
 
         if(Status::Ok != bt->getLastStatus() && Status::Forward != bt->getLastStatus())
         {
-            bt->processResult();
+            processResultBT(bt);
             return;
         }
     }
@@ -123,13 +180,44 @@ void Manager::onJobDoneBT(BaseTask_ptr bt, GJ* gj)
     //here you can send a request to cryptonode or send response to client
     //gj will be destroyed on exit, save its result
     //now it sends response to client
-    bt->processResult();
+    processResultBT(bt);
+}
+
+void Manager::processResultBT(BaseTask_ptr bt)
+{
+    switch(bt->getLastStatus())
+    {
+    case Status::Forward:
+    {
+        sendCrypton(bt);
+    } break;
+    case Status::Ok:
+    {
+        respondAndDieBT(bt, bt->m_output.data());
+    } break;
+    case Status::InternalError:
+    case Status::Error:
+    case Status::Stop:
+    {
+        respondAndDieBT(bt, bt->m_output.data());
+    } break;
+    case Status::Drop:
+    {
+        respondAndDieBT(bt, "Job done Drop."); //TODO: Expect HTTP Error Response
+    } break;
+    default:
+    {
+        assert(false);
+    } break;
+    }
 }
 
 void Manager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms)
 {
-    BaseTask* rb = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms).get();
-    assert(rb);
+    BaseTask* bt = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms).get();
+    PeriodicTask* pt = dynamic_cast<PeriodicTask*>(bt);
+    assert(pt);
+    schedule(pt);
 }
 
 void Manager::cb_event(mg_mgr *mgr, uint64_t cnt)
@@ -250,7 +338,7 @@ void Manager::onCryptonDoneBT(BaseTask_ptr bt, CryptoNodeSender &cns)
     if(Status::Ok != cns.getStatus())
     {
         bt->setError(cns.getError().c_str(), cns.getStatus());
-        bt->processResult();
+        processResultBT(bt);
         return;
     }
     //here you can send a job to the thread pool or send response to client
@@ -357,86 +445,10 @@ BaseTask::BaseTask(Manager& manager, const Router::JobParams& prms)
 {
 }
 
-void BaseTask::processResult()
-{
-    switch(getLastStatus())
-    {
-    case Status::Forward:
-    {
-        m_manager.sendCrypton(get_itself());
-    } break;
-    case Status::Ok:
-    {
-        respondAndDie(m_output.data());
-    } break;
-    case Status::InternalError:
-    case Status::Error:
-    case Status::Stop:
-    {
-        respondAndDie(m_output.data());
-    } break;
-    case Status::Drop:
-    {
-        respondAndDie("Job done Drop."); //TODO: Expect HTTP Error Response
-    } break;
-    default:
-    {
-        assert(false);
-    } break;
-    }
-}
-
-void PeriodicTask::onEvent()
-{
-    m_manager.onNewClient(get_itself());
-}
-
-void PeriodicTask::respondAndDie(const std::string& s)
-{
-    if(m_ctx.local.getLastStatus() == Status::Stop)
-    {
-        releaseItself();
-        return;
-    }
-    start();
-}
-void PeriodicTask::start()
-{
-    auto& tl = m_manager.get_timerList();
-    tl.push(m_timeout_ms, get_itself());
-}
-
 ClientRequest::ClientRequest(mg_connection *client, Router::JobParams& prms)
     : BaseTask(*Manager::from(client), prms)
     , m_client(client)
 {
-}
-
-void ClientRequest::respondAndDie(const std::string &s)
-{
-    int code;
-    switch(m_ctx.local.getLastStatus())
-    {
-    case Status::Ok: code = 200; break;
-    case Status::InternalError:
-    case Status::Error: code = 500; break;
-    case Status::Busy: code = 503; break;
-    case Status::Drop: code = 400; break;
-    default: assert(false); break;
-    }
-    if(Status::Ok == m_ctx.local.getLastStatus())
-    {
-        mg_send_head(m_client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
-        mg_send(m_client, s.c_str(), s.size());
-    }
-    else
-    {
-        mg_http_send_error(m_client, code, s.c_str());
-    }
-    m_client->flags |= MG_F_SEND_AND_CLOSE;
-    m_client->handler = static_empty_ev_handler;
-    m_client = nullptr;
-    releaseItself();
 }
 
 void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)

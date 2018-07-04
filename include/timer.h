@@ -78,7 +78,7 @@ namespace graft
                 auto t = m_pq.top();
                 if(!t.fired()) break;
                 m_pq.pop();
-                t.ptr->onEvent();
+                t.ptr->m_manager.onEventBT(t.ptr);
             }
         }
         void dump(const std::string &pref) const

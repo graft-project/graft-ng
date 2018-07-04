@@ -114,6 +114,7 @@ public:
     {
         return (new T(std::forward<ARGS>(args)...))->m_itself;
     }
+protected:
     void releaseItself() { m_itself.reset(); }
 protected:
     ItselfHolder() : m_itself(static_cast<C*>(this)) { }
@@ -154,12 +155,8 @@ protected:
 public:
     virtual ~BaseTask() { }
 
-    virtual void onEvent() { }
-
 public:
-    virtual void respondAndDie(const std::string& s) = 0;
-public:
-    void processResult();
+    void finalize() { releaseItself(); }
     void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
     Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
     void setError(const char* str, Status status = Status::InternalError) { m_ctx.local.setError(str, status); }
@@ -169,9 +166,8 @@ public:
     Output& get_output() { return m_output; }
     const Router::Handler3& get_h3() const { return m_prms.h3; }
     Context& get_ctx() { return m_ctx; }
-protected:
-    Manager& m_manager;
 public:
+    Manager& m_manager;
     Router::JobParams m_prms;
     Output m_output;
     Context m_ctx;
@@ -185,15 +181,8 @@ private:
         : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
         , m_timeout_ms(timeout_ms)
     {
-        start();
     }
 public:
-    virtual void onEvent() override;
-private:
-    virtual void respondAndDie(const std::string& s) override;
-
-    void start();
-private:
     std::chrono::milliseconds m_timeout_ms;
 };
 
@@ -202,11 +191,9 @@ class ClientRequest : public BaseTask
 private:
     friend class ItselfHolder<BaseTask>;
     ClientRequest(mg_connection *client, Router::JobParams& prms);
-private:
-    virtual void respondAndDie(const std::string& s) override;
 public:
     void ev_handler(mg_connection *client, int ev, void *ev_data);
-private:
+public:
     mg_connection *m_client;
 };
 
@@ -216,6 +203,13 @@ class Manager
     void onJobDoneBT(BaseTask_ptr bt, GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
     void onCryptonDoneBT(BaseTask_ptr bt, CryptoNodeSender& cns);
     void onTooBusyBT(BaseTask_ptr bt); //called on the thread pool overflow
+
+    void processResultBT(BaseTask_ptr bt);
+
+    void respondAndDieBT(BaseTask_ptr bt, const std::string& s);
+    void schedule(PeriodicTask* pt);
+public:
+    void onEventBT(BaseTask_ptr bt);
 public:
     Manager(const ServerOpts& sopts)
         : m_sopts(sopts)
