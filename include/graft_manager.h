@@ -229,11 +229,6 @@ public:
     void sendCrypton(BaseTask_ptr cr);
     void sendToThreadPool(BaseTask_ptr cr);
 
-    void addRouter(Router& r) { m_root.addRouter(r); }
-
-    bool enableRouting() { return m_root.arm(); }
-    bool matchRoute(const std::string& target, int method, Router::JobParams& params) { return m_root.match(target, method, params); }
-
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
 
     ////getters
@@ -254,8 +249,6 @@ public:
 
     static Manager* from(mg_mgr* mgr);
 
-    static Manager* from(mg_connection* cn);
-
     ////events
     void onNewClient(BaseTask_ptr cr);
     void onClientDone(BaseTask_ptr cr);
@@ -272,14 +265,8 @@ private:
     void processReadyJobBlock();
 
     void jobDone();
-public:
-    std::string dbgDumpRouters() const { return m_root.dbgDumpRouters(); }
-    void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
-    //returns conflicting endpoint
-    std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
 private:
     mg_mgr m_mgr;
-    Router::Root m_root;
     GlobalContextMap m_gcm;
 
     uint64_t m_cntBaseTask = 0;
@@ -302,6 +289,7 @@ public:
 
 class GraftServer final
 {
+    static GraftServer* from(mg_connection* cn);
 public:
     GraftServer() { }
     void bind(Manager& manager);
@@ -316,6 +304,19 @@ private:
     constexpr static std::pair<const char *, int> m_methods[] = {
         _M(GET), _M(POST), _M(PUT), _M(DELETE), _M(HEAD) //, _M(CONNECT)
     };
+public:
+    void addRouter(Router& r) { m_root.addRouter(r); }
+
+    bool enableRouting() { return m_root.arm(); }
+    bool matchRoute(const std::string& target, int method, Router::JobParams& params) { return m_root.match(target, method, params); }
+public:
+    std::string dbgDumpRouters() const { return m_root.dbgDumpRouters(); }
+    void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
+    //returns conflicting endpoint
+    std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
+private:
+    Router::Root m_root;
+
 };
 
 }//namespace graft

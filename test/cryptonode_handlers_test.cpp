@@ -75,9 +75,9 @@ struct CryptonodeHandlersTest : public ::testing::Test
         Router router;
         graft::registerGetInfoRequest(router);
         graft::registerSendRawTxRequest(router);
-        manager->addRouter(router);
-        manager->enableRouting();
         server = std::make_unique<GraftServer>();
+        server->addRouter(router);
+        server->enableRouting();
 
         server_thread = std::thread([this]() {
             this->startServer();

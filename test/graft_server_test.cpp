@@ -545,13 +545,13 @@ public:
         {
             graft::Manager manager(sopts);
             pmanager = &manager;
-
-            manager.addRouter(router);
-            bool res = manager.enableRouting();
-            EXPECT_EQ(res, true);
-
             graft::GraftServer gs;
             pserver = &gs;
+
+            gs.addRouter(router);
+            bool res = gs.enableRouting();
+            EXPECT_EQ(res, true);
+
             gs.bind(manager);
             manager.serve();
         }

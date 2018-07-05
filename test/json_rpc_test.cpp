@@ -166,8 +166,8 @@ struct JsonRpcTest : public ::testing::Test
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
         Manager manager(sopts);
-        manager.addRouter(router);
-        manager.enableRouting();
+        server.addRouter(router);
+        server.enableRouting();
         this->manager = &manager;
         server.bind(manager);
         manager.serve();

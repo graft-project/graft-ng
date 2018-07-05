@@ -12,8 +12,8 @@ namespace po = boost::program_options;
 using namespace std;
 
 namespace graft {
-  void setCoapRouters(Manager& m);
-  void setHttpRouters(Manager& m);
+  void setCoapRouters(GraftServer& m);
+  void setHttpRouters(GraftServer& m);
 }
 
 static std::function<void (int sig_num)> stop_handler;
@@ -130,16 +130,18 @@ int main(int argc, const char** argv)
 
         addGlobalCtxCleaner(manager, lru_timeout_ms);
 
-        graft::setCoapRouters(manager);
-        graft::setHttpRouters(manager);
-        manager.enableRouting();
+        graft::GraftServer server;
+
+        graft::setCoapRouters(server);
+        graft::setHttpRouters(server);
+        server.enableRouting();
 
         {//check conflicts in routes
-            std::string s = manager.dbgCheckConflictRoutes();
+            std::string s = server.dbgCheckConflictRoutes();
             if(!s.empty())
             {
                 std::cout << std::endl << "==> manager.dbgDumpRouters()" << std::endl;
-                std::cout << manager.dbgDumpRouters();
+                std::cout << server.dbgDumpRouters();
 
                 //if you really need dump of r3tree uncomment two following lines
                 //std::cout << std::endl << std::endl << "==> manager.dbgDumpR3Tree()" << std::endl;
@@ -151,7 +153,6 @@ int main(int argc, const char** argv)
 
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
 
-        graft::GraftServer server;
         server.bind(manager);
 
         stop_handler = [&manager](int sig_num)

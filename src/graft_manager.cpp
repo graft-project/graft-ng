@@ -231,11 +231,6 @@ Manager *Manager::from(mg_mgr *mgr)
     return static_cast<Manager*>(mgr->user_data);
 }
 
-Manager *Manager::from(mg_connection *cn)
-{
-    return from(cn->mgr);
-}
-
 void Manager::onNewClient(BaseTask_ptr cr)
 {
     ++m_cntBaseTask;
@@ -409,7 +404,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
             std::ostringstream ss;
             ss << "cryptonode connect failed: " << strerror(err);
             setError(Status::Error, ss.str().c_str());
-            Manager::from(crypton)->onCryptonDone(*this);
+            Manager::from(crypton->mgr)->onCryptonDone(*this);
             crypton->handler = static_empty_ev_handler;
             releaseItself();
         }
@@ -421,7 +416,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
         m_cr->get_input() = *hm;
         setError(Status::Ok);
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        Manager::from(crypton)->onCryptonDone(*this);
+        Manager::from(crypton->mgr)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
     } break;
@@ -429,7 +424,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     {
         mg_set_timer(crypton, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
-        Manager::from(crypton)->onCryptonDone(*this);
+        Manager::from(crypton->mgr)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
     } break;
@@ -438,7 +433,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
         mg_set_timer(crypton, 0);
         setError(Status::Error, "cryptonode request timout");
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        Manager::from(crypton)->onCryptonDone(*this);
+        Manager::from(crypton->mgr)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
     } break;
@@ -455,7 +450,7 @@ BaseTask::BaseTask(Manager& manager, const Router::JobParams& prms)
 }
 
 ClientRequest::ClientRequest(mg_connection *client, Router::JobParams& prms)
-    : BaseTask(*Manager::from(client), prms)
+    : BaseTask(*Manager::from(client->mgr), prms)
     , m_client(client)
 {
 }
@@ -463,7 +458,7 @@ ClientRequest::ClientRequest(mg_connection *client, Router::JobParams& prms)
 void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
 {
     assert(m_client == client);
-    assert(&m_manager == Manager::from(client));
+    assert(&m_manager == Manager::from(client->mgr));
     switch (ev)
     {
     case MG_EV_CLOSE:
@@ -481,6 +476,12 @@ void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
 
 constexpr std::pair<const char *, int> GraftServer::m_methods[];
 
+GraftServer* GraftServer::from(mg_connection *cn)
+{
+    assert(cn->user_data);
+    return static_cast<GraftServer*>(cn->user_data);
+}
+
 void GraftServer::bind(Manager& manager)
 {
     assert(!manager.ready());
@@ -488,10 +489,12 @@ void GraftServer::bind(Manager& manager)
 
     const ServerOpts& opts = manager.get_c_opts();
 
-    mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http),
-                  *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
-
+    mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
+    nc_http->user_data = this;
     mg_set_protocol_http_websocket(nc_http);
+
+    mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
+    nc_coap->user_data = this;
     mg_set_protocol_coap(nc_coap);
 }
 
@@ -518,7 +521,7 @@ void GraftServer::ev_handler_empty(mg_connection *client, int ev, void *ev_data)
 
 void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 {
-    Manager* manager = Manager::from(client);
+    Manager* manager = Manager::from(client->mgr);
 
     switch (ev)
     {
@@ -537,8 +540,9 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
         int method = translateMethod(hm->method.p, hm->method.len);
         if (method < 0) return;
 
+        GraftServer* server = GraftServer::from(client);
         Router::JobParams prms;
-        if (manager->matchRoute(uri, method, prms))
+        if (server->matchRoute(uri, method, prms))
         {
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
@@ -579,7 +583,6 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
 {
     uint32_t res;
-    Manager* manager = Manager::from(client);
     std::string uri;
     struct mg_coap_message *cm = (struct mg_coap_message *) ev_data;
 
@@ -606,8 +609,9 @@ void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
 
         int method = translateMethod(cm->code_detail - 1);
 
+        GraftServer* server = GraftServer::from(client);
         Router::JobParams prms;
-        if (manager->matchRoute(uri, method, prms))
+        if (server->matchRoute(uri, method, prms))
         {
             mg_str& body = cm->payload;
             prms.input.load(body.p, body.len);
@@ -619,6 +623,7 @@ void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
             client->user_data = ptr;
             client->handler = static_ev_handler<ClientRequest>;
 
+            Manager* manager = Manager::from(client->mgr);
             manager->onNewClient(ptr->get_itself());
         }
         break;
