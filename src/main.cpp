@@ -84,10 +84,8 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
 
             LOG_PRINT_L1("supernode stake amount: " << supernode->stakeAmount());
 
-            graft::SupernodeAnnounce announce;
-            supernode->prepareAnnounce(announce);
             graft::SendSupernodeAnnounceJsonRpcRequest req;
-            req.params.push_back(announce);
+            supernode->prepareAnnounce(req.params);
             req.method = "send_supernode_announce";
             req.id = 0;
             output.load(req);

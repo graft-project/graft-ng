@@ -47,14 +47,14 @@ namespace graft {
         (std::string,         jsonrpc,     "2.0"),              \
         (std::string,         method,   ""),                    \
         (uint64_t,            id,       0),                     \
-        (std::vector<Param>,  params, std::vector<Param>())    \
+        (Param,               params,  Param())                 \
     );
 
 /*!
  *  JsonRpcRequestHeader - Helper structure to parse JSON-RPC request and get method/id fiends
  */
 GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcRequestHeader,    \
-     (std::string,         jsonrpc,     "2.0"),           \
+     (std::string,         jsonrpc,     "2.0"),        \
      (std::string,         method,   ""),              \
      (uint64_t,            id,       0)                \
 );
@@ -68,7 +68,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcRequestHeader,    \
  * \param params - vector of params
  */
 template <typename T, typename P>
-void initJsonRpcRequest(T &t, uint64_t id, const std::string &method, const std::vector<P> &params)
+void initJsonRpcRequest(T &t, uint64_t id, const std::string &method, const P &params)
 {
     t.id = id;
     t.method = method;

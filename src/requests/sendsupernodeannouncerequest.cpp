@@ -80,14 +80,14 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
         }
 
 
-        if (!input.get(req) || req.params.empty()) { // can't parse request
+        if (!input.get(req) ) { // can't parse request
             error.code = ERROR_INVALID_REQUEST;
             error.message = "Failed to parse request";
             break;
         }
 
         //  handle announce
-        const SupernodeAnnounce & announce = req.params[0];
+        const SupernodeAnnounce & announce = req.params;
 
         if (fsl->exists(announce.address)) {
             if (!fsl->get(announce.address)->updateFromAnnounce(announce)) {
