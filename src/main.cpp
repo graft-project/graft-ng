@@ -16,11 +16,10 @@ namespace graft {
   void setHttpRouters(Manager& m);
 }
 
-static graft::GraftServer server;
+static std::function<void (int sig_num)> stop_handler;
 static void signal_handler_stop(int sig_num)
 {
-    LOG_PRINT_L0("Stoping server");
-    server.stop();
+    if(stop_handler) stop_handler(sig_num);
 }
 
 void addGlobalCtxCleaner(graft::Manager& manager, int ms)
@@ -151,6 +150,13 @@ int main(int argc, const char** argv)
         }
 
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
+
+        graft::GraftServer server;
+        stop_handler = [&server](int sig_num)
+        {
+            LOG_PRINT_L0("Stoping server");
+            server.stop();
+        };
         server.serve(manager.get_mg_mgr());
 
     } catch (const std::exception & e) {

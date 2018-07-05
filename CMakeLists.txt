@@ -48,7 +48,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DBUILD_SHARED_LIBS=ON # TODO: fix so cryptonode's libs can be statically linked
+    CMAKE_ARGS ${ExternalProjectCMakeArgs}
     )
 
 set(CMAKE_CXX_STANDARD 14)
@@ -107,6 +107,7 @@ set(CRYPTONODE_INCLUDE_DIRS
 set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/unbound
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/lib
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/common
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/crypto
@@ -119,17 +120,20 @@ set(CRYPTONODE_LIB_DIRS
 
 set(CRYPTONODE_LIBS
     easylogging
+    wallet
+    mnemonics
+    ringct
     epee
     cryptonote_core
     cryptonote_basic
-    cncrypto
-    wallet # if linked statically: once we add any call to this library from source code, weird linker errors happening
-    mnemonics
-    ringct
     common
+    unbound
+    cncrypto
     )
 
 set(COMMON_LIBS
+    ssl
+    crypto
     readline
     )
 
@@ -171,7 +175,7 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${Boost_REGEX_LIBRARY}
-
+    ${COMMON_LIBS}
     )
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
 
@@ -225,6 +229,7 @@ if (OPT_BUILD_TESTS)
             ${GS_LIBS}
             ${Boost_LIBRARIES}
             ${CMAKE_THREAD_LIBS_INIT}
+            ${COMMON_LIBS}
             )
 
 
