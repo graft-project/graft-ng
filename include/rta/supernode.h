@@ -164,6 +164,7 @@ public:
     void getScoreHash(const crypto::hash &block_hash, crypto::hash &result) const;
 
     std::string networkAddress() const;
+
     void setNetworkAddress(const std::string &networkAddress);
 
 private:

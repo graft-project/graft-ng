@@ -99,7 +99,7 @@ Status sendTxAuthResponseHandler(const Router::vars_t& vars, const graft::Input&
         error.message = "Failed to parse request";
         JsonRpcErrorResponse errorResponse;
         errorResponse.error = error;
-        errorResponse.json = "2.0";
+        errorResponse.jsonrpc = "2.0";
         output.load(errorResponse);
         return Status::Error;
     }
@@ -108,7 +108,7 @@ Status sendTxAuthResponseHandler(const Router::vars_t& vars, const graft::Input&
 
     SendTxAuthResponseJsonRpcResponse response;
     response.id = req.id;
-    response.json ="2.0";
+    response.jsonrpc ="2.0";
     response.result.Status = STATUS_OK;
     output.load(response);
     return Status::Ok;

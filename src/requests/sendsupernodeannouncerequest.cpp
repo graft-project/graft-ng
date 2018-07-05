@@ -127,14 +127,12 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
     if (error.code != 0) {
         JsonRpcErrorResponse errorResponse;
         errorResponse.error = error;
-        errorResponse.json = "2.0";
         output.load(errorResponse);
         return Status::Error;
     }
 
     SendSupernodeAnnounceJsonRpcResponse response;
     response.id = req.id;
-    response.json ="2.0";
     response.result.Status = STATUS_OK;
     output.load(response);
     return Status::Ok;

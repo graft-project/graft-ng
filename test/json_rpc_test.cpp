@@ -152,7 +152,6 @@ struct JsonRpcTest : public ::testing::Test
             JsonRpcErrorResponse response;
             response.error.message  = "Something wrong";
             response.error.code  = -1;
-            response.json = "2.0";
             response.id = request.id;
             output.load(response);
             return Status::Error;
@@ -256,7 +255,6 @@ TEST_F(JsonRpcTest, common)
 {
     JsonRpcTestRequest request;
     request.id = 0;
-    request.json = "2.0";
     TestRequestParam request_param; request_param.return_success = true;
     std::vector<TestRequestParam> params {request_param};
     initJsonRpcRequest(request, 1, "Hello", params);
