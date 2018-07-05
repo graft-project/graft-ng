@@ -45,47 +45,16 @@ void Manager::onEventBT(BaseTask_ptr bt)
 
 void Manager::respondAndDieBT(BaseTask_ptr bt, const std::string& s)
 {
-    PeriodicTask* pt = dynamic_cast<PeriodicTask*>(bt.get());
-    if(pt)
+    ClientRequest* cr = dynamic_cast<ClientRequest*>(bt.get());
+    if(cr)
     {
-        if(bt->m_ctx.local.getLastStatus() == Status::Stop)
-        {
-            bt->finalize();
-            return;
-        }
-        schedule(pt);
+        GraftServer::respond(cr, s);
     }
     else
     {
-        int code;
-        switch(bt->m_ctx.local.getLastStatus())
-        {
-        case Status::Ok: code = 200; break;
-        case Status::InternalError:
-        case Status::Error: code = 500; break;
-        case Status::Busy: code = 503; break;
-        case Status::Drop: code = 400; break;
-        default: assert(false); break;
-        }
-
-        ClientRequest* cr = dynamic_cast<ClientRequest*>(bt.get());
-
-        auto& m_ctx = cr->m_ctx;
-        auto& m_client = cr->m_client;
-        if(Status::Ok == m_ctx.local.getLastStatus())
-        {
-            mg_send_head(m_client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
-            mg_send(m_client, s.c_str(), s.size());
-        }
-        else
-        {
-            mg_http_send_error(m_client, code, s.c_str());
-        }
-        m_client->flags |= MG_F_SEND_AND_CLOSE;
-        m_client->handler = static_empty_ev_handler;
-        m_client = nullptr;
-        bt->finalize();
+        assert( dynamic_cast<PeriodicTask*>(bt.get()) );
     }
+    bt->finalize();
 }
 
 void Manager::schedule(PeriodicTask* pt)
@@ -449,10 +418,25 @@ BaseTask::BaseTask(Manager& manager, const Router::JobParams& prms)
 {
 }
 
+void PeriodicTask::finalize()
+{
+    if(m_ctx.local.getLastStatus() == Status::Stop)
+    {
+        releaseItself();
+        return;
+    }
+    this->m_manager.schedule(this);
+}
+
 ClientRequest::ClientRequest(mg_connection *client, Router::JobParams& prms)
     : BaseTask(*Manager::from(client->mgr), prms)
     , m_client(client)
 {
+}
+
+void ClientRequest::finalize()
+{
+    releaseItself();
 }
 
 void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
@@ -634,6 +618,35 @@ void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
     default:
         break;
     }
+}
+
+void GraftServer::respond(ClientRequest* cr, const std::string& s)
+{
+    int code;
+    switch(cr->m_ctx.local.getLastStatus())
+    {
+    case Status::Ok: code = 200; break;
+    case Status::InternalError:
+    case Status::Error: code = 500; break;
+    case Status::Busy: code = 503; break;
+    case Status::Drop: code = 400; break;
+    default: assert(false); break;
+    }
+
+    auto& m_ctx = cr->m_ctx;
+    auto& m_client = cr->m_client;
+    if(Status::Ok == m_ctx.local.getLastStatus())
+    {
+        mg_send_head(m_client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
+        mg_send(m_client, s.c_str(), s.size());
+    }
+    else
+    {
+        mg_http_send_error(m_client, code, s.c_str());
+    }
+    m_client->flags |= MG_F_SEND_AND_CLOSE;
+    m_client->handler = static_empty_ev_handler;
+    m_client = nullptr;
 }
 
 }//namespace graft

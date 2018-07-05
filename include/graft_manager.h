@@ -155,8 +155,8 @@ protected:
 public:
     virtual ~BaseTask() { }
 
+    virtual void finalize() = 0;
 public:
-    void finalize() { releaseItself(); }
     void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
     Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
     void setError(const char* str, Status status = Status::InternalError) { m_ctx.local.setError(str, status); }
@@ -183,6 +183,8 @@ private:
     {
     }
 public:
+    virtual void finalize() override;
+
     std::chrono::milliseconds m_timeout_ms;
 };
 
@@ -191,8 +193,11 @@ class ClientRequest : public BaseTask
 private:
     friend class ItselfHolder<BaseTask>;
     ClientRequest(mg_connection *client, Router::JobParams& prms);
+
+    virtual void finalize() override;
 public:
     void ev_handler(mg_connection *client, int ev, void *ev_data);
+
 public:
     mg_connection *m_client;
 };
@@ -207,8 +212,8 @@ class Manager
     void processResultBT(BaseTask_ptr bt);
 
     void respondAndDieBT(BaseTask_ptr bt, const std::string& s);
-    void schedule(PeriodicTask* pt);
 public:
+    void schedule(PeriodicTask* pt);
     void onEventBT(BaseTask_ptr bt);
 public:
     Manager(const ServerOpts& sopts)
@@ -293,6 +298,8 @@ class GraftServer final
 public:
     GraftServer() { }
     void bind(Manager& manager);
+
+    static void respond(ClientRequest* cr, const std::string& s);
 private:
     static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
     static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
@@ -316,7 +323,6 @@ public:
     std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
 private:
     Router::Root m_root;
-
 };
 
 }//namespace graft
