@@ -220,6 +220,8 @@ public:
     }
     ~Manager();
 
+    void serve();
+
     void notifyJobReady();
 
     void doWork(uint64_t cnt);
@@ -241,6 +243,11 @@ public:
     GlobalContextMap& get_gcm() { return m_gcm; }
     const ServerOpts& get_c_opts() const { return m_sopts; }
     TimerList<BaseTask_ptr>& get_timerList() { return m_timerList; }
+    bool ready() const { return m_ready; }
+    bool stopped() const { return m_stop; }
+
+    ////setters
+    void stop();
 
     ////static functions
     static void cb_event(mg_mgr* mgr, uint64_t cnt);
@@ -256,8 +263,6 @@ public:
     void onJobDone(GJ& gj);
 
     void onCryptonDone(CryptoNodeSender& cns);
-    void stop();
-    bool stopped() const;
 
 private:
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
@@ -291,14 +296,15 @@ private:
     ServerOpts m_sopts;
     TimerList<BaseTask_ptr> m_timerList;
 public:
-    volatile std::atomic_bool m_exit {false};
+    std::atomic_bool m_ready {false};
+    std::atomic_bool m_stop {false};
 };
 
 class GraftServer final
 {
 public:
-    GraftServer() : m_ready(false) { }
-    void serve(mg_mgr* mgr);
+    GraftServer() { }
+    void bind(Manager& manager);
 private:
     static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
     static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
@@ -310,12 +316,6 @@ private:
     constexpr static std::pair<const char *, int> m_methods[] = {
         _M(GET), _M(POST), _M(PUT), _M(DELETE), _M(HEAD) //, _M(CONNECT)
     };
-public:
-    bool ready() const { return m_ready; }
-    void stop() { if (m_manager) m_manager->stop(); }
-private:
-    std::atomic_bool m_ready;
-    Manager *m_manager {nullptr};
 };
 
 }//namespace graft

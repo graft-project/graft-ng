@@ -169,7 +169,8 @@ struct JsonRpcTest : public ::testing::Test
         manager.addRouter(router);
         manager.enableRouting();
         this->manager = &manager;
-        server.serve(manager.get_mg_mgr());
+        server.bind(manager);
+        manager.serve();
     }
 
     void stopServer()
@@ -186,7 +187,7 @@ struct JsonRpcTest : public ::testing::Test
             this->startServer();
         });
         LOG_PRINT_L0("Server thread started..");
-        while (!server.ready()) {
+        while (!manager || !manager->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
@@ -247,7 +248,7 @@ struct JsonRpcTest : public ::testing::Test
     { }
 
     GraftServer server;
-    Manager   * manager;
+    Manager   * manager{nullptr};
     std::thread server_thread;
 };
 

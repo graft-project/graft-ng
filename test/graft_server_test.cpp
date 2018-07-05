@@ -525,7 +525,7 @@ public:
         void run()
         {
             th = std::thread([this]{ x_run(); });
-            while(!pserver || !pserver.load()->ready())
+            while(!pmanager || !pmanager.load()->ready())
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
@@ -536,8 +536,8 @@ public:
             th.join();
         }
     public:
-        std::atomic<graft::Manager*> pmanager{nullptr} ;
-        std::atomic<graft::GraftServer*> pserver{nullptr} ;
+        std::atomic<graft::Manager*> pmanager{nullptr};
+        std::atomic<graft::GraftServer*> pserver{nullptr};
     private:
         std::thread th;
     private:
@@ -552,7 +552,8 @@ public:
 
             graft::GraftServer gs;
             pserver = &gs;
-            gs.serve(manager.get_mg_mgr());
+            gs.bind(manager);
+            manager.serve();
         }
     };
 public:

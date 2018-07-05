@@ -57,8 +57,8 @@ struct CryptonodeHandlersTest : public ::testing::Test
     // this     is blocking function that will not end until manager stopped explicitly
     void startServer()
     {
-
-        server->serve(manager->get_mg_mgr());
+        server->bind(*manager);
+        manager->serve();
     }
 
     CryptonodeHandlersTest()
@@ -70,14 +70,14 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L2("L2");
 
         ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
-        manager = std::unique_ptr<Manager>(new Manager(sopts));
+        manager = std::make_unique<Manager>(sopts);
 
         Router router;
         graft::registerGetInfoRequest(router);
         graft::registerSendRawTxRequest(router);
         manager->addRouter(router);
         manager->enableRouting();
-        server = std::unique_ptr<GraftServer>(new GraftServer);
+        server = std::make_unique<GraftServer>();
 
         server_thread = std::thread([this]() {
             this->startServer();
@@ -85,7 +85,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
         LOG_PRINT_L0("Server thread started..");
 
-        while (!server->ready()) {
+        while (!manager->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }

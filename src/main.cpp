@@ -152,12 +152,15 @@ int main(int argc, const char** argv)
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
 
         graft::GraftServer server;
-        stop_handler = [&server](int sig_num)
+        server.bind(manager);
+
+        stop_handler = [&manager](int sig_num)
         {
             LOG_PRINT_L0("Stoping server");
-            server.stop();
+            manager.stop();
         };
-        server.serve(manager.get_mg_mgr());
+
+        manager.serve();
 
     } catch (const std::exception & e) {
         std::cerr << "Exception thrown: " << e.what() << std::endl;

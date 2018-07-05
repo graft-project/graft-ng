@@ -291,6 +291,19 @@ void Manager::initThreadPool(int threadCount, int workersQueueSize)
 
 Manager::~Manager()
 {
+    mg_mgr_free(&m_mgr);
+}
+
+void Manager::serve()
+{
+    m_ready = true;
+
+    for (;;)
+    {
+        mg_mgr_poll(&m_mgr, m_sopts.timer_poll_interval_ms);
+        get_timerList().eval();
+        if(stopped()) break;
+    }
 }
 
 void Manager::notifyJobReady()
@@ -350,12 +363,8 @@ void Manager::onCryptonDoneBT(BaseTask_ptr bt, CryptoNodeSender &cns)
 
 void Manager::stop()
 {
-    this->m_exit = true;
-}
-
-bool Manager::stopped() const
-{
-    return this->m_exit;
+    assert(!m_stop);
+    m_stop = true;
 }
 
 void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_threadPoolInputSize_)
@@ -472,28 +481,18 @@ void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
 
 constexpr std::pair<const char *, int> GraftServer::m_methods[];
 
-void GraftServer::serve(mg_mgr *mgr)
+void GraftServer::bind(Manager& manager)
 {
-    m_manager = Manager::from(mgr);
+    assert(!manager.ready());
+    mg_mgr* mgr = manager.get_mg_mgr();
 
-    const ServerOpts& opts = m_manager->get_c_opts();
+    const ServerOpts& opts = manager.get_c_opts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http),
                   *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
 
     mg_set_protocol_http_websocket(nc_http);
     mg_set_protocol_coap(nc_coap);
-
-    m_ready = true;
-
-    for (;;)
-    {
-        mg_mgr_poll(mgr, opts.timer_poll_interval_ms);
-        m_manager->get_timerList().eval();
-        if (m_manager->stopped())
-            break;
-    }
-    mg_mgr_free(mgr);
 }
 
 int GraftServer::translateMethod(const char *method, std::size_t len)
