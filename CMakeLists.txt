@@ -56,7 +56,8 @@ set(CMAKE_CXX_STANDARD 14)
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 
 set(GS_SOURCES
-    ${PROJECT_SOURCE_DIR}/src/graft_manager.cpp
+    ${PROJECT_SOURCE_DIR}/src/task.cpp
+    ${PROJECT_SOURCE_DIR}/src/connection.cpp
     ${PROJECT_SOURCE_DIR}/src/inout.cpp
     ${PROJECT_SOURCE_DIR}/src/router.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp

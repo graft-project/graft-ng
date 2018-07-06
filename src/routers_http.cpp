@@ -1,5 +1,6 @@
 #include "router.h"
-#include "graft_manager.h"
+#include "connection.h"
+#include "task.h"
 #include "requests.h"
 
 namespace graft {

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "context.h"
-#include "graft_manager.h"
+#include "task.h"
+#include "connection.h"
 #include "requests.h"
 #include "salerequest.h"
 #include "salestatusrequest.h"

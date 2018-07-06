@@ -31,7 +31,7 @@
 #include <gtest/gtest.h>
 #include <inout.h>
 #include <jsonrpc.h>
-#include <graft_manager.h>
+#include <connection.h>
 #include <router.h>
 #include <requests.h>
 #include <requests/getinforequest.h>
