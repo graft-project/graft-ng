@@ -75,6 +75,7 @@ struct SaleData
         ,Amount(amount)
     {
     }
+    SaleData() = default;
 
     std::string Address;
     uint64_t BlockNumber;
