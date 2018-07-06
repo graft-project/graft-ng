@@ -48,7 +48,7 @@ void Manager::respondAndDieBT(BaseTask_ptr bt, const std::string& s)
     ClientRequest* cr = dynamic_cast<ClientRequest*>(bt.get());
     if(cr)
     {
-        GraftServer::respond(cr, s);
+        ConnectionManager::respond(cr, s);
     }
     else
     {
@@ -458,15 +458,19 @@ void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
     }
 }
 
-constexpr std::pair<const char *, int> GraftServer::m_methods[];
+constexpr std::pair<const char *, int> ConnectionManager::m_methods[];
 
-GraftServer* GraftServer::from(mg_connection *cn)
+ConnectionManager* ConnectionManager::from(mg_connection *cn)
 {
     assert(cn->user_data);
-    return static_cast<GraftServer*>(cn->user_data);
+    return static_cast<ConnectionManager*>(cn->user_data);
 }
 
-void GraftServer::bind(Manager& manager)
+void ConnectionManager::ev_handler_empty(mg_connection *client, int ev, void *ev_data)
+{
+}
+
+void HttpConnectionManager::bind(Manager& manager)
 {
     assert(!manager.ready());
     mg_mgr* mgr = manager.get_mg_mgr();
@@ -476,13 +480,21 @@ void GraftServer::bind(Manager& manager)
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
     nc_http->user_data = this;
     mg_set_protocol_http_websocket(nc_http);
+}
+
+void CoapConnectionManager::bind(Manager& manager)
+{
+    assert(!manager.ready());
+    mg_mgr* mgr = manager.get_mg_mgr();
+
+    const ServerOpts& opts = manager.get_c_opts();
 
     mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
     nc_coap->user_data = this;
     mg_set_protocol_coap(nc_coap);
 }
 
-int GraftServer::translateMethod(const char *method, std::size_t len)
+int HttpConnectionManager::translateMethod(const char *method, std::size_t len)
 {
     for (const auto& m : m_methods)
     {
@@ -492,18 +504,14 @@ int GraftServer::translateMethod(const char *method, std::size_t len)
     return -1;
 }
 
-int GraftServer::translateMethod(int i)
+int CoapConnectionManager::translateMethod(int i)
 {
     constexpr int size = sizeof(m_methods)/sizeof(m_methods[0]);
     assert(i<size);
     return m_methods[i].second;
 }
 
-void GraftServer::ev_handler_empty(mg_connection *client, int ev, void *ev_data)
-{
-}
-
-void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
+void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 {
     Manager* manager = Manager::from(client->mgr);
 
@@ -524,9 +532,9 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
         int method = translateMethod(hm->method.p, hm->method.len);
         if (method < 0) return;
 
-        GraftServer* server = GraftServer::from(client);
+        HttpConnectionManager* httpcm = HttpConnectionManager::from(client);
         Router::JobParams prms;
-        if (server->matchRoute(uri, method, prms))
+        if (httpcm->matchRoute(uri, method, prms))
         {
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
@@ -564,7 +572,7 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
     }
 }
 
-void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
+void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
 {
     uint32_t res;
     std::string uri;
@@ -593,9 +601,9 @@ void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
 
         int method = translateMethod(cm->code_detail - 1);
 
-        GraftServer* server = GraftServer::from(client);
+        CoapConnectionManager* coapcm = CoapConnectionManager::from(client);
         Router::JobParams prms;
-        if (server->matchRoute(uri, method, prms))
+        if (coapcm->matchRoute(uri, method, prms))
         {
             mg_str& body = cm->payload;
             prms.input.load(body.p, body.len);
@@ -620,7 +628,7 @@ void GraftServer::ev_handler_coap(mg_connection *client, int ev, void *ev_data)
     }
 }
 
-void GraftServer::respond(ClientRequest* cr, const std::string& s)
+void ConnectionManager::respond(ClientRequest* cr, const std::string& s)
 {
     int code;
     switch(cr->m_ctx.local.getLastStatus())

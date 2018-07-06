@@ -166,10 +166,10 @@ struct JsonRpcTest : public ::testing::Test
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
         Manager manager(sopts);
-        server.addRouter(router);
-        server.enableRouting();
+        httpcm.addRouter(router);
+        httpcm.enableRouting();
         this->manager = &manager;
-        server.bind(manager);
+        httpcm.bind(manager);
         manager.serve();
     }
 
@@ -247,7 +247,7 @@ struct JsonRpcTest : public ::testing::Test
     virtual void TearDown() override
     { }
 
-    GraftServer server;
+    HttpConnectionManager httpcm;
     Manager   * manager{nullptr};
     std::thread server_thread;
 };

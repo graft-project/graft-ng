@@ -10,20 +10,20 @@ namespace graft {
          return Status::Ok;
     }
 
-    void setHttpRouters(GraftServer& gs)
+    void setHttpRouters(HttpConnectionManager& httpcm)
     {
         Router dapi_router("/dapi/v2.0");
         Router::Handler3 h3_test1(http_test, nullptr, nullptr);
 
         dapi_router.addRoute("/test", METHOD_GET, h3_test1);
-        gs.addRouter(dapi_router);
+        httpcm.addRouter(dapi_router);
 
         Router http_router;
         graft::registerRTARequests(http_router);
-        gs.addRouter(http_router);
+        httpcm.addRouter(http_router);
 
         Router forward_router;
         graft::registerForwardRequests(forward_router);
-        gs.addRouter(forward_router);
+        httpcm.addRouter(forward_router);
     }
 }

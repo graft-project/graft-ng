@@ -537,7 +537,7 @@ public:
         }
     public:
         std::atomic<graft::Manager*> pmanager{nullptr};
-        std::atomic<graft::GraftServer*> pserver{nullptr};
+        std::atomic<graft::HttpConnectionManager*> phttpcm{nullptr};
     private:
         std::thread th;
     private:
@@ -545,14 +545,14 @@ public:
         {
             graft::Manager manager(sopts);
             pmanager = &manager;
-            graft::GraftServer gs;
-            pserver = &gs;
+            graft::HttpConnectionManager httpcm;
+            phttpcm = &httpcm;
 
-            gs.addRouter(router);
-            bool res = gs.enableRouting();
+            httpcm.addRouter(router);
+            bool res = httpcm.enableRouting();
             EXPECT_EQ(res, true);
 
-            gs.bind(manager);
+            httpcm.bind(manager);
             manager.serve();
         }
     };

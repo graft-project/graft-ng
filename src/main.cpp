@@ -12,8 +12,8 @@ namespace po = boost::program_options;
 using namespace std;
 
 namespace graft {
-  void setCoapRouters(GraftServer& m);
-  void setHttpRouters(GraftServer& m);
+  void setCoapRouters(CoapConnectionManager& coapcm);
+  void setHttpRouters(HttpConnectionManager& httpcm);
 }
 
 static std::function<void (int sig_num)> stop_handler;
@@ -33,6 +33,22 @@ void addGlobalCtxCleaner(graft::Manager& manager, int ms)
                 graft::Router::Handler3(nullptr, cleaner, nullptr),
                 std::chrono::milliseconds(ms)
                 );
+}
+
+static void checkRoutes(graft::ConnectionManager& cm, const std::string& head)
+{//check conflicts in routes
+    std::string s = cm.dbgCheckConflictRoutes();
+    if(!s.empty())
+    {
+        std::cout << std::endl << "==> " << head << " manager.dbgDumpRouters()" << std::endl;
+        std::cout << cm.dbgDumpRouters();
+
+        //if you really need dump of r3tree uncomment two following lines
+        //std::cout << std::endl << std::endl << "==> manager.dbgDumpR3Tree()" << std::endl;
+        //manager.dbgDumpR3Tree();
+
+        throw std::runtime_error("Routes conflict found:" + s);
+    }
 }
 
 int main(int argc, const char** argv)
@@ -130,30 +146,20 @@ int main(int argc, const char** argv)
 
         addGlobalCtxCleaner(manager, lru_timeout_ms);
 
-        graft::GraftServer server;
+        graft::HttpConnectionManager httpcm;
+        graft::setHttpRouters(httpcm);
+        httpcm.enableRouting();
+        checkRoutes(httpcm, "HTTP");
 
-        graft::setCoapRouters(server);
-        graft::setHttpRouters(server);
-        server.enableRouting();
-
-        {//check conflicts in routes
-            std::string s = server.dbgCheckConflictRoutes();
-            if(!s.empty())
-            {
-                std::cout << std::endl << "==> manager.dbgDumpRouters()" << std::endl;
-                std::cout << server.dbgDumpRouters();
-
-                //if you really need dump of r3tree uncomment two following lines
-                //std::cout << std::endl << std::endl << "==> manager.dbgDumpR3Tree()" << std::endl;
-                //manager.dbgDumpR3Tree();
-
-                throw std::runtime_error("Routes conflict found:" + s);
-            }
-        }
+        graft::CoapConnectionManager coapcm;
+        graft::setCoapRouters(coapcm);
+        coapcm.enableRouting();
+        checkRoutes(coapcm, "COAP");
 
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
 
-        server.bind(manager);
+        httpcm.bind(manager);
+        coapcm.bind(manager);
 
         stop_handler = [&manager](int sig_num)
         {

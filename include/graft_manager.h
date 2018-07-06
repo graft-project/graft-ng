@@ -202,7 +202,7 @@ public:
     mg_connection *m_client;
 };
 
-class Manager
+class Manager final
 {
     void createJob(BaseTask_ptr bt);
     void onJobDoneBT(BaseTask_ptr bt, GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
@@ -292,25 +292,15 @@ public:
     std::atomic_bool m_stop {false};
 };
 
-class GraftServer final
+class ConnectionManager
 {
-    static GraftServer* from(mg_connection* cn);
+protected:
+    static ConnectionManager* from(mg_connection* cn);
 public:
-    GraftServer() { }
-    void bind(Manager& manager);
+    ConnectionManager() { }
+    virtual void bind(Manager& manager) = 0;
 
     static void respond(ClientRequest* cr, const std::string& s);
-private:
-    static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
-    static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
-    static void ev_handler_coap(mg_connection *client, int ev, void *ev_data);
-    static int translateMethod(const char *method, std::size_t len);
-    static int translateMethod(int i);
-
-#define _M(x) std::make_pair(#x, METHOD_##x)
-    constexpr static std::pair<const char *, int> m_methods[] = {
-        _M(GET), _M(POST), _M(PUT), _M(DELETE), _M(HEAD) //, _M(CONNECT)
-    };
 public:
     void addRouter(Router& r) { m_root.addRouter(r); }
 
@@ -321,8 +311,46 @@ public:
     void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
     //returns conflicting endpoint
     std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
-private:
+protected:
+    static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
+#define _M(x) std::make_pair(#x, METHOD_##x)
+    constexpr static std::pair<const char *, int> m_methods[] = {
+        _M(GET), _M(POST), _M(PUT), _M(DELETE), _M(HEAD) //, _M(CONNECT)
+    };
+protected:
     Router::Root m_root;
+};
+
+class HttpConnectionManager final : public ConnectionManager
+{
+    static HttpConnectionManager* from(mg_connection* cn)
+    {
+        return static_cast<HttpConnectionManager*>( ConnectionManager::from(cn) );
+    }
+public:
+    HttpConnectionManager() { }
+    void bind(Manager& manager) override;
+
+private:
+    static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
+    static int translateMethod(const char *method, std::size_t len);
+};
+
+class CoapConnectionManager final : public ConnectionManager
+{
+    static CoapConnectionManager* from(mg_connection* cn)
+    {
+        return static_cast<CoapConnectionManager*>( ConnectionManager::from(cn) );
+    }
+public:
+    CoapConnectionManager() { }
+    void bind(Manager& manager) override;
+
+private:
+    static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
+    static void ev_handler_coap(mg_connection *client, int ev, void *ev_data);
+    static int translateMethod(int i);
+
 };
 
 }//namespace graft

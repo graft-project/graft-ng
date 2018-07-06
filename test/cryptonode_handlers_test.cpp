@@ -57,7 +57,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
     // this     is blocking function that will not end until manager stopped explicitly
     void startServer()
     {
-        server->bind(*manager);
+        httpcm->bind(*manager);
         manager->serve();
     }
 
@@ -75,9 +75,9 @@ struct CryptonodeHandlersTest : public ::testing::Test
         Router router;
         graft::registerGetInfoRequest(router);
         graft::registerSendRawTxRequest(router);
-        server = std::make_unique<GraftServer>();
-        server->addRouter(router);
-        server->enableRouting();
+        httpcm = std::make_unique<HttpConnectionManager>();
+        httpcm->addRouter(router);
+        httpcm->enableRouting();
 
         server_thread = std::thread([this]() {
             this->startServer();
@@ -155,7 +155,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
     { }
 
 
-    std::unique_ptr<GraftServer> server;
+    std::unique_ptr<HttpConnectionManager> httpcm;
     std::unique_ptr<Manager>     manager;
 
     std::thread server_thread;

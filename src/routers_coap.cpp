@@ -12,7 +12,7 @@ namespace graft {
          return Status::Ok;
     }
 
-    void setCoapRouters(GraftServer& gs)
+    void setCoapRouters(CoapConnectionManager& coapcm)
     {
         Router coap_router("/coap");
         Router::Handler3 h3_test(coap_test, nullptr, nullptr);
@@ -21,6 +21,6 @@ namespace graft {
         coap_router.addRoute("/test1", METHOD_GET, h3_test);
         coap_router.addRoute("/test2", METHOD_GET, h3_test);
 
-        gs.addRouter(coap_router);
+        coapcm.addRouter(coap_router);
     }
 }
