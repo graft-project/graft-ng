@@ -507,19 +507,19 @@ public:
     class MainServer
     {
     public:
-        graft::ServerOpts sopts;
+        graft::ConfigOpts copts;
         graft::Router router;
     public:
         MainServer()
         {
-            sopts.http_address = "127.0.0.1:9084";
-            sopts.coap_address = "127.0.0.1:9086";
-            sopts.http_connection_timeout = 1;
-            sopts.upstream_request_timeout = 1;
-            sopts.workers_count = 0;
-            sopts.worker_queue_len = 0;
-            sopts.cryptonode_rpc_address = "127.0.0.1:1234";
-            sopts.timer_poll_interval_ms = 50;
+            copts.http_address = "127.0.0.1:9084";
+            copts.coap_address = "127.0.0.1:9086";
+            copts.http_connection_timeout = 1;
+            copts.upstream_request_timeout = 1;
+            copts.workers_count = 0;
+            copts.worker_queue_len = 0;
+            copts.cryptonode_rpc_address = "127.0.0.1:1234";
+            copts.timer_poll_interval_ms = 50;
         }
     public:
         void run()
@@ -536,14 +536,14 @@ public:
             th.join();
         }
     public:
-        std::atomic<graft::Manager*> pmanager{nullptr};
+        std::atomic<graft::TaskManager*> pmanager{nullptr};
         std::atomic<graft::HttpConnectionManager*> phttpcm{nullptr};
     private:
         std::thread th;
     private:
         void x_run()
         {
-            graft::Manager manager(sopts);
+            graft::TaskManager manager(copts);
             pmanager = &manager;
             graft::HttpConnectionManager httpcm;
             phttpcm = &httpcm;
@@ -747,17 +747,17 @@ private:
             graft::registerRTARequests(http_router);
         }
 
-        graft::ServerOpts sopts;
-        sopts.http_address = "127.0.0.1:9084";
-        sopts.coap_address = "127.0.0.1:9086";
-        sopts.http_connection_timeout = .001;
-        sopts.upstream_request_timeout = .005;
-        sopts.workers_count = 0;
-        sopts.worker_queue_len = 0;
-        sopts.cryptonode_rpc_address = "127.0.0.1:1234";
-        sopts.timer_poll_interval_ms = 50;
+        graft::ConfigOpts copts;
+        copts.http_address = "127.0.0.1:9084";
+        copts.coap_address = "127.0.0.1:9086";
+        copts.http_connection_timeout = .001;
+        copts.upstream_request_timeout = .005;
+        copts.workers_count = 0;
+        copts.worker_queue_len = 0;
+        copts.cryptonode_rpc_address = "127.0.0.1:1234";
+        copts.timer_poll_interval_ms = 50;
 
-        mainServer.sopts = sopts;
+        mainServer.copts = copts;
         mainServer.run();
     }
 
@@ -1561,7 +1561,7 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JRResponseResult, GetVersionResp);
 TEST_F(GraftServerForwardTest, DISABLED_getVersion)
 {
     MainServer mainServer;
-    mainServer.sopts.cryptonode_rpc_address = "localhost:38281";
+    mainServer.copts.cryptonode_rpc_address = "localhost:38281";
     graft::registerForwardRequests(mainServer.router);
     mainServer.run();
 

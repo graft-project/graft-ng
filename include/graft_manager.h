@@ -13,14 +13,14 @@
 
 namespace graft {
 
-class Manager;
+class TaskManager;
 
 class BaseTask;
 using BaseTask_ptr = std::shared_ptr<BaseTask>;
 
 class GJ_ptr;
 using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
-using GJ = GraftJob<BaseTask_ptr, TPResQueue, Manager>;
+using GJ = GraftJob<BaseTask_ptr, TPResQueue, TaskManager>;
 
 //////////////
 /// \brief The GJ_ptr class
@@ -73,7 +73,7 @@ using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJ_ptr)>
 
 ///////////////////////////////////
 
-struct ServerOpts
+struct ConfigOpts
 {
     std::string http_address;
     std::string coap_address;
@@ -102,7 +102,7 @@ void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
 void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data);
 
 template<typename C>
-class ItselfHolder
+class SelfHolder
 {
 public:
     using Ptr = std::shared_ptr<C>;
@@ -117,19 +117,19 @@ public:
 protected:
     void releaseItself() { m_itself.reset(); }
 protected:
-    ItselfHolder() : m_itself(static_cast<C*>(this)) { }
+    SelfHolder() : m_itself(static_cast<C*>(this)) { }
 private:
     Ptr m_itself;
 };
 
-class CryptoNodeSender : public ItselfHolder<CryptoNodeSender>
+class UpstreamSender : public SelfHolder<UpstreamSender>
 {
 public:
-    CryptoNodeSender() = default;
+    UpstreamSender() = default;
 
-    BaseTask_ptr& get_cr() { return m_cr; }
+    BaseTask_ptr& get_bt() { return m_bt; }
 
-    void send(Manager& manager, BaseTask_ptr cr);
+    void send(TaskManager& manager, BaseTask_ptr bt);
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
 public:
@@ -142,16 +142,16 @@ private:
     }
 private:
     mg_connection *m_crypton = nullptr;
-    BaseTask_ptr m_cr;
+    BaseTask_ptr m_bt;
     Status m_status = Status::None;
     std::string m_error;
 };
 
-class BaseTask : public ItselfHolder<BaseTask>
+class BaseTask : public SelfHolder<BaseTask>
 {
 protected:
-    friend class ItselfHolder<BaseTask>;
-    BaseTask(Manager& manager, const Router::JobParams& prms);
+    friend class SelfHolder<BaseTask>;
+    BaseTask(TaskManager& manager, const Router::JobParams& prms);
 public:
     virtual ~BaseTask() { }
 
@@ -167,7 +167,7 @@ public:
     const Router::Handler3& get_h3() const { return m_prms.h3; }
     Context& get_ctx() { return m_ctx; }
 public:
-    Manager& m_manager;
+    TaskManager& m_manager;
     Router::JobParams m_prms;
     Output m_output;
     Context m_ctx;
@@ -176,8 +176,8 @@ public:
 class PeriodicTask : public BaseTask
 {
 private:
-    friend class ItselfHolder<BaseTask>;
-    PeriodicTask(Manager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
+    friend class SelfHolder<BaseTask>;
+    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
         : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
         , m_timeout_ms(timeout_ms)
     {
@@ -188,11 +188,11 @@ public:
     std::chrono::milliseconds m_timeout_ms;
 };
 
-class ClientRequest : public BaseTask
+class ClientTask : public BaseTask
 {
 private:
-    friend class ItselfHolder<BaseTask>;
-    ClientRequest(mg_connection *client, Router::JobParams& prms);
+    friend class SelfHolder<BaseTask>;
+    ClientTask(mg_connection *client, Router::JobParams& prms);
 
     virtual void finalize() override;
 public:
@@ -202,11 +202,11 @@ public:
     mg_connection *m_client;
 };
 
-class Manager final
+class TaskManager final
 {
     void createJob(BaseTask_ptr bt);
     void onJobDoneBT(BaseTask_ptr bt, GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
-    void onCryptonDoneBT(BaseTask_ptr bt, CryptoNodeSender& cns);
+    void onCryptonDoneBT(BaseTask_ptr bt, UpstreamSender& uss);
     void onTooBusyBT(BaseTask_ptr bt); //called on the thread pool overflow
 
     void processResultBT(BaseTask_ptr bt);
@@ -216,14 +216,14 @@ public:
     void schedule(PeriodicTask* pt);
     void onEventBT(BaseTask_ptr bt);
 public:
-    Manager(const ServerOpts& sopts)
-        : m_sopts(sopts)
+    TaskManager(const ConfigOpts& copts)
+        : m_copts(copts)
     {
         // TODO: validate options, throw exception if any mandatory options missing
         mg_mgr_init(&m_mgr, this, cb_event);
-        initThreadPool(sopts.workers_count, sopts.worker_queue_len);
+        initThreadPool(copts.workers_count, copts.worker_queue_len);
     }
-    ~Manager();
+    ~TaskManager();
 
     void serve();
 
@@ -231,8 +231,8 @@ public:
 
     void doWork(uint64_t cnt);
 
-    void sendCrypton(BaseTask_ptr cr);
-    void sendToThreadPool(BaseTask_ptr cr);
+    void sendCrypton(BaseTask_ptr bt);
+    void sendToThreadPool(BaseTask_ptr bt);
 
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
 
@@ -241,7 +241,7 @@ public:
     ThreadPoolX& get_threadPool() { return *m_threadPool.get(); }
     TPResQueue& get_resQueue() { return *m_resQueue.get(); }
     GlobalContextMap& get_gcm() { return m_gcm; }
-    const ServerOpts& get_c_opts() const { return m_sopts; }
+    const ConfigOpts& get_c_opts() const { return m_copts; }
     TimerList<BaseTask_ptr>& get_timerList() { return m_timerList; }
     bool ready() const { return m_ready; }
     bool stopped() const { return m_stop; }
@@ -252,15 +252,15 @@ public:
     ////static functions
     static void cb_event(mg_mgr* mgr, uint64_t cnt);
 
-    static Manager* from(mg_mgr* mgr);
+    static TaskManager* from(mg_mgr* mgr);
 
     ////events
-    void onNewClient(BaseTask_ptr cr);
-    void onClientDone(BaseTask_ptr cr);
+    void onNewClient(BaseTask_ptr bt);
+    void onClientDone(BaseTask_ptr bt);
 public:
     void onJobDone(GJ& gj);
 
-    void onCryptonDone(CryptoNodeSender& cns);
+    void onCryptonDone(UpstreamSender& uss);
 
 private:
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
@@ -276,8 +276,8 @@ private:
 
     uint64_t m_cntBaseTask = 0;
     uint64_t m_cntBaseTaskDone = 0;
-    uint64_t m_cntCryptoNodeSender = 0;
-    uint64_t m_cntCryptoNodeSenderDone = 0;
+    uint64_t m_cntUpstreamSender = 0;
+    uint64_t m_cntUpstreamSenderDone = 0;
     uint64_t m_cntJobSent = 0;
     uint64_t m_cntJobDone = 0;
 
@@ -285,7 +285,7 @@ private:
     std::unique_ptr<ThreadPoolX> m_threadPool;
     std::unique_ptr<TPResQueue> m_resQueue;
 
-    ServerOpts m_sopts;
+    ConfigOpts m_copts;
     TimerList<BaseTask_ptr> m_timerList;
 public:
     std::atomic_bool m_ready {false};
@@ -298,9 +298,9 @@ protected:
     static ConnectionManager* from(mg_connection* cn);
 public:
     ConnectionManager() { }
-    virtual void bind(Manager& manager) = 0;
+    virtual void bind(TaskManager& manager) = 0;
 
-    static void respond(ClientRequest* cr, const std::string& s);
+    static void respond(ClientTask* ct, const std::string& s);
 public:
     void addRouter(Router& r) { m_root.addRouter(r); }
 
@@ -329,7 +329,7 @@ class HttpConnectionManager final : public ConnectionManager
     }
 public:
     HttpConnectionManager() { }
-    void bind(Manager& manager) override;
+    void bind(TaskManager& manager) override;
 
 private:
     static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
@@ -344,7 +344,7 @@ class CoapConnectionManager final : public ConnectionManager
     }
 public:
     CoapConnectionManager() { }
-    void bind(Manager& manager) override;
+    void bind(TaskManager& manager) override;
 
 private:
     static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);

@@ -161,11 +161,11 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
+        ConfigOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
-        Manager manager(sopts);
+        TaskManager manager(sopts);
         httpcm.addRouter(router);
         httpcm.enableRouting();
         this->manager = &manager;
@@ -248,7 +248,7 @@ struct JsonRpcTest : public ::testing::Test
     { }
 
     HttpConnectionManager httpcm;
-    Manager   * manager{nullptr};
+    TaskManager   * manager{nullptr};
     std::thread server_thread;
 };
 

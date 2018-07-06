@@ -69,8 +69,8 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L1("L1");
         LOG_PRINT_L2("L2");
 
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
-        manager = std::make_unique<Manager>(sopts);
+        ConfigOpts copts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
+        manager = std::make_unique<TaskManager>(copts);
 
         Router router;
         graft::registerGetInfoRequest(router);
@@ -156,7 +156,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
 
     std::unique_ptr<HttpConnectionManager> httpcm;
-    std::unique_ptr<Manager>     manager;
+    std::unique_ptr<TaskManager>     manager;
 
     std::thread server_thread;
 };

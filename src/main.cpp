@@ -22,7 +22,7 @@ static void signal_handler_stop(int sig_num)
     if(stop_handler) stop_handler(sig_num);
 }
 
-void addGlobalCtxCleaner(graft::Manager& manager, int ms)
+void addGlobalCtxCleaner(graft::TaskManager& manager, int ms)
 {
     auto cleaner = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
@@ -117,22 +117,22 @@ int main(int argc, const char** argv)
         //  uri_name=uri_value #pairs for uri substitution
         //
 
-        graft::ServerOpts sopts;
+        graft::ConfigOpts copts;
 
         const boost::property_tree::ptree& server_conf = config.get_child("server");
-        sopts.http_address = server_conf.get<string>("http-address");
-        sopts.coap_address = server_conf.get<string>("coap-address");
-        sopts.timer_poll_interval_ms = server_conf.get<int>("timer-poll-interval-ms");
-        sopts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
-        sopts.workers_count = server_conf.get<int>("workers-count");
-        sopts.worker_queue_len = server_conf.get<int>("worker-queue-len");
-        sopts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
-        sopts.data_dir = server_conf.get<string>("data-dir");
+        copts.http_address = server_conf.get<string>("http-address");
+        copts.coap_address = server_conf.get<string>("coap-address");
+        copts.timer_poll_interval_ms = server_conf.get<int>("timer-poll-interval-ms");
+        copts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
+        copts.workers_count = server_conf.get<int>("workers-count");
+        copts.worker_queue_len = server_conf.get<int>("worker-queue-len");
+        copts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
+        copts.data_dir = server_conf.get<string>("data-dir");
         int lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
 
         const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
-        sopts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
-        //sopts.cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
+        copts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
+        //copts.cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
 
         const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
         std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf](auto it)
@@ -142,7 +142,7 @@ int main(int argc, const char** argv)
             graft::OutHttp::uri_substitutions.insert({std::move(name), std::move(val)});
         });
 
-        graft::Manager manager(sopts);
+        graft::TaskManager manager(copts);
 
         addGlobalCtxCleaner(manager, lru_timeout_ms);
 
@@ -156,7 +156,7 @@ int main(int argc, const char** argv)
         coapcm.enableRouting();
         checkRoutes(coapcm, "COAP");
 
-        LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
+        LOG_PRINT_L0("Starting server on: [http] " << copts.http_address << ", [coap] " << copts.coap_address);
 
         httpcm.bind(manager);
         coapcm.bind(manager);

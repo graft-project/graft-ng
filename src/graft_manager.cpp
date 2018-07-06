@@ -11,14 +11,14 @@ void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
 
 }
 
-void Manager::sendCrypton(BaseTask_ptr cr)
+void TaskManager::sendCrypton(BaseTask_ptr bt)
 {
-    ++m_cntCryptoNodeSender;
-    CryptoNodeSender::Ptr cns = CryptoNodeSender::Create();
-    cns->send(*this, cr);
+    ++m_cntUpstreamSender;
+    UpstreamSender::Ptr uss = UpstreamSender::Create();
+    uss->send(*this, bt);
 }
 
-void Manager::sendToThreadPool(BaseTask_ptr bt)
+void TaskManager::sendToThreadPool(BaseTask_ptr bt)
 {
     assert(m_cntJobDone <= m_cntJobSent);
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
@@ -31,24 +31,24 @@ void Manager::sendToThreadPool(BaseTask_ptr bt)
     createJob(bt);
 }
 
-void Manager::onTooBusyBT(BaseTask_ptr bt)
+void TaskManager::onTooBusyBT(BaseTask_ptr bt)
 {
     bt->m_ctx.local.setError("Service Unavailable", Status::Busy);
     respondAndDieBT(bt,"Thread pool overflow");
 }
 
-void Manager::onEventBT(BaseTask_ptr bt)
+void TaskManager::onEventBT(BaseTask_ptr bt)
 {
     assert(dynamic_cast<PeriodicTask*>(bt.get()));
     onNewClient(bt);
 }
 
-void Manager::respondAndDieBT(BaseTask_ptr bt, const std::string& s)
+void TaskManager::respondAndDieBT(BaseTask_ptr bt, const std::string& s)
 {
-    ClientRequest* cr = dynamic_cast<ClientRequest*>(bt.get());
-    if(cr)
+    ClientTask* ct = dynamic_cast<ClientTask*>(bt.get());
+    if(ct)
     {
-        ConnectionManager::respond(cr, s);
+        ConnectionManager::respond(ct, s);
     }
     else
     {
@@ -57,13 +57,13 @@ void Manager::respondAndDieBT(BaseTask_ptr bt, const std::string& s)
     bt->finalize();
 }
 
-void Manager::schedule(PeriodicTask* pt)
+void TaskManager::schedule(PeriodicTask* pt)
 {
     m_timerList.push(pt->m_timeout_ms, pt->get_itself());
 }
 
 
-void Manager::createJob(BaseTask_ptr bt)
+void TaskManager::createJob(BaseTask_ptr bt)
 {
     auto& m_prms = bt->m_prms;
     auto& m_ctx = bt->m_ctx;
@@ -115,7 +115,7 @@ void Manager::createJob(BaseTask_ptr bt)
     }
 }
 
-void Manager::onJobDoneBT(BaseTask_ptr bt, GJ* gj)
+void TaskManager::onJobDoneBT(BaseTask_ptr bt, GJ* gj)
 {
     auto& m_prms = bt->m_prms;
     auto& m_ctx = bt->m_ctx;
@@ -152,7 +152,7 @@ void Manager::onJobDoneBT(BaseTask_ptr bt, GJ* gj)
     processResultBT(bt);
 }
 
-void Manager::processResultBT(BaseTask_ptr bt)
+void TaskManager::processResultBT(BaseTask_ptr bt)
 {
     switch(bt->getLastStatus())
     {
@@ -181,7 +181,7 @@ void Manager::processResultBT(BaseTask_ptr bt)
     }
 }
 
-void Manager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms)
+void TaskManager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms)
 {
     BaseTask* bt = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms).get();
     PeriodicTask* pt = dynamic_cast<PeriodicTask*>(bt);
@@ -189,29 +189,29 @@ void Manager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseco
     schedule(pt);
 }
 
-void Manager::cb_event(mg_mgr *mgr, uint64_t cnt)
+void TaskManager::cb_event(mg_mgr *mgr, uint64_t cnt)
 {
-    Manager::from(mgr)->doWork(cnt);
+    TaskManager::from(mgr)->doWork(cnt);
 }
 
-Manager *Manager::from(mg_mgr *mgr)
+TaskManager *TaskManager::from(mg_mgr *mgr)
 {
     assert(mgr->user_data);
-    return static_cast<Manager*>(mgr->user_data);
+    return static_cast<TaskManager*>(mgr->user_data);
 }
 
-void Manager::onNewClient(BaseTask_ptr cr)
+void TaskManager::onNewClient(BaseTask_ptr bt)
 {
     ++m_cntBaseTask;
-    sendToThreadPool(cr);
+    sendToThreadPool(bt);
 }
 
-void Manager::onClientDone(BaseTask_ptr cr)
+void TaskManager::onClientDone(BaseTask_ptr bt)
 {
     ++m_cntBaseTaskDone;
 }
 
-bool Manager::tryProcessReadyJob()
+bool TaskManager::tryProcessReadyJob()
 {
     GJ_ptr gj;
     bool res = get_resQueue().pop(gj);
@@ -220,7 +220,7 @@ bool Manager::tryProcessReadyJob()
     return true;
 }
 
-void Manager::processReadyJobBlock()
+void TaskManager::processReadyJobBlock()
 {
     while(true)
     {
@@ -229,7 +229,7 @@ void Manager::processReadyJobBlock()
     }
 }
 
-void Manager::initThreadPool(int threadCount, int workersQueueSize)
+void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
 {
     if(threadCount <= 0) threadCount = std::thread::hardware_concurrency();
     if(workersQueueSize <= 0) workersQueueSize = 32;
@@ -253,29 +253,29 @@ void Manager::initThreadPool(int threadCount, int workersQueueSize)
     setThreadPool(std::move(thread_pool), std::move(resQueue), maxinputSize);
 }
 
-Manager::~Manager()
+TaskManager::~TaskManager()
 {
     mg_mgr_free(&m_mgr);
 }
 
-void Manager::serve()
+void TaskManager::serve()
 {
     m_ready = true;
 
     for (;;)
     {
-        mg_mgr_poll(&m_mgr, m_sopts.timer_poll_interval_ms);
+        mg_mgr_poll(&m_mgr, m_copts.timer_poll_interval_ms);
         get_timerList().eval();
         if(stopped()) break;
     }
 }
 
-void Manager::notifyJobReady()
+void TaskManager::notifyJobReady()
 {
     mg_notify(&m_mgr);
 }
 
-void Manager::doWork(uint64_t cnt)
+void TaskManager::doWork(uint64_t cnt)
 {
     //When multiple threads write to the output queue of the thread pool.
     //It is possible that a hole appears when a thread has not completed to set
@@ -291,60 +291,60 @@ void Manager::doWork(uint64_t cnt)
     }
 }
 
-void Manager::jobDone()
+void TaskManager::jobDone()
 {
     ++m_cntJobDone;
 }
 
-void Manager::onJobDone(GJ& gj)
+void TaskManager::onJobDone(GJ& gj)
 {
-    onJobDoneBT(gj.get_cr(), &gj);
+    onJobDoneBT(gj.get_bt(), &gj);
     jobDone();
     //gj will be destroyed on exit
 }
 
-void Manager::onCryptonDone(CryptoNodeSender& cns)
+void TaskManager::onCryptonDone(UpstreamSender& uss)
 {
-    onCryptonDoneBT(cns.get_cr(), cns);
-    ++m_cntCryptoNodeSenderDone;
-    //cns will be destroyed on exit
+    onCryptonDoneBT(uss.get_bt(), uss);
+    ++m_cntUpstreamSenderDone;
+    //uss will be destroyed on exit
 }
 
-void Manager::onCryptonDoneBT(BaseTask_ptr bt, CryptoNodeSender &cns)
+void TaskManager::onCryptonDoneBT(BaseTask_ptr bt, UpstreamSender &uss)
 {
-    if(Status::Ok != cns.getStatus())
+    if(Status::Ok != uss.getStatus())
     {
-        bt->setError(cns.getError().c_str(), cns.getStatus());
+        bt->setError(uss.getError().c_str(), uss.getStatus());
         processResultBT(bt);
         return;
     }
     //here you can send a job to the thread pool or send response to client
-    //cns will be destroyed on exit, save its result
+    //uss will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
         sendToThreadPool(bt);
     }
 }
 
-void Manager::stop()
+void TaskManager::stop()
 {
     assert(!m_stop);
     m_stop = true;
 }
 
-void Manager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_threadPoolInputSize_)
+void TaskManager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_threadPoolInputSize_)
 {
     m_threadPool = std::unique_ptr<ThreadPoolX>(new ThreadPoolX(std::move(tp)));
     m_resQueue = std::unique_ptr<TPResQueue>(new TPResQueue(std::move(rq)));
     m_threadPoolInputSize = m_threadPoolInputSize_;
 }
 
-void CryptoNodeSender::send(Manager &manager, BaseTask_ptr cr)
+void UpstreamSender::send(TaskManager &manager, BaseTask_ptr bt)
 {
-    m_cr = cr;
+    m_bt = bt;
 
-    const ServerOpts& opts = manager.get_c_opts();
+    const ConfigOpts& opts = manager.get_c_opts();
     std::string default_uri = opts.cryptonode_rpc_address.c_str();
-    Output& output = cr->get_output();
+    Output& output = bt->get_output();
     std::string url = output.makeUri(default_uri);
     std::string extra_headers = output.combine_headers();
     if(extra_headers.empty())
@@ -352,7 +352,7 @@ void CryptoNodeSender::send(Manager &manager, BaseTask_ptr cr)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler<CryptoNodeSender>, url.c_str(),
+    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler<UpstreamSender>, url.c_str(),
                              extra_headers.c_str(),
                              (body.empty())? nullptr : body.c_str()); //last nullptr means GET
     assert(m_crypton);
@@ -360,7 +360,7 @@ void CryptoNodeSender::send(Manager &manager, BaseTask_ptr cr)
     mg_set_timer(m_crypton, mg_time() + opts.upstream_request_timeout);
 }
 
-void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
+void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
 {
     assert(crypton == this->m_crypton);
     switch (ev)
@@ -373,7 +373,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
             std::ostringstream ss;
             ss << "cryptonode connect failed: " << strerror(err);
             setError(Status::Error, ss.str().c_str());
-            Manager::from(crypton->mgr)->onCryptonDone(*this);
+            TaskManager::from(crypton->mgr)->onCryptonDone(*this);
             crypton->handler = static_empty_ev_handler;
             releaseItself();
         }
@@ -382,10 +382,10 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     {
         mg_set_timer(crypton, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
-        m_cr->get_input() = *hm;
+        m_bt->get_input() = *hm;
         setError(Status::Ok);
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        Manager::from(crypton->mgr)->onCryptonDone(*this);
+        TaskManager::from(crypton->mgr)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
     } break;
@@ -393,7 +393,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     {
         mg_set_timer(crypton, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
-        Manager::from(crypton->mgr)->onCryptonDone(*this);
+        TaskManager::from(crypton->mgr)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
     } break;
@@ -402,7 +402,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
         mg_set_timer(crypton, 0);
         setError(Status::Error, "cryptonode request timout");
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        Manager::from(crypton->mgr)->onCryptonDone(*this);
+        TaskManager::from(crypton->mgr)->onCryptonDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
     } break;
@@ -411,7 +411,7 @@ void CryptoNodeSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     }
 }
 
-BaseTask::BaseTask(Manager& manager, const Router::JobParams& prms)
+BaseTask::BaseTask(TaskManager& manager, const Router::JobParams& prms)
     : m_manager(manager)
     , m_prms(prms)
     , m_ctx(manager.get_gcm())
@@ -428,21 +428,21 @@ void PeriodicTask::finalize()
     this->m_manager.schedule(this);
 }
 
-ClientRequest::ClientRequest(mg_connection *client, Router::JobParams& prms)
-    : BaseTask(*Manager::from(client->mgr), prms)
+ClientTask::ClientTask(mg_connection *client, Router::JobParams& prms)
+    : BaseTask(*TaskManager::from(client->mgr), prms)
     , m_client(client)
 {
 }
 
-void ClientRequest::finalize()
+void ClientTask::finalize()
 {
     releaseItself();
 }
 
-void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
+void ClientTask::ev_handler(mg_connection *client, int ev, void *ev_data)
 {
     assert(m_client == client);
-    assert(&m_manager == Manager::from(client->mgr));
+    assert(&m_manager == TaskManager::from(client->mgr));
     switch (ev)
     {
     case MG_EV_CLOSE:
@@ -470,24 +470,24 @@ void ConnectionManager::ev_handler_empty(mg_connection *client, int ev, void *ev
 {
 }
 
-void HttpConnectionManager::bind(Manager& manager)
+void HttpConnectionManager::bind(TaskManager& manager)
 {
     assert(!manager.ready());
     mg_mgr* mgr = manager.get_mg_mgr();
 
-    const ServerOpts& opts = manager.get_c_opts();
+    const ConfigOpts& opts = manager.get_c_opts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
     nc_http->user_data = this;
     mg_set_protocol_http_websocket(nc_http);
 }
 
-void CoapConnectionManager::bind(Manager& manager)
+void CoapConnectionManager::bind(TaskManager& manager)
 {
     assert(!manager.ready());
     mg_mgr* mgr = manager.get_mg_mgr();
 
-    const ServerOpts& opts = manager.get_c_opts();
+    const ConfigOpts& opts = manager.get_c_opts();
 
     mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
     nc_coap->user_data = this;
@@ -513,7 +513,7 @@ int CoapConnectionManager::translateMethod(int i)
 
 void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 {
-    Manager* manager = Manager::from(client->mgr);
+    TaskManager* manager = TaskManager::from(client->mgr);
 
     switch (ev)
     {
@@ -538,12 +538,12 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         {
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
-            BaseTask* rb_ptr = BaseTask::Create<ClientRequest>(client, prms).get();
-            assert(dynamic_cast<ClientRequest*>(rb_ptr));
-            ClientRequest* ptr = static_cast<ClientRequest*>(rb_ptr);
+            BaseTask* bt = BaseTask::Create<ClientTask>(client, prms).get();
+            assert(dynamic_cast<ClientTask*>(bt));
+            ClientTask* ptr = static_cast<ClientTask*>(bt);
 
             client->user_data = ptr;
-            client->handler = static_ev_handler<ClientRequest>;
+            client->handler = static_ev_handler<ClientTask>;
 
             manager->onNewClient(ptr->get_itself());
         }
@@ -556,7 +556,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     }
     case MG_EV_ACCEPT:
     {
-        const ServerOpts& opts = manager->get_c_opts();
+        const ConfigOpts& opts = manager->get_c_opts();
 
         mg_set_timer(client, mg_time() + opts.http_connection_timeout);
         break;
@@ -608,14 +608,14 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
             mg_str& body = cm->payload;
             prms.input.load(body.p, body.len);
 
-            BaseTask* rb_ptr = BaseTask::Create<ClientRequest>(client, prms).get();
-            assert(dynamic_cast<ClientRequest*>(rb_ptr));
-            ClientRequest* ptr = static_cast<ClientRequest*>(rb_ptr);
+            BaseTask* rb_ptr = BaseTask::Create<ClientTask>(client, prms).get();
+            assert(dynamic_cast<ClientTask*>(rb_ptr));
+            ClientTask* ptr = static_cast<ClientTask*>(rb_ptr);
 
             client->user_data = ptr;
-            client->handler = static_ev_handler<ClientRequest>;
+            client->handler = static_ev_handler<ClientTask>;
 
-            Manager* manager = Manager::from(client->mgr);
+            TaskManager* manager = TaskManager::from(client->mgr);
             manager->onNewClient(ptr->get_itself());
         }
         break;
@@ -628,10 +628,10 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
     }
 }
 
-void ConnectionManager::respond(ClientRequest* cr, const std::string& s)
+void ConnectionManager::respond(ClientTask* ct, const std::string& s)
 {
     int code;
-    switch(cr->m_ctx.local.getLastStatus())
+    switch(ct->m_ctx.local.getLastStatus())
     {
     case Status::Ok: code = 200; break;
     case Status::InternalError:
@@ -641,8 +641,8 @@ void ConnectionManager::respond(ClientRequest* cr, const std::string& s)
     default: assert(false); break;
     }
 
-    auto& m_ctx = cr->m_ctx;
-    auto& m_client = cr->m_client;
+    auto& m_ctx = ct->m_ctx;
+    auto& m_client = ct->m_client;
     if(Status::Ok == m_ctx.local.getLastStatus())
     {
         mg_send_head(m_client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
