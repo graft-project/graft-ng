@@ -1,5 +1,6 @@
 #include "graft_manager.h"
 #include "requests.h"
+#include "requestdefines.h"
 #include "requests/sendsupernodeannouncerequest.h"
 #include "jsonrpc.h"
 #include "rta/supernode.h"
@@ -73,7 +74,7 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
         case graft::Status::None:
             graft::FullSupernodeList::SupernodePtr supernode;
 
-            supernode = ctx.global.get("supernode", graft::FullSupernodeList::SupernodePtr(nullptr));
+            supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::FullSupernodeList::SupernodePtr(nullptr));
 
             LOG_PRINT_L1("supernode: " << supernode.get());
             if (!supernode.get()) {
@@ -264,7 +265,7 @@ int main(int argc, const char** argv)
         manager.get_gcm().addOrUpdate("supernode", supernode);
 
         // create fullsupernode list instance and put it into global context
-        boost::shared_ptr<graft::FullSupernodeList> fsl {new graft::FullSupernodeList(sopts.cryptonode_rpc_address, sopts.testnet)};
+        graft::FullSupernodeListPtr fsl {new graft::FullSupernodeList(sopts.cryptonode_rpc_address, sopts.testnet)};
         size_t found_wallets = 0;
         size_t loaded_wallets = fsl->loadFromDirThreaded(watchonly_wallets_path.string(), found_wallets);
 
@@ -272,7 +273,7 @@ int main(int argc, const char** argv)
             LOG_ERROR("found wallets: " << found_wallets << ", loaded wallets: " << loaded_wallets);
         }
 
-        manager.get_gcm().addOrUpdate("fsl", fsl);
+        manager.get_gcm().addOrUpdate(CONTEXT_KEY_FULLSUPERNODELIST, fsl);
 
         graft::setCoapRouters(manager);
         graft::setHttpRouters(manager);

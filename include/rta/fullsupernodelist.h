@@ -20,6 +20,7 @@ namespace utils {
     class ThreadPool;
 }
 
+
 class FullSupernodeList
 {
 public:
@@ -28,6 +29,7 @@ public:
     static const uint64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
 
     using SupernodePtr = boost::shared_ptr<Supernode>;
+
 
     FullSupernodeList(const std::string &daemon_address, bool testnet = false);
     ~FullSupernodeList();
@@ -140,6 +142,9 @@ private:
     std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
 };
+
+using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;
+
 
 } // namespace graft
 

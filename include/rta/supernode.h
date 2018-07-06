@@ -73,6 +73,12 @@ public:
     std::string walletAddress() const;
 
     /*!
+     * \brief daemonHeight - returns cryptonode's blockchain height
+     * \return
+     */
+    uint64_t daemonHeight() const;
+
+    /*!
      * \brief exportKeyImages - exports key images
      * \param key_images      - destination vector
      * \return                - true on success
@@ -167,11 +173,20 @@ public:
 
     void setNetworkAddress(const std::string &networkAddress);
 
+    /*!
+     * \brief validateAddress - validates wallet address
+     * \param address         - addres
+     * \param testnet         - testnet flag
+     * \return                - true if address valid
+     */
+
+    static bool validateAddress(const std::string &address, bool testnet);
+
 private:
     Supernode(bool testnet = false);
 
 private:
-    tools::wallet2 m_wallet;
+    mutable tools::wallet2 m_wallet;
     std::string    m_network_address;
 };
 

@@ -28,6 +28,7 @@ static const std::string MESSAGE_INTERNAL_ERROR("Internal server error.");
 //RTA DAPI Errors
 #define ERROR_AMOUNT_INVALID                -32050
 #define ERROR_PAYMENT_ID_INVALID            -32051
+#define ERROR_ADDRESS_INVALID               -32052
 #define ERROR_SALE_REQUEST_FAILED           -32060
 #define ERROR_RTA_COMPLETED                 -32070
 #define ERROR_RTA_FAILED                    -32071
@@ -37,12 +38,15 @@ static const std::string MESSAGE_PAYMENT_ID_INVALID("Payment ID is invalid.");
 static const std::string MESSAGE_SALE_REQUEST_FAILED("Sale request is failed.");
 static const std::string MESSAGE_RTA_COMPLETED("Payment is already completed.");
 static const std::string MESSAGE_RTA_FAILED("Payment is already failed.");
+static const std::string MESSAGE_ADDRESS_INVALID("Address in invalid.");
 
 //Context Keys
 static const std::string CONTEXT_KEY_SALE_DETAILS(":saledetails");
 static const std::string CONTEXT_KEY_SALE(":sale");
 static const std::string CONTEXT_KEY_STATUS(":status");
 static const std::string CONTEXT_KEY_PAY(":pay");
+static const std::string CONTEXT_KEY_SUPERNODE("supernode");
+static const std::string CONTEXT_KEY_FULLSUPERNODELIST("fsl");
 
 namespace graft {
 

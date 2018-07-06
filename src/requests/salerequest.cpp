@@ -1,6 +1,9 @@
 #include "salerequest.h"
 #include "requestdefines.h"
 #include "requesttools.h"
+#include "rta/supernode.h"
+#include "rta/fullsupernodelist.h"
+
 
 namespace graft {
 
@@ -11,9 +14,11 @@ Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
     if (!in.Address.empty() && !in.Amount.empty())
     {
         std::string payment_id = in.PaymentID;
-        if (payment_id.empty())
+        if (payment_id.empty()) // request comes from POS.
         {
             payment_id = generatePaymentID();
+        } else { // request comes from
+
         }
         if (ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE))
         {
@@ -28,14 +33,29 @@ Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
         {
             return errorInvalidAmount(output);
         }
-        // TODO: Validate address
-        SaleData data(in.Address, 0, amount); // TODO: Use correct BlockNumber
+
+        if (!Supernode::validateAddress(in.Address, ctx.global.getConfig()->testnet))
+        {
+            ErrorResponse err;
+            err.code = ERROR_ADDRESS_INVALID;
+            err.message = MESSAGE_ADDRESS_INVALID;
+            output.load(err);
+            return Status::Error;
+        }
+
+        FullSupernodeList::SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, FullSupernodeList::SupernodePtr());
+
+        SaleData data(in.Address, supernode->daemonHeight(), amount);
+
         ctx.global[payment_id + CONTEXT_KEY_SALE] = data;
         ctx.global[payment_id + CONTEXT_KEY_STATUS] = static_cast<int>(RTAStatus::Waiting);
+
         if (!in.SaleDetails.empty())
         {
             ctx.global[payment_id + CONTEXT_KEY_SALE_DETAILS] = in.SaleDetails;
         }
+        // TODO: generate auth sample
+
         // TODO: Sale: Add broadcast and another business logic
         SaleResponse out;
         out.BlockNumber = data.BlockNumber;
@@ -49,7 +69,7 @@ Status saleWorkerHandler(const Router::vars_t& vars, const graft::Input& input,
 void registerSaleRequest(graft::Router &router)
 {
     Router::Handler3 h3(nullptr, saleWorkerHandler, nullptr);
-    router.addRoute("/dapi/sale", METHOD_POST, h3);
+    router.addRoute("/sale", METHOD_POST, h3);
 }
 
 }

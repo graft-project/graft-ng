@@ -1,5 +1,7 @@
 #pragma once
 
+#include "utils/utils.h"
+
 #include <utility>
 #include <string>
 #include <vector>
@@ -100,6 +102,20 @@ namespace graft
                 t = T::fromJson(s);
             }
         };
+
+        template<typename T>
+        struct JSON_B64
+        {
+            static std::string serialize(const T& t)
+            {
+                return utils::base64_encode(t.toJson().GetString());
+            }
+            static void deserialize(const std::string& s, T& t)
+            {
+                t = T::fromJson(utils::base64_decode(s));
+            }
+        };
+
 
 
     } //namespace serializer

@@ -51,6 +51,17 @@ string Supernode::walletAddress() const
     return m_wallet.get_account().get_public_address_str(m_wallet.testnet());
 }
 
+uint64_t Supernode::daemonHeight() const
+{
+    uint64_t result = 0;
+    std::string err;
+    result = m_wallet.get_daemon_blockchain_height(err);
+    if (!result) {
+        LOG_ERROR(err);
+    }
+    return result;
+}
+
 bool Supernode::exportKeyImages(vector<Supernode::SignedKeyImage> &key_images) const
 {
     key_images = m_wallet.export_key_images();
@@ -163,11 +174,9 @@ Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnno
 
         // XXX before importing key images, wallet needs to be connected to daemon and syncrhonized
         if (result) {
-
             result->setDaemonAddress(daemon_address);
             result->refresh();
             result->updateFromAnnounce(announce);
-
         }
 
     } catch (...) {
@@ -270,7 +279,13 @@ string Supernode::networkAddress() const
 void Supernode::setNetworkAddress(const string &networkAddress)
 {
     if (m_network_address != networkAddress)
-        m_network_address = networkAddress;
+      m_network_address = networkAddress;
+}
+
+bool Supernode::validateAddress(const string &address, bool testnet)
+{
+    cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+    return address.size() > 0 && cryptonote::get_account_address_from_str(acc, testnet, address);
 }
 
 Supernode::Supernode(bool testnet)
