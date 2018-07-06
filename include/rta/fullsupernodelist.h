@@ -3,8 +3,8 @@
 
 #include "rta/supernode.h"
 #include "rta/DaemonRpcClient.h"
-#include <cryptonote_config.h>
 
+#include <cryptonote_config.h>
 #include <string>
 #include <vector>
 #include <future>
@@ -28,7 +28,6 @@ public:
     static const size_t   ITEMS_PER_TIER = 2;
     static const uint64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
 
-    using SupernodePtr = boost::shared_ptr<Supernode>;
 
 
     FullSupernodeList(const std::string &daemon_address, bool testnet = false);

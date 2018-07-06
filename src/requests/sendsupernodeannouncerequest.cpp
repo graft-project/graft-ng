@@ -60,7 +60,7 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
     LOG_PRINT_L2(PATH << "called with payload: " << input.data());
 
     boost::shared_ptr<FullSupernodeList> fsl = ctx.global.get("fsl", boost::shared_ptr<FullSupernodeList>());
-    FullSupernodeList::SupernodePtr supernode = ctx.global.get("supernode", FullSupernodeList::SupernodePtr());
+    SupernodePtr supernode = ctx.global.get("supernode", SupernodePtr());
 
     JsonRpcError error;
     error.code = 0;

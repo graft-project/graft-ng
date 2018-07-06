@@ -201,7 +201,7 @@ bool FullSupernodeList::update(const string &address, const vector<Supernode::Si
     return false;
 }
 
-FullSupernodeList::SupernodePtr FullSupernodeList::get(const string &address) const
+SupernodePtr FullSupernodeList::get(const string &address) const
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     auto it = m_list.find(address);
@@ -210,7 +210,7 @@ FullSupernodeList::SupernodePtr FullSupernodeList::get(const string &address) co
     return SupernodePtr(nullptr);
 }
 
-bool FullSupernodeList::buildAuthSample(uint64_t height, vector<FullSupernodeList::SupernodePtr> &out)
+bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &out)
 {
     crypto::hash block_hash;
     string  block_hash_str;

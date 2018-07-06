@@ -181,7 +181,7 @@ TEST_F(FullSupernodeListTest, basic)
     EXPECT_EQ(sn_list.size(), 1);
 
     EXPECT_TRUE(sn_list.exists(sn1_viewonly->walletAddress()));
-    FullSupernodeList::SupernodePtr sn1_viewonly_ptr = sn_list.get(sn1_viewonly->walletAddress());
+    SupernodePtr sn1_viewonly_ptr = sn_list.get(sn1_viewonly->walletAddress());
 
     EXPECT_TRUE(sn1_viewonly_ptr.get() != nullptr);
     EXPECT_FALSE(sn_list.exists("123213123123"));
@@ -304,8 +304,8 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     crypto::hash h;
     epee::string_tools::hex_to_pod(hash_str, h);
 
-    std::vector<FullSupernodeList::SupernodePtr> auth_sample;
-    std::vector<FullSupernodeList::SupernodePtr> auth_sample2;
+    std::vector<SupernodePtr> auth_sample;
+    std::vector<SupernodePtr> auth_sample2;
     // test if result is reproducable
     sn_list.buildAuthSample(2122, auth_sample);
     sn_list.buildAuthSample(2122, auth_sample2);
@@ -449,7 +449,7 @@ TEST_F(FullSupernodeListTest, announce1)
     ASSERT_TRUE(sn.prepareAnnounce(announce));
 
 
-    FullSupernodeList::SupernodePtr watch_only_sn1 {Supernode::createFromAnnounce(temp_path.string(), announce,
+    SupernodePtr watch_only_sn1 {Supernode::createFromAnnounce(temp_path.string(), announce,
                                                                                  daemon_addr, testnet)};
     ASSERT_TRUE(watch_only_sn1.get() != nullptr);
     watch_only_sn1->refresh();
@@ -459,7 +459,7 @@ TEST_F(FullSupernodeListTest, announce1)
 
     announce.secret_viewkey = "";
 
-    FullSupernodeList::SupernodePtr watch_only_sn2 {Supernode::createFromAnnounce(temp_path.string(), announce,
+    SupernodePtr watch_only_sn2 {Supernode::createFromAnnounce(temp_path.string(), announce,
                                                                                  daemon_addr, testnet)};
     ASSERT_TRUE(watch_only_sn2.get() == nullptr);
 

@@ -190,6 +190,8 @@ private:
     std::string    m_network_address;
 };
 
+using SupernodePtr = boost::shared_ptr<Supernode>;
+
 }
 
 #endif // SUPERNODE_H

@@ -72,9 +72,9 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
             return graft::Status::Ok;
         case graft::Status::Ok:
         case graft::Status::None:
-            graft::FullSupernodeList::SupernodePtr supernode;
+            graft::SupernodePtr supernode;
 
-            supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::FullSupernodeList::SupernodePtr(nullptr));
+            supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
 
             LOG_PRINT_L1("supernode: " << supernode.get());
             if (!supernode.get()) {
@@ -253,7 +253,7 @@ int main(int argc, const char** argv)
         addGlobalCtxCleaner(manager, lru_timeout_ms);
 
         // create supernode instance and put it into global context
-        graft::FullSupernodeList::SupernodePtr supernode {new graft::Supernode(
+        graft::SupernodePtr supernode {new graft::Supernode(
                         (stake_wallet_path / stake_wallet_name).string(),
                         "", // TODO
                         sopts.cryptonode_rpc_address,
