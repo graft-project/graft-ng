@@ -21,6 +21,7 @@ GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
                        (int, status)
                        );
 
+
 Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
                          graft::Context& ctx, graft::Output& output)
 {
@@ -34,7 +35,12 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
 
     // validate params, generate payment id, build auth sample, multicast to auth sample
     if (calledByClient) {
-        SaleRequest in = input.get<SaleRequest>();
+        SaleRequestJsonRpc req;
+        if (!input.get(req)) {
+            return errorInvalidParams(output);
+        }
+
+        const SaleRequest &in = req.params;
         do {
             if (in.Address.empty() && in.Amount.empty()) {
                 return errorInvalidParams(output);            // store SaleData, payment_id and
@@ -61,6 +67,7 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
             SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
             FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
 
+            // reply to caller (POS)
             SaleData data(in.Address, supernode->daemonHeight(), amount);
 
             // what needs to be multicasted to auth sample ?
@@ -103,26 +110,26 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
             cryptonode_req.params.callback_uri = "/dapi/v2.0/cryptonode/sale";
             cryptonode_req.params.data = out.data();
             output.load(cryptonode_req);
+            output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta/multicast";
 
         } while (false);
+
         if (error.code != 0) {
             output.load(error);
             return Status::Error;
         }
+
         return Status::Forward;
 
-    } else { // response from upstream, send reply to client
+    } else { // response from upstream, send reply to client (POS)
         SaleData data = ctx.local["sale_data"];
         string payment_id = ctx.local["payment_id"];
-        SaleResponse out;
-        out.BlockNumber = data.BlockNumber;
-        out.PaymentID = payment_id;
+        SaleResponseJsonRpc out;
+        out.result.BlockNumber = data.BlockNumber;
+        out.result.PaymentID = payment_id;
         output.load(out);
         return Status::Ok;
     }
-
-
-
 }
 
 Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& input,
