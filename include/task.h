@@ -27,6 +27,7 @@ namespace graft {
 class UpstreamSender;
 
 class TaskManager;
+class ConnectionManager;
 
 class BaseTask;
 using BaseTask_ptr = std::shared_ptr<BaseTask>;
@@ -145,7 +146,7 @@ class ClientTask : public BaseTask
 {
 private:
     friend class SelfHolder<BaseTask>;
-    ClientTask(mg_connection *client, Router::JobParams& prms);
+    ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms);
 
     virtual void finalize() override;
 public:
@@ -153,6 +154,7 @@ public:
 
 public:
     mg_connection *m_client;
+    ConnectionManager* m_connectionManager;
 };
 
 class TaskManager final

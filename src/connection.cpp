@@ -82,7 +82,7 @@ void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
 
 constexpr std::pair<const char *, int> ConnectionManager::m_methods[];
 
-ConnectionManager* ConnectionManager::from(mg_connection *cn)
+ConnectionManager* ConnectionManager::from_accepted(mg_connection *cn)
 {
     assert(cn->user_data);
     return static_cast<ConnectionManager*>(cn->user_data);
@@ -154,13 +154,13 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         int method = translateMethod(hm->method.p, hm->method.len);
         if (method < 0) return;
 
-        HttpConnectionManager* httpcm = HttpConnectionManager::from(client);
+        HttpConnectionManager* httpcm = HttpConnectionManager::from_accepted(client);
         Router::JobParams prms;
         if (httpcm->matchRoute(uri, method, prms))
         {
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
-            BaseTask* bt = BaseTask::Create<ClientTask>(client, prms).get();
+            BaseTask* bt = BaseTask::Create<ClientTask>(httpcm, client, prms).get();
             assert(dynamic_cast<ClientTask*>(bt));
             ClientTask* ptr = static_cast<ClientTask*>(bt);
 
@@ -223,14 +223,14 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
 
         int method = translateMethod(cm->code_detail - 1);
 
-        CoapConnectionManager* coapcm = CoapConnectionManager::from(client);
+        CoapConnectionManager* coapcm = CoapConnectionManager::from_accepted(client);
         Router::JobParams prms;
         if (coapcm->matchRoute(uri, method, prms))
         {
             mg_str& body = cm->payload;
             prms.input.load(body.p, body.len);
 
-            BaseTask* rb_ptr = BaseTask::Create<ClientTask>(client, prms).get();
+            BaseTask* rb_ptr = BaseTask::Create<ClientTask>(coapcm, client, prms).get();
             assert(dynamic_cast<ClientTask*>(rb_ptr));
             ClientTask* ptr = static_cast<ClientTask*>(rb_ptr);
 

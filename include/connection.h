@@ -50,18 +50,17 @@ private:
 class ConnectionManager
 {
 protected:
-    static ConnectionManager* from(mg_connection* cn);
+    static ConnectionManager* from_accepted(mg_connection* cn);
 public:
     ConnectionManager() { }
+
     virtual void bind(TaskManager& manager) = 0;
+    virtual void respond(ClientTask* ct, const std::string& s);
 
-    static void respond(ClientTask* ct, const std::string& s);
-public:
     void addRouter(Router& r) { m_root.addRouter(r); }
-
     bool enableRouting() { return m_root.arm(); }
     bool matchRoute(const std::string& target, int method, Router::JobParams& params) { return m_root.match(target, method, params); }
-public:
+
     std::string dbgDumpRouters() const { return m_root.dbgDumpRouters(); }
     void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
     //returns conflicting endpoint
@@ -78,9 +77,11 @@ protected:
 
 class HttpConnectionManager final : public ConnectionManager
 {
-    static HttpConnectionManager* from(mg_connection* cn)
+    static HttpConnectionManager* from_accepted(mg_connection* cn)
     {
-        return static_cast<HttpConnectionManager*>( ConnectionManager::from(cn) );
+        ConnectionManager* cm = ConnectionManager::from_accepted(cn);
+        assert(dynamic_cast<HttpConnectionManager*>(cm));
+        return static_cast<HttpConnectionManager*>(cm);
     }
 public:
     HttpConnectionManager() { }
@@ -93,9 +94,11 @@ private:
 
 class CoapConnectionManager final : public ConnectionManager
 {
-    static CoapConnectionManager* from(mg_connection* cn)
+    static CoapConnectionManager* from_accepted(mg_connection* cn)
     {
-        return static_cast<CoapConnectionManager*>( ConnectionManager::from(cn) );
+        ConnectionManager* cm = ConnectionManager::from_accepted(cn);
+        assert(dynamic_cast<CoapConnectionManager*>(cm));
+        return static_cast<CoapConnectionManager*>(cm);
     }
 public:
     CoapConnectionManager() { }

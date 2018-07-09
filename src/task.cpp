@@ -44,7 +44,7 @@ void TaskManager::respondAndDieBT(BaseTask_ptr bt, const std::string& s)
     ClientTask* ct = dynamic_cast<ClientTask*>(bt.get());
     if(ct)
     {
-        ConnectionManager::respond(ct, s);
+        ct->m_connectionManager->respond(ct, s);
     }
     else
     {
@@ -351,8 +351,9 @@ void PeriodicTask::finalize()
     this->m_manager.schedule(this);
 }
 
-ClientTask::ClientTask(mg_connection *client, Router::JobParams& prms)
+ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
     : BaseTask(*TaskManager::from(client->mgr), prms)
+    , m_connectionManager(connectionManager)
     , m_client(client)
 {
 }
