@@ -14,6 +14,8 @@ BOOST_HANA_ADAPT_STRUCT(graft::SaleData,
 
 namespace graft {
 
+static const std::chrono::seconds SALE_TTL = std::chrono::seconds(60);
+
 // message to be multicasted to auth sample
 GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
                        (SaleData, sale_data),
@@ -21,11 +23,17 @@ GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
                        (int, status)
                        );
 
-
+/*!
+ * \brief saleClientHandler - handles /dapi/v2.0/sale POS request
+ * \param vars
+ * \param input
+ * \param ctx
+ * \param output
+ * \return
+ */
 Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
                          graft::Context& ctx, graft::Output& output)
 {
-
 
     bool calledByClient = !ctx.local.hasKey(__FUNCTION__);
     ctx.local[__FUNCTION__] = true;
@@ -75,12 +83,12 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
             // 2. SaleData
             // 3. SaleStatus
 
-            ctx.global[payment_id + CONTEXT_KEY_SALE] = data;
-            ctx.global[payment_id + CONTEXT_KEY_STATUS] = static_cast<int>(RTAStatus::Waiting);
+            ctx.global.set(payment_id + CONTEXT_KEY_SALE, data, SALE_TTL);
+            ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
 
             if (!in.SaleDetails.empty())
             {
-                ctx.global[payment_id + CONTEXT_KEY_SALE_DETAILS] = in.SaleDetails;
+                ctx.global.set(payment_id + CONTEXT_KEY_SALE_DETAILS, in.SaleDetails, SALE_TTL);
             }
             // generate auth sample
             std::vector<SupernodePtr> authSample;
@@ -107,10 +115,13 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
                 cryptonode_req.params.addresses.push_back(sn->walletAddress());
             }
 
+            cryptonode_req.method = "multicast";
             cryptonode_req.params.callback_uri = "/dapi/v2.0/cryptonode/sale";
             cryptonode_req.params.data = out.data();
             output.load(cryptonode_req);
-            output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta/multicast";
+            output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
+            LOG_PRINT_L0("calling: " << output.uri);
+            LOG_PRINT_L0("data: " << output.data());
 
         } while (false);
 
@@ -122,6 +133,17 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
         return Status::Forward;
 
     } else { // response from upstream, send reply to client (POS)
+        LOG_PRINT_L0("response from cryptonode: " << input.data());
+        LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
+        // TODO: check cryptonode reply
+        MulticastResponseFromCryptonodeJsonRpc resp;
+        if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
+            error.code = ERROR_INTERNAL_ERROR;
+            error.message = "Error multicasting request";
+            output.load(error);
+            return Status::Error;
+        }
+
         SaleData data = ctx.local["sale_data"];
         string payment_id = ctx.local["payment_id"];
         SaleResponseJsonRpc out;
@@ -132,17 +154,48 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
     }
 }
 
+/*!
+ * \brief saleCryptonodeHandler - handles /dapi/v2.0/cryptonode/sale - call coming from cryptonode (multicasted), we just need to store "sale_data"
+ * \param vars
+ * \param input
+ * \param ctx
+ * \param output
+ * \return
+ */
 Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& input,
                              graft::Context& ctx, graft::Output& output)
 {
-    SaleRequest in = input.get<SaleRequest>();
-    JsonRpcErrorResponse errorResponse;
-    do {
-        if (in.Address.empty() || in.Amount.empty()) {
 
-        }
+    MulticastRequestJsonRpc req;
+    if (!input.get(req)) {
+        return errorInvalidParams(output);
+    }
 
-    } while (false);
+
+    JsonRpcError error;
+    error.code = 0;
+
+    SaleDataMulticast sdm;
+
+    graft::Input innerInput;
+    innerInput.load(req.params.data);
+
+    LOG_PRINT_L0("input loaded");
+    if (!innerInput.getT<serializer::JSON_B64>(sdm)) {
+        return errorInvalidParams(output);
+    }
+    const std::string &payment_id = sdm.paymentId;
+    if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE)) {
+        ctx.global[payment_id + CONTEXT_KEY_SALE] = sdm.sale_data;
+        ctx.global[payment_id + CONTEXT_KEY_STATUS] = sdm.status;
+    } else {
+        LOG_PRINT_L0("payment " << payment_id << " already known");
+    }
+
+
+    MulticastResponseToCryptonodeJsonRpc resp;
+    resp.result.status = "OK";
+    output.load(resp);
 
     return Status::Ok;
 }

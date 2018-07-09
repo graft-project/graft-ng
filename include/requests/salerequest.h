@@ -3,6 +3,7 @@
 
 #include "router.h"
 #include "jsonrpc.h"
+#include "requestdefines.h"
 
 namespace graft {
 
@@ -40,8 +41,15 @@ GRAFT_DEFINE_JSON_RPC_REQUEST(MulticastRequestJsonRpc, MulticastRequest);
 
 // and manually parse "data"
 
+GRAFT_DEFINE_IO_STRUCT_INITED(MulticastResponseToCryptonode,
+                       (std::string, status, "OK"));
 
+GRAFT_DEFINE_IO_STRUCT_INITED(MulticastResponseFromCryptonode,
+                       (int, status, STATUS_OK));
 
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(MulticastResponseToCryptonodeJsonRpc, MulticastResponseToCryptonode);
+
+GRAFT_DEFINE_JSON_RPC_RESPONSE(MulticastResponseFromCryptonodeJsonRpc, MulticastResponseFromCryptonode);
 
 
 GRAFT_DEFINE_IO_STRUCT(SaleResponse,
