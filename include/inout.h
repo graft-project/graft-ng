@@ -271,6 +271,19 @@ namespace graft
             return t;
         }
 
+        template<template<typename> typename S = serializer::JSON, typename T>
+        bool getT(T &result) const
+        {
+            try {
+                result = this->getT<S,T>();
+                return true;
+            } catch (const serializer::JsonParseError & /*err*/) {
+                return false;
+            } catch (...) {
+                return false;
+            }
+        }
+
         void load(const char *buf, size_t size)
         {
             InOutHttpBase::reset();
