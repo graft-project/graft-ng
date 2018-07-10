@@ -1,17 +1,5 @@
 #pragma once
 
-/*
-#include <list>
-
-#include "mongoose.h"
-#include "router.h"
-#include "thread_pool.h"
-#include "inout.h"
-#include "context.h"
-#include "timer.h"
-#include "self_holder.h"
-*/
-//#include "connection.h"
 #include "mongoose.h"
 #include "router.h"
 #include "thread_pool.h"

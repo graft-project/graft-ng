@@ -1,9 +1,5 @@
 #pragma once
 
-/*
-#include "mongoose.h"
-#include "self_holder.h"
-*/
 #include "task.h"
 
 namespace graft {
