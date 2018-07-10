@@ -5,6 +5,7 @@
 #include "jsonrpc.h"
 #include "requestdefines.h"
 
+
 namespace graft {
 
 // Sale request payload
@@ -19,37 +20,17 @@ GRAFT_DEFINE_IO_STRUCT(SaleRequest,
 // Sale request in wrapped as json-rpc
 GRAFT_DEFINE_JSON_RPC_REQUEST(SaleRequestJsonRpc, SaleRequest)
 
-// outer structure, to be inserted into json-rpc request as "params" member
-GRAFT_DEFINE_IO_STRUCT(SaleRequestP2P,
-                       (std::vector<std::string>, addresses),
-                       (std::string, callback_uri),
-                       (SaleRequest, data) // can we have some magic that automatically serialize data to "json"->"b64" and deserialize same way
-                       );
+//// outer structure, to be inserted into json-rpc request as "params" member
+//GRAFT_DEFINE_IO_STRUCT(SaleRequestP2P,
+//                       (std::vector<std::string>, addresses),
+//                       (std::string, callback_uri),
+//                       (SaleRequest, data) // can we have some magic that automatically serialize data to "json"->"b64" and deserialize same way
+//                       );
 
 
-// JSON-RPC request
-GRAFT_DEFINE_JSON_RPC_REQUEST(SaleRequestP2PJsonRpc, SaleRequestP2P);
+//// JSON-RPC request
+//GRAFT_DEFINE_JSON_RPC_REQUEST(SaleRequestP2PJsonRpc, SaleRequestP2P);
 
-// Plan "B" in case we can't do that magic, we just define:
-GRAFT_DEFINE_IO_STRUCT(MulticastRequest,
-                       (std::vector<std::string>, addresses),
-                       (std::string, callback_uri),
-                       (std::string, data)
-                       );
-// and
-GRAFT_DEFINE_JSON_RPC_REQUEST(MulticastRequestJsonRpc, MulticastRequest);
-
-// and manually parse "data"
-
-GRAFT_DEFINE_IO_STRUCT_INITED(MulticastResponseToCryptonode,
-                       (std::string, status, "OK"));
-
-GRAFT_DEFINE_IO_STRUCT_INITED(MulticastResponseFromCryptonode,
-                       (int, status, STATUS_OK));
-
-GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(MulticastResponseToCryptonodeJsonRpc, MulticastResponseToCryptonode);
-
-GRAFT_DEFINE_JSON_RPC_RESPONSE(MulticastResponseFromCryptonodeJsonRpc, MulticastResponseFromCryptonode);
 
 
 GRAFT_DEFINE_IO_STRUCT(SaleResponse,
