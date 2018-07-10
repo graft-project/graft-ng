@@ -115,7 +115,7 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
             MulticastRequestJsonRpc cryptonode_req;
 
             for (const auto & sn : authSample) {
-                cryptonode_req.params.addresses.push_back(sn->walletAddress());
+                cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
             }
 
             cryptonode_req.method = "multicast";

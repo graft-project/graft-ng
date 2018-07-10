@@ -13,7 +13,8 @@ namespace graft {
 
 // Plan "B" in case we can't do that magic, we just define:
 GRAFT_DEFINE_IO_STRUCT(MulticastRequest,
-                       (std::vector<std::string>, addresses),
+                       (std::string, sender_address),
+                       (std::vector<std::string>, receiver_addresses),
                        (std::string, callback_uri),
                        (std::string, data)
                        );
