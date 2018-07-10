@@ -215,14 +215,13 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
     crypto::hash block_hash;
     string  block_hash_str;
 
-    if (!getBlockHash(height, block_hash_str)) {
+    if (!getBlockHash(height - AUTH_SAMPLE_HASH_HEIGHT, block_hash_str)) {
         LOG_ERROR("getBlockHash error");
         return false;
     }
 
     epee::string_tools::hex_to_pod(block_hash_str, block_hash);
     vector<SupernodePtr> tier_supernodes;
-
 
     auto out_it = back_inserter(out);
 
