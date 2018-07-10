@@ -3,6 +3,7 @@
 #include "requesttools.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+#include "requests/multicast.h"
 
 #include <string>
 
@@ -86,6 +87,8 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
             ctx.global.set(payment_id + CONTEXT_KEY_SALE, data, SALE_TTL);
             ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
 
+            // TODO: broadcast sale status
+
             if (!in.SaleDetails.empty())
             {
                 ctx.global.set(payment_id + CONTEXT_KEY_SALE_DETAILS, in.SaleDetails, SALE_TTL);
@@ -94,7 +97,7 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
             std::vector<SupernodePtr> authSample;
             if (!fsl->buildAuthSample(data.BlockNumber, authSample)) {
                 error.code = ERROR_INVALID_PARAMS;
-                error.message  = "can't build auth sample"; // TODO: move to constants
+                error.message  = MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE;
                 break;
             }
             // store SaleData, payment_id and status in local context, so when we got reply from cryptonode, we just pass it to client
