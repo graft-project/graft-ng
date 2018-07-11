@@ -99,18 +99,20 @@ public:
     Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
     void setError(const char* str, Status status = Status::InternalError) { m_ctx.local.setError(str, status); }
 
-    const Router::vars_t& getVars() const { return m_prms.vars; }
-    Input& getInput() { return m_prms.input; }
+    TaskManager& getManager() { return m_manager; }
+    Router::JobParams& getParams() { return m_params; }
+    const Router::vars_t& getVars() const { return m_params.vars; }
+    Input& getInput() { return m_params.input; }
     Output& getOutput() { return m_output; }
-    const Router::Handler3& getH3() const { return m_prms.h3; }
+    const Router::Handler3& getHandler3() const { return m_params.h3; }
     Context& getCtx() { return m_ctx; }
-
-    TaskManager& m_manager;
-    Router::JobParams m_prms;
-    Output m_output;
-    Context m_ctx;
 protected:
     BaseTask(TaskManager& manager, const Router::JobParams& prms);
+
+    TaskManager& m_manager;
+    Router::JobParams m_params;
+    Output m_output;
+    Context m_ctx;
 };
 
 class PeriodicTask : public BaseTask
@@ -133,24 +135,13 @@ public:
     ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms, Dummy& );
 
     virtual void finalize() override;
-public:
+
     mg_connection *m_client;
     ConnectionManager* m_connectionManager;
 };
 
 class TaskManager final
 {
-    void createJob(BaseTaskPtr bt);
-    void onJobDoneBT(BaseTaskPtr bt, GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
-    void onCryptonDoneBT(BaseTaskPtr bt, UpstreamSender& uss);
-    void onTooBusyBT(BaseTaskPtr bt); //called on the thread pool overflow
-
-    void processResultBT(BaseTaskPtr bt);
-
-    void respondAndDieBT(BaseTaskPtr bt, const std::string& s);
-public:
-    void schedule(PeriodicTask* pt);
-    void onEventBT(BaseTaskPtr bt);
 public:
     TaskManager(const ConfigOpts& copts)
         : m_copts(copts)
@@ -162,14 +153,8 @@ public:
     ~TaskManager();
 
     void serve();
-
     void notifyJobReady();
-
-    void doWork(uint64_t cnt);
-
-    void sendCrypton(BaseTaskPtr bt);
-    void sendToThreadPool(BaseTaskPtr bt);
-
+    void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
 
     ////getters
@@ -179,6 +164,7 @@ public:
     GlobalContextMap& getGcm() { return m_gcm; }
     const ConfigOpts& getCopts() const { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
+
     bool ready() const { return m_ready; }
     bool stopped() const { return m_stop; }
 
@@ -193,20 +179,25 @@ public:
     ////events
     void onNewClient(BaseTaskPtr bt);
     void onClientDone(BaseTaskPtr bt);
-public:
-    void onJobDone(GJ& gj);
 
-    void onCryptonDone(UpstreamSender& uss);
-
+    void schedule(PeriodicTask* pt);
+    void onTimer(BaseTaskPtr bt);
+    void onUpstreamDone(UpstreamSender& uss);
 private:
+    void ExecutePreAction(BaseTaskPtr bt);
+    void ExecutePostAction(BaseTaskPtr bt, GJ* gj = nullptr);  //gj equals nullptr if threadPool was skipped for some reasons
+
+    void cb_event(uint64_t cnt);
+    void Execute(BaseTaskPtr bt);
+
+    void processResultBT(BaseTaskPtr bt);
+
+    void respondAndDieBT(BaseTaskPtr bt, const std::string& s);
+
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
-    void setThreadPool(ThreadPoolX&& tp, TPResQueue&& rq, uint64_t m_threadPoolInputSize_);
 
     bool tryProcessReadyJob();
-    void processReadyJobBlock();
 
-    void jobDone();
-private:
     mg_mgr m_mgr;
     GlobalContextMap m_gcm;
 
@@ -217,13 +208,13 @@ private:
     uint64_t m_cntJobSent = 0;
     uint64_t m_cntJobDone = 0;
 
+    ConfigOpts m_copts;
+
     uint64_t m_threadPoolInputSize = 0;
     std::unique_ptr<ThreadPoolX> m_threadPool;
     std::unique_ptr<TPResQueue> m_resQueue;
-
-    ConfigOpts m_copts;
     TimerList<BaseTaskPtr> m_timerList;
-public:
+
     std::atomic_bool m_ready {false};
     std::atomic_bool m_stop {false};
 };

@@ -43,7 +43,7 @@ public:
             decltype(auto) vars_cref = m_bt->getVars();
             decltype(auto) input_ref = m_bt->getInput();
             decltype(auto) output_ref = m_bt->getOutput();
-            decltype(auto) h3_ref = m_bt->getH3();
+            decltype(auto) h3_ref = m_bt->getHandler3();
             decltype(auto) ctx = m_bt->getCtx();
 
             try

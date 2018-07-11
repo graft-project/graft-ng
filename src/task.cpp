@@ -7,36 +7,17 @@
 
 namespace graft {
 
-void TaskManager::sendCrypton(BaseTaskPtr bt)
+void TaskManager::sendUpstream(BaseTaskPtr bt)
 {
     ++m_cntUpstreamSender;
     UpstreamSender::Ptr uss = UpstreamSender::Create();
     uss->send(*this, bt);
 }
 
-void TaskManager::sendToThreadPool(BaseTaskPtr bt)
-{
-    assert(m_cntJobDone <= m_cntJobSent);
-    if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
-    {//check overflow
-        onTooBusyBT(bt);
-        return;
-    }
-    assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
-    ++m_cntJobSent;
-    createJob(bt);
-}
-
-void TaskManager::onTooBusyBT(BaseTaskPtr bt)
-{
-    bt->m_ctx.local.setError("Service Unavailable", Status::Busy);
-    respondAndDieBT(bt,"Thread pool overflow");
-}
-
-void TaskManager::onEventBT(BaseTaskPtr bt)
+void TaskManager::onTimer(BaseTaskPtr bt)
 {
     assert(dynamic_cast<PeriodicTask*>(bt.get()));
-    onNewClient(bt);
+    Execute(bt);
 }
 
 void TaskManager::respondAndDieBT(BaseTaskPtr bt, const std::string& s)
@@ -58,44 +39,27 @@ void TaskManager::schedule(PeriodicTask* pt)
     m_timerList.push(pt->m_timeout_ms, pt->getSelf());
 }
 
-
-void TaskManager::createJob(BaseTaskPtr bt)
+void TaskManager::Execute(BaseTaskPtr bt)
 {
-    auto& m_prms = bt->m_prms;
-    auto& m_ctx = bt->m_ctx;
-    auto& m_output = bt->m_output;
-
-    if(m_prms.h3.pre_action)
-    {
-        try
-        {
-            Status status = m_prms.h3.pre_action(m_prms.vars, m_prms.input, m_ctx, m_output);
-            bt->setLastStatus(status);
-            if(Status::Ok == status && (m_prms.h3.worker_action || m_prms.h3.post_action)
-                    || Status::Forward == status)
-            {
-                m_prms.input.assign(m_output);
-            }
-        }
-        catch(const std::exception& e)
-        {
-            bt->setError(e.what());
-            m_prms.input.reset();
-        }
-        catch(...)
-        {
-            bt->setError("unknown exeption");
-            m_prms.input.reset();
-        }
-
-        if(Status::Ok != bt->getLastStatus() && Status::Forward != bt->getLastStatus())
-        {
-            processResultBT(bt);
-            return;
-        }
+    assert(m_cntJobDone <= m_cntJobSent);
+    if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
+    {//check overflow
+        bt->getCtx().local.setError("Service Unavailable", Status::Busy);
+        respondAndDieBT(bt,"Thread pool overflow");
+        return;
     }
+    assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
+    ++m_cntJobSent;
 
-    if(m_prms.h3.worker_action)
+    auto& params = bt->getParams();
+
+    ExecutePreAction(bt);
+    if(params.h3.pre_action && Status::Ok != bt->getLastStatus() && Status::Forward != bt->getLastStatus())
+    {
+        processResultBT(bt);
+        return;
+    }
+    if(params.h3.worker_action)
     {
         getThreadPool().post(
                     GJ_ptr( bt, &getResQueue(), this ),
@@ -105,47 +69,83 @@ void TaskManager::createJob(BaseTaskPtr bt)
     else
     {
         //special case when worker_action is absent
-        onJobDoneBT(bt, nullptr);
+        ExecutePostAction(bt, nullptr);
+        processResultBT(bt);
         //next call is required to fix counters that prevents overflow
-        jobDone();
+        ++m_cntJobDone;
     }
 }
 
-void TaskManager::onJobDoneBT(BaseTaskPtr bt, GJ* gj)
+bool TaskManager::tryProcessReadyJob()
 {
-    auto& m_prms = bt->m_prms;
-    auto& m_ctx = bt->m_ctx;
-    auto& m_output = bt->m_output;
+    GJ_ptr gj;
+    bool res = getResQueue().pop(gj);
+    if(!res) return res;
+    BaseTaskPtr bt = gj->getTask();
+    ExecutePostAction(bt, &*gj);
+    processResultBT(bt);
+    ++m_cntJobDone;
+    return true;
+}
 
+void TaskManager::ExecutePreAction(BaseTaskPtr bt)
+{
+    auto& params = bt->getParams();
+    if(!params.h3.pre_action) return;
+    auto& ctx = bt->getCtx();
+    auto& output = bt->getOutput();
+
+    try
+    {
+        Status status = params.h3.pre_action(params.vars, params.input, ctx, output);
+        bt->setLastStatus(status);
+        if(Status::Ok == status && (params.h3.worker_action || params.h3.post_action)
+                || Status::Forward == status)
+        {
+            params.input.assign(output);
+        }
+    }
+    catch(const std::exception& e)
+    {
+        bt->setError(e.what());
+        params.input.reset();
+    }
+    catch(...)
+    {
+        bt->setError("unknown exeption");
+        params.input.reset();
+    }
+}
+
+void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
+{
     //post_action if not empty, will be called in any case, even if worker_action results as some kind of error or exception.
     //But, in case pre_action finishes as error both worker_action and post_action will be skipped.
     //post_action has a chance to fix result of pre_action. In case of error was before it it should just return that error.
-    if(m_prms.h3.post_action)
+    auto& params = bt->getParams();
+    if(!params.h3.post_action) return;
+    auto& ctx = bt->getCtx();
+    auto& output = bt->getOutput();
+
+    try
     {
-        try
+        Status status = params.h3.post_action(params.vars, params.input, ctx, output);
+        bt->setLastStatus(status);
+        if(Status::Forward == status)
         {
-            Status status = m_prms.h3.post_action(m_prms.vars, m_prms.input, m_ctx, m_output);
-            bt->setLastStatus(status);
-            if(Status::Forward == status)
-            {
-                m_prms.input.assign(m_output);
-            }
-        }
-        catch(const std::exception& e)
-        {
-            bt->setError(e.what());
-            m_prms.input.reset();
-        }
-        catch(...)
-        {
-            bt->setError("unknown exeption");
-            m_prms.input.reset();
+            params.input.assign(output);
         }
     }
-    //here you can send a request to cryptonode or send response to client
-    //gj will be destroyed on exit, save its result
-    //now it sends response to client
-    processResultBT(bt);
+    catch(const std::exception& e)
+    {
+        bt->setError(e.what());
+        params.input.reset();
+    }
+    catch(...)
+    {
+        bt->setError("unknown exeption");
+        params.input.reset();
+    }
 }
 
 void TaskManager::processResultBT(BaseTaskPtr bt)
@@ -154,17 +154,17 @@ void TaskManager::processResultBT(BaseTaskPtr bt)
     {
     case Status::Forward:
     {
-        sendCrypton(bt);
+        sendUpstream(bt);
     } break;
     case Status::Ok:
     {
-        respondAndDieBT(bt, bt->m_output.data());
+        respondAndDieBT(bt, bt->getOutput().data());
     } break;
     case Status::InternalError:
     case Status::Error:
     case Status::Stop:
     {
-        respondAndDieBT(bt, bt->m_output.data());
+        respondAndDieBT(bt, bt->getOutput().data());
     } break;
     case Status::Drop:
     {
@@ -185,11 +185,6 @@ void TaskManager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milli
     schedule(pt);
 }
 
-void TaskManager::cb_event(mg_mgr *mgr, uint64_t cnt)
-{
-    TaskManager::from(mgr)->doWork(cnt);
-}
-
 TaskManager *TaskManager::from(mg_mgr *mgr)
 {
     assert(mgr->user_data);
@@ -199,30 +194,12 @@ TaskManager *TaskManager::from(mg_mgr *mgr)
 void TaskManager::onNewClient(BaseTaskPtr bt)
 {
     ++m_cntBaseTask;
-    sendToThreadPool(bt);
+    Execute(bt);
 }
 
 void TaskManager::onClientDone(BaseTaskPtr bt)
 {
     ++m_cntBaseTaskDone;
-}
-
-bool TaskManager::tryProcessReadyJob()
-{
-    GJ_ptr gj;
-    bool res = getResQueue().pop(gj);
-    if(!res) return res;
-    onJobDone(*gj);
-    return true;
-}
-
-void TaskManager::processReadyJobBlock()
-{
-    while(true)
-    {
-        bool res = tryProcessReadyJob();
-        if(res) break;
-    }
 }
 
 void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
@@ -246,7 +223,9 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     const size_t maxinputSize = th_op.threadCount()*th_op.queueSize();
     graft::TPResQueue resQueue(resQueueSize);
 
-    setThreadPool(std::move(thread_pool), std::move(resQueue), maxinputSize);
+    m_threadPool = std::make_unique<ThreadPoolX>(std::move(thread_pool));
+    m_resQueue = std::make_unique<TPResQueue>(std::move(resQueue));
+    m_threadPoolInputSize = maxinputSize;
 }
 
 TaskManager::~TaskManager()
@@ -271,7 +250,12 @@ void TaskManager::notifyJobReady()
     mg_notify(&m_mgr);
 }
 
-void TaskManager::doWork(uint64_t cnt)
+void TaskManager::cb_event(mg_mgr *mgr, uint64_t cnt)
+{
+    TaskManager::from(mgr)->cb_event(cnt);
+}
+
+void TaskManager::cb_event(uint64_t cnt)
 {
     //When multiple threads write to the output queue of the thread pool.
     //It is possible that a hole appears when a thread has not completed to set
@@ -287,27 +271,9 @@ void TaskManager::doWork(uint64_t cnt)
     }
 }
 
-void TaskManager::jobDone()
+void TaskManager::onUpstreamDone(UpstreamSender& uss)
 {
-    ++m_cntJobDone;
-}
-
-void TaskManager::onJobDone(GJ& gj)
-{
-    onJobDoneBT(gj.getTask(), &gj);
-    jobDone();
-    //gj will be destroyed on exit
-}
-
-void TaskManager::onCryptonDone(UpstreamSender& uss)
-{
-    onCryptonDoneBT(uss.getTask(), uss);
-    ++m_cntUpstreamSenderDone;
-    //uss will be destroyed on exit
-}
-
-void TaskManager::onCryptonDoneBT(BaseTaskPtr bt, UpstreamSender &uss)
-{
+    BaseTaskPtr bt = uss.getTask();
     if(Status::Ok != uss.getStatus())
     {
         bt->setError(uss.getError().c_str(), uss.getStatus());
@@ -317,8 +283,10 @@ void TaskManager::onCryptonDoneBT(BaseTaskPtr bt, UpstreamSender &uss)
     //here you can send a job to the thread pool or send response to client
     //uss will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
-        sendToThreadPool(bt);
+        Execute(bt);
     }
+    ++m_cntUpstreamSenderDone;
+    //uss will be destroyed on exit
 }
 
 void TaskManager::stop()
@@ -327,16 +295,9 @@ void TaskManager::stop()
     m_stop = true;
 }
 
-void TaskManager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_threadPoolInputSize_)
-{
-    m_threadPool = std::unique_ptr<ThreadPoolX>(new ThreadPoolX(std::move(tp)));
-    m_resQueue = std::unique_ptr<TPResQueue>(new TPResQueue(std::move(rq)));
-    m_threadPoolInputSize = m_threadPoolInputSize_;
-}
-
-BaseTask::BaseTask(TaskManager& manager, const Router::JobParams& prms)
+BaseTask::BaseTask(TaskManager& manager, const Router::JobParams& params)
     : m_manager(manager)
-    , m_prms(prms)
+    , m_params(params)
     , m_ctx(manager.getGcm())
 {
 }

@@ -7,6 +7,8 @@ void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
 
 }
 
+constexpr std::pair<const char *, int> ConnectionManager::m_methods[];
+
 void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
 {
     m_bt = bt;
@@ -42,7 +44,7 @@ void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
             std::ostringstream ss;
             ss << "cryptonode connect failed: " << strerror(err);
             setError(Status::Error, ss.str().c_str());
-            TaskManager::from(crypton->mgr)->onCryptonDone(*this);
+            TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
             crypton->handler = static_empty_ev_handler;
             releaseItself();
         }
@@ -54,7 +56,7 @@ void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
         m_bt->getInput() = *hm;
         setError(Status::Ok);
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        TaskManager::from(crypton->mgr)->onCryptonDone(*this);
+        TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
     } break;
@@ -62,7 +64,7 @@ void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     {
         mg_set_timer(crypton, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
-        TaskManager::from(crypton->mgr)->onCryptonDone(*this);
+        TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
     } break;
@@ -71,7 +73,7 @@ void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
         mg_set_timer(crypton, 0);
         setError(Status::Error, "cryptonode request timout");
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        TaskManager::from(crypton->mgr)->onCryptonDone(*this);
+        TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
         crypton->handler = static_empty_ev_handler;
         releaseItself();
     } break;
@@ -79,8 +81,6 @@ void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
         break;
     }
 }
-
-constexpr std::pair<const char *, int> ConnectionManager::m_methods[];
 
 ConnectionManager* ConnectionManager::from_accepted(mg_connection *cn)
 {
@@ -95,14 +95,14 @@ void ConnectionManager::ev_handler_empty(mg_connection *client, int ev, void *ev
 void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev, void *ev_data)
 {
     assert(ct->m_client == client);
-    assert(&ct->m_manager == TaskManager::from(client->mgr));
+    assert(&ct->getManager() == TaskManager::from(client->mgr));
     switch (ev)
     {
     case MG_EV_CLOSE:
     {
         assert(ct->getSelf());
         if(ct->getSelf()) break;
-        ct->m_manager.onClientDone(ct->getSelf());
+        ct->getManager().onClientDone(ct->getSelf());
         client->handler = static_empty_ev_handler;
         ct->finalize();
     } break;
@@ -151,6 +151,20 @@ int CoapConnectionManager::translateMethod(int i)
     constexpr int size = sizeof(m_methods)/sizeof(m_methods[0]);
     assert(i<size);
     return m_methods[i].second;
+}
+
+HttpConnectionManager* HttpConnectionManager::from_accepted(mg_connection* cn)
+{
+    ConnectionManager* cm = ConnectionManager::from_accepted(cn);
+    assert(dynamic_cast<HttpConnectionManager*>(cm));
+    return static_cast<HttpConnectionManager*>(cm);
+}
+
+CoapConnectionManager* CoapConnectionManager::from_accepted(mg_connection* cn)
+{
+    ConnectionManager* cm = ConnectionManager::from_accepted(cn);
+    assert(dynamic_cast<CoapConnectionManager*>(cm));
+    return static_cast<CoapConnectionManager*>(cm);
 }
 
 void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void *ev_data)
@@ -273,7 +287,7 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
 void ConnectionManager::respond(ClientTask* ct, const std::string& s)
 {
     int code;
-    switch(ct->m_ctx.local.getLastStatus())
+    switch(ct->getCtx().local.getLastStatus())
     {
     case Status::Ok: code = 200; break;
     case Status::InternalError:
@@ -283,20 +297,20 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
     default: assert(false); break;
     }
 
-    auto& m_ctx = ct->m_ctx;
-    auto& m_client = ct->m_client;
-    if(Status::Ok == m_ctx.local.getLastStatus())
+    auto& ctx = ct->getCtx();
+    auto& client = ct->m_client;
+    if(Status::Ok == ctx.local.getLastStatus())
     {
-        mg_send_head(m_client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
-        mg_send(m_client, s.c_str(), s.size());
+        mg_send_head(client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
+        mg_send(client, s.c_str(), s.size());
     }
     else
     {
-        mg_http_send_error(m_client, code, s.c_str());
+        mg_http_send_error(client, code, s.c_str());
     }
-    m_client->flags |= MG_F_SEND_AND_CLOSE;
-    m_client->handler = static_empty_ev_handler;
-    m_client = nullptr;
+    client->flags |= MG_F_SEND_AND_CLOSE;
+    client->handler = static_empty_ev_handler;
+    client = nullptr;
 }
 
 }//namespace graft
