@@ -133,9 +133,6 @@ public:
     ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms, Dummy& );
 
     virtual void finalize() override;
-
-    void ev_handler(mg_connection *client, int ev, void *ev_data);
-
 public:
     mg_connection *m_client;
     ConnectionManager* m_connectionManager;

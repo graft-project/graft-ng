@@ -92,6 +92,26 @@ void ConnectionManager::ev_handler_empty(mg_connection *client, int ev, void *ev
 {
 }
 
+void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev, void *ev_data)
+{
+    assert(ct->m_client == client);
+    assert(&ct->m_manager == TaskManager::from(client->mgr));
+    switch (ev)
+    {
+    case MG_EV_CLOSE:
+    {
+        assert(ct->getSelf());
+        if(ct->getSelf()) break;
+        ct->m_manager.onClientDone(ct->getSelf());
+        client->handler = static_empty_ev_handler;
+        ct->finalize();
+    } break;
+    default:
+        break;
+    }
+}
+
+
 void HttpConnectionManager::bind(TaskManager& manager)
 {
     assert(!manager.ready());

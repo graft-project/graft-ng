@@ -363,23 +363,4 @@ void ClientTask::finalize()
     releaseItself();
 }
 
-void ClientTask::ev_handler(mg_connection *client, int ev, void *ev_data)
-{
-    assert(m_client == client);
-    assert(&m_manager == TaskManager::from(client->mgr));
-    switch (ev)
-    {
-    case MG_EV_CLOSE:
-    {
-        assert(getSelf());
-        if(getSelf()) break;
-        m_manager.onClientDone(getSelf());
-        client->handler = static_empty_ev_handler;
-        releaseItself();
-    } break;
-    default:
-        break;
-    }
-}
-
 }//namespace graft

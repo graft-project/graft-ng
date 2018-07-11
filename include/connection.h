@@ -4,7 +4,22 @@
 
 namespace graft {
 
+namespace details
+{
+
 template<typename C>
+class default_F
+{
+public:
+    void operator()(C* This, mg_connection *nc, int ev, void *ev_data)
+    {
+        This->ev_handler(nc, ev, ev_data);
+    }
+};
+
+} //namespace details
+
+template<typename C, typename F = details::default_F<C>>
 void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
 {
     static bool entered = false;
@@ -12,7 +27,8 @@ void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
     entered = true;
     C* This = static_cast<C*>(nc->user_data);
     assert(This);
-    This->ev_handler(nc, ev, ev_data);
+    F f;
+    f(This, nc, ev, ev_data);
     entered = false;
 }
 
@@ -62,6 +78,7 @@ public:
     //returns conflicting endpoint
     std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
 
+    static void ev_handler(ClientTask* ct, mg_connection *client, int ev, void *ev_data);
 protected:
     static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
 #define _M(x) std::make_pair(#x, METHOD_##x)
@@ -71,6 +88,21 @@ protected:
 protected:
     Router::Root m_root;
 };
+
+namespace details
+{
+
+template<>
+class default_F<ClientTask>
+{
+public:
+    void operator()(ClientTask* This, mg_connection *nc, int ev, void *ev_data)
+    {
+        This->m_connectionManager->ev_handler(This, nc, ev, ev_data);
+    }
+};
+
+} //namespace details
 
 class HttpConnectionManager final : public ConnectionManager
 {
