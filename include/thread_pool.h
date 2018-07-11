@@ -40,11 +40,11 @@ public:
     virtual void operator () ()
     {
         {
-            decltype(auto) vars_cref = m_bt->get_vars();
-            decltype(auto) input_ref = m_bt->get_input();
-            decltype(auto) output_ref = m_bt->get_output();
-            decltype(auto) h3_ref = m_bt->get_h3();
-            decltype(auto) ctx = m_bt->get_ctx();
+            decltype(auto) vars_cref = m_bt->getVars();
+            decltype(auto) input_ref = m_bt->getInput();
+            decltype(auto) output_ref = m_bt->getOutput();
+            decltype(auto) h3_ref = m_bt->getH3();
+            decltype(auto) ctx = m_bt->getCtx();
 
             try
             {
@@ -71,7 +71,7 @@ public:
         save_m_watcher->notifyJobReady();
     }
 
-    BT_ptr& get_bt() { return m_bt; }
+    BT_ptr& getTask() { return m_bt; }
 protected:
     BT_ptr m_bt;
 

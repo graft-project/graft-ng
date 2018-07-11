@@ -667,7 +667,7 @@ private:
         virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             data = std::string(hm->uri.p, hm->uri.len);
-            graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+            graft::Context ctx(mainServer.pmanager.load()->getGcm());
             int method = ctx.global["method"];
             if(method == METHOD_GET)
             {
@@ -882,7 +882,7 @@ bool GraftServerCommonTest::crypton_ready = false;
 
 TEST_F(GraftServerCommonTest, GETtp)
 {//GET -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.pmanager.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -909,7 +909,7 @@ TEST_F(GraftServerCommonTest, clientTimeout)
 
 TEST_F(GraftServerCommonTest, cryptonTimeout)
 {//GET -> threadPool -> CryptoNode -> timeout
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.pmanager.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -970,7 +970,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
     for(int i=0; i<N; ++i)
     {
         int n = ms_all/((i+1)*ms_step);
-        n -= (mainServer.pmanager.load()->get_c_opts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
+        n -= (mainServer.pmanager.load()->getCopts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
         EXPECT_LE(n-2, cntrs[i]);
         EXPECT_LE(cntrs[i], n+1);
         EXPECT_EQ(cntrs_all[i]-1, 2*cntrs[i]);
@@ -979,7 +979,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
 
 TEST_F(GraftServerCommonTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.pmanager.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -995,7 +995,7 @@ TEST_F(GraftServerCommonTest, GETtpCNtp)
 
 TEST_F(GraftServerCommonTest, POSTtp)
 {//POST -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.pmanager.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1011,7 +1011,7 @@ TEST_F(GraftServerCommonTest, POSTtp)
 
 TEST_F(GraftServerCommonTest, POSTtpCNtp)
 {//POST -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.pmanager.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1030,7 +1030,7 @@ TEST_F(GraftServerCommonTest, POSTtpCNtp)
 
 TEST_F(GraftServerCommonTest, clPOSTtp)
 {//POST cmdline -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.pmanager.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1047,7 +1047,7 @@ TEST_F(GraftServerCommonTest, clPOSTtp)
 
 TEST_F(GraftServerCommonTest, clPOSTtpCNtp)
 {//POST cmdline -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.pmanager.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;

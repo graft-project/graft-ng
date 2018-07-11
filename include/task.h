@@ -18,11 +18,11 @@ class TaskManager;
 class ConnectionManager;
 
 class BaseTask;
-using BaseTask_ptr = std::shared_ptr<BaseTask>;
+using BaseTaskPtr = std::shared_ptr<BaseTask>;
 
 class GJ_ptr;
 using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
-using GJ = GraftJob<BaseTask_ptr, TPResQueue, TaskManager>;
+using GJ = GraftJob<BaseTaskPtr, TPResQueue, TaskManager>;
 
 //////////////
 /// \brief The GJ_ptr class
@@ -91,40 +91,37 @@ struct ConfigOpts
 
 class BaseTask : public SelfHolder<BaseTask>
 {
-protected:
-    friend class SelfHolder<BaseTask>;
-    BaseTask(TaskManager& manager, const Router::JobParams& prms);
 public:
     virtual ~BaseTask() { }
-
     virtual void finalize() = 0;
-public:
+
     void setLastStatus(Status status) { Context::LocalFriend::setLastStatus(m_ctx.local, status); }
     Status getLastStatus() const { return m_ctx.local.getLastStatus(); }
     void setError(const char* str, Status status = Status::InternalError) { m_ctx.local.setError(str, status); }
-public:
-    const Router::vars_t& get_vars() const { return m_prms.vars; }
-    Input& get_input() { return m_prms.input; }
-    Output& get_output() { return m_output; }
-    const Router::Handler3& get_h3() const { return m_prms.h3; }
-    Context& get_ctx() { return m_ctx; }
-public:
+
+    const Router::vars_t& getVars() const { return m_prms.vars; }
+    Input& getInput() { return m_prms.input; }
+    Output& getOutput() { return m_output; }
+    const Router::Handler3& getH3() const { return m_prms.h3; }
+    Context& getCtx() { return m_ctx; }
+
     TaskManager& m_manager;
     Router::JobParams m_prms;
     Output m_output;
     Context m_ctx;
+protected:
+    BaseTask(TaskManager& manager, const Router::JobParams& prms);
 };
 
 class PeriodicTask : public BaseTask
 {
-private:
-    friend class SelfHolder<BaseTask>;
-    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
+public:
+    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms, Dummy&)
         : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
         , m_timeout_ms(timeout_ms)
     {
     }
-public:
+
     virtual void finalize() override;
 
     std::chrono::milliseconds m_timeout_ms;
@@ -132,12 +129,11 @@ public:
 
 class ClientTask : public BaseTask
 {
-private:
-    friend class SelfHolder<BaseTask>;
-    ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms);
+public:
+    ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms, Dummy& );
 
     virtual void finalize() override;
-public:
+
     void ev_handler(mg_connection *client, int ev, void *ev_data);
 
 public:
@@ -147,17 +143,17 @@ public:
 
 class TaskManager final
 {
-    void createJob(BaseTask_ptr bt);
-    void onJobDoneBT(BaseTask_ptr bt, GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
-    void onCryptonDoneBT(BaseTask_ptr bt, UpstreamSender& uss);
-    void onTooBusyBT(BaseTask_ptr bt); //called on the thread pool overflow
+    void createJob(BaseTaskPtr bt);
+    void onJobDoneBT(BaseTaskPtr bt, GJ* gj = nullptr); //gj equals nullptr if threadPool was skipped for some reasons
+    void onCryptonDoneBT(BaseTaskPtr bt, UpstreamSender& uss);
+    void onTooBusyBT(BaseTaskPtr bt); //called on the thread pool overflow
 
-    void processResultBT(BaseTask_ptr bt);
+    void processResultBT(BaseTaskPtr bt);
 
-    void respondAndDieBT(BaseTask_ptr bt, const std::string& s);
+    void respondAndDieBT(BaseTaskPtr bt, const std::string& s);
 public:
     void schedule(PeriodicTask* pt);
-    void onEventBT(BaseTask_ptr bt);
+    void onEventBT(BaseTaskPtr bt);
 public:
     TaskManager(const ConfigOpts& copts)
         : m_copts(copts)
@@ -174,18 +170,18 @@ public:
 
     void doWork(uint64_t cnt);
 
-    void sendCrypton(BaseTask_ptr bt);
-    void sendToThreadPool(BaseTask_ptr bt);
+    void sendCrypton(BaseTaskPtr bt);
+    void sendToThreadPool(BaseTaskPtr bt);
 
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
 
     ////getters
-    mg_mgr* get_mg_mgr() { return &m_mgr; }
-    ThreadPoolX& get_threadPool() { return *m_threadPool.get(); }
-    TPResQueue& get_resQueue() { return *m_resQueue.get(); }
-    GlobalContextMap& get_gcm() { return m_gcm; }
-    const ConfigOpts& get_c_opts() const { return m_copts; }
-    TimerList<BaseTask_ptr>& get_timerList() { return m_timerList; }
+    mg_mgr* getMgMgr() { return &m_mgr; }
+    ThreadPoolX& getThreadPool() { return *m_threadPool.get(); }
+    TPResQueue& getResQueue() { return *m_resQueue.get(); }
+    GlobalContextMap& getGcm() { return m_gcm; }
+    const ConfigOpts& getCopts() const { return m_copts; }
+    TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
     bool ready() const { return m_ready; }
     bool stopped() const { return m_stop; }
 
@@ -198,8 +194,8 @@ public:
     static TaskManager* from(mg_mgr* mgr);
 
     ////events
-    void onNewClient(BaseTask_ptr bt);
-    void onClientDone(BaseTask_ptr bt);
+    void onNewClient(BaseTaskPtr bt);
+    void onClientDone(BaseTaskPtr bt);
 public:
     void onJobDone(GJ& gj);
 
@@ -229,7 +225,7 @@ private:
     std::unique_ptr<TPResQueue> m_resQueue;
 
     ConfigOpts m_copts;
-    TimerList<BaseTask_ptr> m_timerList;
+    TimerList<BaseTaskPtr> m_timerList;
 public:
     std::atomic_bool m_ready {false};
     std::atomic_bool m_stop {false};

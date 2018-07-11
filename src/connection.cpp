@@ -7,13 +7,13 @@ void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
 
 }
 
-void UpstreamSender::send(TaskManager &manager, BaseTask_ptr bt)
+void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
 {
     m_bt = bt;
 
-    const ConfigOpts& opts = manager.get_c_opts();
+    const ConfigOpts& opts = manager.getCopts();
     std::string default_uri = opts.cryptonode_rpc_address.c_str();
-    Output& output = bt->get_output();
+    Output& output = bt->getOutput();
     std::string url = output.makeUri(default_uri);
     std::string extra_headers = output.combine_headers();
     if(extra_headers.empty())
@@ -21,7 +21,7 @@ void UpstreamSender::send(TaskManager &manager, BaseTask_ptr bt)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler<UpstreamSender>, url.c_str(),
+    m_crypton = mg_connect_http(manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
                              extra_headers.c_str(),
                              (body.empty())? nullptr : body.c_str()); //last nullptr means GET
     assert(m_crypton);
@@ -51,7 +51,7 @@ void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
     {
         mg_set_timer(crypton, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
-        m_bt->get_input() = *hm;
+        m_bt->getInput() = *hm;
         setError(Status::Ok);
         crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
         TaskManager::from(crypton->mgr)->onCryptonDone(*this);
@@ -95,9 +95,9 @@ void ConnectionManager::ev_handler_empty(mg_connection *client, int ev, void *ev
 void HttpConnectionManager::bind(TaskManager& manager)
 {
     assert(!manager.ready());
-    mg_mgr* mgr = manager.get_mg_mgr();
+    mg_mgr* mgr = manager.getMgMgr();
 
-    const ConfigOpts& opts = manager.get_c_opts();
+    const ConfigOpts& opts = manager.getCopts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
     nc_http->user_data = this;
@@ -107,9 +107,9 @@ void HttpConnectionManager::bind(TaskManager& manager)
 void CoapConnectionManager::bind(TaskManager& manager)
 {
     assert(!manager.ready());
-    mg_mgr* mgr = manager.get_mg_mgr();
+    mg_mgr* mgr = manager.getMgMgr();
 
-    const ConfigOpts& opts = manager.get_c_opts();
+    const ConfigOpts& opts = manager.getCopts();
 
     mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
     nc_coap->user_data = this;
@@ -167,7 +167,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
             client->user_data = ptr;
             client->handler = static_ev_handler<ClientTask>;
 
-            manager->onNewClient(ptr->get_itself());
+            manager->onNewClient(ptr->getSelf());
         }
         else
         {
@@ -178,7 +178,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     }
     case MG_EV_ACCEPT:
     {
-        const ConfigOpts& opts = manager->get_c_opts();
+        const ConfigOpts& opts = manager->getCopts();
 
         mg_set_timer(client, mg_time() + opts.http_connection_timeout);
         break;
@@ -238,7 +238,7 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
             client->handler = static_ev_handler<ClientTask>;
 
             TaskManager* manager = TaskManager::from(client->mgr);
-            manager->onNewClient(ptr->get_itself());
+            manager->onNewClient(ptr->getSelf());
         }
         break;
     }

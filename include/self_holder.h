@@ -9,20 +9,28 @@ class SelfHolder
 {
 public:
     using Ptr = std::shared_ptr<C>;
-public:
-    Ptr get_itself() { return m_itself; }
+
+    Ptr getSelf() { return m_self; }
 
     template<typename T=C, typename ...ARGS>
     static const Ptr Create(ARGS&&... args)
     {
-        return (new T(std::forward<ARGS>(args)...))->m_itself;
+        Dummy dummy;
+        return (new T(std::forward<ARGS>(args)..., dummy))->m_self;
     }
+
+    //class helper to protect call of constructors of derivative classes
+    class Dummy
+    {
+        friend class SelfHolder;
+        Dummy() = default;
+    };
 protected:
-    void releaseItself() { m_itself.reset(); }
-protected:
-    SelfHolder() : m_itself(static_cast<C*>(this)) { }
+    void releaseItself() { m_self.reset(); }
+
+    SelfHolder() : m_self(static_cast<C*>(this)) { }
 private:
-    Ptr m_itself;
+    Ptr m_self;
 };
 
 }//namespace graft

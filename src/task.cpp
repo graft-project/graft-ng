@@ -7,14 +7,14 @@
 
 namespace graft {
 
-void TaskManager::sendCrypton(BaseTask_ptr bt)
+void TaskManager::sendCrypton(BaseTaskPtr bt)
 {
     ++m_cntUpstreamSender;
     UpstreamSender::Ptr uss = UpstreamSender::Create();
     uss->send(*this, bt);
 }
 
-void TaskManager::sendToThreadPool(BaseTask_ptr bt)
+void TaskManager::sendToThreadPool(BaseTaskPtr bt)
 {
     assert(m_cntJobDone <= m_cntJobSent);
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
@@ -27,19 +27,19 @@ void TaskManager::sendToThreadPool(BaseTask_ptr bt)
     createJob(bt);
 }
 
-void TaskManager::onTooBusyBT(BaseTask_ptr bt)
+void TaskManager::onTooBusyBT(BaseTaskPtr bt)
 {
     bt->m_ctx.local.setError("Service Unavailable", Status::Busy);
     respondAndDieBT(bt,"Thread pool overflow");
 }
 
-void TaskManager::onEventBT(BaseTask_ptr bt)
+void TaskManager::onEventBT(BaseTaskPtr bt)
 {
     assert(dynamic_cast<PeriodicTask*>(bt.get()));
     onNewClient(bt);
 }
 
-void TaskManager::respondAndDieBT(BaseTask_ptr bt, const std::string& s)
+void TaskManager::respondAndDieBT(BaseTaskPtr bt, const std::string& s)
 {
     ClientTask* ct = dynamic_cast<ClientTask*>(bt.get());
     if(ct)
@@ -55,11 +55,11 @@ void TaskManager::respondAndDieBT(BaseTask_ptr bt, const std::string& s)
 
 void TaskManager::schedule(PeriodicTask* pt)
 {
-    m_timerList.push(pt->m_timeout_ms, pt->get_itself());
+    m_timerList.push(pt->m_timeout_ms, pt->getSelf());
 }
 
 
-void TaskManager::createJob(BaseTask_ptr bt)
+void TaskManager::createJob(BaseTaskPtr bt)
 {
     auto& m_prms = bt->m_prms;
     auto& m_ctx = bt->m_ctx;
@@ -97,8 +97,8 @@ void TaskManager::createJob(BaseTask_ptr bt)
 
     if(m_prms.h3.worker_action)
     {
-        get_threadPool().post(
-                    GJ_ptr( bt, &get_resQueue(), this ),
+        getThreadPool().post(
+                    GJ_ptr( bt, &getResQueue(), this ),
                     true
                     );
     }
@@ -111,7 +111,7 @@ void TaskManager::createJob(BaseTask_ptr bt)
     }
 }
 
-void TaskManager::onJobDoneBT(BaseTask_ptr bt, GJ* gj)
+void TaskManager::onJobDoneBT(BaseTaskPtr bt, GJ* gj)
 {
     auto& m_prms = bt->m_prms;
     auto& m_ctx = bt->m_ctx;
@@ -148,7 +148,7 @@ void TaskManager::onJobDoneBT(BaseTask_ptr bt, GJ* gj)
     processResultBT(bt);
 }
 
-void TaskManager::processResultBT(BaseTask_ptr bt)
+void TaskManager::processResultBT(BaseTaskPtr bt)
 {
     switch(bt->getLastStatus())
     {
@@ -196,13 +196,13 @@ TaskManager *TaskManager::from(mg_mgr *mgr)
     return static_cast<TaskManager*>(mgr->user_data);
 }
 
-void TaskManager::onNewClient(BaseTask_ptr bt)
+void TaskManager::onNewClient(BaseTaskPtr bt)
 {
     ++m_cntBaseTask;
     sendToThreadPool(bt);
 }
 
-void TaskManager::onClientDone(BaseTask_ptr bt)
+void TaskManager::onClientDone(BaseTaskPtr bt)
 {
     ++m_cntBaseTaskDone;
 }
@@ -210,7 +210,7 @@ void TaskManager::onClientDone(BaseTask_ptr bt)
 bool TaskManager::tryProcessReadyJob()
 {
     GJ_ptr gj;
-    bool res = get_resQueue().pop(gj);
+    bool res = getResQueue().pop(gj);
     if(!res) return res;
     onJobDone(*gj);
     return true;
@@ -261,7 +261,7 @@ void TaskManager::serve()
     for (;;)
     {
         mg_mgr_poll(&m_mgr, m_copts.timer_poll_interval_ms);
-        get_timerList().eval();
+        getTimerList().eval();
         if(stopped()) break;
     }
 }
@@ -294,19 +294,19 @@ void TaskManager::jobDone()
 
 void TaskManager::onJobDone(GJ& gj)
 {
-    onJobDoneBT(gj.get_bt(), &gj);
+    onJobDoneBT(gj.getTask(), &gj);
     jobDone();
     //gj will be destroyed on exit
 }
 
 void TaskManager::onCryptonDone(UpstreamSender& uss)
 {
-    onCryptonDoneBT(uss.get_bt(), uss);
+    onCryptonDoneBT(uss.getTask(), uss);
     ++m_cntUpstreamSenderDone;
     //uss will be destroyed on exit
 }
 
-void TaskManager::onCryptonDoneBT(BaseTask_ptr bt, UpstreamSender &uss)
+void TaskManager::onCryptonDoneBT(BaseTaskPtr bt, UpstreamSender &uss)
 {
     if(Status::Ok != uss.getStatus())
     {
@@ -337,7 +337,7 @@ void TaskManager::setThreadPool(ThreadPoolX &&tp, TPResQueue &&rq, uint64_t m_th
 BaseTask::BaseTask(TaskManager& manager, const Router::JobParams& prms)
     : m_manager(manager)
     , m_prms(prms)
-    , m_ctx(manager.get_gcm())
+    , m_ctx(manager.getGcm())
 {
 }
 
@@ -351,7 +351,7 @@ void PeriodicTask::finalize()
     this->m_manager.schedule(this);
 }
 
-ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
+ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms, Dummy&)
     : BaseTask(*TaskManager::from(client->mgr), prms)
     , m_connectionManager(connectionManager)
     , m_client(client)
@@ -371,9 +371,9 @@ void ClientTask::ev_handler(mg_connection *client, int ev, void *ev_data)
     {
     case MG_EV_CLOSE:
     {
-        assert(get_itself());
-        if(get_itself()) break;
-        m_manager.onClientDone(get_itself());
+        assert(getSelf());
+        if(getSelf()) break;
+        m_manager.onClientDone(getSelf());
         client->handler = static_empty_ev_handler;
         releaseItself();
     } break;

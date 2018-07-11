@@ -21,11 +21,11 @@ void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data);
 class UpstreamSender : public SelfHolder<UpstreamSender>
 {
 public:
-    UpstreamSender() = default;
+    UpstreamSender(Dummy&) { }
 
-    BaseTask_ptr& get_bt() { return m_bt; }
+    BaseTaskPtr& getTask() { return m_bt; }
 
-    void send(TaskManager& manager, BaseTask_ptr bt);
+    void send(TaskManager& manager, BaseTaskPtr bt);
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
 public:
@@ -38,7 +38,7 @@ private:
     }
 private:
     mg_connection *m_crypton = nullptr;
-    BaseTask_ptr m_bt;
+    BaseTaskPtr m_bt;
     Status m_status = Status::None;
     std::string m_error;
 };
@@ -61,6 +61,7 @@ public:
     void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
     //returns conflicting endpoint
     std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
+
 protected:
     static void ev_handler_empty(mg_connection *client, int ev, void *ev_data);
 #define _M(x) std::make_pair(#x, METHOD_##x)
