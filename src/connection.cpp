@@ -23,9 +23,9 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_crypton = mg_connect_http(manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
+    m_crypton = mg::mg_connect_http_x(manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
                              extra_headers.c_str(),
-                             (body.empty())? nullptr : body.c_str()); //last nullptr means GET
+                             body); //body.empty() means GET
     assert(m_crypton);
     m_crypton->user_data = this;
     mg_set_timer(m_crypton, mg_time() + opts.upstream_request_timeout);
@@ -103,7 +103,8 @@ void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev
         assert(ct->getSelf());
         if(ct->getSelf()) break;
         ct->getManager().onClientDone(ct->getSelf());
-        client->handler = static_empty_ev_handler;
+        ct->m_client->handler = static_empty_ev_handler;
+        ct->m_client = nullptr;
         ct->finalize();
     } break;
     default:
@@ -309,6 +310,7 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
         mg_http_send_error(client, code, s.c_str());
     }
     client->flags |= MG_F_SEND_AND_CLOSE;
+    ct->getManager().onClientDone(ct->getSelf());
     client->handler = static_empty_ev_handler;
     client = nullptr;
 }

@@ -283,6 +283,7 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     //here you can send a job to the thread pool or send response to client
     //uss will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
+        if(!bt->getSelf()) return; //it is possible that a client has closed connection already
         Execute(bt);
     }
     ++m_cntUpstreamSenderDone;
