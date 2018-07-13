@@ -262,7 +262,7 @@ void BaseTask::createJob()
         }
         catch(...)
         {
-            setError("unknown exeption");
+            setError("unknown exception");
             m_prms.input.reset();
         }
 
@@ -312,7 +312,7 @@ void BaseTask::onJobDone(GJ* gj)
         }
         catch(...)
         {
-            setError("unknown exeption");
+            setError("unknown exception");
             m_prms.input.reset();
         }
     }

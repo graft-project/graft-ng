@@ -65,29 +65,19 @@ int main(int argc, const char** argv)
         if (vm.count("log-level")) {
             log_level = vm["log-level"].as<int>();
         }
-    }
-    catch(exception& e) {
-        cerr << "error: " << e.what() << "\n";
-        return 1;
-    }
-    catch(...) {
-        cerr << "Exception of unknown type!\n";
-    }
 
-    mlog_configure("", true);
-    mlog_set_log_level(log_level);
-    // load config
-    boost::property_tree::ptree config;
-    namespace fs = boost::filesystem;
+        mlog_configure("", true);
+        mlog_set_log_level(log_level);
+        // load config
+        boost::property_tree::ptree config;
+        namespace fs = boost::filesystem;
 
-    if (config_filename.empty()) {
-        fs::path selfpath = argv[0];
-        selfpath = selfpath.remove_filename();
-        config_filename  = (selfpath /= "config.ini").string();
-    }
+        if (config_filename.empty()) {
+            fs::path selfpath = argv[0];
+            selfpath = selfpath.remove_filename();
+            config_filename  = (selfpath /= "config.ini").string();
+        }
 
-
-    try {
         boost::property_tree::ini_parser::read_ini(config_filename, config);
         // now we have only following parameters
         // [server]
@@ -161,6 +151,10 @@ int main(int argc, const char** argv)
 
     } catch (const std::exception & e) {
         std::cerr << "Exception thrown: " << e.what() << std::endl;
+        return -1;
+    }
+    catch(...) {
+        std::cerr << "Exception of unknown type!\n";
         return -1;
     }
 
