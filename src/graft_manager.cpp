@@ -445,6 +445,7 @@ void GraftServer::serve(mg_mgr *mgr)
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
     if(!nc_http) throw std::runtime_error("Cannot bind to " + opts.http_address);
+
     mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
     if(!nc_coap) throw std::runtime_error("Cannot bind to " + opts.coap_address);
 
