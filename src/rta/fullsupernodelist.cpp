@@ -231,16 +231,21 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
 
     auto out_it = back_inserter(out);
 
-    auto build_tier_sample = [&](uint64_t tier_min, uint64_t tier_max) {
-        selectTierSupernodes(block_hash, tier_min, tier_max, tier_supernodes);
+    size_t remaining_items = 8;
+    auto build_tier_sample = [&](uint64_t tier_min, uint64_t tier_max) -> size_t {
+        selectTierSupernodes(block_hash, tier_min, tier_max, tier_supernodes, out, ITEMS_PER_TIER);
         copy(tier_supernodes.begin(), tier_supernodes.end(), out_it);
+        size_t items_selected =  tier_supernodes.size();
         tier_supernodes.clear();
+        return items_selected;
     };
 
-    build_tier_sample(Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT);
-    build_tier_sample(Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT);
-    build_tier_sample(Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT);
-    build_tier_sample(Supernode::TIER4_STAKE_AMOUNT, std::numeric_limits<uint64_t>::max());
+    while (out.size() < AUTH_SAMPLE_SIZE) {
+        build_tier_sample(Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT);
+        build_tier_sample(Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT);
+        build_tier_sample(Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT);
+        build_tier_sample(Supernode::TIER4_STAKE_AMOUNT, std::numeric_limits<uint64_t>::max());
+    }
 
     return true;
 }
@@ -309,7 +314,8 @@ bool FullSupernodeList::bestSupernode(vector<SupernodePtr> &arg, const crypto::h
 
 
 void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
-                                             vector<SupernodePtr> &output)
+                                             vector<SupernodePtr> &output, const vector<SupernodePtr> &selected_items,
+                                             size_t max_items)
 {
     // copy all the items with the stake not less than given tier_min_stake
     vector<SupernodePtr> all_tier_items;
@@ -317,12 +323,20 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
     {
         boost::shared_lock<boost::shared_mutex> readerLock(m_access);
         for (const auto &it : m_list) {
-            if (it.second->stakeAmount() >= tier_min_stake && it.second->stakeAmount() < tier_max_stake)
+            if (it.second->stakeAmount() >= tier_min_stake
+                    && it.second->stakeAmount() < tier_max_stake
+                    && find_if(selected_items.begin(), selected_items.end(), [&](const auto &sn) {
+                               return sn->walletAddress() == it.first;
+                            }) == selected_items.end())
                 all_tier_items.push_back(it.second);
         }
     }
+    if (all_tier_items.empty()) {
+        LOG_PRINT_L1("No items selected for tier:  " << tier_min_stake << " - " << tier_max_stake);
+        return;
+    }
 
-    for (int i = 0; i < ITEMS_PER_TIER; ++i) {
+    for (int i = 0; i < max_items; ++i) {
         SupernodePtr best;
         if (bestSupernode(all_tier_items, block_hash, best)) {
             output.push_back(best);
@@ -331,6 +345,7 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
             break;
         }
     }
+
 }
 
 bool FullSupernodeList::loadWallet(const std::string &wallet_path)

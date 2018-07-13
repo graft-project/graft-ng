@@ -127,7 +127,8 @@ public:
 
 private:
     void selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
-                              std::vector<SupernodePtr> &output);
+                              std::vector<SupernodePtr> &output, const std::vector<SupernodePtr> &selected_items,
+                              size_t max_items);
     bool bestSupernode(std::vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result);
 
     bool loadWallet(const std::string &wallet_path);
