@@ -443,8 +443,10 @@ void GraftServer::serve(mg_mgr *mgr)
 
     const ServerOpts& opts = m_manager->get_c_opts();
 
-    mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http),
-                  *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
+    mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
+    if(!nc_http) throw std::runtime_error("Cannot bind to " + opts.http_address);
+    mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
+    if(!nc_coap) throw std::runtime_error("Cannot bind to " + opts.coap_address);
 
     mg_set_protocol_http_websocket(nc_http);
     mg_set_protocol_coap(nc_coap);
