@@ -63,9 +63,7 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
     auto supernodeRefreshWorker = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
             graft::Output& output)->graft::Status
     {
-        LOG_PRINT_L1("input: " << input.data());
-        LOG_PRINT_L1("output: " << output.data());
-        LOG_PRINT_L1("last status: " << (int)ctx.local.getLastStatus());
+
 
         switch (ctx.local.getLastStatus()) {
         case graft::Status::Forward: // reply from cryptonode
@@ -73,6 +71,11 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
         case graft::Status::Ok:
         case graft::Status::None:
             graft::SupernodePtr supernode;
+
+            LOG_PRINT_L1("supernodeRefreshWorker");
+            LOG_PRINT_L1("input: " << input.data());
+            LOG_PRINT_L1("output: " << output.data());
+            LOG_PRINT_L1("last status: " << (int)ctx.local.getLastStatus());
 
             supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
 
@@ -95,7 +98,7 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
             // DBG: without cryptonode
             // output.path = "/dapi/v2.0/send_supernode_announce";
 
-            LOG_PRINT_L1("Calling cryptonode");
+            LOG_PRINT_L1("Calling cryptonode: sending announce");
             return graft::Status::Forward;
         }
     };
@@ -265,6 +268,7 @@ int main(int argc, const char** argv)
         manager.get_gcm().addOrUpdate("supernode", supernode);
 
         // create fullsupernode list instance and put it into global context
+        LOG_PRINT_L0("loading supernode list");
         graft::FullSupernodeListPtr fsl {new graft::FullSupernodeList(sopts.cryptonode_rpc_address, sopts.testnet)};
         size_t found_wallets = 0;
         size_t loaded_wallets = fsl->loadFromDirThreaded(watchonly_wallets_path.string(), found_wallets);
@@ -272,6 +276,10 @@ int main(int argc, const char** argv)
         if (found_wallets != loaded_wallets) {
             LOG_ERROR("found wallets: " << found_wallets << ", loaded wallets: " << loaded_wallets);
         }
+        LOG_PRINT_L0("supernode list loaded");
+
+        // add our supernode as well, it wont be added from announce;
+        fsl->add(supernode.get());
 
         manager.get_gcm().addOrUpdate(CONTEXT_KEY_FULLSUPERNODELIST, fsl);
 
@@ -303,7 +311,10 @@ int main(int argc, const char** argv)
     } catch (const std::exception & e) {
         std::cerr << "Exception thrown: " << e.what() << std::endl;
         return -1;
+    } catch (...) {
+        std::cerr << "unhandled exception";
     }
+
 
     return 0;
 }
