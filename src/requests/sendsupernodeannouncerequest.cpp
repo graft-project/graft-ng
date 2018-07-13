@@ -57,7 +57,8 @@ namespace graft {
 Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
-    LOG_PRINT_L2(PATH << "called with payload: " << input.data());
+    LOG_PRINT_L1(PATH << " called with payload: " << input.data());
+    // TODO: implement DOS protection, ignore too frequent requests
 
     boost::shared_ptr<FullSupernodeList> fsl = ctx.global.get("fsl", boost::shared_ptr<FullSupernodeList>());
     SupernodePtr supernode = ctx.global.get("supernode", SupernodePtr());
