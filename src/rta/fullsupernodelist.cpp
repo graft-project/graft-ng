@@ -113,6 +113,12 @@ std::future<void> ThreadPool::runAsync()
 
 } // namespace utils;
 
+
+const uint8_t FullSupernodeList::AUTH_SAMPLE_SIZE;
+const size_t FullSupernodeList::ITEMS_PER_TIER;
+const uint64_t FullSupernodeList::AUTH_SAMPLE_HASH_HEIGHT;
+
+
 FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     : m_testnet(testnet)
     , m_daemon_address(daemon_address)

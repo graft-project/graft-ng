@@ -262,6 +262,8 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     FullSupernodeList sn_list(daemon_addr, testnet);
     size_t loadedItems = sn_list.loadFromDir(".");
 
+    ASSERT_TRUE(loadedItems > 0);
+
     std::string hash_str;
     sn_list.getBlockHash(2, hash_str);
 
@@ -309,8 +311,8 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     // test if result is reproducable
     sn_list.buildAuthSample(2122, auth_sample);
     sn_list.buildAuthSample(2122, auth_sample2);
-    ASSERT_EQ(auth_sample.size(), 8);
-    ASSERT_EQ(auth_sample2.size(), 8);
+    ASSERT_EQ(auth_sample.size(), FullSupernodeList::AUTH_SAMPLE_SIZE);
+    ASSERT_EQ(auth_sample2.size(), FullSupernodeList::AUTH_SAMPLE_SIZE);
     std::vector<std::string> auth_sample1_addresses, auth_sample2_addresses;
 
     for (const auto & it: auth_sample) {
@@ -323,7 +325,7 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     EXPECT_TRUE(auth_sample1_addresses == auth_sample2_addresses);
 
     std::set<std::string> s1(auth_sample1_addresses.begin(), auth_sample1_addresses.end());
-    EXPECT_TRUE(s1.size() == 8);
+    EXPECT_TRUE(s1.size() == FullSupernodeList::AUTH_SAMPLE_SIZE);
 
     std::vector<std::string> tier1_as_addresses, tier2_as_addresses, tier3_as_addresses, tier4_as_addresses;
 
@@ -338,10 +340,10 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
             tier4_as_addresses.push_back(it->walletAddress());
     }
 
-    EXPECT_EQ(tier1_as_addresses.size(), 2);
-    EXPECT_EQ(tier2_as_addresses.size(), 2);
-    EXPECT_EQ(tier3_as_addresses.size(), 2);
-    EXPECT_EQ(tier4_as_addresses.size(), 2);
+    EXPECT_EQ(tier1_as_addresses.size(), FullSupernodeList::ITEMS_PER_TIER);
+    EXPECT_EQ(tier2_as_addresses.size(), FullSupernodeList::ITEMS_PER_TIER);
+    EXPECT_EQ(tier3_as_addresses.size(), FullSupernodeList::ITEMS_PER_TIER);
+    EXPECT_EQ(tier4_as_addresses.size(), FullSupernodeList::ITEMS_PER_TIER);
 
     // make sure we have correct addresses in auth sample;
     std::sort(tier1_as_addresses.begin(), tier1_as_addresses.end());
