@@ -7,6 +7,7 @@
 #include "context.h"
 #include "timer.h"
 #include "self_holder.h"
+#include <future>
 
 #include "CMakeConfig.h"
 
@@ -115,6 +116,22 @@ protected:
     Context m_ctx;
 };
 
+class UpstreamTask : public BaseTask
+{
+public:
+    using PromiseItem = std::pair< std::promise<Input>, Output >;
+
+    UpstreamTask(TaskManager& manager, PromiseItem&& pi, Dummy&)
+        : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(),
+                Router::Handler3(nullptr, nullptr, nullptr)}))
+        , m_pi(std::move(pi))
+    {
+    }
+
+    virtual void finalize() override;
+    PromiseItem m_pi;
+};
+
 class PeriodicTask : public BaseTask
 {
 public:
@@ -183,6 +200,8 @@ public:
     void schedule(PeriodicTask* pt);
     void onTimer(BaseTaskPtr bt);
     void onUpstreamDone(UpstreamSender& uss);
+
+    static void sendUpstreamBlocking(Output& output, Input& input, std::string& err);
 private:
     void ExecutePreAction(BaseTaskPtr bt);
     void ExecutePostAction(BaseTaskPtr bt, GJ* gj = nullptr);  //gj equals nullptr if threadPool was skipped for some reasons
@@ -191,12 +210,10 @@ private:
     void Execute(BaseTaskPtr bt);
 
     void processResultBT(BaseTaskPtr bt);
-
     void respondAndDieBT(BaseTaskPtr bt, const std::string& s);
-
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
-
     bool tryProcessReadyJob();
+    void sendUpstreamBlockingIO();
 
     mg_mgr m_mgr;
     GlobalContextMap m_gcm;
@@ -214,6 +231,13 @@ private:
     std::unique_ptr<ThreadPoolX> m_threadPool;
     std::unique_ptr<TPResQueue> m_resQueue;
     TimerList<BaseTaskPtr> m_timerList;
+
+    using PromiseItem = UpstreamTask::PromiseItem;
+    using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;
+
+    std::unique_ptr<PromiseQueue> m_promiseQueue;
+    static thread_local bool io_thread;
+    static TaskManager* g_upstreamManager;
 
     std::atomic_bool m_ready {false};
     std::atomic_bool m_stop {false};
