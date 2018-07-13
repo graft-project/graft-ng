@@ -15,11 +15,10 @@ namespace graft {
   void setHttpRouters(Manager& m);
 }
 
-static graft::GraftServer server;
+static std::function<void (int sig_num)> stop_handler;
 static void signal_handler_stop(int sig_num)
 {
-    LOG_PRINT_L0("Stoping server");
-    server.stop();
+    if(stop_handler) stop_handler(sig_num);
 }
 
 void addGlobalCtxCleaner(graft::Manager& manager, int ms)
@@ -89,26 +88,16 @@ int main(int argc, const char** argv)
             config_filename = vm["config-file"].as<string>();
         }
 
-    }
-    catch(exception& e) {
-        cerr << "error: " << e.what() << "\n";
-        return 1;
-    }
-    catch(...) {
-        cerr << "Exception of unknown type!\n";
-    }
+        // load config
+        boost::property_tree::ptree config;
+        namespace fs = boost::filesystem;
 
-    // load config
-    boost::property_tree::ptree config;
-    namespace fs = boost::filesystem;
+        if (config_filename.empty()) {
+            fs::path selfpath = argv[0];
+            selfpath = selfpath.remove_filename();
+            config_filename  = (selfpath / "config.ini").string();
+        }
 
-    if (config_filename.empty()) {
-        fs::path selfpath = argv[0];
-        selfpath = selfpath.remove_filename();
-        config_filename  = (selfpath / "config.ini").string();
-    }
-
-    try {
         boost::property_tree::ini_parser::read_ini(config_filename, config);
         // now we have only following parameters
         // [server]
@@ -173,10 +162,21 @@ int main(int argc, const char** argv)
         }
 
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
+
+        graft::GraftServer server;
+        stop_handler = [&server](int sig_num)
+        {
+            LOG_PRINT_L0("Stoping server");
+            server.stop();
+        };
         server.serve(manager.get_mg_mgr());
 
     } catch (const std::exception & e) {
         std::cerr << "Exception thrown: " << e.what() << std::endl;
+        return -1;
+    }
+    catch(...) {
+        std::cerr << "Exception of unknown type!\n";
         return -1;
     }
 

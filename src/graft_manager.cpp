@@ -178,9 +178,9 @@ void CryptoNodeSender::send(Manager &manager, BaseTask_ptr cr)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_crypton = mg_connect_http(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
+    m_crypton = mg::mg_connect_http_x(manager.get_mg_mgr(), static_ev_handler, url.c_str(),
                              extra_headers.c_str(),
-                             (body.empty())? nullptr : body.c_str()); //last nullptr means GET
+                             body); //body.empty() means GET
     assert(m_crypton);
     m_crypton->user_data = this;
     mg_set_timer(m_crypton, mg_time() + opts.upstream_request_timeout);
@@ -276,7 +276,7 @@ void BaseTask::createJob()
         }
         catch(...)
         {
-            setError("unknown exeption");
+            setError("unknown exception");
             m_prms.input.reset();
         }
         LOG_PRINT_RQS(3,"pre_action completed with result " << getStrStatus());
@@ -328,7 +328,7 @@ void BaseTask::onJobDone(GJ* gj)
         }
         catch(...)
         {
-            setError("unknown exeption");
+            setError("unknown exception");
             m_prms.input.reset();
         }
         LOG_PRINT_RQS(3,"post_action completed with result " << getStrStatus());
@@ -382,6 +382,7 @@ void BaseTask::onCryptonDone(CryptoNodeSender &cns)
     //cns will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
         LOG_PRINT_RQS(2, "CryptoNode answered ");
+        if(!get_itself()) return; //it is possible that a client has closed connection already
         m_manager.sendToThreadPool(get_itself());
     }
 }
@@ -430,6 +431,7 @@ void ClientRequest::respondAndDie(const std::string &s)
     }
     LOG_PRINT_CLN(2,m_client,"Client request finished with result " << getStrStatus());
     m_client->flags |= MG_F_SEND_AND_CLOSE;
+    m_manager.onClientDone(get_itself());
     m_client->handler = static_empty_ev_handler;
     m_client = nullptr;
     releaseItself();
@@ -444,9 +446,10 @@ void ClientRequest::ev_handler(mg_connection *client, int ev, void *ev_data)
     case MG_EV_CLOSE:
     {
         assert(get_itself());
-        if(get_itself()) break;
+        if(!get_itself()) break;
         m_manager.onClientDone(get_itself());
-        client->handler = static_empty_ev_handler;
+        m_client->handler = static_empty_ev_handler;
+        m_client = nullptr;
         releaseItself();
     } break;
     default:
@@ -462,8 +465,11 @@ void GraftServer::serve(mg_mgr *mgr)
 
     const ServerOpts& opts = m_manager->get_c_opts();
 
-    mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http),
-                  *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
+    mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
+    if(!nc_http) throw std::runtime_error("Cannot bind to " + opts.http_address);
+
+    mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
+    if(!nc_coap) throw std::runtime_error("Cannot bind to " + opts.coap_address);
 
     mg_set_protocol_http_websocket(nc_http);
     mg_set_protocol_coap(nc_coap);
