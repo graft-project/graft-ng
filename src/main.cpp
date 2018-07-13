@@ -1,5 +1,6 @@
 #include "graft_manager.h"
 #include "requests.h"
+#include "backtrace.h"
 
 #include <misc_log_ex.h>
 #include <boost/program_options.hpp>
@@ -37,8 +38,20 @@ void addGlobalCtxCleaner(graft::Manager& manager, int ms)
 
 int main(int argc, const char** argv)
 {
-    std::signal(SIGINT, signal_handler_stop);
-    std::signal(SIGTERM, signal_handler_stop);
+    struct sigaction sa;
+
+    sigemptyset(&sa.sa_mask);
+
+    sa.sa_sigaction = graft_bt_sighandler;
+    sa.sa_flags = SA_SIGINFO;
+
+    ::sigaction(SIGSEGV, &sa, NULL);
+
+    sa.sa_sigaction = NULL;
+    sa.sa_flags = 0;
+    sa.sa_handler = signal_handler_stop;
+    ::sigaction(SIGINT, &sa, NULL);
+    ::sigaction(SIGTERM, &sa, NULL);
 
     int log_level = 1;
     string config_filename;
