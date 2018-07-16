@@ -1,7 +1,7 @@
-#include <string.h>
-
 #include "graft_manager.h"
 #include "router.h"
+#include <misc_log_ex.h>
+#include <string.h>
 #include <sstream>
 
 namespace graft {
@@ -499,10 +499,13 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
         }
         int method = translateMethod(hm->method.p, hm->method.len);
         if (method < 0) return;
+        std::string body(hm->body.p, hm->body.len);
+        LOG_PRINT_L0("Request " << uri << " " << method << " "  << body);
 
         Router::JobParams prms;
         if (manager->matchRoute(uri, method, prms))
         {
+            LOG_PRINT_L0("matched");
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
             BaseTask* rb_ptr = BaseTask::Create<ClientRequest>(client, prms).get();
@@ -516,6 +519,7 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
         }
         else
         {
+            LOG_PRINT_L0("invalid");
             mg_http_send_error(client, 500, "invalid parameter");
             client->flags |= MG_F_SEND_AND_CLOSE;
         }
