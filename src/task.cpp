@@ -20,7 +20,7 @@ void TaskManager::onTimer(BaseTaskPtr bt)
     Execute(bt);
 }
 
-void TaskManager::respondAndDieBT(BaseTaskPtr bt, const std::string& s)
+void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s)
 {
     ClientTask* ct = dynamic_cast<ClientTask*>(bt.get());
     if(ct)
@@ -45,7 +45,7 @@ void TaskManager::Execute(BaseTaskPtr bt)
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
     {//check overflow
         bt->getCtx().local.setError("Service Unavailable", Status::Busy);
-        respondAndDieBT(bt,"Thread pool overflow");
+        respondAndDie(bt,"Thread pool overflow");
         return;
     }
     assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
@@ -56,13 +56,13 @@ void TaskManager::Execute(BaseTaskPtr bt)
     ExecutePreAction(bt);
     if(params.h3.pre_action && Status::Ok != bt->getLastStatus() && Status::Forward != bt->getLastStatus())
     {
-        processResultBT(bt);
+        processResult(bt);
         return;
     }
     if(params.h3.worker_action)
     {
         getThreadPool().post(
-                    GJ_ptr( bt, &getResQueue(), this ),
+                    GJPtr( bt, &getResQueue(), this ),
                     true
                     );
     }
@@ -70,7 +70,7 @@ void TaskManager::Execute(BaseTaskPtr bt)
     {
         //special case when worker_action is absent
         ExecutePostAction(bt, nullptr);
-        processResultBT(bt);
+        processResult(bt);
         //next call is required to fix counters that prevents overflow
         ++m_cntJobDone;
     }
@@ -78,12 +78,12 @@ void TaskManager::Execute(BaseTaskPtr bt)
 
 bool TaskManager::tryProcessReadyJob()
 {
-    GJ_ptr gj;
+    GJPtr gj;
     bool res = getResQueue().pop(gj);
     if(!res) return res;
     BaseTaskPtr bt = gj->getTask();
     ExecutePostAction(bt, &*gj);
-    processResultBT(bt);
+    processResult(bt);
     ++m_cntJobDone;
     return true;
 }
@@ -148,7 +148,7 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     }
 }
 
-void TaskManager::processResultBT(BaseTaskPtr bt)
+void TaskManager::processResult(BaseTaskPtr bt)
 {
     switch(bt->getLastStatus())
     {
@@ -158,17 +158,17 @@ void TaskManager::processResultBT(BaseTaskPtr bt)
     } break;
     case Status::Ok:
     {
-        respondAndDieBT(bt, bt->getOutput().data());
+        respondAndDie(bt, bt->getOutput().data());
     } break;
     case Status::InternalError:
     case Status::Error:
     case Status::Stop:
     {
-        respondAndDieBT(bt, bt->getOutput().data());
+        respondAndDie(bt, bt->getOutput().data());
     } break;
     case Status::Drop:
     {
-        respondAndDieBT(bt, "Job done Drop."); //TODO: Expect HTTP Error Response
+        respondAndDie(bt, "Job done Drop."); //TODO: Expect HTTP Error Response
     } break;
     default:
     {
@@ -277,7 +277,7 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     if(Status::Ok != uss.getStatus())
     {
         bt->setError(uss.getError().c_str(), uss.getStatus());
-        processResultBT(bt);
+        processResult(bt);
         return;
     }
     //here you can send a job to the thread pool or send response to client

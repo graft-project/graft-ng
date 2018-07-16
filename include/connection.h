@@ -45,7 +45,7 @@ public:
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
 
-    void ev_handler(mg_connection* crypton, int ev, void *ev_data);
+    void ev_handler(mg_connection* upstream, int ev, void *ev_data);
 private:
     void setError(Status status, const std::string& error = std::string())
     {
@@ -53,7 +53,7 @@ private:
         m_error = error;
     }
 
-    mg_connection *m_crypton = nullptr;
+    mg_connection *m_upstream = nullptr;
     BaseTaskPtr m_bt;
     Status m_status = Status::None;
     std::string m_error;

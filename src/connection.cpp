@@ -23,17 +23,17 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_crypton = mg::mg_connect_http_x(manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
+    m_upstream = mg::mg_connect_http_x(manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
                              extra_headers.c_str(),
                              body); //body.empty() means GET
-    assert(m_crypton);
-    m_crypton->user_data = this;
-    mg_set_timer(m_crypton, mg_time() + opts.upstream_request_timeout);
+    assert(m_upstream);
+    m_upstream->user_data = this;
+    mg_set_timer(m_upstream, mg_time() + opts.upstream_request_timeout);
 }
 
-void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
+void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
 {
-    assert(crypton == this->m_crypton);
+    assert(upstream == this->m_upstream);
     switch (ev)
     {
     case MG_EV_CONNECT:
@@ -44,37 +44,37 @@ void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
             std::ostringstream ss;
             ss << "cryptonode connect failed: " << strerror(err);
             setError(Status::Error, ss.str().c_str());
-            TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
-            crypton->handler = static_empty_ev_handler;
+            TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+            upstream->handler = static_empty_ev_handler;
             releaseItself();
         }
     } break;
     case MG_EV_HTTP_REPLY:
     {
-        mg_set_timer(crypton, 0);
+        mg_set_timer(upstream, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
         m_bt->getInput() = *hm;
         setError(Status::Ok);
-        crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
-        crypton->handler = static_empty_ev_handler;
+        upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
+        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        upstream->handler = static_empty_ev_handler;
         releaseItself();
     } break;
     case MG_EV_CLOSE:
     {
-        mg_set_timer(crypton, 0);
+        mg_set_timer(upstream, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
-        TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
-        crypton->handler = static_empty_ev_handler;
+        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        upstream->handler = static_empty_ev_handler;
         releaseItself();
     } break;
     case MG_EV_TIMER:
     {
-        mg_set_timer(crypton, 0);
+        mg_set_timer(upstream, 0);
         setError(Status::Error, "cryptonode request timout");
-        crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
-        crypton->handler = static_empty_ev_handler;
+        upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
+        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        upstream->handler = static_empty_ev_handler;
         releaseItself();
     } break;
     default:
@@ -180,12 +180,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
 
         struct http_message *hm = (struct http_message *) ev_data;
         std::string uri(hm->uri.p, hm->uri.len);
-        // TODO: why this is hardcoded ?
-        if(uri == "/root/exit")
-        {
-            manager->stop();
-            return;
-        }
+
         int method = translateMethod(hm->method.p, hm->method.len);
         if (method < 0) return;
 

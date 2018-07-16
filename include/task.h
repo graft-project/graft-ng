@@ -20,37 +20,37 @@ class ConnectionManager;
 class BaseTask;
 using BaseTaskPtr = std::shared_ptr<BaseTask>;
 
-class GJ_ptr;
-using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
+class GJPtr;
+using TPResQueue = tp::MPMCBoundedQueue< GJPtr >;
 using GJ = GraftJob<BaseTaskPtr, TPResQueue, TaskManager>;
 
 //////////////
-/// \brief The GJ_ptr class
+/// \brief The GJPtr class
 /// A wrapper of GraftJob that will be moved from queue to queue with fixed size.
 /// It contains single data member of unique_ptr
 ///
-class GJ_ptr final
+class GJPtr final
 {
     std::unique_ptr<GJ> m_ptr = nullptr;
 public:
-    GJ_ptr(GJ_ptr&& rhs)
+    GJPtr(GJPtr&& rhs)
     {
         *this = std::move(rhs);
     }
-    GJ_ptr& operator = (GJ_ptr&& rhs)
+    GJPtr& operator = (GJPtr&& rhs)
     {
         //identity check (this != &rhs) is not required, it will be done in the next copy assignment
         m_ptr = std::move(rhs.m_ptr);
         return * this;
     }
 
-    explicit GJ_ptr() = default;
-    GJ_ptr(const GJ_ptr&) = delete;
-    GJ_ptr& operator = (const GJ_ptr&) = delete;
-    ~GJ_ptr() = default;
+    explicit GJPtr() = default;
+    GJPtr(const GJPtr&) = delete;
+    GJPtr& operator = (const GJPtr&) = delete;
+    ~GJPtr() = default;
 
     template<typename ...ARGS>
-    GJ_ptr(ARGS&&... args) : m_ptr( new GJ( std::forward<ARGS>(args)...) )
+    GJPtr(ARGS&&... args) : m_ptr( new GJ( std::forward<ARGS>(args)...) )
     {
     }
 
@@ -71,7 +71,7 @@ public:
     }
 };
 
-using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJ_ptr)>, tp::MPMCBoundedQueue>;
+using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJPtr)>, tp::MPMCBoundedQueue>;
 
 ///////////////////////////////////
 
@@ -190,9 +190,9 @@ private:
     void cb_event(uint64_t cnt);
     void Execute(BaseTaskPtr bt);
 
-    void processResultBT(BaseTaskPtr bt);
+    void processResult(BaseTaskPtr bt);
 
-    void respondAndDieBT(BaseTaskPtr bt, const std::string& s);
+    void respondAndDie(BaseTaskPtr bt, const std::string& s);
 
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
 
