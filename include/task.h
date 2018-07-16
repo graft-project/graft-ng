@@ -117,13 +117,13 @@ protected:
 
 class PeriodicTask : public BaseTask
 {
-public:
-    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms, Dummy&)
+    friend class SelfHolder<BaseTask>;
+    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
         : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
         , m_timeout_ms(timeout_ms)
     {
     }
-
+public:
     virtual void finalize() override;
 
     std::chrono::milliseconds m_timeout_ms;
@@ -131,9 +131,9 @@ public:
 
 class ClientTask : public BaseTask
 {
+    friend class SelfHolder<BaseTask>;
+    ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms);
 public:
-    ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms, Dummy& );
-
     virtual void finalize() override;
 
     mg_connection *m_client;

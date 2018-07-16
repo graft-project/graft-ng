@@ -313,7 +313,7 @@ void PeriodicTask::finalize()
     this->m_manager.schedule(this);
 }
 
-ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms, Dummy&)
+ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
     : BaseTask(*TaskManager::from(client->mgr), prms)
     , m_connectionManager(connectionManager)
     , m_client(client)

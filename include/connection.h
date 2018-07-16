@@ -37,7 +37,7 @@ void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data);
 class UpstreamSender : public SelfHolder<UpstreamSender>
 {
 public:
-    UpstreamSender(Dummy&) { }
+    UpstreamSender() = default;
 
     BaseTaskPtr& getTask() { return m_bt; }
 

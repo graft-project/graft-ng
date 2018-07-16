@@ -15,16 +15,8 @@ public:
     template<typename T=C, typename ...ARGS>
     static const Ptr Create(ARGS&&... args)
     {
-        Dummy dummy;
-        return (new T(std::forward<ARGS>(args)..., dummy))->m_self;
+        return (new T(std::forward<ARGS>(args)...))->m_self;
     }
-
-    //class helper to protect call of constructors of derivative classes
-    class Dummy
-    {
-        friend class SelfHolder;
-        Dummy() = default;
-    };
 protected:
     void releaseItself() { m_self.reset(); }
 
