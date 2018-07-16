@@ -4,6 +4,8 @@
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "requests/multicast.h"
+#include "requests/broadcast.h"
+#include "requests/salestatusrequest.h"
 
 #include <string>
 
@@ -23,6 +25,40 @@ GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
                        (std::string, paymentId),
                        (int, status)
                        );
+
+
+// message to be broadcasted
+GRAFT_DEFINE_IO_STRUCT(UpdateSaleStatusBroadcast,
+                       (std::string, PaymentID),
+                       (int, Status),
+                       (std::string, address),   // address who updates the status
+                       (std::string, signature)  // signature who updates the status
+                       );
+
+
+Status broadcastSaleStatus(graft::Context &ctx, graft::Output &output, SupernodePtr supernode, const string &PaymentID, int status)
+{
+    UpdateSaleStatusBroadcast ussb;
+    ussb.address = supernode->walletAddress();
+    ussb.Status = status;
+    ussb.PaymentID = PaymentID;
+
+
+    // compose signature
+    std::string msg = PaymentID + ":" + to_string(status);
+    crypto::signature sign;
+    supernode->signMessage(msg, sign);
+    ussb.signature = epee::string_tools::pod_to_hex(sign);
+
+    // send payload
+    BroadcastRequestJsonRpc req;
+    req.method = "broadcast";
+    // req.
+
+    return Status::Ok;
+}
+
+
 
 /*!
  * \brief saleClientHandler - handles /dapi/v2.0/sale POS request
@@ -82,29 +118,32 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
             // what needs to be multicasted to auth sample ?
             // 1. payment_id
             // 2. SaleData
-            // 3. SaleStatus
-
-            ctx.global.set(payment_id + CONTEXT_KEY_SALE, data, SALE_TTL);
-            ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
-
-            // TODO: broadcast sale status
-
             if (!in.SaleDetails.empty())
             {
                 ctx.global.set(payment_id + CONTEXT_KEY_SALE_DETAILS, in.SaleDetails, SALE_TTL);
             }
+
+
             // generate auth sample
             std::vector<SupernodePtr> authSample;
-            if (!fsl->buildAuthSample(data.BlockNumber, authSample)) {
+            if (!fsl->buildAuthSample(data.BlockNumber, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
                 error.code = ERROR_INVALID_PARAMS;
                 error.message  = MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE;
                 break;
             }
+
+
+            // here we need to perform two actions:
+            // 1. multicast sale over auth sample
+            // 2. broadcast sale status
+            ctx.global.set(payment_id + CONTEXT_KEY_SALE, data, SALE_TTL);
+            ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
+
             // store SaleData, payment_id and status in local context, so when we got reply from cryptonode, we just pass it to client
             ctx.local["sale_data"]  = data;
             ctx.local["payment_id"]  = payment_id;
 
-            // TODO: multicast sale to the auth sample nodes
+            // multicast sale to the auth sample nodes
             SaleDataMulticast sdm;
             sdm.paymentId = payment_id;
             sdm.sale_data = data;
@@ -119,7 +158,7 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
             }
 
             cryptonode_req.method = "multicast";
-            cryptonode_req.params.callback_uri = "/dapi/v2.0/cryptonode/sale";
+            cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side
             cryptonode_req.params.data = out.data();
             output.load(cryptonode_req);
             output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";

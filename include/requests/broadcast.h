@@ -11,16 +11,14 @@
 
 namespace graft {
 
-// Plan "B" in case we can't do that magic, we just define:
 GRAFT_DEFINE_IO_STRUCT(BroadcastRequest,
-                       (std::strint, sender_address),
+                       (std::string, sender_address),
                        (std::string, callback_uri),
                        (std::string, data)
                        );
-// and
+
 GRAFT_DEFINE_JSON_RPC_REQUEST(BroadcastRequestJsonRpc, BroadcastRequest);
 
-// and manually parse "data"
 
 GRAFT_DEFINE_IO_STRUCT_INITED(BroadcastResponseToCryptonode,
                        (std::string, status, "OK"));
