@@ -78,11 +78,13 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
     ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
+    ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/utils/utils.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_SOURCE_DIR}/src/backtrace.c
     )
 
 set(GS_INCLUDE_DIRS
@@ -182,7 +184,10 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_REGEX_LIBRARY}
     ${COMMON_LIBS}
     )
+
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
+
+set_target_properties(graft_server PROPERTIES LINK_FLAGS "-rdynamic")
 
 add_dependencies(graft_server libr3 cryptonode)
 

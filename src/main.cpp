@@ -5,6 +5,7 @@
 #include "jsonrpc.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+#include "backtrace.h"
 
 #include <misc_log_ex.h>
 #include <boost/program_options.hpp>
@@ -37,10 +38,11 @@ namespace tools {
 }
 
 static graft::GraftServer server;
+
+static std::function<void (int sig_num)> stop_handler;
 static void signal_handler_stop(int sig_num)
 {
-    LOG_PRINT_L0("Stoping server");
-    server.stop();
+    if(stop_handler) stop_handler(sig_num);
 }
 
 void addGlobalCtxCleaner(graft::Manager& manager, int ms)
@@ -111,8 +113,20 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
 
 int main(int argc, const char** argv)
 {
-    std::signal(SIGINT, signal_handler_stop);
-    std::signal(SIGTERM, signal_handler_stop);
+    struct sigaction sa;
+
+    sigemptyset(&sa.sa_mask);
+
+    sa.sa_sigaction = graft_bt_sighandler;
+    sa.sa_flags = SA_SIGINFO;
+
+    ::sigaction(SIGSEGV, &sa, NULL);
+
+    sa.sa_sigaction = NULL;
+    sa.sa_flags = 0;
+    sa.sa_handler = signal_handler_stop;
+    ::sigaction(SIGINT, &sa, NULL);
+    ::sigaction(SIGTERM, &sa, NULL);
 
     int log_level = 1;
     string config_filename;
@@ -306,6 +320,13 @@ int main(int argc, const char** argv)
         }
 
         LOG_PRINT_L0("Starting server on: [http] " << sopts.http_address << ", [coap] " << sopts.coap_address);
+
+        graft::GraftServer server;
+        stop_handler = [&server](int sig_num)
+        {
+            LOG_PRINT_L0("Stoping server");
+            server.stop();
+        };
         server.serve(manager.get_mg_mgr());
 
     } catch (const std::exception & e) {
