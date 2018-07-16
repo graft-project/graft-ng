@@ -23,7 +23,8 @@ static const std::chrono::seconds SALE_TTL = std::chrono::seconds(60);
 GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
                        (SaleData, sale_data),
                        (std::string, paymentId),
-                       (int, status)
+                       (int, status),
+                       (string, details)
                        );
 
 
@@ -148,6 +149,7 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
             sdm.paymentId = payment_id;
             sdm.sale_data = data;
             sdm.status = static_cast<int>(RTAStatus::Waiting);
+            sdm.details = in.SaleDetails;
             Output out;
             out.loadT<serializer::JSON_B64>(sdm);
 
@@ -227,9 +229,12 @@ Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& inp
         return errorInvalidParams(output);
     }
     const std::string &payment_id = sdm.paymentId;
+    LOG_PRINT_L0("sale details received from multicast: " << sdm.details);
+    // TODO: should be signed by sender??
     if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE)) {
         ctx.global[payment_id + CONTEXT_KEY_SALE] = sdm.sale_data;
         ctx.global[payment_id + CONTEXT_KEY_STATUS] = sdm.status;
+        ctx.global[payment_id + CONTEXT_KEY_SALE_DETAILS] = sdm.details;
     } else {
         LOG_PRINT_L0("payment " << payment_id << " already known");
     }
