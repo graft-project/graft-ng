@@ -81,6 +81,7 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
 
     // validate params, generate payment id, build auth sample, multicast to auth sample
     if (calledByClient) {
+        LOG_PRINT_L0("called by client, payload: " << input.data());
         SaleRequestJsonRpc req;
         if (!input.get(req)) {
             return errorInvalidParams(output);
