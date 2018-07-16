@@ -62,7 +62,7 @@ public:
             }
             catch(...)
             {
-                ctx.local.setError("unknown exeption");
+                ctx.local.setError("unknown exception");
                 input_ref.reset();
             }
         }

@@ -112,7 +112,7 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
     }
     catch(...)
     {
-        bt->setError("unknown exeption");
+        bt->setError("unknown exception");
         params.input.reset();
     }
 }
@@ -143,7 +143,7 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     }
     catch(...)
     {
-        bt->setError("unknown exeption");
+        bt->setError("unknown exception");
         params.input.reset();
     }
 }
