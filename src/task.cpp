@@ -228,33 +228,6 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     m_threadPoolInputSize = maxinputSize;
 }
 
-TaskManager::~TaskManager()
-{
-    mg_mgr_free(&m_mgr);
-}
-
-void TaskManager::serve()
-{
-    m_ready = true;
-
-    for (;;)
-    {
-        mg_mgr_poll(&m_mgr, m_copts.timer_poll_interval_ms);
-        getTimerList().eval();
-        if(stopped()) break;
-    }
-}
-
-void TaskManager::notifyJobReady()
-{
-    mg_notify(&m_mgr);
-}
-
-void TaskManager::cb_event(mg_mgr *mgr, uint64_t cnt)
-{
-    TaskManager::from(mgr)->cb_event(cnt);
-}
-
 void TaskManager::cb_event(uint64_t cnt)
 {
     //When multiple threads write to the output queue of the thread pool.
@@ -290,7 +263,7 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     //uss will be destroyed on exit
 }
 
-void TaskManager::stop()
+void Server::stop()
 {
     assert(!m_stop);
     m_stop = true;

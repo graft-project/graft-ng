@@ -54,11 +54,11 @@ using namespace std::chrono_literals;
 
 struct CryptonodeHandlersTest : public ::testing::Test
 {
-    // this     is blocking function that will not end until manager stopped explicitly
+    // this     is blocking function that will not end until server stopped explicitly
     void startServer()
     {
-        httpcm->bind(*manager);
-        manager->serve();
+        httpcm->bind(*server);
+        server->serve();
     }
 
     CryptonodeHandlersTest()
@@ -70,7 +70,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L2("L2");
 
         ConfigOpts copts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
-        manager = std::make_unique<TaskManager>(copts);
+        server = std::make_unique<Server>(copts);
 
         Router router;
         graft::registerGetInfoRequest(router);
@@ -85,7 +85,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
         LOG_PRINT_L0("Server thread started..");
 
-        while (!manager->ready()) {
+        while (!server->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
@@ -156,7 +156,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
 
     std::unique_ptr<HttpConnectionManager> httpcm;
-    std::unique_ptr<TaskManager>     manager;
+    std::unique_ptr<Server>     server;
 
     std::thread server_thread;
 };
@@ -179,7 +179,7 @@ TEST_F(CryptonodeHandlersTest, getinfo)
     EXPECT_TRUE(resp.difficulty > 0);
     EXPECT_TRUE(resp.tx_count > 0);
     LOG_PRINT_L2("Stopping server...");
-    manager->stop();
+    server->stop();
     server_thread.join();
     LOG_PRINT_L2("Server stopped, Server thread done...");
 }
@@ -236,7 +236,7 @@ TEST_F(CryptonodeHandlersTest, sendrawtx)
     EXPECT_FALSE(resp.not_rct);
 
     LOG_PRINT_L2("Stopping server...");
-    manager->stop();
+    server->stop();
     server_thread.join();
     LOG_PRINT_L2("Server stopped, Server thread done...");
 }

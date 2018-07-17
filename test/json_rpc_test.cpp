@@ -165,12 +165,12 @@ struct JsonRpcTest : public ::testing::Test
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
-        TaskManager manager(sopts);
+        Server server(sopts);
         httpcm.addRouter(router);
         httpcm.enableRouting();
-        this->manager = &manager;
-        httpcm.bind(manager);
-        manager.serve();
+        this->server = &server;
+        httpcm.bind(server);
+        server.serve();
     }
 
     void stopServer()
@@ -187,7 +187,7 @@ struct JsonRpcTest : public ::testing::Test
             this->startServer();
         });
         LOG_PRINT_L0("Server thread started..");
-        while (!manager || !manager->ready()) {
+        while (!server || !server->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
@@ -248,7 +248,7 @@ struct JsonRpcTest : public ::testing::Test
     { }
 
     HttpConnectionManager httpcm;
-    TaskManager   * manager{nullptr};
+    Server   * server{nullptr};
     std::thread server_thread;
 };
 
@@ -284,7 +284,7 @@ TEST_F(JsonRpcTest, common)
     EXPECT_TRUE(response_error.error.code == -1);
 
     LOG_PRINT_L0("Stopping server..");
-    manager->stop();
+    server->stop();
     LOG_PRINT_L0("Waiting for a server thread done...");
     server_thread.join();
     LOG_PRINT_L0("Server thread done...");

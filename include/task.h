@@ -1,6 +1,5 @@
 #pragma once
 
-#include "mongoosex.h"
 #include "router.h"
 #include "thread_pool.h"
 #include "inout.h"
@@ -9,6 +8,9 @@
 #include "self_holder.h"
 
 #include "CMakeConfig.h"
+
+struct mg_mgr;
+struct mg_connection;
 
 namespace graft {
 
@@ -140,39 +142,27 @@ public:
     ConnectionManager* m_connectionManager;
 };
 
-class TaskManager final
+class TaskManager
 {
 public:
     TaskManager(const ConfigOpts& copts)
         : m_copts(copts)
     {
         // TODO: validate options, throw exception if any mandatory options missing
-        mg_mgr_init(&m_mgr, this, cb_event);
         initThreadPool(copts.workers_count, copts.worker_queue_len);
     }
-    ~TaskManager();
+    ~TaskManager() { }
 
-    void serve();
-    void notifyJobReady();
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
 
     ////getters
-    mg_mgr* getMgMgr() { return &m_mgr; }
+    virtual mg_mgr* getMgMgr()  = 0;
     ThreadPoolX& getThreadPool() { return *m_threadPool.get(); }
     TPResQueue& getResQueue() { return *m_resQueue.get(); }
     GlobalContextMap& getGcm() { return m_gcm; }
     const ConfigOpts& getCopts() const { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
-
-    bool ready() const { return m_ready; }
-    bool stopped() const { return m_stop; }
-
-    ////setters
-    void stop();
-
-    ////static functions
-    static void cb_event(mg_mgr* mgr, uint64_t cnt);
 
     static TaskManager* from(mg_mgr* mgr);
 
@@ -183,11 +173,15 @@ public:
     void schedule(PeriodicTask* pt);
     void onTimer(BaseTaskPtr bt);
     void onUpstreamDone(UpstreamSender& uss);
+    virtual void notifyJobReady() = 0;
+
+    void cb_event(uint64_t cnt);
+protected:
+    ConfigOpts m_copts;
 private:
     void ExecutePreAction(BaseTaskPtr bt);
     void ExecutePostAction(BaseTaskPtr bt, GJ* gj = nullptr);  //gj equals nullptr if threadPool was skipped for some reasons
 
-    void cb_event(uint64_t cnt);
     void Execute(BaseTaskPtr bt);
 
     void processResult(BaseTaskPtr bt);
@@ -198,7 +192,6 @@ private:
 
     bool tryProcessReadyJob();
 
-    mg_mgr m_mgr;
     GlobalContextMap m_gcm;
 
     uint64_t m_cntBaseTask = 0;
@@ -208,15 +201,10 @@ private:
     uint64_t m_cntJobSent = 0;
     uint64_t m_cntJobDone = 0;
 
-    ConfigOpts m_copts;
-
     uint64_t m_threadPoolInputSize = 0;
     std::unique_ptr<ThreadPoolX> m_threadPool;
     std::unique_ptr<TPResQueue> m_resQueue;
     TimerList<BaseTaskPtr> m_timerList;
-
-    std::atomic_bool m_ready {false};
-    std::atomic_bool m_stop {false};
 };
 
 }//namespace graft

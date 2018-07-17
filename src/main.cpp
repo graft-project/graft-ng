@@ -132,9 +132,9 @@ int main(int argc, const char** argv)
             graft::OutHttp::uri_substitutions.insert({std::move(name), std::move(val)});
         });
 
-        graft::TaskManager manager(copts);
+        graft::Server server(copts);
 
-        addGlobalCtxCleaner(manager, lru_timeout_ms);
+        addGlobalCtxCleaner(server, lru_timeout_ms);
 
         graft::HttpConnectionManager httpcm;
         graft::setHttpRouters(httpcm);
@@ -148,16 +148,16 @@ int main(int argc, const char** argv)
 
         LOG_PRINT_L0("Starting server on: [http] " << copts.http_address << ", [coap] " << copts.coap_address);
 
-        httpcm.bind(manager);
-        coapcm.bind(manager);
+        httpcm.bind(server);
+        coapcm.bind(server);
 
-        stop_handler = [&manager](int sig_num)
+        stop_handler = [&server](int sig_num)
         {
             LOG_PRINT_L0("Stoping server");
-            manager.stop();
+            server.stop();
         };
 
-        manager.serve();
+        server.serve();
 
     } catch (const std::exception & e) {
         std::cerr << "Exception thrown: " << e.what() << std::endl;

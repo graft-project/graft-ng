@@ -82,6 +82,33 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
     }
 }
 
+Server::~Server()
+{
+    mg_mgr_free(&m_mgr);
+}
+
+void Server::serve()
+{
+    m_ready = true;
+
+    for (;;)
+    {
+        mg_mgr_poll(&m_mgr, m_copts.timer_poll_interval_ms);
+        getTimerList().eval();
+        if(stopped()) break;
+    }
+}
+
+void Server::notifyJobReady()
+{
+    mg_notify(&m_mgr);
+}
+
+void Server::cb_event(mg_mgr *mgr, uint64_t cnt)
+{
+    TaskManager::from(mgr)->cb_event(cnt);
+}
+
 ConnectionManager* ConnectionManager::from_accepted(mg_connection *cn)
 {
     assert(cn->user_data);
@@ -113,12 +140,12 @@ void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev
 }
 
 
-void HttpConnectionManager::bind(TaskManager& manager)
+void HttpConnectionManager::bind(Server& server)
 {
-    assert(!manager.ready());
-    mg_mgr* mgr = manager.getMgMgr();
+    assert(!server.ready());
+    mg_mgr* mgr = server.getMgMgr();
 
-    const ConfigOpts& opts = manager.getCopts();
+    const ConfigOpts& opts = server.getCopts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
     if(!nc_http) throw std::runtime_error("Cannot bind to " + opts.http_address);
@@ -126,12 +153,12 @@ void HttpConnectionManager::bind(TaskManager& manager)
     mg_set_protocol_http_websocket(nc_http);
 }
 
-void CoapConnectionManager::bind(TaskManager& manager)
+void CoapConnectionManager::bind(Server& server)
 {
-    assert(!manager.ready());
-    mg_mgr* mgr = manager.getMgMgr();
+    assert(!server.ready());
+    mg_mgr* mgr = server.getMgMgr();
 
-    const ConfigOpts& opts = manager.getCopts();
+    const ConfigOpts& opts = server.getCopts();
 
     mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
     if(!nc_coap) throw std::runtime_error("Cannot bind to " + opts.coap_address);

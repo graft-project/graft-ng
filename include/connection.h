@@ -1,6 +1,7 @@
 #pragma once
 
 #include "task.h"
+#include "mongoosex.h"
 
 namespace graft {
 
@@ -59,10 +60,38 @@ private:
     std::string m_error;
 };
 
+class Server final : public TaskManager
+{
+public:
+    Server(const ConfigOpts& copts)
+        : TaskManager(copts)
+    {
+        mg_mgr_init(&m_mgr, this, cb_event);
+    }
+    virtual ~Server();
+
+    void serve();
+    void notifyJobReady() override;
+
+    void stop();
+    bool ready() const { return m_ready; }
+    bool stopped() const { return m_stop; }
+
+    virtual mg_mgr* getMgMgr() override { return &m_mgr; }
+protected:
+    mg_mgr m_mgr;
+private:
+    ////static functions
+    static void cb_event(mg_mgr* mgr, uint64_t cnt);
+
+    std::atomic_bool m_ready {false};
+    std::atomic_bool m_stop {false};
+};
+
 class ConnectionManager
 {
 public:
-    virtual void bind(TaskManager& manager) = 0;
+    virtual void bind(Server& server) = 0;
     virtual void respond(ClientTask* ct, const std::string& s);
 
     ConnectionManager() = default;
@@ -107,7 +136,7 @@ public:
 class HttpConnectionManager final : public ConnectionManager
 {
 public:
-    void bind(TaskManager& manager) override;
+    void bind(Server& server) override;
 
 private:
     static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
@@ -118,7 +147,7 @@ private:
 class CoapConnectionManager final : public ConnectionManager
 {
 public:
-    void bind(TaskManager& manager) override;
+    void bind(Server& server) override;
 
 private:
     static void ev_handler_coap(mg_connection *client, int ev, void *ev_data);
