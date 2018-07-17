@@ -38,6 +38,8 @@ public:
      * @return true if item was added. false if already in list
      */
     bool add(Supernode * item);
+
+    bool add(SupernodePtr item);
     /*!
      * \brief loadFromDir - loads list from a directory. Directory should contain wallet key files
      * \param base_dir    - path to the base directory with wallet files

@@ -81,14 +81,19 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
 
             supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
 
-            LOG_PRINT_L1("supernode: " << supernode.get());
+
             if (!supernode.get()) {
                 LOG_ERROR("supernode is not set in global context");
                 return graft::Status::Error;
             }
-            supernode->refresh();
 
-            LOG_PRINT_L1("supernode stake amount: " << supernode->stakeAmount());
+            LOG_PRINT_L0("about to refresh supernode: " << supernode->walletAddress());
+
+            if (!supernode->refresh()) {
+                return graft::Status::Ok;
+            }
+
+            LOG_PRINT_L0("supernode refresh done, stake amount: " << supernode->stakeAmount());
 
             graft::SendSupernodeAnnounceJsonRpcRequest req;
             supernode->prepareAnnounce(req.params);
@@ -293,7 +298,7 @@ int main(int argc, const char** argv)
         LOG_PRINT_L0("supernode list loaded");
 
         // add our supernode as well, it wont be added from announce;
-        fsl->add(supernode.get());
+        fsl->add(supernode);
 
         manager.get_gcm().addOrUpdate(CONTEXT_KEY_FULLSUPERNODELIST, fsl);
 

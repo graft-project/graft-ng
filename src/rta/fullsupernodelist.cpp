@@ -136,12 +136,16 @@ FullSupernodeList::~FullSupernodeList()
 
 bool FullSupernodeList::add(Supernode *item)
 {
+    return this->add(SupernodePtr{item});
+}
 
+bool FullSupernodeList::add(SupernodePtr item)
+{
     if (exists(item->walletAddress()))
         return false;
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
-    m_list.insert(std::make_pair(item->walletAddress(), SupernodePtr{item}));
+    m_list.insert(std::make_pair(item->walletAddress(), item));
     LOG_PRINT_L1("added supernode: " << item->walletAddress());
     LOG_PRINT_L1("list size: " << m_list.size());
     return true;
