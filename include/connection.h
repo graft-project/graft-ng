@@ -1,7 +1,6 @@
 #pragma once
 
 #include "task.h"
-#include "mongoosex.h"
 
 namespace graft {
 
@@ -20,13 +19,17 @@ public:
 
 } //namespace details
 
+void* getUserData(mg_mgr* mgr);
+void* getUserData(mg_connection* nc);
+mg_mgr* getMgr(mg_connection* nc);
+
 template<typename C, typename F = details::default_F<C>>
 void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
 {
     static bool entered = false;
     assert(!entered); //recursive calls are dangerous
     entered = true;
-    C* This = static_cast<C*>(nc->user_data);
+    C* This = static_cast<C*>(getUserData(nc));
     assert(This);
     F f;
     f(This, nc, ev, ev_data);
@@ -63,11 +66,7 @@ private:
 class Server final : public TaskManager
 {
 public:
-    Server(const ConfigOpts& copts)
-        : TaskManager(copts)
-    {
-        mg_mgr_init(&m_mgr, this, cb_event);
-    }
+    Server(const ConfigOpts& copts);
     virtual ~Server();
 
     void serve();
@@ -77,9 +76,9 @@ public:
     bool ready() const { return m_ready; }
     bool stopped() const { return m_stop; }
 
-    virtual mg_mgr* getMgMgr() override { return &m_mgr; }
+    virtual mg_mgr* getMgMgr() override { return m_mgr.get(); }
 protected:
-    mg_mgr m_mgr;
+    std::unique_ptr<mg_mgr> m_mgr;
 private:
     ////static functions
     static void cb_event(mg_mgr* mgr, uint64_t cnt);

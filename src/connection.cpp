@@ -1,6 +1,11 @@
 #include "connection.h"
+#include "mongoosex.h"
 
 namespace graft {
+
+void* getUserData(mg_mgr* mgr) { return mgr->user_data; }
+void* getUserData(mg_connection* nc) { return nc->user_data; }
+mg_mgr* getMgr(mg_connection* nc) { return nc->mgr; }
 
 void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
 {
@@ -82,9 +87,17 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
     }
 }
 
+Server::Server(const ConfigOpts& copts)
+    : TaskManager(copts)
+    , m_mgr(std::make_unique<mg_mgr>())
+{
+    mg_mgr_init(m_mgr.get(), this, cb_event);
+}
+
+
 Server::~Server()
 {
-    mg_mgr_free(&m_mgr);
+    mg_mgr_free(m_mgr.get());
 }
 
 void Server::serve()
@@ -93,7 +106,7 @@ void Server::serve()
 
     for (;;)
     {
-        mg_mgr_poll(&m_mgr, m_copts.timer_poll_interval_ms);
+        mg_mgr_poll(m_mgr.get(), m_copts.timer_poll_interval_ms);
         getTimerList().eval();
         if(stopped()) break;
     }
@@ -101,7 +114,7 @@ void Server::serve()
 
 void Server::notifyJobReady()
 {
-    mg_notify(&m_mgr);
+    mg_notify(m_mgr.get());
 }
 
 void Server::cb_event(mg_mgr *mgr, uint64_t cnt)

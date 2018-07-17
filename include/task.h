@@ -151,7 +151,7 @@ public:
         // TODO: validate options, throw exception if any mandatory options missing
         initThreadPool(copts.workers_count, copts.worker_queue_len);
     }
-    ~TaskManager() { }
+    virtual ~TaskManager() { }
 
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);

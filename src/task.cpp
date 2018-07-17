@@ -187,8 +187,9 @@ void TaskManager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milli
 
 TaskManager *TaskManager::from(mg_mgr *mgr)
 {
-    assert(mgr->user_data);
-    return static_cast<TaskManager*>(mgr->user_data);
+    void* user_data = getUserData(mgr);
+    assert(user_data);
+    return static_cast<TaskManager*>(user_data);
 }
 
 void TaskManager::onNewClient(BaseTaskPtr bt)
@@ -287,7 +288,7 @@ void PeriodicTask::finalize()
 }
 
 ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
-    : BaseTask(*TaskManager::from(client->mgr), prms)
+    : BaseTask(*TaskManager::from( getMgr(client) ), prms)
     , m_connectionManager(connectionManager)
     , m_client(client)
 {
