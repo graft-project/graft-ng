@@ -34,10 +34,12 @@ Supernode::Supernode(const string &wallet_path, const string &wallet_password, c
     }
     m_wallet.init(daemon_address);
     m_wallet.store();
+    LOG_PRINT_L0("supernode created: " << "[" << this << "] " <<  this->walletAddress());
 }
 
 Supernode::~Supernode()
 {
+    LOG_PRINT_L0("destroying supernode: " << "[" << this << "] " <<  this->walletAddress());
     m_wallet.store();
 }
 
@@ -102,15 +104,20 @@ Supernode *Supernode::createFromViewOnlyWallet(const string &path, const string 
 
 Supernode *Supernode::load(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet, const string &seed_language)
 {
-    Supernode * sn = new Supernode(wallet_path, wallet_password, daemon_address, testnet);
+    Supernode * sn = nullptr;
+    try {
+        sn = new Supernode(wallet_path, wallet_password, daemon_address, testnet);
+        sn->refresh();
 
-    sn->refresh();
-    if (false/*sn->stakeAmount() < Supernode::TIER1_STAKE_AMOUNT*/) {
-       LOG_ERROR("wallet " << sn->walletAddress() << " doesn't have enough stake to be supernode: " << sn->stakeAmount());
-       delete sn;
-       return nullptr;
-    } else {
-       LOG_PRINT_L1("Loaded supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
+        if (false/*sn->stakeAmount() < Supernode::TIER1_STAKE_AMOUNT*/) {
+            LOG_ERROR("wallet " << sn->walletAddress() << " doesn't have enough stake to be supernode: " << sn->stakeAmount());
+            delete sn;
+            return nullptr;
+        } else {
+            LOG_PRINT_L1("Loaded supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
+        }
+    } catch (...) { // wallet exception; TODO: catch specific exception if possible
+        LOG_ERROR("libwallet exception");
     }
 
     return sn;
@@ -254,9 +261,15 @@ bool Supernode::setDaemonAddress(const string &address)
     return m_wallet.init(address);
 }
 
-void Supernode::refresh()
+bool Supernode::refresh()
 {
-   m_wallet.refresh();
+    try {
+        m_wallet.refresh();
+    } catch (...) {
+        LOG_ERROR("Failed to refresh supernode wallet: " << this->walletAddress());
+        return false;
+    }
+    return true;
 }
 
 bool Supernode::testnet() const
