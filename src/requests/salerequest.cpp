@@ -222,18 +222,26 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
 
     SaleHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : SaleHandlerState::ClientRequest;
 
-
+    // state machine to perform two calls to cryptonode and return result to the client
     switch (state) {
+    // client requested "/sale"
     case SaleHandlerState::ClientRequest:
         LOG_PRINT_L0("called by client, payload: " << input.data());
         ctx.local[__FUNCTION__] = SaleHandlerState::SaleMulticastReply;
+        // call cryptonode's "/rta/multicast" to send sale data to auth sample
+        // "handleClientSaleRequest" returns Forward;
         return handleClientSaleRequest(vars, input, ctx, output);
     case SaleHandlerState::SaleMulticastReply:
+        // handle "multicast" response from cryptonode, check it's status, send
+        // "sale status" with broadcast to cryptonode
         LOG_PRINT_L0("SaleMulticast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         ctx.local[__FUNCTION__] = SaleHandlerState::SaleStatusReply;
+        // handleSameMulticast returns Forward, call performed according traffic capture but after that moment
+        // this handler never called again, but it supposed to be "broadcast" reply from cryptonode
         return handleSaleMulticastReply(vars, input, ctx, output);
     case SaleHandlerState::SaleStatusReply:
+        // this code never reached and previous output (with "broadcast" request to cryptonode) returned to client
         LOG_PRINT_L0("SaleStatusBroadcast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         return handleSaleStatusBroadcastReply(vars, input, ctx, output);
