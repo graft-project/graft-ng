@@ -389,6 +389,7 @@ void PeriodicTask::start()
 
 void ClientRequest::respondAndDie(const std::string &s)
 {
+    if(!get_itself()) return; //it is possible that a client has closed connection already
     int code;
     switch(m_ctx.local.getLastStatus())
     {
