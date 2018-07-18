@@ -48,27 +48,10 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         return errorInvalidParams(output);
     }
 
-    LOG_PRINT_L0(__FUNCTION__ << " input: \n" << input.data() );
-
 
     const SaleRequest &in = req.params;
-    Output debugOut;
-    output.load(req);
-    LOG_PRINT_L0(__FUNCTION__ << " params: \n" << debugOut.data() );
-
 
     do {
-        if (in.Address.empty()) {
-            return errorInvalidParams(output);            // store SaleData, payment_id and
-        }
-
-        std::string payment_id = in.PaymentID;
-        if (payment_id.empty()) // request comes from POS.
-        {
-            payment_id = generatePaymentID();
-        }
-        LOG_PRINT_L0("amount: " << in.Amount);
-
         if (in.Amount <= 0)
         {
             return errorInvalidAmount(output);
@@ -80,6 +63,13 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
             error.message = MESSAGE_ADDRESS_INVALID;
             break;
         }
+
+        std::string payment_id = in.PaymentID;
+        if (payment_id.empty()) // request comes from POS.
+        {
+            payment_id = generatePaymentID();
+        }
+
 
         SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
         FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
@@ -188,6 +178,9 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
     output.load(cryptonode_req);
     output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
     output.load(cryptonode_req);
+    LOG_PRINT_L0("calling cryptonode: " << output.uri);
+    LOG_PRINT_L0("\t with data: " << output.data());
+
     return Status::Forward;
 }
 
@@ -229,39 +222,20 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
 
     SaleHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : SaleHandlerState::ClientRequest;
 
+
     switch (state) {
     case SaleHandlerState::ClientRequest:
-    {
         LOG_PRINT_L0("called by client, payload: " << input.data());
-        SaleRequestJsonRpc req;
-        JsonRpcError error;
-        error.code = 0;
-
-        if (!input.get(req)) {
-            return errorInvalidParams(output);
-        }
-
-        LOG_PRINT_L0(__FUNCTION__ << " input: \n" << input.data() );
-
-
-        const SaleRequest &in = req.params;
-        Output debugOut;
-        output.load(req);
-        LOG_PRINT_L0(__FUNCTION__ << " params: \n" << debugOut.data() );
-
-
-
-
-
         ctx.local[__FUNCTION__] = SaleHandlerState::SaleMulticastReply;
         return handleClientSaleRequest(vars, input, ctx, output);
-    }
     case SaleHandlerState::SaleMulticastReply:
-        LOG_PRINT_L0("response from cryptonode: " << input.data());
+        LOG_PRINT_L0("SaleMulticast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         ctx.local[__FUNCTION__] = SaleHandlerState::SaleStatusReply;
         return handleSaleMulticastReply(vars, input, ctx, output);
     case SaleHandlerState::SaleStatusReply:
+        LOG_PRINT_L0("SaleStatusBroadcast response from cryptonode: " << input.data());
+        LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         return handleSaleStatusBroadcastReply(vars, input, ctx, output);
      default:
         LOG_ERROR("Internal error: unhandled state");
