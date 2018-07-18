@@ -1,5 +1,6 @@
 #include "requestdefines.h"
 
+
 namespace graft {
 
 Status errorInvalidPaymentID(Output &output)

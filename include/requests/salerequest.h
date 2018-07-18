@@ -13,25 +13,15 @@ GRAFT_DEFINE_IO_STRUCT(SaleRequest,
     (std::string, Address),
     (std::string, SaleDetails),
     (std::string, PaymentID),
-    (std::string, Amount)
+    (uint64_t, Amount)
 );
 
 
 // Sale request in wrapped as json-rpc
 GRAFT_DEFINE_JSON_RPC_REQUEST(SaleRequestJsonRpc, SaleRequest)
 
-//// outer structure, to be inserted into json-rpc request as "params" member
-//GRAFT_DEFINE_IO_STRUCT(SaleRequestP2P,
-//                       (std::vector<std::string>, addresses),
-//                       (std::string, callback_uri),
-//                       (SaleRequest, data) // can we have some magic that automatically serialize data to "json"->"b64" and deserialize same way
-//                       );
-
-
-//// JSON-RPC request
-//GRAFT_DEFINE_JSON_RPC_REQUEST(SaleRequestP2PJsonRpc, SaleRequestP2P);
-
-
+// JSON-RPC request
+// GRAFT_DEFINE_JSON_RPC_REQUEST(SaleRequestP2PJsonRpc, SaleRequestP2P);
 
 GRAFT_DEFINE_IO_STRUCT(SaleResponse,
     (uint64, BlockNumber), //TODO: Need to check if we really need it.

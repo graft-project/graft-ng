@@ -28,38 +28,192 @@ GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
                        );
 
 
-// message to be broadcasted
-GRAFT_DEFINE_IO_STRUCT(UpdateSaleStatusBroadcast,
-                       (std::string, PaymentID),
-                       (int, Status),
-                       (std::string, address),   // address who updates the status
-                       (std::string, signature)  // signature who updates the status
-                       );
 
 
-Status broadcastSaleStatus(graft::Context &ctx, graft::Output &output, SupernodePtr supernode, const string &PaymentID, int status)
+enum class SaleHandlerState : int
 {
+    ClientRequest = 0,
+    SaleMulticastReply,
+    SaleStatusReply
+};
+
+
+Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+{
+    SaleRequestJsonRpc req;
+    JsonRpcError error;
+    error.code = 0;
+
+    if (!input.get(req)) {
+        return errorInvalidParams(output);
+    }
+
+    LOG_PRINT_L0(__FUNCTION__ << " input: \n" << input.data() );
+
+
+    const SaleRequest &in = req.params;
+    Output debugOut;
+    output.load(req);
+    LOG_PRINT_L0(__FUNCTION__ << " params: \n" << debugOut.data() );
+
+
+    do {
+        if (in.Address.empty()) {
+            return errorInvalidParams(output);            // store SaleData, payment_id and
+        }
+
+        std::string payment_id = in.PaymentID;
+        if (payment_id.empty()) // request comes from POS.
+        {
+            payment_id = generatePaymentID();
+        }
+        LOG_PRINT_L0("amount: " << in.Amount);
+
+        if (in.Amount <= 0)
+        {
+            return errorInvalidAmount(output);
+        }
+
+        if (!Supernode::validateAddress(in.Address, ctx.global.getConfig()->testnet))
+        {
+            error.code = ERROR_ADDRESS_INVALID;
+            error.message = MESSAGE_ADDRESS_INVALID;
+            break;
+        }
+
+        SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+        FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
+
+        // reply to caller (POS)
+        SaleData data(in.Address, supernode->daemonHeight(), in.Amount);
+
+        // what needs to be multicasted to auth sample ?
+        // 1. payment_id
+        // 2. SaleData
+        if (!in.SaleDetails.empty())
+        {
+            ctx.global.set(payment_id + CONTEXT_KEY_SALE_DETAILS, in.SaleDetails, SALE_TTL);
+        }
+
+        // generate auth sample
+        std::vector<SupernodePtr> authSample;
+        if (!fsl->buildAuthSample(data.BlockNumber, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
+            error.code = ERROR_INVALID_PARAMS;
+            error.message  = MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE;
+            break;
+        }
+
+        // here we need to perform two actions:
+        // 1. multicast sale over auth sample
+        // 2. broadcast sale status
+        ctx.global.set(payment_id + CONTEXT_KEY_SALE, data, SALE_TTL);
+        ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
+
+        // store SaleData, payment_id and status in local context, so when we got reply from cryptonode, we just pass it to client
+        ctx.local["sale_data"]  = data;
+        ctx.local["payment_id"]  = payment_id;
+
+        // prepare output for multicast
+        // multicast sale to the auth sample nodes
+        SaleDataMulticast sdm;
+        sdm.paymentId = payment_id;
+        sdm.sale_data = data;
+        sdm.status = static_cast<int>(RTAStatus::Waiting);
+        sdm.details = in.SaleDetails;
+        Output innerOut;
+        innerOut.loadT<serializer::JSON_B64>(sdm);
+
+        MulticastRequestJsonRpc cryptonode_req;
+
+        for (const auto & sn : authSample) {
+            cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
+        }
+
+        cryptonode_req.method = "multicast";
+        cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side
+        cryptonode_req.params.data = innerOut.data();
+        output.load(cryptonode_req);
+        output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
+        LOG_PRINT_L0("calling cryptonode: " << output.uri);
+        LOG_PRINT_L0("\t with data: " << output.data());
+    } while (false);
+
+    if (error.code != 0) {
+        JsonRpcErrorResponse errResp;
+        errResp.error = error;
+        output.load(errResp);
+        return Status::Error;
+    }
+
+    return Status::Forward;
+}
+
+
+Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& input,
+                                graft::Context& ctx, graft::Output& output)
+{
+    // check cryptonode reply
+    MulticastResponseFromCryptonodeJsonRpc resp;
+
+    JsonRpcErrorResponse error;
+    if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
+        error.error.code = ERROR_INTERNAL_ERROR;
+        error.error.message = "Error multicasting request";
+        output.load(error);
+        return Status::Error;
+    }
+
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+
+    string payment_id = ctx.local["payment_id"];
     UpdateSaleStatusBroadcast ussb;
     ussb.address = supernode->walletAddress();
-    ussb.Status = status;
-    ussb.PaymentID = PaymentID;
+    ussb.Status =  ctx.global.get(payment_id + CONTEXT_KEY_STATUS, static_cast<int>((RTAStatus::Waiting)));
+    ussb.PaymentID = payment_id;
 
-
-    // compose signature
-    std::string msg = PaymentID + ":" + to_string(status);
+    // sign message
+    std::string msg = payment_id + ":" + to_string(ussb.Status);
     crypto::signature sign;
     supernode->signMessage(msg, sign);
     ussb.signature = epee::string_tools::pod_to_hex(sign);
 
-    // send payload
-    BroadcastRequestJsonRpc req;
-    req.method = "broadcast";
-    // req.
+    Output innerOut;
+    innerOut.loadT<serializer::JSON_B64>(ussb);
 
-    return Status::Ok;
+    // send payload
+    BroadcastRequestJsonRpc cryptonode_req;
+    cryptonode_req.method = "broadcast";
+    cryptonode_req.params.callback_uri = "/cryptonode/update_sale_status";
+    cryptonode_req.params.data = innerOut.data();
+    output.load(cryptonode_req);
+    output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
+    output.load(cryptonode_req);
+    return Status::Forward;
 }
 
+Status handleSaleStatusBroadcastReply(const Router::vars_t& vars, const graft::Input& input,
+                                graft::Context& ctx, graft::Output& output)
+{
 
+    // TODO: check if cryptonode broadcasted status
+    BroadcastResponseFromCryptonodeJsonRpc resp;
+    JsonRpcErrorResponse error;
+    if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
+        error.error.code = ERROR_INTERNAL_ERROR;
+        error.error.message = "Error broadcasting request";
+        output.load(error);
+        return Status::Error;
+    }
+
+    // prepare reply to the client
+    SaleData data = ctx.local["sale_data"];
+    string payment_id = ctx.local["payment_id"];
+    SaleResponseJsonRpc out;
+    out.result.BlockNumber = data.BlockNumber;
+    out.result.PaymentID = payment_id;
+    output.load(out);
+    return Status::Ok;
+}
 
 /*!
  * \brief saleClientHandler - handles /dapi/v2.0/sale POS request
@@ -73,130 +227,47 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
                          graft::Context& ctx, graft::Output& output)
 {
 
-    bool calledByClient = !ctx.local.hasKey(__FUNCTION__);
-    ctx.local[__FUNCTION__] = true;
+    SaleHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : SaleHandlerState::ClientRequest;
 
-    JsonRpcError error;
-    error.code = 0;
-
-    // validate params, generate payment id, build auth sample, multicast to auth sample
-    if (calledByClient) {
+    switch (state) {
+    case SaleHandlerState::ClientRequest:
+    {
         LOG_PRINT_L0("called by client, payload: " << input.data());
         SaleRequestJsonRpc req;
+        JsonRpcError error;
+        error.code = 0;
+
         if (!input.get(req)) {
             return errorInvalidParams(output);
         }
 
+        LOG_PRINT_L0(__FUNCTION__ << " input: \n" << input.data() );
+
+
         const SaleRequest &in = req.params;
-        do {
-            if (in.Address.empty() && in.Amount.empty()) {
-                return errorInvalidParams(output);            // store SaleData, payment_id and
-            }
-            std::string payment_id = in.PaymentID;
-            if (payment_id.empty()) // request comes from POS.
-            {
-                payment_id = generatePaymentID();
-            }
-
-            uint64_t amount = convertAmount(in.Amount);
-            if (amount <= 0)
-            {
-                return errorInvalidAmount(output);
-            }
-
-            if (!Supernode::validateAddress(in.Address, ctx.global.getConfig()->testnet))
-            {
-                error.code = ERROR_ADDRESS_INVALID;
-                error.message = MESSAGE_ADDRESS_INVALID;
-                break;
-            }
-
-            SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
-            FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
-
-            // reply to caller (POS)
-            SaleData data(in.Address, supernode->daemonHeight(), amount);
-
-            // what needs to be multicasted to auth sample ?
-            // 1. payment_id
-            // 2. SaleData
-            if (!in.SaleDetails.empty())
-            {
-                ctx.global.set(payment_id + CONTEXT_KEY_SALE_DETAILS, in.SaleDetails, SALE_TTL);
-            }
+        Output debugOut;
+        output.load(req);
+        LOG_PRINT_L0(__FUNCTION__ << " params: \n" << debugOut.data() );
 
 
-            // generate auth sample
-            std::vector<SupernodePtr> authSample;
-            if (!fsl->buildAuthSample(data.BlockNumber, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
-                error.code = ERROR_INVALID_PARAMS;
-                error.message  = MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE;
-                break;
-            }
 
 
-            // here we need to perform two actions:
-            // 1. multicast sale over auth sample
-            // 2. broadcast sale status
-            ctx.global.set(payment_id + CONTEXT_KEY_SALE, data, SALE_TTL);
-            ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
 
-            // store SaleData, payment_id and status in local context, so when we got reply from cryptonode, we just pass it to client
-            ctx.local["sale_data"]  = data;
-            ctx.local["payment_id"]  = payment_id;
-
-            // multicast sale to the auth sample nodes
-            SaleDataMulticast sdm;
-            sdm.paymentId = payment_id;
-            sdm.sale_data = data;
-            sdm.status = static_cast<int>(RTAStatus::Waiting);
-            sdm.details = in.SaleDetails;
-            Output out;
-            out.loadT<serializer::JSON_B64>(sdm);
-
-            MulticastRequestJsonRpc cryptonode_req;
-
-            for (const auto & sn : authSample) {
-                cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
-            }
-
-            cryptonode_req.method = "multicast";
-            cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side
-            cryptonode_req.params.data = out.data();
-            output.load(cryptonode_req);
-            output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
-            LOG_PRINT_L0("calling: " << output.uri);
-            LOG_PRINT_L0("data: " << output.data());
-
-        } while (false);
-
-        if (error.code != 0) {
-            output.load(error);
-            return Status::Error;
-        }
-
-        return Status::Forward;
-
-    } else { // response from upstream, send reply to client (POS)
+        ctx.local[__FUNCTION__] = SaleHandlerState::SaleMulticastReply;
+        return handleClientSaleRequest(vars, input, ctx, output);
+    }
+    case SaleHandlerState::SaleMulticastReply:
         LOG_PRINT_L0("response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
-        // TODO: check cryptonode reply
-        MulticastResponseFromCryptonodeJsonRpc resp;
-        if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
-            error.code = ERROR_INTERNAL_ERROR;
-            error.message = "Error multicasting request";
-            output.load(error);
-            return Status::Error;
-        }
+        ctx.local[__FUNCTION__] = SaleHandlerState::SaleStatusReply;
+        return handleSaleMulticastReply(vars, input, ctx, output);
+    case SaleHandlerState::SaleStatusReply:
+        return handleSaleStatusBroadcastReply(vars, input, ctx, output);
+     default:
+        LOG_ERROR("Internal error: unhandled state");
+        abort();
+    };
 
-        SaleData data = ctx.local["sale_data"];
-        string payment_id = ctx.local["payment_id"];
-        SaleResponseJsonRpc out;
-        out.result.BlockNumber = data.BlockNumber;
-        out.result.PaymentID = payment_id;
-        output.load(out);
-        return Status::Ok;
-    }
 }
 
 /*!
@@ -230,7 +301,7 @@ Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& inp
         return errorInvalidParams(output);
     }
     const std::string &payment_id = sdm.paymentId;
-    LOG_PRINT_L0("sale details received from multicast: " << sdm.details);
+    LOG_PRINT_L0("sale details received from multicast: " << sdm.paymentId);
     // TODO: should be signed by sender??
     if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE)) {
         ctx.global[payment_id + CONTEXT_KEY_SALE] = sdm.sale_data;
