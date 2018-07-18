@@ -63,11 +63,11 @@ private:
     std::string m_error;
 };
 
-class Server final : public TaskManager
+class Looper final : public TaskManager
 {
 public:
-    Server(const ConfigOpts& copts);
-    virtual ~Server();
+    Looper(const ConfigOpts& copts);
+    virtual ~Looper();
 
     void serve();
     void notifyJobReady() override;
@@ -90,7 +90,7 @@ private:
 class ConnectionManager
 {
 public:
-    virtual void bind(Server& server) = 0;
+    virtual void bind(Looper& looper) = 0;
     virtual void respond(ClientTask* ct, const std::string& s);
 
     ConnectionManager() = default;
@@ -135,7 +135,7 @@ public:
 class HttpConnectionManager final : public ConnectionManager
 {
 public:
-    void bind(Server& server) override;
+    void bind(Looper& looper) override;
 
 private:
     static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
@@ -146,7 +146,7 @@ private:
 class CoapConnectionManager final : public ConnectionManager
 {
 public:
-    void bind(Server& server) override;
+    void bind(Looper& looper) override;
 
 private:
     static void ev_handler_coap(mg_connection *client, int ev, void *ev_data);

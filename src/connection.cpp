@@ -87,7 +87,7 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
     }
 }
 
-Server::Server(const ConfigOpts& copts)
+Looper::Looper(const ConfigOpts& copts)
     : TaskManager(copts)
     , m_mgr(std::make_unique<mg_mgr>())
 {
@@ -95,12 +95,12 @@ Server::Server(const ConfigOpts& copts)
 }
 
 
-Server::~Server()
+Looper::~Looper()
 {
     mg_mgr_free(m_mgr.get());
 }
 
-void Server::serve()
+void Looper::serve()
 {
     m_ready = true;
 
@@ -112,12 +112,18 @@ void Server::serve()
     }
 }
 
-void Server::notifyJobReady()
+void Looper::stop()
+{
+    assert(!m_stop);
+    m_stop = true;
+}
+
+void Looper::notifyJobReady()
 {
     mg_notify(m_mgr.get());
 }
 
-void Server::cb_event(mg_mgr *mgr, uint64_t cnt)
+void Looper::cb_event(mg_mgr *mgr, uint64_t cnt)
 {
     TaskManager::from(mgr)->cb_event(cnt);
 }
@@ -153,12 +159,12 @@ void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev
 }
 
 
-void HttpConnectionManager::bind(Server& server)
+void HttpConnectionManager::bind(Looper& looper)
 {
-    assert(!server.ready());
-    mg_mgr* mgr = server.getMgMgr();
+    assert(!looper.ready());
+    mg_mgr* mgr = looper.getMgMgr();
 
-    const ConfigOpts& opts = server.getCopts();
+    const ConfigOpts& opts = looper.getCopts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
     if(!nc_http) throw std::runtime_error("Cannot bind to " + opts.http_address);
@@ -166,12 +172,12 @@ void HttpConnectionManager::bind(Server& server)
     mg_set_protocol_http_websocket(nc_http);
 }
 
-void CoapConnectionManager::bind(Server& server)
+void CoapConnectionManager::bind(Looper& looper)
 {
-    assert(!server.ready());
-    mg_mgr* mgr = server.getMgMgr();
+    assert(!looper.ready());
+    mg_mgr* mgr = looper.getMgMgr();
 
-    const ConfigOpts& opts = server.getCopts();
+    const ConfigOpts& opts = looper.getCopts();
 
     mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
     if(!nc_coap) throw std::runtime_error("Cannot bind to " + opts.coap_address);
@@ -324,6 +330,7 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
 
 void ConnectionManager::respond(ClientTask* ct, const std::string& s)
 {
+    if(!ct->getSelf()) return; //it is possible that a client has closed connection already
     int code;
     switch(ct->getCtx().local.getLastStatus())
     {

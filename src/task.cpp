@@ -264,12 +264,6 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     //uss will be destroyed on exit
 }
 
-void Server::stop()
-{
-    assert(!m_stop);
-    m_stop = true;
-}
-
 BaseTask::BaseTask(TaskManager& manager, const Router::JobParams& params)
     : m_manager(manager)
     , m_params(params)
