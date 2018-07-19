@@ -1,6 +1,8 @@
 #include "fullsupernodelist.h"
 
 #include <wallet/api/wallet_manager.h>
+#include <cryptonote_basic/cryptonote_basic_impl.h>
+#include <cryptonote_protocol/blobdatatype.h>
 #include <misc_log_ex.h>
 
 #include <boost/multiprecision/cpp_int.hpp>

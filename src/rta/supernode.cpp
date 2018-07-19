@@ -1,7 +1,10 @@
 #include "supernode.h"
 #include "fullsupernodelist.h"
+#include "requests/sendsupernodeannouncerequest.h"
+
 
 #include <misc_log_ex.h>
+#include <wallet/wallet2.h>
 #include <cryptonote_basic/cryptonote_basic_impl.h>
 #include <boost/filesystem.hpp>
 #include <iostream>
@@ -12,7 +15,7 @@ namespace graft {
 
 Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
                      const string &seed_language)
-    : m_wallet(testnet)
+    : m_wallet{new tools::wallet2(testnet)}
 {
     bool keys_file_exists;
     bool wallet_file_exists;
@@ -24,40 +27,40 @@ Supernode::Supernode(const string &wallet_path, const string &wallet_password, c
 
     // existing wallet, open it
     if (keys_file_exists) {
-        m_wallet.load(wallet_path, wallet_password);
+        m_wallet->load(wallet_path, wallet_password);
     // new wallet, generating it
     } else {
         if (!seed_language.empty())
-            m_wallet.set_seed_language(seed_language);
+            m_wallet->set_seed_language(seed_language);
         crypto::secret_key recovery_val, secret_key;
-        recovery_val = m_wallet.generate(wallet_path, wallet_password, secret_key, false, false);
+        recovery_val = m_wallet->generate(wallet_path, wallet_password, secret_key, false, false);
     }
-    m_wallet.init(daemon_address);
-    m_wallet.store();
+    m_wallet->init(daemon_address);
+    m_wallet->store();
     LOG_PRINT_L0("supernode created: " << "[" << this << "] " <<  this->walletAddress());
 }
 
 Supernode::~Supernode()
 {
     LOG_PRINT_L0("destroying supernode: " << "[" << this << "] " <<  this->walletAddress());
-    m_wallet.store();
+    m_wallet->store();
 }
 
 uint64_t Supernode::stakeAmount() const
 {
-    return m_wallet.balance();
+    return m_wallet->balance();
 }
 
 string Supernode::walletAddress() const
 {
-    return m_wallet.get_account().get_public_address_str(m_wallet.testnet());
+    return m_wallet->get_account().get_public_address_str(m_wallet->testnet());
 }
 
 uint64_t Supernode::daemonHeight() const
 {
     uint64_t result = 0;
     std::string err;
-    result = m_wallet.get_daemon_blockchain_height(err);
+    result = m_wallet->get_daemon_blockchain_height(err);
     if (!result) {
         LOG_ERROR(err);
     }
@@ -66,14 +69,14 @@ uint64_t Supernode::daemonHeight() const
 
 bool Supernode::exportKeyImages(vector<Supernode::SignedKeyImage> &key_images) const
 {
-    key_images = m_wallet.export_key_images();
+    key_images = m_wallet->export_key_images();
     return !key_images.empty();
 }
 
 bool Supernode::importKeyImages(const vector<Supernode::SignedKeyImage> &key_images, uint64_t &height)
 {
     uint64_t spent = 0, unspent = 0;
-    height = m_wallet.import_key_images(key_images, spent, unspent);
+    height = m_wallet->import_key_images(key_images, spent, unspent);
     return height > 0;
 }
 
@@ -98,7 +101,7 @@ Supernode *Supernode::createFromViewOnlyWallet(const string &path, const string 
     }
 
     result = new Supernode(testnet);
-    result->m_wallet.generate(path, password, wallet_addr, viewkey);
+    result->m_wallet->generate(path, password, wallet_addr, viewkey);
     return result;
 }
 
@@ -200,7 +203,7 @@ bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
 {
     announce.timestamp = time(nullptr);
     announce.secret_viewkey = epee::string_tools::pod_to_hex(this->exportViewkey());
-    announce.height = m_wallet.get_blockchain_current_height();
+    announce.height = m_wallet->get_blockchain_current_height();
 
     vector<Supernode::SignedKeyImage> signed_key_images;
     if (!exportKeyImages(signed_key_images)) {
@@ -224,20 +227,20 @@ bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
 
 crypto::secret_key Supernode::exportViewkey() const
 {
-    return m_wallet.get_account().get_keys().m_view_secret_key;
+    return m_wallet->get_account().get_keys().m_view_secret_key;
 }
 
 
 bool Supernode::signMessage(const string &msg, crypto::signature &signature) const
 {
-    if (m_wallet.watch_only()) {
+    if (m_wallet->watch_only()) {
         LOG_ERROR("Attempting to sign with watch-only wallet");
         return false;
     }
 
     crypto::hash hash;
     crypto::cn_fast_hash(msg.data(), msg.size(), hash);
-    const cryptonote::account_keys &keys = m_wallet.get_account().get_keys();
+    const cryptonote::account_keys &keys = m_wallet->get_account().get_keys();
     crypto::generate_signature(hash, keys.m_account_address.m_spend_public_key, keys.m_spend_secret_key, signature);
     return true;
 }
@@ -245,7 +248,7 @@ bool Supernode::signMessage(const string &msg, crypto::signature &signature) con
 bool Supernode::verifySignature(const string &msg, const string &address, const crypto::signature &signature) const
 {
     cryptonote::account_public_address wallet_addr;
-    if (!cryptonote::get_account_address_from_str(wallet_addr, m_wallet.testnet(), address)) {
+    if (!cryptonote::get_account_address_from_str(wallet_addr, m_wallet->testnet(), address)) {
         LOG_ERROR("Error parsing address");
         return false;
     }
@@ -258,13 +261,13 @@ bool Supernode::verifySignature(const string &msg, const string &address, const 
 
 bool Supernode::setDaemonAddress(const string &address)
 {
-    return m_wallet.init(address);
+    return m_wallet->init(address);
 }
 
 bool Supernode::refresh()
 {
     try {
-        m_wallet.refresh();
+        m_wallet->refresh();
     } catch (...) {
         LOG_ERROR("Failed to refresh supernode wallet: " << this->walletAddress());
         return false;
@@ -274,12 +277,12 @@ bool Supernode::refresh()
 
 bool Supernode::testnet() const
 {
-    return m_wallet.testnet();
+    return m_wallet->testnet();
 }
 
 void Supernode::getScoreHash(const crypto::hash &block_hash, crypto::hash &result) const
 {
-    cryptonote::blobdata data = m_wallet.get_account().get_public_address_str(testnet());
+    cryptonote::blobdata data = m_wallet->get_account().get_public_address_str(testnet());
     data += epee::string_tools::pod_to_hex(block_hash);
     crypto::cn_fast_hash(data.c_str(), data.size(), result);
 }
@@ -302,7 +305,7 @@ bool Supernode::validateAddress(const string &address, bool testnet)
 }
 
 Supernode::Supernode(bool testnet)
-    : m_wallet(testnet)
+    : m_wallet{ new tools::wallet2(testnet) }
 {
 
 }

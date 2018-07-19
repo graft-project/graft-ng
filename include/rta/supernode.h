@@ -1,16 +1,19 @@
 #ifndef SUPERNODE_H
 #define SUPERNODE_H
 
-#include "requests/sendsupernodeannouncerequest.h"
-
+#include <crypto/crypto.h>
+#include <cryptonote_config.h>
+#include <boost/scoped_ptr.hpp>
 #include <string>
 #include <vector>
-#include <crypto/crypto.h>
-#include <cryptonote_basic/cryptonote_basic.h>
-#include <wallet/wallet2.h>
 
+namespace tools {
+    class wallet2;
+}
 
 namespace graft {
+
+struct SupernodeAnnounce;
 
 /*!
  * \brief The Supernode class - Representing supernode instance
@@ -186,7 +189,9 @@ private:
     Supernode(bool testnet = false);
 
 private:
-    mutable tools::wallet2 m_wallet;
+    using wallet2_ptr = boost::scoped_ptr<tools::wallet2>;
+    // mutable tools::wallet2 m_wallet;
+    mutable wallet2_ptr m_wallet;
     std::string    m_network_address;
 };
 

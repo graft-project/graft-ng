@@ -35,6 +35,7 @@
 
 // cryptonode includes
 
+#include <requests/sendsupernodeannouncerequest.h>
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
 #include <misc_log_ex.h>
