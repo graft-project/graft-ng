@@ -1,8 +1,13 @@
 #include "salestatusrequest.h"
 #include "requestdefines.h"
 #include "requests/broadcast.h"
+#include <misc_log_ex.h>
+
 
 namespace graft {
+
+using namespace std;
+
 
 // json-rpc request from client
 GRAFT_DEFINE_JSON_RPC_REQUEST(SaleStatusRequestJsonRpc, SaleStatusRequest);
@@ -36,22 +41,47 @@ Status updateSaleStatusHandler(const Router::vars_t& vars, const graft::Input& i
                          graft::Context& ctx, graft::Output& output)
 {
 
-    SaleStatusRequestJsonRpc req;
-
+    BroadcastRequestJsonRpc req;
     if (!input.get(req)) {
         return errorInvalidParams(output);
     }
 
-    const SaleStatusRequest &in = req.params;
-    int current_status = ctx.global.get(in.PaymentID + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::None));
-    if (in.PaymentID.empty() || current_status == 0)
-    {
-        return errorInvalidPaymentID(output);
+
+    JsonRpcError error;
+    error.code = 0;
+
+    UpdateSaleStatusBroadcast ussb;
+
+    graft::Input innerInput;
+    innerInput.load(req.params.data);
+
+    LOG_PRINT_L0("input loaded");
+    if (!innerInput.getT<serializer::JSON_B64>(ussb)) {
+        return errorInvalidParams(output);
     }
 
-    SaleStatusResponseJsonRpc out;
-    out.result.Status = current_status;
-    output.load(out);
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+
+
+    LOG_PRINT_L0("sale status update received from broadcast: " << ussb.PaymentID);
+
+    if (!checkSaleStatusUpdateSignature(ussb.PaymentID, ussb.Status, ussb.address, ussb.signature, supernode)) {
+        error.code = ERROR_RTA_SIGNATURE_FAILED;
+        error.message = "failed to validate signature for status update";
+        LOG_ERROR(error.message);
+        JsonRpcErrorResponse resp;
+        resp.error = error;
+        output.load(resp);
+        return Status::Error;
+    } else {
+        ctx.global[ussb.PaymentID + CONTEXT_KEY_STATUS] = ussb.Status;
+        LOG_PRINT_L0("sale status updated for payment id: " << ussb.PaymentID << " to: " << ussb.Status);
+    }
+
+    BroadcastResponseToCryptonodeJsonRpc resp;
+    resp.result.status = "OK";
+    output.load(resp);
+
     return Status::Ok;
 }
 
@@ -59,8 +89,32 @@ Status updateSaleStatusHandler(const Router::vars_t& vars, const graft::Input& i
 
 void registerSaleStatusRequest(graft::Router &router)
 {
-    Router::Handler3 h3(saleStatusHandler, nullptr, nullptr);
-    router.addRoute("/sale_status", METHOD_POST, h3);
+    Router::Handler3 h1(saleStatusHandler, nullptr, nullptr);
+    router.addRoute("/sale_status", METHOD_POST, h1);
+    Router::Handler3 h2(updateSaleStatusHandler, nullptr, nullptr);
+    router.addRoute("/cryptonode/update_sale_status", METHOD_POST, h2);
+}
+
+string signSaleStatusUpdate(const string &payment_id, int status, const SupernodePtr &supernode)
+{
+    std::string msg = payment_id + ":" + to_string(status);
+    crypto::signature sign;
+    supernode->signMessage(msg, sign);
+    return epee::string_tools::pod_to_hex(sign);
+}
+
+
+bool checkSaleStatusUpdateSignature(const string &payment_id, int status, const string &address, const string &signature,
+                                    const SupernodePtr &supernode)
+{
+    crypto::signature sign;
+    if (!epee::string_tools::hex_to_pod(signature, sign)) {
+        LOG_ERROR("Error parsing signature: " << signature);
+        return false;
+    }
+
+    std::string msg = payment_id + ":" + to_string(status);
+    return supernode->verifySignature(msg, address, sign);
 }
 
 }

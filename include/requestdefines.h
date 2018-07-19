@@ -32,6 +32,7 @@ static const std::string MESSAGE_INTERNAL_ERROR("Internal server error.");
 #define ERROR_SALE_REQUEST_FAILED           -32060
 #define ERROR_RTA_COMPLETED                 -32070
 #define ERROR_RTA_FAILED                    -32071
+#define ERROR_RTA_SIGNATURE_FAILED          -32080
 
 static const std::string MESSAGE_AMOUNT_INVALID("Amount is invalid.");
 static const std::string MESSAGE_PAYMENT_ID_INVALID("Payment ID is invalid.");

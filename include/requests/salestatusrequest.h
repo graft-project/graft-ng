@@ -3,6 +3,7 @@
 
 #include "router.h"
 #include "jsonrpc.h"
+#include "rta/supernode.h"
 
 namespace graft {
 
@@ -14,16 +15,36 @@ GRAFT_DEFINE_IO_STRUCT(SaleStatusRequest,
 
 
 // message to be broadcasted
-GRAFT_DEFINE_IO_STRUCT(UpdateSaleStatusBroadcast,
-                       (std::string, PaymentID),
-                       (int, Status),
-                       (std::string, address),   // address who updates the status
-                       (std::string, signature)  // signature who updates the status
+GRAFT_DEFINE_IO_STRUCT_INITED(UpdateSaleStatusBroadcast,
+                       (std::string, PaymentID, std::string()),
+                       (int, Status, 0),
+                       (std::string, address, std::string()),   // address who updates the status
+                       (std::string, signature, std::string())  // signature who updates the status
                        );
 
-GRAFT_DEFINE_IO_STRUCT(SaleStatusResponse,
-    (int, Status)
+GRAFT_DEFINE_IO_STRUCT_INITED(SaleStatusResponse,
+    (int, Status, 0)
 );
+
+/*!
+ * \brief signSaleStatusUpdate - signs sale status message
+ * \param payment_id
+ * \param status
+ * \param supernode
+ * \return
+ */
+std::string signSaleStatusUpdate(const std::string &payment_id, int status, const SupernodePtr &supernode);
+
+/*!
+ * \brief checkSaleStatusUpdateSignature
+ * \param payment_id
+ * \param status
+ * \param address
+ * \param signature
+ * \return
+ */
+bool checkSaleStatusUpdateSignature(const std::string &payment_id, int status, const std::string &address,
+                                    const std::string &signature, const SupernodePtr &supernode);
 
 
 void registerSaleStatusRequest(graft::Router &router);
