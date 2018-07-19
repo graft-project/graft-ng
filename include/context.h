@@ -39,10 +39,15 @@ struct Context
                               "not move constructible");
 
                 boost::any tmp(std::forward<T>(v));
-                auto p = m_map.emplace(m_key, std::move(tmp));
-
-                if (!p.second) p.first->second = tmp;
-
+                auto it = m_map.find(m_key);
+                if(it == m_map.end())
+                {
+                    m_map.emplace(m_key, std::move(tmp));
+                }
+                else
+                {
+                    it->second = std::move(tmp);
+                }
                 return *this;
             }
 
