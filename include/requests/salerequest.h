@@ -9,11 +9,11 @@
 namespace graft {
 
 // Sale request payload
-GRAFT_DEFINE_IO_STRUCT(SaleRequest,
-    (std::string, Address),
-    (std::string, SaleDetails),
-    (std::string, PaymentID),
-    (uint64_t, Amount)
+GRAFT_DEFINE_IO_STRUCT_INITED(SaleRequest,
+    (std::string, Address, std::string()),
+    (std::string, SaleDetails, std::string()),
+    (std::string, PaymentID, std::string()),
+    (uint64_t, Amount, 0)
 );
 
 
@@ -23,9 +23,9 @@ GRAFT_DEFINE_JSON_RPC_REQUEST(SaleRequestJsonRpc, SaleRequest)
 // JSON-RPC request
 // GRAFT_DEFINE_JSON_RPC_REQUEST(SaleRequestP2PJsonRpc, SaleRequestP2P);
 
-GRAFT_DEFINE_IO_STRUCT(SaleResponse,
-    (uint64, BlockNumber), //TODO: Need to check if we really need it.
-    (std::string, PaymentID)
+GRAFT_DEFINE_IO_STRUCT_INITED(SaleResponse,
+    (uint64, BlockNumber, 0), //TODO: Need to check if we really need it.
+    (std::string, PaymentID, std::string())
 );
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SaleResponseJsonRpc, SaleResponse);
