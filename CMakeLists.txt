@@ -73,8 +73,6 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
-    ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
     ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
@@ -160,6 +158,7 @@ link_directories(${CRYPTONODE_LIB_DIRS})
 
 add_executable(graft_server
     ${GS_SOURCES}
+    ${PROJECT_SOURCE_DIR}/src/server.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
 

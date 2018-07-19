@@ -93,7 +93,9 @@ public:
     virtual void bind(Looper& looper) = 0;
     virtual void respond(ClientTask* ct, const std::string& s);
 
-    ConnectionManager() = default;
+    ConnectionManager(const std::string& name) : m_name(name) { }
+    ConnectionManager(const ConnectionManager&) = delete;
+    ConnectionManager& operator = (const ConnectionManager&) = delete;
     virtual ~ConnectionManager() = default;
 
     void addRouter(Router& r) { m_root.addRouter(r); }
@@ -104,6 +106,7 @@ public:
     void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
     //returns conflicting endpoint
     std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
+    std::string getName() const { return m_name; }
 
     static void ev_handler(ClientTask* ct, mg_connection *client, int ev, void *ev_data);
 protected:
@@ -115,6 +118,8 @@ protected:
     };
 
     Router::Root m_root;
+private:
+    std::string m_name;
 };
 
 namespace details
@@ -135,6 +140,8 @@ public:
 class HttpConnectionManager final : public ConnectionManager
 {
 public:
+    HttpConnectionManager() : ConnectionManager("HTTP") { }
+
     void bind(Looper& looper) override;
 
 private:
@@ -146,6 +153,8 @@ private:
 class CoapConnectionManager final : public ConnectionManager
 {
 public:
+    CoapConnectionManager() : ConnectionManager("COAP") { }
+
     void bind(Looper& looper) override;
 
 private:

@@ -89,6 +89,7 @@ struct ConfigOpts
     int timer_poll_interval_ms;
     // data directory - where
     std::string data_dir;
+    int lru_timeout_ms;
 };
 
 class BaseTask : public SelfHolder<BaseTask>
