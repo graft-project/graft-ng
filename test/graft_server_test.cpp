@@ -70,7 +70,7 @@ TEST(InOut, common)
         \"unlock_time\": 1\
     }";
     //remove all spaces
-    s.erase(remove_if(s.begin(), s.end(), isspace), s.end());
+    s.erase(std::remove_if(s.begin(), s.end(), isspace), s.end());
     EXPECT_EQ(s_out, s);
 }
 

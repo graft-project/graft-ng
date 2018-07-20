@@ -99,6 +99,8 @@ void Manager::initThreadPool(int threadCount, int workersQueueSize)
     graft::TPResQueue resQueue(resQueueSize);
 
     setThreadPool(std::move(thread_pool), std::move(resQueue), maxinputSize);
+    LOG_PRINT_L1("Thread pool created with " << threadCount << " workers with " << workersQueueSize << " queue size each. "
+                 "The output queue size is " << resQueueSize);
 }
 
 Manager::~Manager()
@@ -241,6 +243,18 @@ void BaseTask::onTooBusy()
     respondAndDie("Thread pool overflow");
 }
 
+const char* BaseTask::getStrStatus(Status s)
+{
+    assert(s<=Status::Stop);
+    static const char *status_str[] = { GRAFT_STATUS_LIST(EXP_TO_STR) };
+    return status_str[static_cast<int>(s)];
+}
+
+const char* BaseTask::getStrStatus()
+{
+    return getStrStatus(m_ctx.local.getLastStatus());
+}
+
 void BaseTask::createJob()
 {
     if(m_prms.h3.pre_action)
@@ -265,6 +279,7 @@ void BaseTask::createJob()
             setError("unknown exception");
             m_prms.input.reset();
         }
+        LOG_PRINT_RQS(3,"pre_action completed with result " << getStrStatus());
 
         if(Status::Ok != getLastStatus() && Status::Forward != getLastStatus())
         {
@@ -291,6 +306,7 @@ void BaseTask::createJob()
 
 void BaseTask::onJobDone(GJ* gj)
 {
+    LOG_PRINT_RQS(2,"worker_action completed with result " << getStrStatus());
     //post_action if not empty, will be called in any case, even if worker_action results as some kind of error or exception.
     //But, in case pre_action finishes as error both worker_action and post_action will be skipped.
     //post_action has a chance to fix result of pre_action. In case of error was before it it should just return that error.
@@ -315,6 +331,7 @@ void BaseTask::onJobDone(GJ* gj)
             setError("unknown exception");
             m_prms.input.reset();
         }
+        LOG_PRINT_RQS(3,"post_action completed with result " << getStrStatus());
     }
     //here you can send a request to cryptonode or send response to client
     //gj will be destroyed on exit, save its result
@@ -328,6 +345,7 @@ void BaseTask::processResult()
     {
     case Status::Forward:
     {
+        LOG_PRINT_RQS(3,"Sending request to CryptoNode");
         m_manager.sendCrypton(get_itself());
     } break;
     case Status::Ok:
@@ -356,12 +374,14 @@ void BaseTask::onCryptonDone(CryptoNodeSender &cns)
     if(Status::Ok != cns.getStatus())
     {
         setError(cns.getError().c_str(), cns.getStatus());
+        LOG_PRINT_RQS(2, "CryptoNode done with error: " << cns.getError().c_str());
         processResult();
         return;
     }
     //here you can send a job to the thread pool or send response to client
     //cns will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
+        LOG_PRINT_RQS(2, "CryptoNode answered ");
         if(!get_itself()) return; //it is possible that a client has closed connection already
         m_manager.sendToThreadPool(get_itself());
     }
@@ -376,6 +396,7 @@ void PeriodicTask::respondAndDie(const std::string& s)
 {
     if(m_ctx.local.getLastStatus() == Status::Stop)
     {
+        LOG_PRINT_L2("Timer request stopped with result " << getStrStatus());
         releaseItself();
         return;
     }
@@ -409,6 +430,7 @@ void ClientRequest::respondAndDie(const std::string &s)
     {
         mg_http_send_error(m_client, code, s.c_str());
     }
+    LOG_PRINT_CLN(2,m_client,"Client request finished with result " << getStrStatus());
     m_client->flags |= MG_F_SEND_AND_CLOSE;
     m_manager.onClientDone(get_itself());
     m_client->handler = static_empty_ev_handler;
@@ -498,48 +520,52 @@ void GraftServer::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 
         struct http_message *hm = (struct http_message *) ev_data;
         std::string uri(hm->uri.p, hm->uri.len);
+
+        std::string s_method(hm->method.p, hm->method.len);
+        int method = translateMethod(hm->method.p, hm->method.len);
+        if (method < 0) return;
+        LOG_PRINT_CLN(1,client,"New HTTP client. uri:" << std::string(hm->uri.p, hm->uri.len) << " method:" << s_method);
         // TODO: why this is hardcoded ?
         if(uri == "/root/exit")
         {
+            LOG_PRINT_L0("Server shutdown.");
             manager->stop();
             return;
         }
-        int method = translateMethod(hm->method.p, hm->method.len);
-        if (method < 0) return;
 
         Router::JobParams prms;
         if (manager->matchRoute(uri, method, prms))
         {
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
+            LOG_PRINT_CLN(2,client,"Matching Route found; body = " << std::string(body.p, body.len));
             BaseTask* rb_ptr = BaseTask::Create<ClientRequest>(client, prms).get();
             assert(dynamic_cast<ClientRequest*>(rb_ptr));
             ClientRequest* ptr = static_cast<ClientRequest*>(rb_ptr);
-
             client->user_data = ptr;
             client->handler = ClientRequest::static_ev_handler;
-
             manager->onNewClient(ptr->get_itself());
         }
         else
         {
+            LOG_PRINT_CLN(2,client,"Matching Route not found; closing connection");
             mg_http_send_error(client, 500, "invalid parameter");
             client->flags |= MG_F_SEND_AND_CLOSE;
         }
-        break;
-    }
+    } break;
     case MG_EV_ACCEPT:
     {
         const ServerOpts& opts = manager->get_c_opts();
 
         mg_set_timer(client, mg_time() + opts.http_connection_timeout);
-        break;
-    }
+    } break;
     case MG_EV_TIMER:
+    {
+        LOG_PRINT_CLN(1,client,"Client timeout; closing connection");
         mg_set_timer(client, 0);
         client->handler = ev_handler_empty; //without this we will get MG_EV_HTTP_REQUEST
         client->flags |= MG_F_CLOSE_IMMEDIATELY;
-        break;
+    } break;
 
     default:
         break;
