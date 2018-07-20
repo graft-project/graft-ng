@@ -143,8 +143,10 @@ bool FullSupernodeList::add(Supernode *item)
 
 bool FullSupernodeList::add(SupernodePtr item)
 {
-    if (exists(item->walletAddress()))
+    if (exists(item->walletAddress())) {
+        LOG_ERROR("item already exists: " << item->walletAddress());
         return false;
+    }
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
     m_list.insert(std::make_pair(item->walletAddress(), item));
