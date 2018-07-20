@@ -246,14 +246,17 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
         return items_selected;
     };
 
-    while (out.size() < AUTH_SAMPLE_SIZE) {
+    // infinite loop protection
+    size_t tries_left = AUTH_SAMPLE_SIZE * AUTH_SAMPLE_SIZE; // not sure if it needs to be N^2
+
+    while (out.size() < AUTH_SAMPLE_SIZE && tries_left--) {
         build_tier_sample(Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT);
         build_tier_sample(Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT);
         build_tier_sample(Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT);
         build_tier_sample(Supernode::TIER4_STAKE_AMOUNT, std::numeric_limits<uint64_t>::max());
     }
 
-    return true;
+    return out.size() == AUTH_SAMPLE_SIZE;
 }
 
 vector<string> FullSupernodeList::items() const
