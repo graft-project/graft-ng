@@ -1,7 +1,15 @@
 #include "connection.h"
 #include "mongoosex.h"
+#include "log.h"
 
 namespace graft {
+
+std::string client_addr(mg_connection* client)
+{
+    std::ostringstream oss;
+    oss << inet_ntoa(client->sa.sin.sin_addr) << ':' << ntohs(client->sa.sin.sin_port);
+    return oss.str();
+}
 
 void* getUserData(mg_mgr* mgr) { return mgr->user_data; }
 void* getUserData(mg_connection* nc) { return nc->user_data; }
@@ -110,6 +118,7 @@ void Looper::serve()
         getTimerList().eval();
         if(stopped()) break;
     }
+    LOG_PRINT_L0("Server shutdown.");
 }
 
 void Looper::stop()
@@ -232,12 +241,16 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         int method = translateMethod(hm->method.p, hm->method.len);
         if (method < 0) return;
 
+        std::string s_method(hm->method.p, hm->method.len);
+        LOG_PRINT_CLN(1,client,"New HTTP client. uri:" << std::string(hm->uri.p, hm->uri.len) << " method:" << s_method);
+
         HttpConnectionManager* httpcm = HttpConnectionManager::from_accepted(client);
         Router::JobParams prms;
         if (httpcm->matchRoute(uri, method, prms))
         {
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
+            LOG_PRINT_CLN(2,client,"Matching Route found; body = " << std::string(body.p, body.len));
             BaseTask* bt = BaseTask::Create<ClientTask>(httpcm, client, prms).get();
             assert(dynamic_cast<ClientTask*>(bt));
             ClientTask* ptr = static_cast<ClientTask*>(bt);
@@ -249,6 +262,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         }
         else
         {
+            LOG_PRINT_CLN(2,client,"Matching Route not found; closing connection");
             mg_http_send_error(client, 500, "invalid parameter");
             client->flags |= MG_F_SEND_AND_CLOSE;
         }
@@ -262,11 +276,13 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         break;
     }
     case MG_EV_TIMER:
+    {
+        LOG_PRINT_CLN(1,client,"Client timeout; closing connection");
         mg_set_timer(client, 0);
         client->handler = ev_handler_empty; //without this we will get MG_EV_HTTP_REQUEST
         client->flags |= MG_F_CLOSE_IMMEDIATELY;
         break;
-
+    }
     default:
         break;
     }
@@ -353,6 +369,7 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
     {
         mg_http_send_error(client, code, s.c_str());
     }
+    LOG_PRINT_CLN(2,ct->m_client,"Client request finished with result " << ct->getStrStatus());
     client->flags |= MG_F_SEND_AND_CLOSE;
     ct->getManager().onClientDone(ct->getSelf());
     client->handler = static_empty_ev_handler;
