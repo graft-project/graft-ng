@@ -96,7 +96,11 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
             LOG_PRINT_L0("supernode refresh done, stake amount: " << supernode->stakeAmount());
 
             graft::SendSupernodeAnnounceJsonRpcRequest req;
-            supernode->prepareAnnounce(req.params);
+            if (!supernode->prepareAnnounce(req.params)) {
+                LOG_ERROR("Can't prepare announce");
+                return graft::Status::Ok;
+            }
+
             req.method = "send_supernode_announce";
             req.id = 0;
             output.load(req);
