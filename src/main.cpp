@@ -295,7 +295,7 @@ int main(int argc, const char** argv)
         graft::setCoapRouters(manager);
         graft::setHttpRouters(manager);
 
-        // startSupernodePeriodicTasks(manager, stake_wallet_refresh_interval_ms);
+        startSupernodePeriodicTasks(manager, stake_wallet_refresh_interval_ms);
 
         manager.enableRouting();
 
