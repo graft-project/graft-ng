@@ -114,6 +114,7 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
                     LOG_ERROR("Cant create watch-only supernode wallet for address: " << announce.address);
                     return;
                 }
+                LOG_PRINT_L0("About to add supernode to list: " << s->walletAddress());
                 if (!fsl->add(s)) {
                     LOG_ERROR("Can't add new supernode to list: " << s->walletAddress());
                     delete s;
