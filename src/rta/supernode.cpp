@@ -171,13 +171,14 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
 Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnnounce &announce, const std::string &daemon_address,
                                          bool testnet)
 {
+    Supernode * result = nullptr;
+
     crypto::secret_key viewkey;
     if (!epee::string_tools::hex_to_pod(announce.secret_viewkey, viewkey)) {
         LOG_ERROR("Failed to parse secret viewkey from string: " << announce.secret_viewkey);
-        return false;
+        return nullptr;
     }
 
-    Supernode * result = nullptr;
     try {
         result = Supernode::createFromViewOnlyWallet(path, announce.address, viewkey, testnet);
 
@@ -194,7 +195,6 @@ Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnno
         delete result;
         result = nullptr;
     }
-
 
     return result;
 }
