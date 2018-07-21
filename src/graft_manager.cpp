@@ -26,6 +26,14 @@ void Manager::sendToThreadPool(BaseTask_ptr cr)
     cr->createJob();
 }
 
+void Manager::addPeriodicTask(
+        const Router::Handler3& h3,
+        std::chrono::milliseconds interval_ms,
+        std::chrono::milliseconds initial_interval_ms)
+{
+    BaseTask* rb = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms, initial_interval_ms).get();
+    assert(rb);
+}
 void Manager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms)
 {
     BaseTask* rb = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms).get();
@@ -384,6 +392,13 @@ void PeriodicTask::respondAndDie(const std::string& s)
 void PeriodicTask::start()
 {
     auto& tl = m_manager.get_timerList();
+
+    if (m_initial_run)
+    {
+        tl.push(m_initial_timeout_ms, get_itself());
+        m_initial_run = false;
+        return;
+    }
     tl.push(m_timeout_ms, get_itself());
 }
 
