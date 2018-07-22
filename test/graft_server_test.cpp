@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "context.h"
-#include "graft_manager.h"
+#include "connection.h"
+#include "mongoosex.h"
 #include "requests.h"
 #include "salerequest.h"
 #include "salestatusrequest.h"
@@ -507,57 +508,58 @@ public:
     class MainServer
     {
     public:
-        graft::ServerOpts sopts;
+        graft::ConfigOpts copts;
         graft::Router router;
     public:
         MainServer()
         {
-            sopts.http_address = "127.0.0.1:9084";
-            sopts.coap_address = "127.0.0.1:9086";
-            sopts.http_connection_timeout = 1;
-            sopts.upstream_request_timeout = 1;
-            sopts.workers_count = 0;
-            sopts.worker_queue_len = 0;
-            sopts.cryptonode_rpc_address = "127.0.0.1:1234";
-            sopts.timer_poll_interval_ms = 50;
+            copts.http_address = "127.0.0.1:9084";
+            copts.coap_address = "127.0.0.1:9086";
+            copts.http_connection_timeout = 1;
+            copts.upstream_request_timeout = 1;
+            copts.workers_count = 0;
+            copts.worker_queue_len = 0;
+            copts.cryptonode_rpc_address = "127.0.0.1:1234";
+            copts.timer_poll_interval_ms = 50;
         }
     public:
         void run()
         {
             th = std::thread([this]{ x_run(); });
-            while(!pserver || !pserver.load()->ready())
+            while(!plooper || !plooper.load()->ready())
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
         void stop_and_wait_for()
         {
-            pmanager.load()->stop();
+            plooper.load()->stop();
             th.join();
         }
     public:
-        std::atomic<graft::Manager*> pmanager{nullptr} ;
-        std::atomic<graft::GraftServer*> pserver{nullptr} ;
+        std::atomic<graft::Looper*> plooper{nullptr};
+        std::atomic<graft::HttpConnectionManager*> phttpcm{nullptr};
     private:
         std::thread th;
     private:
         void x_run()
         {
-            graft::Manager manager(sopts);
-            pmanager = &manager;
+            graft::Looper looper(copts);
+            plooper = &looper;
+            graft::HttpConnectionManager httpcm;
+            phttpcm = &httpcm;
 
-            manager.addRouter(router);
-            bool res = manager.enableRouting();
+            httpcm.addRouter(router);
+            bool res = httpcm.enableRouting();
             EXPECT_EQ(res, true);
 
-            graft::GraftServer gs;
-            pserver = &gs;
-            gs.serve(manager.get_mg_mgr());
+            httpcm.bind(looper);
+            looper.serve();
         }
     };
 public:
     //http client (its objects are created in the main thread)
-    class Client : public graft::StaticMongooseHandler<Client>
+    class Client
     {
     public:
         Client()
@@ -568,7 +570,7 @@ public:
         void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string())
         {
             m_exit = false; m_closed = false;
-            client = mg_connect_http(&m_mgr, static_ev_handler, url.c_str(),
+            client = mg_connect_http(&m_mgr, graft::static_ev_handler<Client>, url.c_str(),
                                      (extra_headers.empty())? nullptr : extra_headers.c_str(),
                                      (post_data.empty())? nullptr : post_data.c_str()); //last nullptr means GET
             assert(client);
@@ -595,8 +597,7 @@ public:
         {
             mg_mgr_free(&m_mgr);
         }
-    private:
-        friend class graft::StaticMongooseHandler<Client>;
+    public:
         void ev_handler(mg_connection* client, int ev, void *ev_data)
         {
             assert(client == this->client);
@@ -619,7 +620,7 @@ public:
                 m_resp_code = hm->resp_code;
                 m_body = std::string(hm->body.p, hm->body.len);
                 client->flags |= MG_F_CLOSE_IMMEDIATELY;
-                client->handler = static_empty_ev_handler;
+                client->handler = graft::static_empty_ev_handler;
                 m_exit = true;
             } break;
             case MG_EV_RECV:
@@ -630,7 +631,7 @@ public:
             } break;
             case MG_EV_CLOSE:
             {
-                client->handler = static_empty_ev_handler;
+                client->handler = graft::static_empty_ev_handler;
                 m_closed = true;
                 m_exit = true;
             } break;
@@ -666,7 +667,7 @@ private:
         virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             data = std::string(hm->uri.p, hm->uri.len);
-            graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+            graft::Context ctx(mainServer.plooper.load()->getGcm());
             int method = ctx.global["method"];
             if(method == METHOD_GET)
             {
@@ -747,17 +748,17 @@ private:
             graft::registerRTARequests(http_router);
         }
 
-        graft::ServerOpts sopts;
-        sopts.http_address = "127.0.0.1:9084";
-        sopts.coap_address = "127.0.0.1:9086";
-        sopts.http_connection_timeout = .001;
-        sopts.upstream_request_timeout = .005;
-        sopts.workers_count = 0;
-        sopts.worker_queue_len = 0;
-        sopts.cryptonode_rpc_address = "127.0.0.1:1234";
-        sopts.timer_poll_interval_ms = 50;
+        graft::ConfigOpts copts;
+        copts.http_address = "127.0.0.1:9084";
+        copts.coap_address = "127.0.0.1:9086";
+        copts.http_connection_timeout = .001;
+        copts.upstream_request_timeout = .005;
+        copts.workers_count = 0;
+        copts.worker_queue_len = 0;
+        copts.cryptonode_rpc_address = "127.0.0.1:1234";
+        copts.timer_poll_interval_ms = 50;
 
-        mainServer.sopts = sopts;
+        mainServer.copts = copts;
         mainServer.run();
     }
 
@@ -881,7 +882,7 @@ bool GraftServerCommonTest::crypton_ready = false;
 
 TEST_F(GraftServerCommonTest, GETtp)
 {//GET -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -908,7 +909,7 @@ TEST_F(GraftServerCommonTest, clientTimeout)
 
 TEST_F(GraftServerCommonTest, cryptonTimeout)
 {//GET -> threadPool -> CryptoNode -> timeout
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -953,7 +954,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
             return graft::Status::Forward;
         };
 
-        mainServer.pmanager.load()->addPeriodicTask(
+        mainServer.plooper.load()->addPeriodicTask(
                     graft::Router::Handler3(nullptr, action, nullptr),
                     std::chrono::milliseconds(ms)
                     );
@@ -969,7 +970,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
     for(int i=0; i<N; ++i)
     {
         int n = ms_all/((i+1)*ms_step);
-        n -= (mainServer.pmanager.load()->get_c_opts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
+        n -= (mainServer.plooper.load()->getCopts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
         EXPECT_LE(n-2, cntrs[i]);
         EXPECT_LE(cntrs[i], n+1);
         EXPECT_EQ(cntrs_all[i]-1, 2*cntrs[i]);
@@ -978,7 +979,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
 
 TEST_F(GraftServerCommonTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -994,7 +995,7 @@ TEST_F(GraftServerCommonTest, GETtpCNtp)
 
 TEST_F(GraftServerCommonTest, POSTtp)
 {//POST -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1010,7 +1011,7 @@ TEST_F(GraftServerCommonTest, POSTtp)
 
 TEST_F(GraftServerCommonTest, POSTtpCNtp)
 {//POST -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1029,7 +1030,7 @@ TEST_F(GraftServerCommonTest, POSTtpCNtp)
 
 TEST_F(GraftServerCommonTest, clPOSTtp)
 {//POST cmdline -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1046,7 +1047,7 @@ TEST_F(GraftServerCommonTest, clPOSTtp)
 
 TEST_F(GraftServerCommonTest, clPOSTtpCNtp)
 {//POST cmdline -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1561,7 +1562,7 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JRResponseResult, GetVersionResp);
 TEST_F(GraftServerForwardTest, DISABLED_getVersion)
 {
     MainServer mainServer;
-    mainServer.sopts.cryptonode_rpc_address = "localhost:38281";
+    mainServer.copts.cryptonode_rpc_address = "localhost:38281";
     graft::registerForwardRequests(mainServer.router);
     mainServer.run();
 
