@@ -102,6 +102,8 @@ public:
     bool matchRoute(const std::string& target, int method, Router::JobParams& params) { return m_root.match(target, method, params); }
 
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
+    void addPeriodicTask(const Router::Handler3& h3,
+            std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms);
 
     ////getters
     mg_mgr* get_mg_mgr() { return &m_mgr; }
@@ -273,12 +275,21 @@ class PeriodicTask : public BaseTask
 {
 private:
     friend class ItselfHolder<BaseTask>;
-    PeriodicTask(Manager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
-        : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
-        , m_timeout_ms(timeout_ms)
+    PeriodicTask(
+            Manager& manager, const Router::Handler3& h3,
+            std::chrono::milliseconds timeout_ms,
+            std::chrono::milliseconds initial_timeout_ms
+    ) : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
+      , m_timeout_ms(timeout_ms), m_initial_timeout_ms(initial_timeout_ms)
     {
         start();
     }
+
+    PeriodicTask(
+            Manager& manager, const Router::Handler3& h3,
+            std::chrono::milliseconds timeout_ms
+    ) : PeriodicTask(manager, h3, timeout_ms, timeout_ms) { }
+
 public:
     virtual void onEvent() override;
 private:
@@ -287,6 +298,8 @@ private:
     void start();
 private:
     std::chrono::milliseconds m_timeout_ms;
+    std::chrono::milliseconds m_initial_timeout_ms;
+    bool m_initial_run {true};
 };
 
 class ClientRequest : public BaseTask, public StaticMongooseHandler<ClientRequest>
