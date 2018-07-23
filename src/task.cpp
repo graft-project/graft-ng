@@ -77,6 +77,13 @@ void TaskManager::Execute(BaseTaskPtr bt)
     }
 }
 
+bool TaskManager::canStop()
+{
+    return (m_cntBaseTask == m_cntBaseTaskDone)
+            && (m_cntUpstreamSender == m_cntUpstreamSenderDone)
+            && (m_cntJobSent == m_cntJobDone);
+}
+
 bool TaskManager::tryProcessReadyJob()
 {
     GJPtr gj;

@@ -181,6 +181,7 @@ public:
 
     void cb_event(uint64_t cnt);
 protected:
+    bool canStop();
     ConfigOpts m_copts;
 private:
     void ExecutePreAction(BaseTaskPtr bt);
