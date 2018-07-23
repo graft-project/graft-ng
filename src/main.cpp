@@ -113,10 +113,11 @@ void startSupernodePeriodicTasks(graft::Manager& manager, size_t interval_ms)
             return graft::Status::Forward;
         }
     };
-
+    size_t initial_interval_ms = 3000;
     manager.addPeriodicTask(
                 graft::Router::Handler3(nullptr, supernodeRefreshWorker, nullptr),
-                std::chrono::milliseconds(interval_ms)
+                std::chrono::milliseconds(interval_ms),
+                std::chrono::milliseconds(initial_interval_ms)
                 );
 }
 
