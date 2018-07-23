@@ -3,6 +3,7 @@
 #include "task.h"
 #include "connection.h"
 #include "router.h"
+#include "log.h"
 #include <sstream>
 
 namespace graft {
@@ -115,10 +116,15 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
         bt->setError("unknown exception");
         params.input.reset();
     }
+    LOG_PRINT_RQS_BT(3,bt,"pre_action completed with result " << bt->getStrStatus());
 }
 
 void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
 {
+    if(gj)
+    {
+        LOG_PRINT_RQS_BT(2,bt,"worker_action completed with result " << bt->getStrStatus());
+    }
     //post_action if not empty, will be called in any case, even if worker_action results as some kind of error or exception.
     //But, in case pre_action finishes as error both worker_action and post_action will be skipped.
     //post_action has a chance to fix result of pre_action. In case of error was before it it should just return that error.
@@ -146,6 +152,7 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
         bt->setError("unknown exception");
         params.input.reset();
     }
+    LOG_PRINT_RQS_BT(3,bt,"post_action completed with result " << bt->getStrStatus());
 }
 
 void TaskManager::processResult(BaseTaskPtr bt)
@@ -154,6 +161,7 @@ void TaskManager::processResult(BaseTaskPtr bt)
     {
     case Status::Forward:
     {
+        LOG_PRINT_RQS_BT(3,bt,"Sending request to CryptoNode");
         sendUpstream(bt);
     } break;
     case Status::Ok:
@@ -227,6 +235,10 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     m_threadPool = std::make_unique<ThreadPoolX>(std::move(thread_pool));
     m_resQueue = std::make_unique<TPResQueue>(std::move(resQueue));
     m_threadPoolInputSize = maxinputSize;
+
+    LOG_PRINT_L1("Thread pool created with " << threadCount
+                 << " workers with " << workersQueueSize
+                 << " queue size each. The output queue size is " << resQueueSize);
 }
 
 void TaskManager::cb_event(uint64_t cnt)
@@ -251,12 +263,14 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     if(Status::Ok != uss.getStatus())
     {
         bt->setError(uss.getError().c_str(), uss.getStatus());
+        LOG_PRINT_RQS_BT(2,bt, "CryptoNode done with error: " << uss.getError().c_str());
         processResult(bt);
         return;
     }
     //here you can send a job to the thread pool or send response to client
     //uss will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
+        LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered ");
         if(!bt->getSelf()) return; //it is possible that a client has closed connection already
         Execute(bt);
     }
@@ -271,10 +285,23 @@ BaseTask::BaseTask(TaskManager& manager, const Router::JobParams& params)
 {
 }
 
+const char* BaseTask::getStrStatus(Status s)
+{
+    assert(s<=Status::Stop);
+    static const char *status_str[] = { GRAFT_STATUS_LIST(EXP_TO_STR) };
+    return status_str[static_cast<int>(s)];
+}
+
+const char* BaseTask::getStrStatus()
+{
+    return getStrStatus(m_ctx.local.getLastStatus());
+}
+
 void PeriodicTask::finalize()
 {
     if(m_ctx.local.getLastStatus() == Status::Stop)
     {
+        LOG_PRINT_L2("Timer request stopped with result " << getStrStatus());
         releaseItself();
         return;
     }

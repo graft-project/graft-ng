@@ -109,6 +109,9 @@ public:
     Output& getOutput() { return m_output; }
     const Router::Handler3& getHandler3() const { return m_params.h3; }
     Context& getCtx() { return m_ctx; }
+
+    const char* getStrStatus();
+    static const char* getStrStatus(Status s);
 protected:
     BaseTask(TaskManager& manager, const Router::JobParams& prms);
 
