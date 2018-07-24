@@ -31,7 +31,7 @@ void TaskManager::sendUpstreamBlocking(Output& output, Input& input, std::string
     }
 }
 
-void TaskManager::sendUpstreamBlockingIO()
+void TaskManager::checkUpstreamBlockingIO()
 {
     while(true)
     {

@@ -198,7 +198,7 @@ public:
     void cb_event(uint64_t cnt);
 protected:
     void setIOThread(bool current);
-    void sendUpstreamBlockingIO();
+    void checkUpstreamBlockingIO();
 
     ConfigOpts m_copts;
 private:
