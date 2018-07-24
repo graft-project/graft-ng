@@ -177,8 +177,6 @@ public:
 
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
-    ThreadPoolX& getThreadPool() { return *m_threadPool.get(); }
-    TPResQueue& getResQueue() { return *m_resQueue.get(); }
     GlobalContextMap& getGcm() { return m_gcm; }
     const ConfigOpts& getCopts() const { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }

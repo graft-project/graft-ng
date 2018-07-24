@@ -98,8 +98,8 @@ void TaskManager::Execute(BaseTaskPtr bt)
     }
     if(params.h3.worker_action)
     {
-        getThreadPool().post(
-                    GJPtr( bt, &getResQueue(), this ),
+        m_threadPool->post(
+                    GJPtr( bt, m_resQueue.get(), this ),
                     true
                     );
     }
@@ -116,7 +116,7 @@ void TaskManager::Execute(BaseTaskPtr bt)
 bool TaskManager::tryProcessReadyJob()
 {
     GJPtr gj;
-    bool res = getResQueue().pop(gj);
+    bool res = m_resQueue->pop(gj);
     if(!res) return res;
     BaseTaskPtr bt = gj->getTask();
     ExecutePostAction(bt, &*gj);
