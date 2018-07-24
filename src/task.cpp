@@ -7,6 +7,43 @@
 
 namespace graft {
 
+thread_local bool TaskManager::io_thread = false;
+TaskManager* TaskManager::g_upstreamManager{nullptr};
+
+//pay attension, input is output and vice versa
+void TaskManager::sendUpstreamBlocking(Output& output, Input& input, std::string& err)
+{
+    if(io_thread) throw std::logic_error("the function sendUpstreamBlocking should not be called in IO thread");
+    assert(g_upstreamManager);
+    std::promise<Input> promise;
+    std::future<Input> future = promise.get_future();
+    std::pair< std::promise<Input>, Output> pair = std::make_pair( std::move(promise), output);
+    g_upstreamManager->m_promiseQueue->push( std::move(pair) );
+    g_upstreamManager->notifyJobReady();
+    err.clear();
+    try
+    {
+        input = future.get();
+    }
+    catch(std::exception& ex)
+    {
+        err = ex.what();
+    }
+}
+
+void TaskManager::checkUpstreamBlockingIO()
+{
+    while(true)
+    {
+        PromiseItem pi;
+        bool res = m_promiseQueue->pop(pi);
+        if(!res) break;
+        UpstreamTask::Ptr bt = BaseTask::Create<UpstreamTask>(*this, std::move(pi));
+        UpstreamSender::Ptr uss = UpstreamSender::Create<UpstreamSender>();
+        uss->send(*this, bt);
+    }
+}
+
 void TaskManager::sendUpstream(BaseTaskPtr bt)
 {
     ++m_cntUpstreamSender;
@@ -61,8 +98,8 @@ void TaskManager::Execute(BaseTaskPtr bt)
     }
     if(params.h3.worker_action)
     {
-        getThreadPool().post(
-                    GJPtr( bt, &getResQueue(), this ),
+        m_threadPool->post(
+                    GJPtr( bt, m_resQueue.get(), this ),
                     true
                     );
     }
@@ -79,7 +116,7 @@ void TaskManager::Execute(BaseTaskPtr bt)
 bool TaskManager::tryProcessReadyJob()
 {
     GJPtr gj;
-    bool res = getResQueue().pop(gj);
+    bool res = m_resQueue->pop(gj);
     if(!res) return res;
     BaseTaskPtr bt = gj->getTask();
     ExecutePostAction(bt, &*gj);
@@ -233,6 +270,22 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     m_threadPool = std::make_unique<ThreadPoolX>(std::move(thread_pool));
     m_resQueue = std::make_unique<TPResQueue>(std::move(resQueue));
     m_threadPoolInputSize = maxinputSize;
+    m_promiseQueue = std::make_unique<PromiseQueue>(threadCount);
+}
+
+void TaskManager::setIOThread(bool current)
+{
+    if(current)
+    {
+        io_thread = true;
+        assert(!g_upstreamManager);
+        g_upstreamManager = this;
+    }
+    else
+    {
+        g_upstreamManager = nullptr;
+        io_thread = false;
+    }
 }
 
 void TaskManager::cb_event(uint64_t cnt)
@@ -254,6 +307,23 @@ void TaskManager::cb_event(uint64_t cnt)
 void TaskManager::onUpstreamDone(UpstreamSender& uss)
 {
     BaseTaskPtr bt = uss.getTask();
+    UpstreamTask* ust = dynamic_cast<UpstreamTask*>(bt.get());
+    if(ust)
+    {
+        try
+        {
+            if(Status::Ok != uss.getStatus())
+            {
+                throw std::runtime_error(uss.getError().c_str());
+            }
+            ust->m_pi.first.set_value(bt->getInput());
+        }
+        catch(std::exception&)
+        {
+            ust->m_pi.first.set_exception(std::current_exception());
+        }
+        return;
+    }
     if(Status::Ok != uss.getStatus())
     {
         bt->setError(uss.getError().c_str(), uss.getStatus());
@@ -275,6 +345,11 @@ BaseTask::BaseTask(TaskManager& manager, const Router::JobParams& params)
     , m_params(params)
     , m_ctx(manager.getGcm())
 {
+}
+
+void UpstreamTask::finalize()
+{
+    releaseItself();
 }
 
 void PeriodicTask::finalize()
