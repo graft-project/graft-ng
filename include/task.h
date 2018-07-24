@@ -121,15 +121,27 @@ protected:
 class PeriodicTask : public BaseTask
 {
     friend class SelfHolder<BaseTask>;
-    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
-        : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
-        , m_timeout_ms(timeout_ms)
+    PeriodicTask(
+            TaskManager& manager, const Router::Handler3& h3,
+            std::chrono::milliseconds timeout_ms,
+            std::chrono::milliseconds initial_timeout_ms
+    ) : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
+      , m_timeout_ms(timeout_ms), m_initial_timeout_ms(initial_timeout_ms)
     {
     }
-public:
-    virtual void finalize() override;
+
+    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
+        : PeriodicTask(manager, h3, timeout_ms, timeout_ms)
+    {
+    }
 
     std::chrono::milliseconds m_timeout_ms;
+    std::chrono::milliseconds m_initial_timeout_ms;
+    bool m_initial_run {true};
+
+public:
+    virtual void finalize() override;
+    std::chrono::milliseconds getTimeout();
 };
 
 class ClientTask : public BaseTask
@@ -156,6 +168,8 @@ public:
 
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
+    void addPeriodicTask(const Router::Handler3& h3,
+            std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms);
 
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;

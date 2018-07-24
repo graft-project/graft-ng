@@ -36,7 +36,7 @@ void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s)
 
 void TaskManager::schedule(PeriodicTask* pt)
 {
-    m_timerList.push(pt->m_timeout_ms, pt->getSelf());
+    m_timerList.push(pt->getTimeout(), pt->getSelf());
 }
 
 void TaskManager::Execute(BaseTaskPtr bt)
@@ -179,7 +179,13 @@ void TaskManager::processResult(BaseTaskPtr bt)
 
 void TaskManager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms)
 {
-    BaseTask* bt = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms).get();
+    addPeriodicTask(h3, interval_ms, interval_ms);
+}
+
+void TaskManager::addPeriodicTask(
+        const Router::Handler3& h3, std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms)
+{
+    BaseTask* bt = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms, initial_interval_ms).get();
     PeriodicTask* pt = dynamic_cast<PeriodicTask*>(bt);
     assert(pt);
     schedule(pt);
@@ -279,6 +285,13 @@ void PeriodicTask::finalize()
         return;
     }
     this->m_manager.schedule(this);
+}
+
+std::chrono::milliseconds PeriodicTask::getTimeout()
+{
+    auto ret = (m_initial_run) ? m_initial_timeout_ms : m_timeout_ms;
+    m_initial_run = false;
+    return ret;
 }
 
 ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
