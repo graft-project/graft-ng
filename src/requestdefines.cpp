@@ -37,6 +37,18 @@ Status errorInvalidAmount(Output &output)
     return Status::Error;
 }
 
+Status errorInvalidAddress(Output &output)
+{
+    JsonRpcError err;
+    err.code = ERROR_ADDRESS_INVALID;
+    err.message = MESSAGE_ADDRESS_INVALID;
+    JsonRpcErrorResponse resp;
+    resp.error = err;
+    output.load(resp);
+    return Status::Error;
+}
+
+
 bool errorFinishedPayment(int status, Output &output)
 {
     if (status != static_cast<int>(RTAStatus::Waiting)

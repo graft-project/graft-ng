@@ -55,7 +55,10 @@ namespace graft {
 Status errorInvalidPaymentID(Output &output);
 Status errorInvalidParams(Output &output);
 Status errorInvalidAmount(Output &output);
+Status errorInvalidAddress(Output &output);
 bool errorFinishedPayment(int status, Output &output);
+
+
 
 enum class RTAStatus : int
 {
