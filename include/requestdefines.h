@@ -52,23 +52,41 @@ static const std::string CONTEXT_KEY_FULLSUPERNODELIST("fsl");
 
 namespace graft {
 
+class Context;
+
 Status errorInvalidPaymentID(Output &output);
 Status errorInvalidParams(Output &output);
 Status errorInvalidAmount(Output &output);
 Status errorInvalidAddress(Output &output);
+Status errorBuildAuthSample(Output &output);
 bool errorFinishedPayment(int status, Output &output);
-
+/*!
+ * \brief cleanPaySaleData - cleans any data associated with given payment id
+ * \param payment_id       - payment-id
+ * \param ctx              - context
+ */
+void cleanPaySaleData(const std::string &payment_id, graft::Context &ctx);
 
 
 enum class RTAStatus : int
 {
     None = 0,
-    Waiting=1,
-    InProgress=2,
-    Success=3,
-    Fail=4,
-    RejectedByWallet=5,
-    RejectedByPOS=6
+    Waiting = 1,
+    InProgress = 2,
+    Success = 3,
+    Fail = 4,
+    RejectedByWallet = 5,
+    RejectedByPOS = 6
+};
+
+/*!
+ * \brief The RTAAuthResult enum - result of RTA TX verification
+ */
+enum class RTAAuthResult : int
+{
+    Approved = 0,
+    Rejected = 1,
+    Invalid  = 3
 };
 
 struct SaleData

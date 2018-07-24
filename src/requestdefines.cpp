@@ -1,5 +1,6 @@
 #include "requestdefines.h"
 #include "jsonrpc.h"
+#include "context.h"
 
 
 namespace graft {
@@ -48,6 +49,17 @@ Status errorInvalidAddress(Output &output)
     return Status::Error;
 }
 
+Status errorBuildAuthSample(Output &output)
+{
+    JsonRpcError err;
+    err.code = ERROR_INTERNAL_ERROR;
+    err.message = MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE;
+    JsonRpcErrorResponse resp;
+    resp.error = err;
+    output.load(resp);
+    return Status::Error;
+}
+
 
 bool errorFinishedPayment(int status, Output &output)
 {
@@ -71,6 +83,13 @@ bool errorFinishedPayment(int status, Output &output)
         return true;
     }
     return false;
+}
+
+void cleanPaySaleData(const std::string &payment_id, Context &ctx)
+{
+    ctx.global.remove(payment_id + CONTEXT_KEY_PAY);
+    ctx.global.remove(payment_id + CONTEXT_KEY_SALE);
+    ctx.global.remove(payment_id + CONTEXT_KEY_STATUS);
 }
 
 }
