@@ -6,6 +6,7 @@
 #include "context.h"
 #include "timer.h"
 #include "self_holder.h"
+#include <future>
 
 #include "CMakeConfig.h"
 
@@ -118,6 +119,23 @@ protected:
     Context m_ctx;
 };
 
+class UpstreamTask : public BaseTask
+{
+public:
+    using PromiseItem = std::pair< std::promise<Input>, Output >;
+
+    virtual void finalize() override;
+    PromiseItem m_pi;
+private:
+    friend class SelfHolder<BaseTask>;
+    UpstreamTask(TaskManager& manager, PromiseItem&& pi)
+        : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(),
+                Router::Handler3(nullptr, nullptr, nullptr)}))
+        , m_pi(std::move(pi))
+    {
+    }
+};
+
 class PeriodicTask : public BaseTask
 {
     friend class SelfHolder<BaseTask>;
@@ -159,8 +177,6 @@ public:
 
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
-    ThreadPoolX& getThreadPool() { return *m_threadPool.get(); }
-    TPResQueue& getResQueue() { return *m_resQueue.get(); }
     GlobalContextMap& getGcm() { return m_gcm; }
     const ConfigOpts& getCopts() const { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
@@ -174,10 +190,16 @@ public:
     void schedule(PeriodicTask* pt);
     void onTimer(BaseTaskPtr bt);
     void onUpstreamDone(UpstreamSender& uss);
+
+    static void sendUpstreamBlocking(Output& output, Input& input, std::string& err);
+
     virtual void notifyJobReady() = 0;
 
     void cb_event(uint64_t cnt);
 protected:
+    void setIOThread(bool current);
+    void sendUpstreamBlockingIO();
+
     ConfigOpts m_copts;
 private:
     void ExecutePreAction(BaseTaskPtr bt);
@@ -186,11 +208,8 @@ private:
     void Execute(BaseTaskPtr bt);
 
     void processResult(BaseTaskPtr bt);
-
     void respondAndDie(BaseTaskPtr bt, const std::string& s);
-
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
-
     bool tryProcessReadyJob();
 
     GlobalContextMap m_gcm;
@@ -206,6 +225,13 @@ private:
     std::unique_ptr<ThreadPoolX> m_threadPool;
     std::unique_ptr<TPResQueue> m_resQueue;
     TimerList<BaseTaskPtr> m_timerList;
+
+    using PromiseItem = UpstreamTask::PromiseItem;
+    using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;
+
+    std::unique_ptr<PromiseQueue> m_promiseQueue;
+    static thread_local bool io_thread;
+    static TaskManager* g_upstreamManager;
 };
 
 }//namespace graft
