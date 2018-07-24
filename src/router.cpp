@@ -91,6 +91,7 @@ std::string RouterT<In,Out>::Root::dbgCheckConflictRoutes() const
             it->second &= rr.methods;
         }
     }
+    return std::string();
 }
 
 template<typename In, typename Out>

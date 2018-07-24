@@ -57,7 +57,7 @@ void TaskManager::onTimer(BaseTaskPtr bt)
     Execute(bt);
 }
 
-void TaskManager::respondAndDieBT(BaseTaskPtr bt, const std::string& s)
+void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s)
 {
     ClientTask* ct = dynamic_cast<ClientTask*>(bt.get());
     if(ct)
@@ -82,7 +82,7 @@ void TaskManager::Execute(BaseTaskPtr bt)
     if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
     {//check overflow
         bt->getCtx().local.setError("Service Unavailable", Status::Busy);
-        respondAndDieBT(bt,"Thread pool overflow");
+        respondAndDie(bt,"Thread pool overflow");
         return;
     }
     assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
@@ -93,13 +93,13 @@ void TaskManager::Execute(BaseTaskPtr bt)
     ExecutePreAction(bt);
     if(params.h3.pre_action && Status::Ok != bt->getLastStatus() && Status::Forward != bt->getLastStatus())
     {
-        processResultBT(bt);
+        processResult(bt);
         return;
     }
     if(params.h3.worker_action)
     {
         getThreadPool().post(
-                    GJ_ptr( bt, &getResQueue(), this ),
+                    GJPtr( bt, &getResQueue(), this ),
                     true
                     );
     }
@@ -107,7 +107,7 @@ void TaskManager::Execute(BaseTaskPtr bt)
     {
         //special case when worker_action is absent
         ExecutePostAction(bt, nullptr);
-        processResultBT(bt);
+        processResult(bt);
         //next call is required to fix counters that prevents overflow
         ++m_cntJobDone;
     }
@@ -115,12 +115,12 @@ void TaskManager::Execute(BaseTaskPtr bt)
 
 bool TaskManager::tryProcessReadyJob()
 {
-    GJ_ptr gj;
+    GJPtr gj;
     bool res = getResQueue().pop(gj);
     if(!res) return res;
     BaseTaskPtr bt = gj->getTask();
     ExecutePostAction(bt, &*gj);
-    processResultBT(bt);
+    processResult(bt);
     ++m_cntJobDone;
     return true;
 }
@@ -149,7 +149,7 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
     }
     catch(...)
     {
-        bt->setError("unknown exeption");
+        bt->setError("unknown exception");
         params.input.reset();
     }
 }
@@ -180,12 +180,12 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     }
     catch(...)
     {
-        bt->setError("unknown exeption");
+        bt->setError("unknown exception");
         params.input.reset();
     }
 }
 
-void TaskManager::processResultBT(BaseTaskPtr bt)
+void TaskManager::processResult(BaseTaskPtr bt)
 {
     switch(bt->getLastStatus())
     {
@@ -195,17 +195,17 @@ void TaskManager::processResultBT(BaseTaskPtr bt)
     } break;
     case Status::Ok:
     {
-        respondAndDieBT(bt, bt->getOutput().data());
+        respondAndDie(bt, bt->getOutput().data());
     } break;
     case Status::InternalError:
     case Status::Error:
     case Status::Stop:
     {
-        respondAndDieBT(bt, bt->getOutput().data());
+        respondAndDie(bt, bt->getOutput().data());
     } break;
     case Status::Drop:
     {
-        respondAndDieBT(bt, "Job done Drop."); //TODO: Expect HTTP Error Response
+        respondAndDie(bt, "Job done Drop."); //TODO: Expect HTTP Error Response
     } break;
     default:
     {
@@ -224,8 +224,9 @@ void TaskManager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milli
 
 TaskManager *TaskManager::from(mg_mgr *mgr)
 {
-    assert(mgr->user_data);
-    return static_cast<TaskManager*>(mgr->user_data);
+    void* user_data = getUserData(mgr);
+    assert(user_data);
+    return static_cast<TaskManager*>(user_data);
 }
 
 void TaskManager::onNewClient(BaseTaskPtr bt)
@@ -266,39 +267,19 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     m_promiseQueue = std::make_unique<PromiseQueue>(threadCount);
 }
 
-TaskManager::~TaskManager()
+void TaskManager::setIOThread(bool current)
 {
-    mg_mgr_free(&m_mgr);
-}
-
-void TaskManager::serve()
-{
-    io_thread = true;
-    assert(!g_upstreamManager);
-    g_upstreamManager = this;
-
-    m_ready = true;
-
-    for (;;)
+    if(current)
     {
-        mg_mgr_poll(&m_mgr, m_copts.timer_poll_interval_ms);
-        getTimerList().eval();
-        sendUpstreamBlockingIO();
-        if(stopped()) break;
+        io_thread = true;
+        assert(!g_upstreamManager);
+        g_upstreamManager = this;
     }
-
-    g_upstreamManager = nullptr;
-    io_thread = false;
-}
-
-void TaskManager::notifyJobReady()
-{
-    mg_notify(&m_mgr);
-}
-
-void TaskManager::cb_event(mg_mgr *mgr, uint64_t cnt)
-{
-    TaskManager::from(mgr)->cb_event(cnt);
+    else
+    {
+        g_upstreamManager = nullptr;
+        io_thread = false;
+    }
 }
 
 void TaskManager::cb_event(uint64_t cnt)
@@ -340,22 +321,17 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     if(Status::Ok != uss.getStatus())
     {
         bt->setError(uss.getError().c_str(), uss.getStatus());
-        processResultBT(bt);
+        processResult(bt);
         return;
     }
     //here you can send a job to the thread pool or send response to client
     //uss will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
+        if(!bt->getSelf()) return; //it is possible that a client has closed connection already
         Execute(bt);
     }
     ++m_cntUpstreamSenderDone;
     //uss will be destroyed on exit
-}
-
-void TaskManager::stop()
-{
-    assert(!m_stop);
-    m_stop = true;
 }
 
 BaseTask::BaseTask(TaskManager& manager, const Router::JobParams& params)
@@ -380,8 +356,8 @@ void PeriodicTask::finalize()
     this->m_manager.schedule(this);
 }
 
-ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms, Dummy&)
-    : BaseTask(*TaskManager::from(client->mgr), prms)
+ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
+    : BaseTask(*TaskManager::from( getMgr(client) ), prms)
     , m_connectionManager(connectionManager)
     , m_client(client)
 {

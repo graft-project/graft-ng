@@ -1,6 +1,5 @@
 #pragma once
 
-#include "mongoose.h"
 #include "router.h"
 #include "thread_pool.h"
 #include "inout.h"
@@ -10,6 +9,9 @@
 #include <future>
 
 #include "CMakeConfig.h"
+
+struct mg_mgr;
+struct mg_connection;
 
 namespace graft {
 
@@ -21,37 +23,37 @@ class ConnectionManager;
 class BaseTask;
 using BaseTaskPtr = std::shared_ptr<BaseTask>;
 
-class GJ_ptr;
-using TPResQueue = tp::MPMCBoundedQueue< GJ_ptr >;
+class GJPtr;
+using TPResQueue = tp::MPMCBoundedQueue< GJPtr >;
 using GJ = GraftJob<BaseTaskPtr, TPResQueue, TaskManager>;
 
 //////////////
-/// \brief The GJ_ptr class
+/// \brief The GJPtr class
 /// A wrapper of GraftJob that will be moved from queue to queue with fixed size.
 /// It contains single data member of unique_ptr
 ///
-class GJ_ptr final
+class GJPtr final
 {
     std::unique_ptr<GJ> m_ptr = nullptr;
 public:
-    GJ_ptr(GJ_ptr&& rhs)
+    GJPtr(GJPtr&& rhs)
     {
         *this = std::move(rhs);
     }
-    GJ_ptr& operator = (GJ_ptr&& rhs)
+    GJPtr& operator = (GJPtr&& rhs)
     {
         //identity check (this != &rhs) is not required, it will be done in the next copy assignment
         m_ptr = std::move(rhs.m_ptr);
         return * this;
     }
 
-    explicit GJ_ptr() = default;
-    GJ_ptr(const GJ_ptr&) = delete;
-    GJ_ptr& operator = (const GJ_ptr&) = delete;
-    ~GJ_ptr() = default;
+    explicit GJPtr() = default;
+    GJPtr(const GJPtr&) = delete;
+    GJPtr& operator = (const GJPtr&) = delete;
+    ~GJPtr() = default;
 
     template<typename ...ARGS>
-    GJ_ptr(ARGS&&... args) : m_ptr( new GJ( std::forward<ARGS>(args)...) )
+    GJPtr(ARGS&&... args) : m_ptr( new GJ( std::forward<ARGS>(args)...) )
     {
     }
 
@@ -72,7 +74,7 @@ public:
     }
 };
 
-using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJ_ptr)>, tp::MPMCBoundedQueue>;
+using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJPtr)>, tp::MPMCBoundedQueue>;
 
 ///////////////////////////////////
 
@@ -88,6 +90,7 @@ struct ConfigOpts
     int timer_poll_interval_ms;
     // data directory - where
     std::string data_dir;
+    int lru_timeout_ms;
 };
 
 class BaseTask : public SelfHolder<BaseTask>
@@ -121,26 +124,27 @@ class UpstreamTask : public BaseTask
 public:
     using PromiseItem = std::pair< std::promise<Input>, Output >;
 
-    UpstreamTask(TaskManager& manager, PromiseItem&& pi, Dummy&)
+    virtual void finalize() override;
+    PromiseItem m_pi;
+private:
+    friend class SelfHolder<BaseTask>;
+    UpstreamTask(TaskManager& manager, PromiseItem&& pi)
         : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(),
                 Router::Handler3(nullptr, nullptr, nullptr)}))
         , m_pi(std::move(pi))
     {
     }
-
-    virtual void finalize() override;
-    PromiseItem m_pi;
 };
 
 class PeriodicTask : public BaseTask
 {
-public:
-    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms, Dummy&)
+    friend class SelfHolder<BaseTask>;
+    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
         : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
         , m_timeout_ms(timeout_ms)
     {
     }
-
+public:
     virtual void finalize() override;
 
     std::chrono::milliseconds m_timeout_ms;
@@ -148,48 +152,36 @@ public:
 
 class ClientTask : public BaseTask
 {
+    friend class SelfHolder<BaseTask>;
+    ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms);
 public:
-    ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms, Dummy& );
-
     virtual void finalize() override;
 
     mg_connection *m_client;
     ConnectionManager* m_connectionManager;
 };
 
-class TaskManager final
+class TaskManager
 {
 public:
     TaskManager(const ConfigOpts& copts)
         : m_copts(copts)
     {
         // TODO: validate options, throw exception if any mandatory options missing
-        mg_mgr_init(&m_mgr, this, cb_event);
         initThreadPool(copts.workers_count, copts.worker_queue_len);
     }
-    ~TaskManager();
+    virtual ~TaskManager() { }
 
-    void serve();
-    void notifyJobReady();
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
 
     ////getters
-    mg_mgr* getMgMgr() { return &m_mgr; }
+    virtual mg_mgr* getMgMgr()  = 0;
     ThreadPoolX& getThreadPool() { return *m_threadPool.get(); }
     TPResQueue& getResQueue() { return *m_resQueue.get(); }
     GlobalContextMap& getGcm() { return m_gcm; }
     const ConfigOpts& getCopts() const { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
-
-    bool ready() const { return m_ready; }
-    bool stopped() const { return m_stop; }
-
-    ////setters
-    void stop();
-
-    ////static functions
-    static void cb_event(mg_mgr* mgr, uint64_t cnt);
 
     static TaskManager* from(mg_mgr* mgr);
 
@@ -202,20 +194,26 @@ public:
     void onUpstreamDone(UpstreamSender& uss);
 
     static void sendUpstreamBlocking(Output& output, Input& input, std::string& err);
+
+    virtual void notifyJobReady() = 0;
+
+    void cb_event(uint64_t cnt);
+protected:
+    void setIOThread(bool current);
+    void sendUpstreamBlockingIO();
+
+    ConfigOpts m_copts;
 private:
     void ExecutePreAction(BaseTaskPtr bt);
     void ExecutePostAction(BaseTaskPtr bt, GJ* gj = nullptr);  //gj equals nullptr if threadPool was skipped for some reasons
 
-    void cb_event(uint64_t cnt);
     void Execute(BaseTaskPtr bt);
 
-    void processResultBT(BaseTaskPtr bt);
-    void respondAndDieBT(BaseTaskPtr bt, const std::string& s);
+    void processResult(BaseTaskPtr bt);
+    void respondAndDie(BaseTaskPtr bt, const std::string& s);
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
     bool tryProcessReadyJob();
-    void sendUpstreamBlockingIO();
 
-    mg_mgr m_mgr;
     GlobalContextMap m_gcm;
 
     uint64_t m_cntBaseTask = 0;
@@ -224,8 +222,6 @@ private:
     uint64_t m_cntUpstreamSenderDone = 0;
     uint64_t m_cntJobSent = 0;
     uint64_t m_cntJobDone = 0;
-
-    ConfigOpts m_copts;
 
     uint64_t m_threadPoolInputSize = 0;
     std::unique_ptr<ThreadPoolX> m_threadPool;
@@ -238,9 +234,6 @@ private:
     std::unique_ptr<PromiseQueue> m_promiseQueue;
     static thread_local bool io_thread;
     static TaskManager* g_upstreamManager;
-
-    std::atomic_bool m_ready {false};
-    std::atomic_bool m_stop {false};
 };
 
 }//namespace graft

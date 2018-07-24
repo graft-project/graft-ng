@@ -1,6 +1,11 @@
 #include "connection.h"
+#include "mongoosex.h"
 
 namespace graft {
+
+void* getUserData(mg_mgr* mgr) { return mgr->user_data; }
+void* getUserData(mg_connection* nc) { return nc->user_data; }
+mg_mgr* getMgr(mg_connection* nc) { return nc->mgr; }
 
 void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
 {
@@ -23,17 +28,17 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_crypton = mg_connect_http(manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
+    m_upstream = mg::mg_connect_http_x(manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
                              extra_headers.c_str(),
-                             (body.empty())? nullptr : body.c_str()); //last nullptr means GET
-    assert(m_crypton);
-    m_crypton->user_data = this;
-    mg_set_timer(m_crypton, mg_time() + opts.upstream_request_timeout);
+                             body); //body.empty() means GET
+    assert(m_upstream);
+    m_upstream->user_data = this;
+    mg_set_timer(m_upstream, mg_time() + opts.upstream_request_timeout);
 }
 
-void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
+void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
 {
-    assert(crypton == this->m_crypton);
+    assert(upstream == this->m_upstream);
     switch (ev)
     {
     case MG_EV_CONNECT:
@@ -44,42 +49,86 @@ void UpstreamSender::ev_handler(mg_connection *crypton, int ev, void *ev_data)
             std::ostringstream ss;
             ss << "cryptonode connect failed: " << strerror(err);
             setError(Status::Error, ss.str().c_str());
-            TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
-            crypton->handler = static_empty_ev_handler;
+            TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+            upstream->handler = static_empty_ev_handler;
             releaseItself();
         }
     } break;
     case MG_EV_HTTP_REPLY:
     {
-        mg_set_timer(crypton, 0);
+        mg_set_timer(upstream, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
         m_bt->getInput() = *hm;
         setError(Status::Ok);
-        crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
-        crypton->handler = static_empty_ev_handler;
+        upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
+        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        upstream->handler = static_empty_ev_handler;
         releaseItself();
     } break;
     case MG_EV_CLOSE:
     {
-        mg_set_timer(crypton, 0);
+        mg_set_timer(upstream, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
-        TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
-        crypton->handler = static_empty_ev_handler;
+        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        upstream->handler = static_empty_ev_handler;
         releaseItself();
     } break;
     case MG_EV_TIMER:
     {
-        mg_set_timer(crypton, 0);
+        mg_set_timer(upstream, 0);
         setError(Status::Error, "cryptonode request timout");
-        crypton->flags |= MG_F_CLOSE_IMMEDIATELY;
-        TaskManager::from(crypton->mgr)->onUpstreamDone(*this);
-        crypton->handler = static_empty_ev_handler;
+        upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
+        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        upstream->handler = static_empty_ev_handler;
         releaseItself();
     } break;
     default:
         break;
     }
+}
+
+Looper::Looper(const ConfigOpts& copts)
+    : TaskManager(copts)
+    , m_mgr(std::make_unique<mg_mgr>())
+{
+    mg_mgr_init(m_mgr.get(), this, cb_event);
+}
+
+
+Looper::~Looper()
+{
+    mg_mgr_free(m_mgr.get());
+}
+
+void Looper::serve()
+{
+    setIOThread(true);
+
+    m_ready = true;
+    for (;;)
+    {
+        mg_mgr_poll(m_mgr.get(), m_copts.timer_poll_interval_ms);
+        getTimerList().eval();
+        sendUpstreamBlockingIO();
+        if(stopped()) break;
+    }
+    setIOThread(false);
+}
+
+void Looper::stop()
+{
+    assert(!m_stop);
+    m_stop = true;
+}
+
+void Looper::notifyJobReady()
+{
+    mg_notify(m_mgr.get());
+}
+
+void Looper::cb_event(mg_mgr *mgr, uint64_t cnt)
+{
+    TaskManager::from(mgr)->cb_event(cnt);
 }
 
 ConnectionManager* ConnectionManager::from_accepted(mg_connection *cn)
@@ -103,7 +152,8 @@ void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev
         assert(ct->getSelf());
         if(ct->getSelf()) break;
         ct->getManager().onClientDone(ct->getSelf());
-        client->handler = static_empty_ev_handler;
+        ct->m_client->handler = static_empty_ev_handler;
+        ct->m_client = nullptr;
         ct->finalize();
     } break;
     default:
@@ -112,26 +162,28 @@ void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev
 }
 
 
-void HttpConnectionManager::bind(TaskManager& manager)
+void HttpConnectionManager::bind(Looper& looper)
 {
-    assert(!manager.ready());
-    mg_mgr* mgr = manager.getMgMgr();
+    assert(!looper.ready());
+    mg_mgr* mgr = looper.getMgMgr();
 
-    const ConfigOpts& opts = manager.getCopts();
+    const ConfigOpts& opts = looper.getCopts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
+    if(!nc_http) throw std::runtime_error("Cannot bind to " + opts.http_address);
     nc_http->user_data = this;
     mg_set_protocol_http_websocket(nc_http);
 }
 
-void CoapConnectionManager::bind(TaskManager& manager)
+void CoapConnectionManager::bind(Looper& looper)
 {
-    assert(!manager.ready());
-    mg_mgr* mgr = manager.getMgMgr();
+    assert(!looper.ready());
+    mg_mgr* mgr = looper.getMgMgr();
 
-    const ConfigOpts& opts = manager.getCopts();
+    const ConfigOpts& opts = looper.getCopts();
 
     mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
+    if(!nc_coap) throw std::runtime_error("Cannot bind to " + opts.coap_address);
     nc_coap->user_data = this;
     mg_set_protocol_coap(nc_coap);
 }
@@ -179,12 +231,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
 
         struct http_message *hm = (struct http_message *) ev_data;
         std::string uri(hm->uri.p, hm->uri.len);
-        // TODO: why this is hardcoded ?
-        if(uri == "/root/exit")
-        {
-            manager->stop();
-            return;
-        }
+
         int method = translateMethod(hm->method.p, hm->method.len);
         if (method < 0) return;
 
@@ -286,6 +333,7 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
 
 void ConnectionManager::respond(ClientTask* ct, const std::string& s)
 {
+    if(!ct->getSelf()) return; //it is possible that a client has closed connection already
     int code;
     switch(ct->getCtx().local.getLastStatus())
     {
@@ -309,6 +357,7 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
         mg_http_send_error(client, code, s.c_str());
     }
     client->flags |= MG_F_SEND_AND_CLOSE;
+    ct->getManager().onClientDone(ct->getSelf());
     client->handler = static_empty_ev_handler;
     client = nullptr;
 }

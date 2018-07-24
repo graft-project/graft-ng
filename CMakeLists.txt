@@ -48,7 +48,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs}
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DHAVE_EVP_MD_CTX_NEW=YES
     )
 
 set(CMAKE_CXX_STANDARD 14)
@@ -73,12 +73,12 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
-    ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
+    ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
     )
 
 set(GS_INCLUDE_DIRS
@@ -158,6 +158,7 @@ link_directories(${CRYPTONODE_LIB_DIRS})
 
 add_executable(graft_server
     ${GS_SOURCES}
+    ${PROJECT_SOURCE_DIR}/src/server.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
 
@@ -178,7 +179,10 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_REGEX_LIBRARY}
     ${COMMON_LIBS}
     )
+
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
+
+set_target_properties(graft_server PROPERTIES LINK_FLAGS "-rdynamic")
 
 add_dependencies(graft_server libr3 cryptonode)
 

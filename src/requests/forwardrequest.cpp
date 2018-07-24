@@ -30,7 +30,8 @@ void registerForwardRequest(Router &router)
         return graft::Status::Error;
     };
 
-    router.addRoute("/{forward:gethashes.bin|json_rpc|getblocks.bin|gettransactions|sendrawtransaction|getheight}",
+    //METHOD_GET is required here because some GET requests from the wallet has body
+    router.addRoute("/{forward:gethashes.bin|json_rpc|getblocks.bin|gettransactions|sendrawtransaction|getheight|get_transaction_pool_hashes.bin|get_outs.bin}",
                                METHOD_POST|METHOD_GET, graft::Router::Handler3(forward,nullptr,nullptr));
 }
 
