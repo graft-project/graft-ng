@@ -156,6 +156,8 @@ public:
 
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
+    void postponeTask(BaseTaskPtr bt) { m_postponedTasks[bt->getCtx().getId()] = bt; }
+    void executePostponedTask(Context::uuid_t uuid);
 
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
@@ -206,6 +208,8 @@ private:
     std::unique_ptr<ThreadPoolX> m_threadPool;
     std::unique_ptr<TPResQueue> m_resQueue;
     TimerList<BaseTaskPtr> m_timerList;
+
+    std::map<Context::uuid_t, BaseTaskPtr> m_postponedTasks;
 };
 
 }//namespace graft

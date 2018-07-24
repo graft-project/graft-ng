@@ -31,6 +31,12 @@ void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s)
     {
         assert( dynamic_cast<PeriodicTask*>(bt.get()) );
     }
+
+    Context::uuid_t uuid = bt->getCtx().getId();
+    auto it = m_postponedTasks.find(uuid);
+    if (it == m_postponedTasks.end())
+        m_postponedTasks.erase(it);
+
     bt->finalize();
 }
 
@@ -148,6 +154,15 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     }
 }
 
+void TaskManager::executePostponedTask(Context::uuid_t uuid)
+{
+    auto it = m_postponedTasks.find(uuid);
+    if (it == m_postponedTasks.end())
+        return;
+
+    Execute(it->second);
+}
+
 void TaskManager::processResult(BaseTaskPtr bt)
 {
     switch(bt->getLastStatus())
@@ -158,7 +173,11 @@ void TaskManager::processResult(BaseTaskPtr bt)
     } break;
     case Status::Ok:
     {
+        Context::uuid_t nextUuid = bt->getCtx().getNextTaskId();
+
         respondAndDie(bt, bt->getOutput().data());
+        if (!nextUuid.is_nil())
+            executePostponedTask(nextUuid);
     } break;
     case Status::InternalError:
     case Status::Error:
@@ -169,6 +188,10 @@ void TaskManager::processResult(BaseTaskPtr bt)
     case Status::Drop:
     {
         respondAndDie(bt, "Job done Drop."); //TODO: Expect HTTP Error Response
+    } break;
+    case Status::Postpone:
+    {
+        postponeTask(bt);
     } break;
     default:
     {
