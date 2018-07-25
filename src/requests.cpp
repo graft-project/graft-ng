@@ -12,7 +12,6 @@
 
 #include "sendrawtxrequest.h"
 #include "authorizertatxrequest.h"
-#include "sendtxauthresponserequest.h"
 #include "sendsupernodeannouncerequest.h"
 
 
@@ -28,8 +27,7 @@ void registerRTARequests(graft::Router &router)
     graft::registerPayRequest(router);
     graft::registerPayStatusRequest(router);
     graft::registerRejectPayRequest(router);
-    graft::registerAuthorizeRtaTxRequest(router);
-    graft::registerSendTxAuthResponseRequest(router);
+    graft::registerAuthorizeRtaTxRequests(router);
     graft::registerSendSupernodeAnnounceRequest(router);
 }
 

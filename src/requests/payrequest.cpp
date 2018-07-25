@@ -4,7 +4,7 @@
 #include "requests/broadcast.h"
 #include "requests/multicast.h"
 #include "requests/salestatusrequest.h"
-#include "requests/sendtxauthresponserequest.h" // TODO: rename it to "authorizertatxrequest.h"
+#include "requests/authorizertatxrequest.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "inout.h"
@@ -14,10 +14,6 @@
 
 namespace graft {
 
-// TODO: move it to separate header?
-GRAFT_DEFINE_IO_STRUCT(AuthorizeRtaTxRequest,
-                      (std::string, tx_blob)
-                      );
 
 enum class PayHandlerState : int
 {

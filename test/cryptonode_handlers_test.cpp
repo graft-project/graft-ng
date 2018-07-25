@@ -78,8 +78,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
         graft::registerGetInfoRequest(router);
         graft::registerSendRawTxRequest(router);
-        graft::registerSendTxAuthResponseRequest(router);
-        graft::registerAuthorizeRtaTxRequest(router);
+        graft::registerAuthorizeRtaTxRequests(router);
 
         manager->addRouter(router);
         manager->enableRouting();
