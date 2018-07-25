@@ -6,9 +6,9 @@
 #include "context.h"
 #include "timer.h"
 #include "self_holder.h"
-#include <future>
-
 #include "CMakeConfig.h"
+#include <future>
+#include <deque>
 
 struct mg_mgr;
 struct mg_connection;
@@ -211,6 +211,7 @@ public:
 
     void cb_event(uint64_t cnt);
 protected:
+    void executePostponedTasks();
     void setIOThread(bool current);
     void checkUpstreamBlockingIO();
 
@@ -218,11 +219,11 @@ protected:
 private:
     void ExecutePreAction(BaseTaskPtr bt);
     void ExecutePostAction(BaseTaskPtr bt, GJ* gj = nullptr);  //gj equals nullptr if threadPool was skipped for some reasons
-
     void Execute(BaseTaskPtr bt);
-
     void processResult(BaseTaskPtr bt);
     void respondAndDie(BaseTaskPtr bt, const std::string& s);
+    void postponeTask(BaseTaskPtr bt);
+
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
     bool tryProcessReadyJob();
 
@@ -239,6 +240,10 @@ private:
     std::unique_ptr<ThreadPoolX> m_threadPool;
     std::unique_ptr<TPResQueue> m_resQueue;
     TimerList<BaseTaskPtr> m_timerList;
+
+    std::map<Context::uuid_t, BaseTaskPtr> m_postponedTasks;
+    std::deque<BaseTaskPtr> m_readyToResume;
+    std::priority_queue<std::pair<std::chrono::time_point<std::chrono::steady_clock>,Context::uuid_t>> m_expireTaskQueue;
 
     using PromiseItem = UpstreamTask::PromiseItem;
     using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;

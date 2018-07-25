@@ -68,6 +68,12 @@ void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s)
     {
         assert( dynamic_cast<PeriodicTask*>(bt.get()) );
     }
+
+    Context::uuid_t uuid = bt->getCtx().getId();
+    auto it = m_postponedTasks.find(uuid);
+    if (it != m_postponedTasks.end())
+        m_postponedTasks.erase(it);
+
     bt->finalize();
 }
 
@@ -185,6 +191,51 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     }
 }
 
+void TaskManager::postponeTask(BaseTaskPtr bt)
+{
+    Context::uuid_t uuid = bt->getCtx().getId();
+    assert(!uuid.is_nil());
+    assert(m_postponedTasks.find(uuid) == m_postponedTasks.end());
+    m_postponedTasks[uuid] = bt;
+    std::chrono::duration<double> timeout(m_copts.http_connection_timeout);
+    std::chrono::steady_clock::time_point tpoint = std::chrono::steady_clock::now()
+            + std::chrono::duration_cast<std::chrono::steady_clock::duration>( timeout );
+    m_expireTaskQueue.push(std::make_pair(
+                                    tpoint,
+                                    uuid)
+                                );
+}
+
+void TaskManager::executePostponedTasks()
+{
+    while(!m_readyToResume.empty())
+    {
+        BaseTaskPtr& bt = m_readyToResume.front();
+        Execute(bt);
+        m_readyToResume.pop_front();
+    }
+
+    if(m_expireTaskQueue.empty()) return;
+
+    auto now = std::chrono::steady_clock::now();
+    while(!m_expireTaskQueue.empty())
+    {
+        auto& pair = m_expireTaskQueue.top();
+        if(now <= pair.first) break;
+
+        auto it = m_postponedTasks.find(pair.second);
+        if(it != m_postponedTasks.end())
+        {
+            BaseTaskPtr& bt = it->second;
+            std::string msg = "Postpone task response timeout";
+            bt->setError(msg.c_str(), Status::Error);
+            respondAndDie(bt, msg);
+        }
+
+        m_expireTaskQueue.pop();
+    }
+}
+
 void TaskManager::processResult(BaseTaskPtr bt)
 {
     switch(bt->getLastStatus())
@@ -195,6 +246,14 @@ void TaskManager::processResult(BaseTaskPtr bt)
     } break;
     case Status::Ok:
     {
+        Context::uuid_t nextUuid = bt->getCtx().getNextTaskId();
+        if(!nextUuid.is_nil())
+        {
+            auto it = m_postponedTasks.find(nextUuid);
+            assert(it != m_postponedTasks.end());
+            m_readyToResume.push_back(it->second);
+            m_postponedTasks.erase(it);
+        }
         respondAndDie(bt, bt->getOutput().data());
     } break;
     case Status::InternalError:
@@ -206,6 +265,10 @@ void TaskManager::processResult(BaseTaskPtr bt)
     case Status::Drop:
     {
         respondAndDie(bt, "Job done Drop."); //TODO: Expect HTTP Error Response
+    } break;
+    case Status::Postpone:
+    {
+        postponeTask(bt);
     } break;
     default:
     {
