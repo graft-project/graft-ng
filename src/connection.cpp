@@ -108,6 +108,7 @@ void Looper::serve()
     {
         mg_mgr_poll(m_mgr.get(), m_copts.timer_poll_interval_ms);
         getTimerList().eval();
+        executePostponedTasks();
         if(stopped()) break;
     }
 }

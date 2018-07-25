@@ -6,8 +6,8 @@
 #include "context.h"
 #include "timer.h"
 #include "self_holder.h"
-
 #include "CMakeConfig.h"
+#include <deque>
 
 struct mg_mgr;
 struct mg_connection;
@@ -156,8 +156,6 @@ public:
 
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
-    void postponeTask(BaseTaskPtr bt) { m_postponedTasks[bt->getCtx().getId()] = bt; }
-    void executePostponedTask(Context::uuid_t uuid);
 
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
@@ -180,19 +178,17 @@ public:
 
     void cb_event(uint64_t cnt);
 protected:
+    void executePostponedTasks();
+
     ConfigOpts m_copts;
 private:
     void ExecutePreAction(BaseTaskPtr bt);
     void ExecutePostAction(BaseTaskPtr bt, GJ* gj = nullptr);  //gj equals nullptr if threadPool was skipped for some reasons
-
     void Execute(BaseTaskPtr bt);
-
     void processResult(BaseTaskPtr bt);
-
     void respondAndDie(BaseTaskPtr bt, const std::string& s);
-
+    void postponeTask(BaseTaskPtr bt);
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
-
     bool tryProcessReadyJob();
 
     GlobalContextMap m_gcm;
@@ -210,6 +206,7 @@ private:
     TimerList<BaseTaskPtr> m_timerList;
 
     std::map<Context::uuid_t, BaseTaskPtr> m_postponedTasks;
+    std::deque<BaseTaskPtr> m_readyToPostpone;
 };
 
 }//namespace graft

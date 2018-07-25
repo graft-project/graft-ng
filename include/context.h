@@ -231,7 +231,7 @@ public:
     using uuid_t = boost::uuids::uuid;
     Context(GlobalContextMap& map)
         : global(map)
-        , m_uuid(boost::uuids::random_generator()())
+        , m_uuid(boost::uuids::nil_generator()())
         , m_nextUuid(boost::uuids::nil_generator()())
     {
     }
@@ -239,11 +239,12 @@ public:
     Local local;
     Global global;
 
-    uuid_t getId() const { return m_uuid; }
+    uuid_t getId() const { if(m_uuid.is_nil()) m_uuid = boost::uuids::random_generator()(); return m_uuid; }
     void setNextTaskId(uuid_t uuid) { m_nextUuid = uuid; }
     uuid_t getNextTaskId() const { return m_nextUuid; }
 
 private:
-    uuid_t m_uuid, m_nextUuid;
+    mutable uuid_t m_uuid;
+    uuid_t m_nextUuid;
 };
 }//namespace graft

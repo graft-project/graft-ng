@@ -1578,13 +1578,11 @@ TEST_F(GraftServerPostponeTest, common)
         case graft::Status::Forward:
         {
             boost::uuids::uuid uuid = ctx.getId();
-            ctx.setNextTaskId(uuid);
             return graft::Status::Postpone;
         } break;
         case graft::Status::Postpone:
         {
             boost::uuids::uuid uuid = ctx.getId();
-            ctx.setNextTaskId(uuid);
             output.body = postpone_result;
             return graft::Status::Ok;
         } break;

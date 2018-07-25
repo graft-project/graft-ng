@@ -154,13 +154,22 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     }
 }
 
-void TaskManager::executePostponedTask(Context::uuid_t uuid)
+void TaskManager::postponeTask(BaseTaskPtr bt)
 {
-    auto it = m_postponedTasks.find(uuid);
-    if (it == m_postponedTasks.end())
-        return;
+    Context::uuid_t uuid = bt->getCtx().getId();
+    assert(!uuid.is_nil());
+    assert(m_postponedTasks.find(uuid) == m_postponedTasks.end());
+    m_postponedTasks[uuid] = bt;
+}
 
-    Execute(it->second);
+void TaskManager::executePostponedTasks()
+{
+    while(!m_readyToPostpone.empty())
+    {
+        BaseTaskPtr& bt = m_readyToPostpone.front();
+        Execute(bt);
+        m_readyToPostpone.pop_front();
+    }
 }
 
 void TaskManager::processResult(BaseTaskPtr bt)
@@ -174,9 +183,13 @@ void TaskManager::processResult(BaseTaskPtr bt)
     case Status::Ok:
     {
         Context::uuid_t nextUuid = bt->getCtx().getNextTaskId();
-
-        if (!nextUuid.is_nil())
-            executePostponedTask(nextUuid);
+        if(!nextUuid.is_nil())
+        {
+            auto it = m_postponedTasks.find(nextUuid);
+            assert(it != m_postponedTasks.end());
+            m_readyToPostpone.push_back(it->second);
+            m_postponedTasks.erase(it);
+        }
         respondAndDie(bt, bt->getOutput().data());
     } break;
     case Status::InternalError:
