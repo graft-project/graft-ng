@@ -1519,6 +1519,8 @@ class GraftServerPostponeTest : public GraftServerTestBase
 public:
     class TempCryptoN : public TempCryptoNodeServer
     {
+    public:
+        bool do_callback = true;
     protected:
         virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
@@ -1526,8 +1528,12 @@ public:
             std::string method(hm->method.p, hm->method.len);
             graft::Input in; in.load(data);
             Sstr ss = in.get<Sstr>();
+            headers = "Content-Type: application/json\r\nConnection: close";
+
+            if(!do_callback) return true;
+
             std::string uuid_str = ss.s;
-            auto send_callback = [=]()
+            auto send_callback = [uuid_str]()
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 Client callback_client;
@@ -1542,7 +1548,7 @@ public:
             };
             std::thread th(send_callback);
             th.detach();
-            headers = "Content-Type: application/json\r\nConnection: close";
+
             return true;
         }
     };
@@ -1604,6 +1610,14 @@ TEST_F(GraftServerPostponeTest, common)
     EXPECT_EQ(200, client.get_resp_code());
     std::string s = client.get_body();
     EXPECT_EQ(s, postpone_result);
+
+    //make hang postpones
+    crypton.do_callback = false;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(500, client.get_resp_code());
+    std::string body = client.get_body();
+    EXPECT_EQ(body, "Postpone task response timeout");
 
     mainServer.stop_and_wait_for();
     crypton.stop_and_wait_for();

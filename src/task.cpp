@@ -160,15 +160,42 @@ void TaskManager::postponeTask(BaseTaskPtr bt)
     assert(!uuid.is_nil());
     assert(m_postponedTasks.find(uuid) == m_postponedTasks.end());
     m_postponedTasks[uuid] = bt;
+    std::chrono::duration<double> timeout(m_copts.http_connection_timeout);
+    std::chrono::steady_clock::time_point tpoint = std::chrono::steady_clock::now()
+            + std::chrono::duration_cast<std::chrono::steady_clock::duration>( timeout );
+    m_expireTaskQueue.push(std::make_pair(
+                                    tpoint,
+                                    uuid)
+                                );
 }
 
 void TaskManager::executePostponedTasks()
 {
-    while(!m_readyToPostpone.empty())
+    while(!m_readyToResume.empty())
     {
-        BaseTaskPtr& bt = m_readyToPostpone.front();
+        BaseTaskPtr& bt = m_readyToResume.front();
         Execute(bt);
-        m_readyToPostpone.pop_front();
+        m_readyToResume.pop_front();
+    }
+
+    if(m_expireTaskQueue.empty()) return;
+
+    auto now = std::chrono::steady_clock::now();
+    while(!m_expireTaskQueue.empty())
+    {
+        auto& pair = m_expireTaskQueue.top();
+        if(now <= pair.first) break;
+
+        auto it = m_postponedTasks.find(pair.second);
+        if(it != m_postponedTasks.end())
+        {
+            BaseTaskPtr& bt = it->second;
+            std::string msg = "Postpone task response timeout";
+            bt->setError(msg.c_str(), Status::Error);
+            respondAndDie(bt, msg);
+        }
+
+        m_expireTaskQueue.pop();
     }
 }
 
@@ -187,7 +214,7 @@ void TaskManager::processResult(BaseTaskPtr bt)
         {
             auto it = m_postponedTasks.find(nextUuid);
             assert(it != m_postponedTasks.end());
-            m_readyToPostpone.push_back(it->second);
+            m_readyToResume.push_back(it->second);
             m_postponedTasks.erase(it);
         }
         respondAndDie(bt, bt->getOutput().data());
