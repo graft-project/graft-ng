@@ -1694,3 +1694,87 @@ TEST_F(GraftServerForwardTest, DISABLED_getVersion)
 
     mainServer.stop_and_wait_for();
 }
+
+/////////////////////////////////
+// GraftServerBlockingTest fixture
+
+class GraftServerBlockingTest : public GraftServerTestBase
+{
+public:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    public:
+        bool ignore = false;
+        std::string answer;
+        std::string body;
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            body = std::string(hm->body.p, hm->body.len);
+            std::string method(hm->method.p, hm->method.len);
+            if(ignore) return false;
+            data = answer;
+            headers = "Content-Type: application/json\r\nConnection: close";
+            return true;
+        }
+    };
+};
+
+TEST_F(GraftServerBlockingTest, common)
+{
+    TempCryptoN crypton;
+    crypton.run();
+    auto pre_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        Sstr ss; ss.s = "my string";
+        graft::Output out; out.load(ss);
+        //check io thread exceprtion
+        crypton.answer = "crypton answer";
+        graft::Input res;
+        std::string err;
+        int state = 0;
+        try
+        {
+            graft::TaskManager::sendUpstreamBlocking(out, res, err);
+            state = 1;
+        }
+        catch(std::exception& ex)
+        {
+            state = 2;
+        }
+        EXPECT_EQ(state,2);
+        return graft::Status::Ok;
+    };
+    auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        Sstr ss; ss.s = "my string";
+        graft::Output out; out.load(ss);
+        //without error
+        crypton.answer = "crypton answer";
+        graft::Input res;
+        std::string err;
+        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        EXPECT_EQ(res.body, crypton.answer);
+        EXPECT_EQ(err.empty(), true);
+        //with error
+        res.body.clear();
+        crypton.ignore = true;
+        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        EXPECT_EQ(err.empty(), false);
+        return graft::Status::Ok;
+    };
+
+    MainServer mainServer;
+    mainServer.router.addRoute("/json_block", METHOD_POST|METHOD_GET,
+                               graft::Router::Handler3(pre_action, action, nullptr));
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/json_block", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+
+    mainServer.stop_and_wait_for();
+    crypton.stop_and_wait_for();
+}
