@@ -22,6 +22,7 @@ GRAFT_DEFINE_IO_STRUCT(ErrorResponse,
 #define ERROR_INVALID_PARAMS                -32602
 #define ERROR_INTERNAL_ERROR                -32603
 
+
 static const std::string MESSAGE_INVALID_PARAMS("The request parameters are invalid.");
 static const std::string MESSAGE_INTERNAL_ERROR("Internal server error.");
 
@@ -33,6 +34,7 @@ static const std::string MESSAGE_INTERNAL_ERROR("Internal server error.");
 #define ERROR_RTA_COMPLETED                 -32070
 #define ERROR_RTA_FAILED                    -32071
 #define ERROR_RTA_SIGNATURE_FAILED          -32080
+#define ERROR_TRANSACTION_INVALID           -32090
 
 static const std::string MESSAGE_AMOUNT_INVALID("Amount is invalid.");
 static const std::string MESSAGE_PAYMENT_ID_INVALID("Payment ID is invalid.");
@@ -41,6 +43,7 @@ static const std::string MESSAGE_RTA_COMPLETED("Payment is already completed.");
 static const std::string MESSAGE_RTA_FAILED("Payment is already failed.");
 static const std::string MESSAGE_ADDRESS_INVALID("Address in invalid.");
 static const std::string MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE("Can't build auth sample.");
+static const std::string MESSAGE_INVALID_TRANSACTION("Can't parse transaction");
 
 //Context Keys
 static const std::string CONTEXT_KEY_SALE_DETAILS(":saledetails");
@@ -59,6 +62,8 @@ Status errorInvalidParams(Output &output);
 Status errorInvalidAmount(Output &output);
 Status errorInvalidAddress(Output &output);
 Status errorBuildAuthSample(Output &output);
+Status errorInvalidTransaction(const std::string &tx_data, Output &output);
+
 bool errorFinishedPayment(int status, Output &output);
 /*!
  * \brief cleanPaySaleData - cleans any data associated with given payment id

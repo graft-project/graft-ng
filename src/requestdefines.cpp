@@ -85,11 +85,24 @@ bool errorFinishedPayment(int status, Output &output)
     return false;
 }
 
+Status errorInvalidTransaction(const std::string &tx_data, Output &output)
+{
+    JsonRpcError err;
+    err.code = ERROR_TRANSACTION_INVALID;
+    err.message = MESSAGE_INVALID_TRANSACTION + " : " + tx_data;
+    JsonRpcErrorResponse resp;
+    resp.error = err;
+    output.load(resp);
+    return Status::Error;
+}
+
 void cleanPaySaleData(const std::string &payment_id, Context &ctx)
 {
     ctx.global.remove(payment_id + CONTEXT_KEY_PAY);
     ctx.global.remove(payment_id + CONTEXT_KEY_SALE);
     ctx.global.remove(payment_id + CONTEXT_KEY_STATUS);
 }
+
+
 
 }
