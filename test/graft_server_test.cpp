@@ -14,6 +14,7 @@
 #include "inout.h"
 #include <deque>
 #include <jsonrpc.h>
+#include <boost/uuid/uuid_io.hpp>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -1511,6 +1512,118 @@ TEST_F(GraftServerCommonTest, testRTAFullFlow)
 }
 
 /////////////////////////////////
+// GraftServerPostponeTest fixture
+
+class GraftServerPostponeTest : public GraftServerTestBase
+{
+public:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    public:
+        bool do_callback = true;
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            data = std::string(hm->body.p, hm->body.len);
+            std::string method(hm->method.p, hm->method.len);
+            graft::Input in; in.load(data);
+            Sstr ss = in.get<Sstr>();
+            headers = "Content-Type: application/json\r\nConnection: close";
+
+            if(!do_callback) return true;
+
+            std::string uuid_str = ss.s;
+            auto send_callback = [uuid_str]()
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                Client callback_client;
+                std::string url = "http://127.0.0.1:9084/callback/" + uuid_str;
+                std::string post_data = "it is callback post data";
+                callback_client.serve(url,"",post_data);
+
+                EXPECT_EQ(false, callback_client.get_closed());
+                EXPECT_EQ(200, callback_client.get_resp_code());
+                std::string s = callback_client.get_body();
+                EXPECT_EQ(s, post_data);
+            };
+            std::thread th(send_callback);
+            th.detach();
+
+            return true;
+        }
+    };
+};
+
+TEST_F(GraftServerPostponeTest, common)
+{
+    auto callback_action = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        output.body = input.data();
+        assert(vars.count("id") == 1);
+        std::string id = vars.find("id")->second;
+        boost::uuids::string_generator sg;
+        boost::uuids::uuid uuid = sg(id);
+
+        ctx.setNextTaskId(uuid);
+        return graft::Status::Ok;
+    };
+
+    std::string postpone_result = "this is postpone result";
+
+    auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        switch(ctx.local.getLastStatus())
+        {
+        case graft::Status::None:
+        {
+            boost::uuids::uuid uuid = ctx.getId();
+            Sstr ss; ss.s = boost::uuids::to_string(uuid);
+            output.load(ss);
+            return graft::Status::Forward;
+        } break;
+        case graft::Status::Forward:
+        {
+            boost::uuids::uuid uuid = ctx.getId();
+            return graft::Status::Postpone;
+        } break;
+        case graft::Status::Postpone:
+        {
+            boost::uuids::uuid uuid = ctx.getId();
+            output.body = postpone_result;
+            return graft::Status::Ok;
+        } break;
+        }
+    };
+
+    TempCryptoN crypton;
+    crypton.run();
+    MainServer mainServer;
+    mainServer.router.addRoute("/json_rpc",METHOD_POST,{nullptr,action,nullptr});
+    mainServer.router.addRoute("/callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,callback_action,nullptr});
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    std::string s = client.get_body();
+    EXPECT_EQ(s, postpone_result);
+
+    //make hang postpones
+    crypton.do_callback = false;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(500, client.get_resp_code());
+    std::string body = client.get_body();
+    EXPECT_EQ(body, "Postpone task response timeout");
+
+    mainServer.stop_and_wait_for();
+    crypton.stop_and_wait_for();
+}
+
+/////////////////////////////////
 // GraftServerForwardTest fixture
 
 class GraftServerForwardTest : public GraftServerTestBase
@@ -1580,4 +1693,88 @@ TEST_F(GraftServerForwardTest, DISABLED_getVersion)
     EXPECT_NO_THROW( JRResponseResult result = in.get<JRResponseResult>() );
 
     mainServer.stop_and_wait_for();
+}
+
+/////////////////////////////////
+// GraftServerBlockingTest fixture
+
+class GraftServerBlockingTest : public GraftServerTestBase
+{
+public:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    public:
+        bool ignore = false;
+        std::string answer;
+        std::string body;
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            body = std::string(hm->body.p, hm->body.len);
+            std::string method(hm->method.p, hm->method.len);
+            if(ignore) return false;
+            data = answer;
+            headers = "Content-Type: application/json\r\nConnection: close";
+            return true;
+        }
+    };
+};
+
+TEST_F(GraftServerBlockingTest, common)
+{
+    TempCryptoN crypton;
+    crypton.run();
+    auto pre_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        Sstr ss; ss.s = "my string";
+        graft::Output out; out.load(ss);
+        //check io thread exceprtion
+        crypton.answer = "crypton answer";
+        graft::Input res;
+        std::string err;
+        int state = 0;
+        try
+        {
+            graft::TaskManager::sendUpstreamBlocking(out, res, err);
+            state = 1;
+        }
+        catch(std::exception& ex)
+        {
+            state = 2;
+        }
+        EXPECT_EQ(state,2);
+        return graft::Status::Ok;
+    };
+    auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        Sstr ss; ss.s = "my string";
+        graft::Output out; out.load(ss);
+        //without error
+        crypton.answer = "crypton answer";
+        graft::Input res;
+        std::string err;
+        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        EXPECT_EQ(res.body, crypton.answer);
+        EXPECT_EQ(err.empty(), true);
+        //with error
+        res.body.clear();
+        crypton.ignore = true;
+        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        EXPECT_EQ(err.empty(), false);
+        return graft::Status::Ok;
+    };
+
+    MainServer mainServer;
+    mainServer.router.addRoute("/json_block", METHOD_POST|METHOD_GET,
+                               graft::Router::Handler3(pre_action, action, nullptr));
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/json_block", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+
+    mainServer.stop_and_wait_for();
+    crypton.stop_and_wait_for();
 }

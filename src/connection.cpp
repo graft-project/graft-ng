@@ -109,14 +109,20 @@ Looper::~Looper()
 
 void Looper::serve()
 {
-    m_ready = true;
+    setIOThread(true);
 
+    m_ready = true;
     for (;;)
     {
         mg_mgr_poll(m_mgr.get(), m_copts.timer_poll_interval_ms);
         getTimerList().eval();
+        checkUpstreamBlockingIO();
+        executePostponedTasks();
         if(stopped()) break;
     }
+
+    setIOThread(false);
+
     LOG_PRINT_L0("Server shutdown.");
 }
 
