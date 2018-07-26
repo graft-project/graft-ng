@@ -44,14 +44,15 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     JsonRpcError error;
     error.code = 0;
 
-    if (!input.get(req)) {
-        return errorInvalidParams(output);
-    }
 
-
-    const SaleRequest &in = req.params;
 
     do {
+        if (!input.get(req)) {
+            return errorInvalidParams(output);
+        }
+
+        const SaleRequest &in = req.params;
+
         if (in.Amount <= 0)
         {
             return errorInvalidAmount(output);
