@@ -122,11 +122,13 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/mnemonics
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/ringct
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/wallet
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/utils
     )
 
 set(CRYPTONODE_LIBS
     easylogging
     wallet
+    utils
     mnemonics
     ringct
     epee
