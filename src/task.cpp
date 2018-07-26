@@ -1,10 +1,6 @@
-#include <string.h>
-
 #include "task.h"
 #include "connection.h"
 #include "router.h"
-#include "log.h"
-#include <sstream>
 
 namespace graft {
 

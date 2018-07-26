@@ -27,7 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <gtest/gtest.h>
-#include "log.h"
+#include <misc_log_ex.h>
 
 int main(int argc, char **argv)
 {

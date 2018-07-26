@@ -1,6 +1,5 @@
 #include "connection.h"
 #include "mongoosex.h"
-#include "log.h"
 
 namespace graft {
 
