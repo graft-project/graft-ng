@@ -2,7 +2,6 @@
 #include "requests.h"
 #include "backtrace.h"
 
-#include "log.h"
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 // #include <boost/tokenizer.hpp>

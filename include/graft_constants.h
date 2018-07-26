@@ -11,6 +11,7 @@ namespace graft
     EXP(Drop) \
     EXP(Busy) \
     EXP(InternalError) \
+    EXP(Postpone) \
     EXP(Stop) //for timer events
 
 #define EXP_TO_ENUM(x) x,

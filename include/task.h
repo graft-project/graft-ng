@@ -6,11 +6,33 @@
 #include "context.h"
 #include "timer.h"
 #include "self_holder.h"
-
+#include <misc_log_ex.h>
 #include "CMakeConfig.h"
+#include <future>
+#include <deque>
 
 struct mg_mgr;
 struct mg_connection;
+
+namespace graft
+{
+    extern std::string client_addr(mg_connection* client);
+} //namespace graft
+
+#define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << client_addr(client) << "]" << x)
+
+#define LOG_PRINT_RQS_BT(level,bt,x) \
+{ \
+    ClientTask* cr = dynamic_cast<ClientTask*>(bt.get()); \
+    if(cr) \
+    { \
+        LOG_PRINT_CLN(level,cr->m_client,x); \
+    } \
+    else \
+    { \
+        LOG_PRINT_L##level(x); \
+    } \
+}
 
 namespace graft {
 
@@ -121,18 +143,47 @@ protected:
     Context m_ctx;
 };
 
+class UpstreamTask : public BaseTask
+{
+public:
+    using PromiseItem = std::pair< std::promise<Input>, Output >;
+
+    virtual void finalize() override;
+    PromiseItem m_pi;
+private:
+    friend class SelfHolder<BaseTask>;
+    UpstreamTask(TaskManager& manager, PromiseItem&& pi)
+        : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(),
+                Router::Handler3(nullptr, nullptr, nullptr)}))
+        , m_pi(std::move(pi))
+    {
+    }
+};
+
 class PeriodicTask : public BaseTask
 {
     friend class SelfHolder<BaseTask>;
-    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
-        : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
-        , m_timeout_ms(timeout_ms)
+    PeriodicTask(
+            TaskManager& manager, const Router::Handler3& h3,
+            std::chrono::milliseconds timeout_ms,
+            std::chrono::milliseconds initial_timeout_ms
+    ) : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
+      , m_timeout_ms(timeout_ms), m_initial_timeout_ms(initial_timeout_ms)
     {
     }
-public:
-    virtual void finalize() override;
+
+    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
+        : PeriodicTask(manager, h3, timeout_ms, timeout_ms)
+    {
+    }
 
     std::chrono::milliseconds m_timeout_ms;
+    std::chrono::milliseconds m_initial_timeout_ms;
+    bool m_initial_run {true};
+
+public:
+    virtual void finalize() override;
+    std::chrono::milliseconds getTimeout();
 };
 
 class ClientTask : public BaseTask
@@ -159,11 +210,11 @@ public:
 
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
+    void addPeriodicTask(const Router::Handler3& h3,
+            std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms);
 
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
-    ThreadPoolX& getThreadPool() { return *m_threadPool.get(); }
-    TPResQueue& getResQueue() { return *m_resQueue.get(); }
     GlobalContextMap& getGcm() { return m_gcm; }
     const ConfigOpts& getCopts() const { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
@@ -177,24 +228,28 @@ public:
     void schedule(PeriodicTask* pt);
     void onTimer(BaseTaskPtr bt);
     void onUpstreamDone(UpstreamSender& uss);
+
+    static void sendUpstreamBlocking(Output& output, Input& input, std::string& err);
+
     virtual void notifyJobReady() = 0;
 
     void cb_event(uint64_t cnt);
 protected:
     bool canStop();
+    void executePostponedTasks();
+    void setIOThread(bool current);
+    void checkUpstreamBlockingIO();
+
     ConfigOpts m_copts;
 private:
     void ExecutePreAction(BaseTaskPtr bt);
     void ExecutePostAction(BaseTaskPtr bt, GJ* gj = nullptr);  //gj equals nullptr if threadPool was skipped for some reasons
-
     void Execute(BaseTaskPtr bt);
-
     void processResult(BaseTaskPtr bt);
-
     void respondAndDie(BaseTaskPtr bt, const std::string& s);
+    void postponeTask(BaseTaskPtr bt);
 
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
-
     bool tryProcessReadyJob();
 
     GlobalContextMap m_gcm;
@@ -210,6 +265,17 @@ private:
     std::unique_ptr<ThreadPoolX> m_threadPool;
     std::unique_ptr<TPResQueue> m_resQueue;
     TimerList<BaseTaskPtr> m_timerList;
+
+    std::map<Context::uuid_t, BaseTaskPtr> m_postponedTasks;
+    std::deque<BaseTaskPtr> m_readyToResume;
+    std::priority_queue<std::pair<std::chrono::time_point<std::chrono::steady_clock>,Context::uuid_t>> m_expireTaskQueue;
+
+    using PromiseItem = UpstreamTask::PromiseItem;
+    using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;
+
+    std::unique_ptr<PromiseQueue> m_promiseQueue;
+    static thread_local bool io_thread;
+    static TaskManager* g_upstreamManager;
 };
 
 }//namespace graft
