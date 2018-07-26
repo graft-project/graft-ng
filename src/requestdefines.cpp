@@ -96,12 +96,37 @@ Status errorInvalidTransaction(const std::string &tx_data, Output &output)
     return Status::Error;
 }
 
+Status errorInternalError(const std::string &message, Output &output)
+{
+    JsonRpcError err;
+    err.code = ERROR_INTERNAL_ERROR;
+    err.message = message;
+    JsonRpcErrorResponse resp;
+    resp.error = err;
+    output.load(resp);
+    return Status::Error;
+}
+
+Status errorCustomError(const std::string &message, int code, Output &output)
+{
+    JsonRpcError err;
+    err.code = code;
+    err.message = message;
+    JsonRpcErrorResponse resp;
+    resp.error = err;
+    output.load(resp);
+    return Status::Error;
+}
+
+
 void cleanPaySaleData(const std::string &payment_id, Context &ctx)
 {
     ctx.global.remove(payment_id + CONTEXT_KEY_PAY);
     ctx.global.remove(payment_id + CONTEXT_KEY_SALE);
     ctx.global.remove(payment_id + CONTEXT_KEY_STATUS);
 }
+
+
 
 
 
