@@ -14,7 +14,7 @@ protected:
 private:
     bool init(int argc, const char** argv);
     void serve();
-    void stop() { m_looper->stop(); }
+    void stop(bool force = false) { m_looper->stop(force); }
 
     static void initSignals();
     void addGlobalCtxCleaner();

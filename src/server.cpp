@@ -6,16 +6,21 @@
 
 namespace graft {
 
-static std::function<void (int sig_num)> stop_handler, restart_handler;
+static std::function<void (int sig_num)> int_handler, term_handler, hup_handler;
 
-static void signal_handler_stop(int sig_num)
+static void signal_handler_int(int sig_num)
 {
-    if(stop_handler) stop_handler(sig_num);
+    if(int_handler) int_handler(sig_num);
 }
 
-static void signal_handler_restart(int sig_num)
+static void signal_handler_term(int sig_num)
 {
-    if(restart_handler) restart_handler(sig_num);
+    if(term_handler) term_handler(sig_num);
+}
+
+static void signal_handler_hup(int sig_num)
+{
+    if(hup_handler) hup_handler(sig_num);
 }
 
 void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
@@ -99,17 +104,23 @@ bool GraftServer::run(int argc, const char** argv)
         if(!gs.init(argc, argv)) return false;
         argc = 1;
 
-        stop_handler = [&gs](int sig_num)
+        int_handler = [&gs](int sig_num)
         {
-            LOG_PRINT_L0("Stoping server");
+            LOG_PRINT_L0("Stopping server");
             gs.stop();
         };
 
-        restart_handler = [&gs,&run](int sig_num)
+        term_handler = [&gs](int sig_num)
+        {
+            LOG_PRINT_L0("Force stopping server");
+            gs.stop(true);
+        };
+
+        hup_handler = [&gs,&run](int sig_num)
         {
             LOG_PRINT_L0("Restarting server");
-            gs.stop();
             run = true;
+            gs.stop();
         };
 
         gs.serve();
@@ -130,11 +141,13 @@ void GraftServer::initSignals()
 
     sa.sa_sigaction = NULL;
     sa.sa_flags = 0;
-    sa.sa_handler = signal_handler_stop;
+    sa.sa_handler = signal_handler_int;
     ::sigaction(SIGINT, &sa, NULL);
+
+    sa.sa_handler = signal_handler_term;
     ::sigaction(SIGTERM, &sa, NULL);
 
-    sa.sa_handler = signal_handler_restart;
+    sa.sa_handler = signal_handler_hup;
     ::sigaction(SIGHUP, &sa, NULL);
 }
 
