@@ -58,7 +58,8 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     Output innerOut;
     AuthorizeRtaTxRequest authTxReq;
-    authTxReq.tx_blob = in.tx_blob;
+    authTxReq.tx_blob = in.Transaction;
+    LOG_PRINT_L0("tx_blob: " << authTxReq.tx_blob);
     innerOut.loadT<serializer::JSON_B64>(authTxReq);
     cryptonode_req.method = "multicast";
     cryptonode_req.params.callback_uri =  "/cryptonode/authorize_rta_tx_request"; // "/method" appended on cryptonode side
@@ -165,7 +166,7 @@ Status payClientHandler(const Router::vars_t& vars, const graft::Input& input,
 
     // state machine to perform two calls to cryptonode and return result to the client
     switch (state) {
-    // client requested "/sale"
+    // client requested "/pay"
     case PayHandlerState::ClientRequest:
         LOG_PRINT_L0("called by client, payload: " << input.data());
         ctx.local[__FUNCTION__] = PayHandlerState::TxAuthReply;
@@ -175,7 +176,7 @@ Status payClientHandler(const Router::vars_t& vars, const graft::Input& input,
     case PayHandlerState::TxAuthReply:
         // handle "multicast" response from cryptonode, check it's status, send
         // "sale status" with broadcast to cryptonode
-        LOG_PRINT_L0("SaleMulticast response from cryptonode: " << input.data());
+        LOG_PRINT_L0("authorize_rta_tx_request multicast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         ctx.local[__FUNCTION__] = PayHandlerState::StatusReply;
         // handleSameMulticast returns Forward, call performed according traffic capture but after that moment
@@ -183,7 +184,7 @@ Status payClientHandler(const Router::vars_t& vars, const graft::Input& input,
         return handleTxAuthReply(vars, input, ctx, output);
     case PayHandlerState::StatusReply:
         // this code never reached and previous output (with "broadcast" request to cryptonode) returned to client
-        LOG_PRINT_L0("SaleStatusBroadcast response from cryptonode: " << input.data());
+        LOG_PRINT_L0("sale status broadcast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         return handleStatusBroadcastReply(vars, input, ctx, output);
      default:
