@@ -295,7 +295,12 @@ string Supernode::networkAddress() const
 void Supernode::setNetworkAddress(const string &networkAddress)
 {
     if (m_network_address != networkAddress)
-      m_network_address = networkAddress;
+        m_network_address = networkAddress;
+}
+
+bool Supernode::getAmountFromTx(const cryptonote::transaction &tx, uint64_t &amount)
+{
+    return m_wallet->get_amount_from_tx(tx, amount);
 }
 
 bool Supernode::validateAddress(const string &address, bool testnet)

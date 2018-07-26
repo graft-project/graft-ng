@@ -11,6 +11,10 @@ namespace tools {
     class wallet2;
 }
 
+namespace cryptonote {
+    class transaction;
+}
+
 namespace graft {
 
 struct SupernodeAnnounce;
@@ -175,6 +179,8 @@ public:
     std::string networkAddress() const;
 
     void setNetworkAddress(const std::string &networkAddress);
+
+    bool getAmountFromTx(const cryptonote::transaction &tx, uint64_t &amount);
 
     /*!
      * \brief validateAddress - validates wallet address
