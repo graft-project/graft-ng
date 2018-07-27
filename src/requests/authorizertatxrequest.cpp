@@ -199,7 +199,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     innerOut.loadT<serializer::JSON_B64>(authResponse);
     authResponseMulticast.params.data = innerOut.data();
     output.load(authResponseMulticast);
-    output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
+    output.path = "/json_rpc/rta";
     return Status::Forward;
 }
 

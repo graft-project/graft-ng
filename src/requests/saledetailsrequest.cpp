@@ -97,7 +97,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
             unicastReq.method = "unicast";
 
             output.load(unicastReq);
-            output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
+            output.path = "/json_rpc/rta";
             LOG_PRINT_L0("calling cryptonode: " << output.uri);
             LOG_PRINT_L0("\t with data: " << output.data());
         }

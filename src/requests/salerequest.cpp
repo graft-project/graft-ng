@@ -58,7 +58,8 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
             return errorInvalidAmount(output);
         }
 
-        if (!Supernode::validateAddress(in.Address, ctx.global.getConfig()->testnet))
+        bool testnet = ctx.global["testnet"];
+        if (!Supernode::validateAddress(in.Address, testnet))
         {
             error.code = ERROR_ADDRESS_INVALID;
             error.message = MESSAGE_ADDRESS_INVALID;
@@ -124,7 +125,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side
         cryptonode_req.params.data = innerOut.data();
         output.load(cryptonode_req);
-        output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
+        output.path = "/json_rpc/rta";
         LOG_PRINT_L0("calling cryptonode: " << output.uri);
         LOG_PRINT_L0("\t with data: " << output.data());
     } while (false);

@@ -72,7 +72,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
     ctx.global[in.PaymentID + CONTEXT_KEY_STATUS] = static_cast<int>(RTAStatus::InProgress);
 
     output.load(cryptonode_req);
-    output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
+    output.path = "/json_rpc/rta";
     LOG_PRINT_L0("calling cryptonode: " << output.uri);
     LOG_PRINT_L0("\t with data: " << output.data());
     return Status::Forward;
@@ -102,6 +102,7 @@ Status handleTxAuthReply(const Router::vars_t& vars, const graft::Input& input,
 
     int status = ctx.global.get(payment_id + CONTEXT_KEY_STATUS, static_cast<int>((RTAStatus::InProgress)));
     buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
+
 
     LOG_PRINT_L0("calling cryptonode: " << output.uri);
     LOG_PRINT_L0("\t with data: " << output.data());
