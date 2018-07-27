@@ -11,14 +11,6 @@
 #include <future>
 #include <deque>
 
-struct mg_mgr;
-struct mg_connection;
-
-namespace graft
-{
-    extern std::string client_addr(mg_connection* client);
-} //namespace graft
-
 #define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << client_addr(client) << "]" << x)
 
 #define LOG_PRINT_RQS_BT(level,bt,x) \
@@ -34,10 +26,16 @@ namespace graft
     } \
 }
 
-namespace graft {
+
+
+struct mg_mgr;
+struct mg_connection;
+
+namespace graft
+{
+extern std::string client_addr(mg_connection* client);
 
 class UpstreamSender;
-
 class TaskManager;
 class ConnectionManager;
 

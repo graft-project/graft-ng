@@ -1,15 +1,4 @@
 #include "server.h"
-#include "requests.h"
-#include "backtrace.h"
-
-#include <boost/program_options.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-// #include <boost/tokenizer.hpp>
-#include <boost/filesystem.hpp>
-#include <csignal>
-
-namespace po = boost::program_options;
-using namespace std;
 
 int main(int argc, const char** argv)
 {
