@@ -8,12 +8,12 @@ namespace graft {
 ///
 /// prototype of a job
 ///
-template <typename CR_ptr, typename ResQueue, typename Watcher>
+template <typename BT_ptr, typename ResQueue, typename Watcher>
 class GraftJob
 {
 public:
-    explicit GraftJob(CR_ptr cr, ResQueue* rq, Watcher* watcher)
-        : m_cr(cr)
+    explicit GraftJob(BT_ptr bt, ResQueue* rq, Watcher* watcher)
+        : m_bt(bt)
         , m_rq(rq)
         , m_watcher(watcher)
     {}
@@ -29,7 +29,7 @@ public:
     {
         if(this != &rhs)
         {
-            m_cr = std::move(rhs.m_cr);
+            m_bt = std::move(rhs.m_bt);
             m_rq = std::move(rhs.m_rq);
             m_watcher = std::move(rhs.m_watcher);
         }
@@ -40,11 +40,11 @@ public:
     virtual void operator () ()
     {
         {
-            decltype(auto) vars_cref = m_cr->get_vars();
-            decltype(auto) input_ref = m_cr->get_input();
-            decltype(auto) output_ref = m_cr->get_output();
-            decltype(auto) h3_ref = m_cr->get_h3();
-            decltype(auto) ctx = m_cr->get_ctx();
+            decltype(auto) vars_cref = m_bt->getVars();
+            decltype(auto) input_ref = m_bt->getInput();
+            decltype(auto) output_ref = m_bt->getOutput();
+            decltype(auto) h3_ref = m_bt->getHandler3();
+            decltype(auto) ctx = m_bt->getCtx();
 
             try
             {
@@ -71,9 +71,9 @@ public:
         save_m_watcher->notifyJobReady();
     }
 
-    CR_ptr& get_cr() { return m_cr; }
+    BT_ptr& getTask() { return m_bt; }
 protected:
-    CR_ptr m_cr;
+    BT_ptr m_bt;
 
     ResQueue* m_rq = nullptr;
     Watcher* m_watcher = nullptr;

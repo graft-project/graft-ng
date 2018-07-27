@@ -59,7 +59,7 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
         req.method = "get_info";
         output.load(req);
         output.path = "/json_rpc";
-        // alternatively, it could be done like this:
+        // alternatively, it could NOT be done like this:
         // output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc";
         ctx.local[__FUNCTION__] = true;
         return Status::Forward;

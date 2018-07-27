@@ -100,11 +100,12 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
             // this can't be executed here as it takes too much time, we need to respond "ok" and run
             // this task asynchronously
 
-            boost::filesystem::path p(ctx.global.getConfig()->watchonly_wallets_path);
+            std::string watchonly_wallets_path = ctx.global["watchonly_wallets_path"];
+            boost::filesystem::path p(watchonly_wallets_path);
             p /= announce.address;
             std::string wallet_path = p.string();
-            std::string cryptonode_rpc_address = ctx.global.getConfig()->cryptonode_rpc_address;
-            bool testnet = ctx.global.getConfig()->testnet;
+            std::string cryptonode_rpc_address = ctx.global["cryptonode_rpc_address"];
+            bool testnet = ctx.global["testnet"];
 
             auto worker = [announce, wallet_path, cryptonode_rpc_address, testnet, fsl]() {
                 Supernode * s  = Supernode::createFromAnnounce(wallet_path, announce,

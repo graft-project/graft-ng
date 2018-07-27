@@ -1,6 +1,9 @@
 #pragma once
 
 #include <boost/any.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -19,8 +22,9 @@ namespace graft
 {
 using GlobalContextMap = graft::TSHashtable<std::string, boost::any>;
 
-struct Context
+class Context
 {
+public:
     class Local
     {
     private:
@@ -132,10 +136,9 @@ struct Context
     {
     protected:
         GlobalContextMap& m_map;
-        const graft::ServerOpts *m_serverOpts = nullptr;
 
-        Global(GlobalContextMap& map, const ServerOpts * opts)
-            : m_map(map), m_serverOpts(opts) {}
+        Global(GlobalContextMap& map)
+            : m_map(map) {}
 
         friend class Context;
 
@@ -174,12 +177,6 @@ struct Context
         ~Global() = default;
         Global(const Global&) = delete;
         Global(Global&&) = delete;
-
-        /*!
-         * \brief getServerOptions - exposes server's options
-         * \return
-         */
-        const ServerOpts *getConfig() const { return m_serverOpts; }
 
         template<typename T>
         T operator[](const std::string& key) const
@@ -243,9 +240,23 @@ struct Context
         }
     };
 
-    Context(GlobalContextMap& map, const ServerOpts *sopts = nullptr) : global(map, sopts) {}
+    using uuid_t = boost::uuids::uuid;
+    Context(GlobalContextMap& map)
+        : global(map)
+        , m_uuid(boost::uuids::nil_generator()())
+        , m_nextUuid(boost::uuids::nil_generator()())
+    {
+    }
 
     Local local;
     Global global;
+
+    uuid_t getId() const { if(m_uuid.is_nil()) m_uuid = boost::uuids::random_generator()(); return m_uuid; }
+    void setNextTaskId(uuid_t uuid) { m_nextUuid = uuid; }
+    uuid_t getNextTaskId() const { return m_nextUuid; }
+
+private:
+    mutable uuid_t m_uuid;
+    uuid_t m_nextUuid;
 };
 }//namespace graft

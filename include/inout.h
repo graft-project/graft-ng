@@ -198,8 +198,11 @@ namespace graft
         }
     public:
         /*!
-         * \brief makeUri - please document what it does
-         * \param default_uri
+         * \brief makeUri - please DO NOT use it. It is for internal usage.
+         * Set uri, proto, host, port, path members if you need.
+         * The function forms real URI substituting absent parts according to Config.ini.
+         * It is public to be accessed from tests and other classes.
+         * \param default_uri - this parameter always comes from [cryptonode]rpc-address of Config.ini.
          * \return
          */
         std::string makeUri(const std::string& default_uri) const;
