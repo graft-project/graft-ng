@@ -1,9 +1,15 @@
 #include "requestdefines.h"
 #include "jsonrpc.h"
 #include "context.h"
+#include "rta/supernode.h"
+#include "requests/broadcast.h"
+#include "requests/salestatusrequest.h"
 
+#include <string_tools.h> // epee
 
 namespace graft {
+
+using namespace std;
 
 Status errorInvalidPaymentID(Output &output)
 {
@@ -126,7 +132,31 @@ void cleanPaySaleData(const std::string &payment_id, Context &ctx)
     ctx.global.remove(payment_id + CONTEXT_KEY_STATUS);
 }
 
+void buildBroadcastSaleStatusOutput(const std::string &payment_id, int status, const SupernodePtr &supernode, Output &output)
+{
+    UpdateSaleStatusBroadcast ussb;
+    ussb.address = supernode->walletAddress();
+    ussb.Status =  status;
+    ussb.PaymentID = payment_id;
 
+    // sign message
+    std::string msg = payment_id + ":" + to_string(ussb.Status);
+    crypto::signature sign;
+    supernode->signMessage(msg, sign);
+    ussb.signature = epee::string_tools::pod_to_hex(sign);
+
+    Output innerOut;
+    innerOut.loadT<serializer::JSON_B64>(ussb);
+
+    // send payload
+    BroadcastRequestJsonRpc cryptonode_req;
+    cryptonode_req.method = "broadcast";
+    cryptonode_req.params.callback_uri = "/cryptonode/update_sale_status";
+    cryptonode_req.params.data = innerOut.data();
+    output.load(cryptonode_req);
+    output.uri = "/json_rpc/rta";
+    output.load(cryptonode_req);
+}
 
 
 

@@ -3,6 +3,7 @@
 
 #include "graft_constants.h"
 #include "inout.h"
+#include "rta/supernode.h"
 
 GRAFT_DEFINE_IO_STRUCT(ErrorResponse,
     (int64, code),
@@ -52,6 +53,9 @@ static const std::string CONTEXT_KEY_STATUS(":status");
 static const std::string CONTEXT_KEY_PAY(":pay");
 static const std::string CONTEXT_KEY_SUPERNODE("supernode");
 static const std::string CONTEXT_KEY_FULLSUPERNODELIST("fsl");
+static const std::string CONTEXT_KEY_TXID(":tx_id");
+static const std::string CONTEXT_KEY_PAYMENT_ID_BY_TX_ID(":tx_id_to_payment_id");
+
 
 namespace graft {
 
@@ -65,6 +69,7 @@ Status errorBuildAuthSample(Output &output);
 Status errorInvalidTransaction(const std::string &tx_data, Output &output);
 Status errorInternalError(const std::string &message, Output &output);
 Status errorCustomError(const std::string &message, int code, Output &output);
+
 
 bool errorFinishedPayment(int status, Output &output);
 /*!
@@ -126,6 +131,13 @@ struct PayData
     uint64_t BlockNumber;
     uint64_t Amount;
 };
+
+/*!
+ * \brief broadcastSaleStatus -  sale (pay) status helper
+ * \return
+ */
+void buildBroadcastSaleStatusOutput(const std::string &payment_id, int status, const SupernodePtr &supernode, Output &output);
+
 
 }
 

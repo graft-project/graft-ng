@@ -157,28 +157,10 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
     string payment_id = ctx.local["payment_id"];
-    UpdateSaleStatusBroadcast ussb;
-    ussb.address = supernode->walletAddress();
-    ussb.Status =  ctx.global.get(payment_id + CONTEXT_KEY_STATUS, static_cast<int>((RTAStatus::Waiting)));
-    ussb.PaymentID = payment_id;
+    int status = ctx.global.get(payment_id + CONTEXT_KEY_STATUS, static_cast<int>((RTAStatus::Waiting)));
 
-    // sign message
-    std::string msg = payment_id + ":" + to_string(ussb.Status);
-    crypto::signature sign;
-    supernode->signMessage(msg, sign);
-    ussb.signature = epee::string_tools::pod_to_hex(sign);
+    buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
 
-    Output innerOut;
-    innerOut.loadT<serializer::JSON_B64>(ussb);
-
-    // send payload
-    BroadcastRequestJsonRpc cryptonode_req;
-    cryptonode_req.method = "broadcast";
-    cryptonode_req.params.callback_uri = "/cryptonode/update_sale_status";
-    cryptonode_req.params.data = innerOut.data();
-    output.load(cryptonode_req);
-    output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc/rta";
-    output.load(cryptonode_req);
     LOG_PRINT_L0("calling cryptonode: " << output.uri);
     LOG_PRINT_L0("\t with data: " << output.data());
 
