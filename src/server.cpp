@@ -40,14 +40,14 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
         std::cout << "blah-blah" << std::endl;
         return Status::Ok;
     };
-    Router::Handler3 h3_test1(http_test, nullptr, nullptr);
+    // Router::Handler3 h3_test1(http_test, nullptr, nullptr);
 
-    dapi_router.addRoute("/test", METHOD_GET, h3_test1);
+    // dapi_router.addRoute("/test", METHOD_GET, h3_test1);
+    // httpcm.addRouter(dapi_router);
+
+    // Router http_router;
+    graft::registerRTARequests(dapi_router);
     httpcm.addRouter(dapi_router);
-
-    Router http_router;
-    graft::registerRTARequests(http_router);
-    httpcm.addRouter(http_router);
 
     Router forward_router;
     graft::registerForwardRequests(forward_router);
