@@ -73,7 +73,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     output.load(cryptonode_req);
     output.path = "/json_rpc/rta";
-    LOG_PRINT_L0("calling cryptonode: " << output.uri);
+    LOG_PRINT_L0("calling cryptonode: " << output.path);
     LOG_PRINT_L0("\t with data: " << output.data());
     return Status::Forward;
 }
@@ -104,7 +104,7 @@ Status handleTxAuthReply(const Router::vars_t& vars, const graft::Input& input,
     buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
 
 
-    LOG_PRINT_L0("calling cryptonode: " << output.uri);
+    LOG_PRINT_L0("calling cryptonode: " << output.path);
     LOG_PRINT_L0("\t with data: " << output.data());
 
     return Status::Forward;

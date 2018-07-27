@@ -126,7 +126,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         cryptonode_req.params.data = innerOut.data();
         output.load(cryptonode_req);
         output.path = "/json_rpc/rta";
-        LOG_PRINT_L0("calling cryptonode: " << output.uri);
+        LOG_PRINT_L0("calling cryptonode: " << output.path);
         LOG_PRINT_L0("\t with data: " << output.data());
     } while (false);
 
@@ -162,7 +162,7 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
 
     buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
 
-    LOG_PRINT_L0("calling cryptonode: " << output.uri);
+    LOG_PRINT_L0("calling cryptonode: " << output.path);
     LOG_PRINT_L0("\t with data: " << output.data());
 
     return Status::Forward;

@@ -154,7 +154,7 @@ void buildBroadcastSaleStatusOutput(const std::string &payment_id, int status, c
     cryptonode_req.params.callback_uri = "/cryptonode/update_sale_status";
     cryptonode_req.params.data = innerOut.data();
     output.load(cryptonode_req);
-    output.uri = "/json_rpc/rta";
+    output.path = "/json_rpc/rta";
     output.load(cryptonode_req);
 }
 
