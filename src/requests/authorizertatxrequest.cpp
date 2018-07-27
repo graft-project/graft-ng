@@ -35,8 +35,8 @@
 #include <misc_log_ex.h>
 
 namespace {
-    static const char * PATH_REQUEST =  "/authorize_rta_tx_request";
-    static const char * PATH_RESPONSE = "/authorize_rta_tx_response";
+    static const char * PATH_REQUEST =  "/cryptonode/authorize_rta_tx_request";
+    static const char * PATH_RESPONSE = "/cryptonode/authorize_rta_tx_response";
     static const size_t RTA_VOTES_TO_REJECT =  2;
     static const size_t RTA_VOTES_TO_APPROVE = 7;
     static const std::chrono::seconds RTA_TX_TTL = std::chrono::seconds(60);
