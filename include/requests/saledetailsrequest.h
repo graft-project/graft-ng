@@ -21,7 +21,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SaleDetailsRequest,
                              );
 
 GRAFT_DEFINE_IO_STRUCT(SaleDetailsResponse,
-                       (std::vector<SupernodeFee>, AuthSampleFees),
+                       (std::vector<SupernodeFee>, AuthSample),
                        (std::string, Details)
                        );
 
