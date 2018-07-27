@@ -303,6 +303,11 @@ bool Supernode::getAmountFromTx(const cryptonote::transaction &tx, uint64_t &amo
     return m_wallet->get_amount_from_tx(tx, amount);
 }
 
+bool Supernode::getPaymentIdFromTx(const cryptonote::transaction &tx, string &paymentId)
+{
+    return true;
+}
+
 bool Supernode::validateAddress(const string &address, bool testnet)
 {
     cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);

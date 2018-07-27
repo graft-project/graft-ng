@@ -179,8 +179,22 @@ public:
     std::string networkAddress() const;
 
     void setNetworkAddress(const std::string &networkAddress);
-
+    /*!
+     * \brief getAmountFromTx - scans given tx for outputs destined to this address
+     * \param tx              - transaction object
+     * \param amount          - amount in atomic units
+     * \return                - true on success (only indicates error, amount still can be zero)
+     */
     bool getAmountFromTx(const cryptonote::transaction &tx, uint64_t &amount);
+
+    // TODO: implement me. see cryptonode/src/supernode/grafttxextra.h how payment id can be put/get from transaction object
+    /*!
+     * \brief getPaymentIdFromTx - returns graft payment id from given transaction
+     * \param tx                 - transaction object
+     * \param paymentId          - output
+     * \return                   - true on success. false if some error or payment id not found in tx
+     */
+    bool getPaymentIdFromTx(const cryptonote::transaction &tx, std::string &paymentId);
 
     /*!
      * \brief validateAddress - validates wallet address
