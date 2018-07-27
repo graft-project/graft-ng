@@ -34,8 +34,8 @@ bool fillAuthSampleWithFees(const SaleDetailsRequest &req, graft::Context &ctx, 
     }
     for (const auto &member : authSample) {
         SupernodeFee snf;
-        snf.address = member->walletAddress();
-        snf.fee = 0; // TODO: how do we get fee amounts or percentage
+        snf.Address = member->walletAddress();
+        snf.Fee = 0; // TODO: how do we get fee amounts or percentage
         resp.AuthSample.push_back(snf);
     }
 
