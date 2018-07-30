@@ -8,17 +8,17 @@ namespace graft {
 
 static std::function<void (int sig_num)> int_handler, term_handler, hup_handler;
 
-static void signal_handler_int(int sig_num)
+static void signal_handler_shutdown(int sig_num)
 {
     if(int_handler) int_handler(sig_num);
 }
 
-static void signal_handler_term(int sig_num)
+static void signal_handler_terminate(int sig_num)
 {
     if(term_handler) term_handler(sig_num);
 }
 
-static void signal_handler_hup(int sig_num)
+static void signal_handler_restart(int sig_num)
 {
     if(hup_handler) hup_handler(sig_num);
 }
@@ -104,18 +104,21 @@ bool GraftServer::run(int argc, const char** argv)
         if(!gs.init(argc, argv)) return false;
         argc = 1;
 
+        //shutdown
         int_handler = [&gs](int sig_num)
         {
             LOG_PRINT_L0("Stopping server");
             gs.stop();
         };
 
+        //terminate
         term_handler = [&gs](int sig_num)
         {
             LOG_PRINT_L0("Force stopping server");
             gs.stop(true);
         };
 
+        //restart
         hup_handler = [&gs,&run](int sig_num)
         {
             LOG_PRINT_L0("Restarting server");
@@ -141,13 +144,13 @@ void GraftServer::initSignals()
 
     sa.sa_sigaction = NULL;
     sa.sa_flags = 0;
-    sa.sa_handler = signal_handler_int;
+    sa.sa_handler = signal_handler_shutdown;
     ::sigaction(SIGINT, &sa, NULL);
 
-    sa.sa_handler = signal_handler_term;
+    sa.sa_handler = signal_handler_terminate;
     ::sigaction(SIGTERM, &sa, NULL);
 
-    sa.sa_handler = signal_handler_hup;
+    sa.sa_handler = signal_handler_restart;
     ::sigaction(SIGHUP, &sa, NULL);
 }
 
