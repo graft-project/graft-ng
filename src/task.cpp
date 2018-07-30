@@ -89,7 +89,6 @@ void TaskManager::Execute(BaseTaskPtr bt)
         return;
     }
     assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
-    ++m_cntJobSent;
 
     auto& params = bt->getParams();
 
@@ -101,6 +100,7 @@ void TaskManager::Execute(BaseTaskPtr bt)
     }
     if(params.h3.worker_action)
     {
+        ++m_cntJobSent;
         m_threadPool->post(
                     GJPtr( bt, m_resQueue.get(), this ),
                     true
@@ -111,9 +111,14 @@ void TaskManager::Execute(BaseTaskPtr bt)
         //special case when worker_action is absent
         ExecutePostAction(bt, nullptr);
         processResult(bt);
-        //next call is required to fix counters that prevents overflow
-        ++m_cntJobDone;
     }
+}
+
+bool TaskManager::canStop()
+{
+    return (m_cntBaseTask == m_cntBaseTaskDone)
+            && (m_cntUpstreamSender == m_cntUpstreamSenderDone)
+            && (m_cntJobSent == m_cntJobDone);
 }
 
 bool TaskManager::tryProcessReadyJob()
@@ -121,10 +126,10 @@ bool TaskManager::tryProcessReadyJob()
     GJPtr gj;
     bool res = m_resQueue->pop(gj);
     if(!res) return res;
+    ++m_cntJobDone;
     BaseTaskPtr bt = gj->getTask();
     ExecutePostAction(bt, &*gj);
     processResult(bt);
-    ++m_cntJobDone;
     return true;
 }
 
@@ -400,6 +405,7 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
         bt->setError(uss.getError().c_str(), uss.getStatus());
         LOG_PRINT_RQS_BT(2,bt, "CryptoNode done with error: " << uss.getError().c_str());
         processResult(bt);
+        ++m_cntUpstreamSenderDone;
         return;
     }
     //here you can send a job to the thread pool or send response to client

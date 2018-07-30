@@ -233,6 +233,7 @@ public:
 
     void cb_event(uint64_t cnt);
 protected:
+    bool canStop();
     void executePostponedTasks();
     void setIOThread(bool current);
     void checkUpstreamBlockingIO();
