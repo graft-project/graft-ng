@@ -31,7 +31,7 @@
 #include <gtest/gtest.h>
 #include <inout.h>
 #include <jsonrpc.h>
-#include <graft_manager.h>
+#include <connection.h>
 #include <router.h>
 #include <requests.h>
 #include <requests/getinforequest.h>
@@ -54,11 +54,11 @@ using namespace std::chrono_literals;
 
 struct CryptonodeHandlersTest : public ::testing::Test
 {
-    // this     is blocking function that will not end until manager stopped explicitly
+    // this     is blocking function that will not end until server stopped explicitly
     void startServer()
     {
-
-        server->serve(manager->get_mg_mgr());
+        httpcm->bind(*looper);
+        looper->serve();
     }
 
     CryptonodeHandlersTest()
@@ -69,15 +69,15 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L1("L1");
         LOG_PRINT_L2("L2");
 
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
-        manager = std::unique_ptr<Manager>(new Manager(sopts));
+        ConfigOpts copts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
+        looper = std::make_unique<Looper>(copts);
 
         Router router;
         graft::registerGetInfoRequest(router);
         graft::registerSendRawTxRequest(router);
-        manager->addRouter(router);
-        manager->enableRouting();
-        server = std::unique_ptr<GraftServer>(new GraftServer);
+        httpcm = std::make_unique<HttpConnectionManager>();
+        httpcm->addRouter(router);
+        httpcm->enableRouting();
 
         server_thread = std::thread([this]() {
             this->startServer();
@@ -85,7 +85,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
         LOG_PRINT_L0("Server thread started..");
 
-        while (!server->ready()) {
+        while (!looper->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
@@ -155,8 +155,8 @@ struct CryptonodeHandlersTest : public ::testing::Test
     { }
 
 
-    std::unique_ptr<GraftServer> server;
-    std::unique_ptr<Manager>     manager;
+    std::unique_ptr<HttpConnectionManager> httpcm;
+    std::unique_ptr<Looper>     looper;
 
     std::thread server_thread;
 };
@@ -179,7 +179,7 @@ TEST_F(CryptonodeHandlersTest, getinfo)
     EXPECT_TRUE(resp.difficulty > 0);
     EXPECT_TRUE(resp.tx_count > 0);
     LOG_PRINT_L2("Stopping server...");
-    manager->stop();
+    looper->stop();
     server_thread.join();
     LOG_PRINT_L2("Server stopped, Server thread done...");
 }
@@ -236,7 +236,7 @@ TEST_F(CryptonodeHandlersTest, sendrawtx)
     EXPECT_FALSE(resp.not_rct);
 
     LOG_PRINT_L2("Stopping server...");
-    manager->stop();
+    looper->stop();
     server_thread.join();
     LOG_PRINT_L2("Server stopped, Server thread done...");
 }

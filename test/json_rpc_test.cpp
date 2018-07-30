@@ -31,7 +31,7 @@
 #include <gtest/gtest.h>
 #include <inout.h>
 #include <jsonrpc.h>
-#include <graft_manager.h>
+#include <connection.h>
 #include <router.h>
 
 #include <string>
@@ -161,15 +161,16 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
+        ConfigOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
-        Manager manager(sopts);
-        manager.addRouter(router);
-        manager.enableRouting();
-        this->manager = &manager;
-        server.serve(manager.get_mg_mgr());
+        Looper looper(sopts);
+        httpcm.addRouter(router);
+        httpcm.enableRouting();
+        this->looper = &looper;
+        httpcm.bind(looper);
+        looper.serve();
     }
 
     void stopServer()
@@ -186,7 +187,7 @@ struct JsonRpcTest : public ::testing::Test
             this->startServer();
         });
         LOG_PRINT_L0("Server thread started..");
-        while (!server.ready()) {
+        while (!looper || !looper->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
@@ -246,8 +247,8 @@ struct JsonRpcTest : public ::testing::Test
     virtual void TearDown() override
     { }
 
-    GraftServer server;
-    Manager   * manager;
+    HttpConnectionManager httpcm;
+    Looper   * looper{nullptr};
     std::thread server_thread;
 };
 
@@ -283,7 +284,7 @@ TEST_F(JsonRpcTest, common)
     EXPECT_TRUE(response_error.error.code == -1);
 
     LOG_PRINT_L0("Stopping server..");
-    manager->stop();
+    looper->stop();
     LOG_PRINT_L0("Waiting for a server thread done...");
     server_thread.join();
     LOG_PRINT_L0("Server thread done...");

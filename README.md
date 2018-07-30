@@ -51,6 +51,20 @@ git submodule update --recursive
 
 ### Build instructions
 
+To build graft_server run *cmake* and then *make* like following
+
+```bash
+cmake ..
+make
+```
+
+If you want to build graft_server_test also, run *cmake* with additional parameter
+
+```bash
+cmake .. -DOPT_BUILD_TEST
+make --all
+```
+
 #### Linux (Ubuntu)
 #### MacOS
 #### Windows
