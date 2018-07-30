@@ -14,7 +14,6 @@ protected:
     virtual void intiConnectionManagers();
 private:
     void initSignals();
-    void initLog(int log_level);
     void addGlobalCtxCleaner();
     void setHttpRouters(HttpConnectionManager& httpcm);
     void setCoapRouters(CoapConnectionManager& coapcm);

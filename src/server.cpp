@@ -1,6 +1,5 @@
 #include "server.h"
 #include "backtrace.h"
-#include <misc_log_ex.h>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include "requests.h"
@@ -110,43 +109,67 @@ void GraftServer::initSignals()
     ::sigaction(SIGTERM, &sa, NULL);
 }
 
-void GraftServer::initLog(int log_level)
+namespace details
 {
-    mlog_configure("", true);
+
+namespace po = boost::program_options;
+using namespace std;
+
+void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
+{
+    int log_level = 3;
+    bool log_console = true;
+    std::string log_filename;
+
+    //from config
+    const boost::property_tree::ptree& log_conf = config.get_child("logging");
+    boost::optional<int> level  = log_conf.get_optional<int>("loglevel");
+    if(level) log_level = level.get();
+    boost::optional<std::string> log_file  = log_conf.get_optional<string>("logfile");
+    if(log_file) log_filename = log_file.get();
+    boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
+    if(log_to_console) log_console = log_to_console.get();
+
+    //override from cmdline
+    if (vm.count("log-level")) log_level = vm["log-level"].as<int>();
+    if (vm.count("log-file")) log_filename = vm["log-file"].as<string>();
+    if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
+
+    mlog_configure(log_filename, log_console);
     mlog_set_log_level(log_level);
 }
+
+} //namespace details
 
 bool GraftServer::initConfigOption(int argc, const char** argv)
 {
     namespace po = boost::program_options;
     using namespace std;
 
-    int log_level = 1;
     string config_filename;
-
-    po::options_description desc("Allowed options");
-    desc.add_options()
-            ("help", "produce help message")
-            ("config-file", po::value<string>(), "config filename (config.ini by default)")
-            ("log-level", po::value<int>(), "log-level. (3 by default)");
-
     po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);
 
-    if (vm.count("help")) {
-        cout << desc << "\n";
-        return false;
-    }
+    {
+        po::options_description desc("Allowed options");
+        desc.add_options()
+                ("help", "produce help message")
+                ("config-file", po::value<string>(), "config filename (config.ini by default)")
+                ("log-level", po::value<int>(), "log-level. (3 by default)")
+                ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
+                ("log-file", po::value<string>(), "log file");
 
-    if (vm.count("config-file")) {
-        config_filename = vm["config-file"].as<string>();
-    }
-    if (vm.count("log-level")) {
-        log_level = vm["log-level"].as<int>();
-    }
+        po::store(po::parse_command_line(argc, argv, desc), vm);
+        po::notify(vm);
 
-    initLog(log_level);
+        if (vm.count("help")) {
+            cout << desc << "\n";
+            return false;
+        }
+
+        if (vm.count("config-file")) {
+            config_filename = vm["config-file"].as<string>();
+        }
+    }
 
     // load config
     boost::property_tree::ptree config;
@@ -155,7 +178,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     if (config_filename.empty()) {
         fs::path selfpath = argv[0];
         selfpath = selfpath.remove_filename();
-        config_filename  = (selfpath /= "config.ini").string();
+        config_filename  = (selfpath / "config.ini").string();
     }
 
     boost::property_tree::ini_parser::read_ini(config_filename, config);
@@ -171,6 +194,8 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     //  uri_name=uri_value #pairs for uri substitution
     //
 
+    details::init_log(config, vm);
+
     const boost::property_tree::ptree& server_conf = config.get_child("server");
     m_configOpts.http_address = server_conf.get<string>("http-address");
     m_configOpts.coap_address = server_conf.get<string>("coap-address");
@@ -185,6 +210,8 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
     m_configOpts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
     //m_configOpts.cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
+
+    const boost::property_tree::ptree& log_conf = config.get_child("logging");
 
     const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
     graft::OutHttp::uri_substitutions.clear();
