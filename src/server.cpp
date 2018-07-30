@@ -185,6 +185,16 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
 
 } //namespace details
 
+void usage(const boost::program_options::options_description& desc)
+{
+    std::string sigmsg = "Supported signals:\n"
+            "  INT  - Shutdown server gracefully closing all pending tasks.\n"
+            "  TEMP - Shutdown server even if there are pending tasks.\n"
+            "  HUP  - Restart server with updated configuration parameters.\n";
+
+    std::cout << desc << "\n" << sigmsg << "\n";
+}
+
 bool GraftServer::initConfigOption(int argc, const char** argv)
 {
     namespace po = boost::program_options;
@@ -205,7 +215,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
         po::notify(vm);
 
         if (vm.count("help")) {
-            std::cout << desc << "\n";
+            usage(desc);
             return false;
         }
 
