@@ -52,5 +52,30 @@ git submodule update --recursive
 ### Build instructions
 
 #### Linux (Ubuntu)
+
+To build graft_server, please run the following commands:
+
+```bash
+mkdir -p <build directory>
+cd <build directory>
+cmake  <project root>
+make
+```
+
+If you want to build unit test suit as well, run *cmake* with additional parameter:
+
+```bash
+mkdir -p <build directory>
+cd <build directory>
+cmake  <project root> -DOPT_BUILD_TEST
+make --all
+```
+
+Then execute *graft_server_test* to run the tests.
+
+```bash
+<build directory>/graft_server_test
+```
+
 #### MacOS
 #### Windows
