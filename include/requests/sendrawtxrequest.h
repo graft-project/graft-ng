@@ -23,8 +23,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(TransactionInfo,
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SendRawTxRequest,
                               (std::string, tx_as_hex, ""),
-                              (bool, do_not_relay, false),
-                              (TransactionInfo, tx_info, TransactionInfo())
+                              (bool, do_not_relay, false)
                               );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SendRawTxResponse,
@@ -44,6 +43,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SendRawTxResponse,
 
 void registerSendRawTxRequest(graft::Router &router);
 bool createSendRawTxRequest(const tools::wallet2::pending_tx &ptx, SendRawTxRequest &request);
+bool createSendRawTxRequest(const cryptonote::transaction &tx, SendRawTxRequest &request);
 
 }
 

@@ -11,6 +11,8 @@
 #include "jsonrpc.h"
 
 #include <misc_log_ex.h>
+#include <cryptonote_protocol/blobdatatype.h>
+#include <cryptonote_basic/cryptonote_format_utils.h>
 
 namespace graft {
 
@@ -22,7 +24,7 @@ enum class PayHandlerState : int
     StatusReply
 };
 
-
+// processes /dapi/.../pay
 Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
@@ -45,12 +47,28 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
         return Status::Error;
     }
 
+    // parse tx and validate tx, read tx id
+    cryptonote::transaction tx;
+    crypto::hash tx_hash, tx_prefix_hash;
+    cryptonote::blobdata tx_blob;
+
+    if (!epee::string_tools::parse_hexstr_to_binbuff(in.Transaction, tx_blob)) {
+        return errorInvalidTransaction(in.Transaction, output);
+    }
+    if (!cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash, tx_prefix_hash)) {
+        return errorInvalidTransaction(in.Transaction, output);
+    }
+
     std::vector<SupernodePtr> authSample;
     if (!fsl->buildAuthSample(in.BlockNumber, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
         return errorBuildAuthSample(output);
     }
 
-    // TODO: send multicast to /cryptonode/authorize_rta_tx_request
+    // map tx_id -> payment id
+    ctx.global.set(epee::string_tools::pod_to_hex(tx_hash) + CONTEXT_KEY_PAYMENT_ID_BY_TXID,
+                   in.PaymentID, RTA_TX_TTL);
+
+    // send multicast to /cryptonode/authorize_rta_tx_request
     MulticastRequestJsonRpc cryptonode_req;
     for (const auto & sn : authSample) {
         cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
@@ -58,11 +76,11 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     Output innerOut;
     AuthorizeRtaTxRequest authTxReq;
-    authTxReq.tx_blob = in.Transaction;
-    LOG_PRINT_L0("tx_blob: " << authTxReq.tx_blob);
+    authTxReq.tx_hex = in.Transaction;
+    LOG_PRINT_L0("tx_hex: " << authTxReq.tx_hex);
     innerOut.loadT<serializer::JSON_B64>(authTxReq);
     cryptonode_req.method = "multicast";
-    cryptonode_req.params.callback_uri =  "/cryptonode/authorize_rta_tx_request"; // "/method" appended on cryptonode side
+    cryptonode_req.params.callback_uri =  "/cryptonode/authorize_rta_tx_request";
     cryptonode_req.params.data = innerOut.data();
     // store payment id as we need it to change the sale/pay state in next call
     ctx.local["payment_id"] = in.PaymentID;
@@ -78,6 +96,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
     return Status::Forward;
 }
 
+// handles response from cryptonode/rta/multicast call with tx auth request
 Status handleTxAuthReply(const Router::vars_t& vars, const graft::Input& input,
                                 graft::Context& ctx, graft::Output& output)
 {
@@ -110,6 +129,7 @@ Status handleTxAuthReply(const Router::vars_t& vars, const graft::Input& input,
     return Status::Forward;
 }
 
+// handles status broadcast resply - responses to the client;
 Status handleStatusBroadcastReply(const Router::vars_t& vars, const graft::Input& input,
                                 graft::Context& ctx, graft::Output& output)
 {
@@ -165,7 +185,6 @@ Status payClientHandler(const Router::vars_t& vars, const graft::Input& input,
         // this handler never called again, but it supposed to be "broadcast" reply from cryptonode
         return handleTxAuthReply(vars, input, ctx, output);
     case PayHandlerState::StatusReply:
-        // this code never reached and previous output (with "broadcast" request to cryptonode) returned to client
         LOG_PRINT_L0("sale status broadcast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         return handleStatusBroadcastReply(vars, input, ctx, output);
@@ -179,8 +198,8 @@ Status payClientHandler(const Router::vars_t& vars, const graft::Input& input,
 
 void registerPayRequest(Router &router)
 {
-    Router::Handler3 h1(nullptr, payClientHandler, nullptr);
-    router.addRoute("/pay", METHOD_POST, h1);
+    Router::Handler3 clientHandler(nullptr, payClientHandler, nullptr);
+    router.addRoute("/pay", METHOD_POST, clientHandler);
 }
 
 }

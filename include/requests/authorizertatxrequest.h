@@ -8,7 +8,7 @@
 namespace graft {
 
 GRAFT_DEFINE_IO_STRUCT(AuthorizeRtaTxRequest,
-                       (std::string, tx_blob)
+                       (std::string, tx_hex)
                        );
 
 void registerAuthorizeRtaTxRequests(graft::Router &router);
