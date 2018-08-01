@@ -5,6 +5,8 @@
 #include "inout.h"
 #include "rta/supernode.h"
 
+#include <chrono>
+
 GRAFT_DEFINE_IO_STRUCT(ErrorResponse,
     (int64, code),
     (std::string, message)
@@ -53,11 +55,20 @@ static const std::string CONTEXT_KEY_STATUS(":status");
 static const std::string CONTEXT_KEY_PAY(":pay");
 static const std::string CONTEXT_KEY_SUPERNODE("supernode");
 static const std::string CONTEXT_KEY_FULLSUPERNODELIST("fsl");
-static const std::string CONTEXT_KEY_TXID(":tx_id");
-static const std::string CONTEXT_KEY_PAYMENT_ID_BY_TX_ID(":tx_id_to_payment_id");
+// key to maintain auth responses from supernodes for given tx id
+static const std::string CONTEXT_KEY_AUTH_RESULT_BY_TXID(":tx_id_to_auth_resp");
+// key to map tx_id -> payment_id
+static const std::string CONTEXT_KEY_PAYMENT_ID_BY_TXID(":tx_id_to_payment_id");
+// key to map tx_id -> tx
+static const std::string CONTEXT_KEY_TX_BY_TXID(":tx_id_to_tx");
+// key to store tx id in local context
+static const std::string CONTEXT_TX_ID("tx_id");
 
 
 namespace graft {
+
+static const std::chrono::seconds RTA_TX_TTL(60);
+
 
 class Context;
 
