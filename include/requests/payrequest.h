@@ -11,7 +11,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(PayRequest,
     (std::string, Address, std::string()),
     (uint64, BlockNumber, 0), //TODO: Need to check if we really need it.
     (uint64, Amount, 0),
-    (std::string, Transaction, std::string())
+    (std::vector<std::string>, Transactions, std::vector<std::string>())
 );
 
 // Pay request in wrapped as json-rpc

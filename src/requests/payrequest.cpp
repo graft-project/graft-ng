@@ -47,16 +47,21 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
         return Status::Error;
     }
 
+    if (in.Transactions.empty()) {
+        return errorInvalidTransaction("tx empty", output);
+    }
+    // TODO: !implement tx vector in every interface!
+    string tx_hex = in.Transactions[0];
     // parse tx and validate tx, read tx id
     cryptonote::transaction tx;
     crypto::hash tx_hash, tx_prefix_hash;
     cryptonote::blobdata tx_blob;
 
-    if (!epee::string_tools::parse_hexstr_to_binbuff(in.Transaction, tx_blob)) {
-        return errorInvalidTransaction(in.Transaction, output);
+    if (!epee::string_tools::parse_hexstr_to_binbuff(tx_hex, tx_blob)) {
+        return errorInvalidTransaction(tx_hex, output);
     }
     if (!cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash, tx_prefix_hash)) {
-        return errorInvalidTransaction(in.Transaction, output);
+        return errorInvalidTransaction(tx_hex, output);
     }
 
     std::vector<SupernodePtr> authSample;
@@ -76,7 +81,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     Output innerOut;
     AuthorizeRtaTxRequest authTxReq;
-    authTxReq.tx_hex = in.Transaction;
+    authTxReq.tx_hex = tx_hex;
     LOG_PRINT_L0("tx_hex: " << authTxReq.tx_hex);
     innerOut.loadT<serializer::JSON_B64>(authTxReq);
     cryptonode_req.method = "multicast";
