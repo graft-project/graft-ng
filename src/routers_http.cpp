@@ -25,5 +25,9 @@ namespace graft {
         Router forward_router;
         graft::registerForwardRequests(forward_router);
         m.addRouter(forward_router);
+
+        Router health_router;
+        graft::registerHealthcheckRequests(health_router);
+        m.addRouter(health_router);
     }
 }
