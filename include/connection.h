@@ -72,7 +72,7 @@ public:
     void serve();
     void notifyJobReady() override;
 
-    void stop();
+    void stop(bool force = false);
     bool ready() const { return m_ready; }
     bool stopped() const { return m_stop; }
 
@@ -85,6 +85,7 @@ private:
 
     std::atomic_bool m_ready {false};
     std::atomic_bool m_stop {false};
+    std::atomic_bool m_forceStop {false};
 };
 
 class ConnectionManager

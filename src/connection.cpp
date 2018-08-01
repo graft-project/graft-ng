@@ -118,7 +118,7 @@ void Looper::serve()
         getTimerList().eval();
         checkUpstreamBlockingIO();
         executePostponedTasks();
-        if(stopped()) break;
+        if( stopped() && (m_forceStop || canStop()) ) break;
     }
 
     setIOThread(false);
@@ -126,10 +126,11 @@ void Looper::serve()
     LOG_PRINT_L0("Server shutdown.");
 }
 
-void Looper::stop()
+void Looper::stop(bool force)
 {
-    assert(!m_stop);
+    assert(!m_stop && !m_forceStop);
     m_stop = true;
+    if(force) m_forceStop = true;
 }
 
 void Looper::notifyJobReady()
