@@ -33,7 +33,7 @@ GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
 enum class SaleHandlerState : int
 {
     ClientRequest = 0,
-    SaleRemoteReply,
+    SaleMulticastReply,
     SaleStatusReply,
 };
 
