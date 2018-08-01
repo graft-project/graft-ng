@@ -43,6 +43,10 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     Router forward_router;
     graft::registerForwardRequests(forward_router);
     httpcm.addRouter(forward_router);
+
+    Router health_router;
+    graft::registerHealthcheckRequests(health_router);
+    httpcm.addRouter(health_router);
 }
 
 void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)

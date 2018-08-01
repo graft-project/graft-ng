@@ -24,7 +24,6 @@ void registerRTARequests(graft::Router &router)
     graft::registerRejectPayRequest(router);
 }
 
-
 void registerForwardRequests(graft::Router &router)
 {
     graft::registerForwardRequest(router);
