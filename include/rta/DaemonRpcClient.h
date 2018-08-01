@@ -25,18 +25,43 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
 
-#include <gtest/gtest.h>
-#include <misc_log_ex.h>
+#ifndef DAEMON_RPC_CLIENT_H
+#define DAEMON_RPC_CLIENT_H
 
-int main(int argc, char **argv)
+#include <string>
+#include <vector>
+#include <chrono>
+#include <boost/optional.hpp>
+
+#include <net/http_client.h>
+#include <net/http_auth.h>
+#include <cryptonote_basic/cryptonote_basic.h>
+
+
+namespace graft {
+
+class DaemonRpcClient
 {
-    mlog_configure("test.log", false);
-    mlog_set_log_level(2);
+public:
+    DaemonRpcClient(const std::string &daemon_addr, const std::string &daemon_login, const std::string &daemon_pass);
+    virtual ~DaemonRpcClient();
+    bool get_tx_from_pool(const std::string &hash_str, cryptonote::transaction &out_tx);
+    bool get_tx(const std::string &hash_str, cryptonote::transaction &out_tx, uint64_t &block_num, bool &mined);
+    bool get_height(uint64_t &height);
+    bool get_block_hash(uint64_t height, std::string &hash);
 
-    // disabling following test cases by default, but these tests can be still run
-    // with explictily passed --gtest_filter="GryptonodeHandlersTest.*"
-    testing::GTEST_FLAG(filter) = "-CryptonodeHandlersTest.*:SupernodeTest.*:FullSupernodeListTest.*";
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+protected:
+    bool init(const std::string &daemon_address, boost::optional<epee::net_utils::http::login> daemon_login);
+
+
+private:
+    epee::net_utils::http::http_simple_client m_http_client;
+    std::chrono::seconds m_rpc_timeout;
+
+};
+
 }
+
+#endif // DAEMON_RPC_CLIENT_H

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "context.h"
-#include "graft_manager.h"
+#include "connection.h"
+#include "mongoosex.h"
 #include "requests.h"
 #include "salerequest.h"
 #include "salestatusrequest.h"
@@ -13,6 +14,7 @@
 #include "inout.h"
 #include <deque>
 #include <jsonrpc.h>
+#include <boost/uuid/uuid_io.hpp>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -70,7 +72,7 @@ TEST(InOut, common)
         \"unlock_time\": 1\
     }";
     //remove all spaces
-    s.erase(remove_if(s.begin(), s.end(), isspace), s.end());
+    s.erase(std::remove_if(s.begin(), s.end(), isspace), s.end());
     EXPECT_EQ(s_out, s);
 }
 
@@ -340,6 +342,8 @@ TEST(Context, multithreaded)
 
     EXPECT_LE(2, pass_cnt);
 
+    const int th_count = 4;
+
     //forward and backward passes
     std::atomic_int stop(0);
 
@@ -351,7 +355,7 @@ TEST(Context, multithreaded)
         {
             std::for_each(v_keys.begin(), v_keys.end(), [&] (auto& key)
             {
-                while(!stop && cnt == g_count);
+                while( stop < th_count - 1 && cnt == g_count);
                 ctx.global.apply(key, f);
                 cnt = ++g_count;
             });
@@ -366,7 +370,7 @@ TEST(Context, multithreaded)
         {
             std::for_each(v_keys.rbegin(), v_keys.rend(), [&] (auto& key)
             {
-                while(!stop && cnt == g_count);
+                while( stop < th_count - 1 && cnt == g_count);
                 ctx.global.apply(key, f);
                 cnt = ++g_count;
             });
@@ -374,18 +378,24 @@ TEST(Context, multithreaded)
         ++stop;
     };
 
-    std::thread tf(f_f);
-    std::thread tb(f_b);
+    std::thread ths[th_count];
+    for(int i=0; i < th_count; ++i)
+    {
+        ths[i] = (i%2)? std::thread(f_f) : std::thread(f_b);
+    }
 
     int main_count = 0;
-    while( stop < 2)
+    while( stop < th_count )
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         ++g_count;
         ++main_count;
     }
-    tf.join();
-    tb.join();
+
+    for(int i=0; i < th_count; ++i)
+    {
+        ths[i].join();
+    }
 
     uint64_t sum = 0;
     {
@@ -499,57 +509,58 @@ public:
     class MainServer
     {
     public:
-        graft::ServerOpts sopts;
+        graft::ConfigOpts copts;
         graft::Router router;
     public:
         MainServer()
         {
-            sopts.http_address = "127.0.0.1:9084";
-            sopts.coap_address = "127.0.0.1:9086";
-            sopts.http_connection_timeout = 1;
-            sopts.upstream_request_timeout = 1;
-            sopts.workers_count = 0;
-            sopts.worker_queue_len = 0;
-            sopts.cryptonode_rpc_address = "127.0.0.1:1234";
-            sopts.timer_poll_interval_ms = 50;
+            copts.http_address = "127.0.0.1:9084";
+            copts.coap_address = "127.0.0.1:9086";
+            copts.http_connection_timeout = 1;
+            copts.upstream_request_timeout = 1;
+            copts.workers_count = 0;
+            copts.worker_queue_len = 0;
+            copts.cryptonode_rpc_address = "127.0.0.1:1234";
+            copts.timer_poll_interval_ms = 50;
         }
     public:
         void run()
         {
             th = std::thread([this]{ x_run(); });
-            while(!pserver || !pserver.load()->ready())
+            while(!plooper || !plooper.load()->ready())
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
         void stop_and_wait_for()
         {
-            pmanager.load()->stop();
+            plooper.load()->stop();
             th.join();
         }
     public:
-        std::atomic<graft::Manager*> pmanager{nullptr} ;
-        std::atomic<graft::GraftServer*> pserver{nullptr} ;
+        std::atomic<graft::Looper*> plooper{nullptr};
+        std::atomic<graft::HttpConnectionManager*> phttpcm{nullptr};
     private:
         std::thread th;
     private:
         void x_run()
         {
-            graft::Manager manager(sopts);
-            pmanager = &manager;
+            graft::Looper looper(copts);
+            plooper = &looper;
+            graft::HttpConnectionManager httpcm;
+            phttpcm = &httpcm;
 
-            manager.addRouter(router);
-            bool res = manager.enableRouting();
+            httpcm.addRouter(router);
+            bool res = httpcm.enableRouting();
             EXPECT_EQ(res, true);
 
-            graft::GraftServer gs;
-            pserver = &gs;
-            gs.serve(manager.get_mg_mgr());
+            httpcm.bind(looper);
+            looper.serve();
         }
     };
 public:
     //http client (its objects are created in the main thread)
-    class Client : public graft::StaticMongooseHandler<Client>
+    class Client
     {
     public:
         Client()
@@ -560,7 +571,7 @@ public:
         void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string())
         {
             m_exit = false; m_closed = false;
-            client = mg_connect_http(&m_mgr, static_ev_handler, url.c_str(),
+            client = mg_connect_http(&m_mgr, graft::static_ev_handler<Client>, url.c_str(),
                                      (extra_headers.empty())? nullptr : extra_headers.c_str(),
                                      (post_data.empty())? nullptr : post_data.c_str()); //last nullptr means GET
             assert(client);
@@ -587,8 +598,7 @@ public:
         {
             mg_mgr_free(&m_mgr);
         }
-    private:
-        friend class graft::StaticMongooseHandler<Client>;
+    public:
         void ev_handler(mg_connection* client, int ev, void *ev_data)
         {
             assert(client == this->client);
@@ -611,7 +621,7 @@ public:
                 m_resp_code = hm->resp_code;
                 m_body = std::string(hm->body.p, hm->body.len);
                 client->flags |= MG_F_CLOSE_IMMEDIATELY;
-                client->handler = static_empty_ev_handler;
+                client->handler = graft::static_empty_ev_handler;
                 m_exit = true;
             } break;
             case MG_EV_RECV:
@@ -622,7 +632,7 @@ public:
             } break;
             case MG_EV_CLOSE:
             {
-                client->handler = static_empty_ev_handler;
+                client->handler = graft::static_empty_ev_handler;
                 m_closed = true;
                 m_exit = true;
             } break;
@@ -658,7 +668,7 @@ private:
         virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             data = std::string(hm->uri.p, hm->uri.len);
-            graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+            graft::Context ctx(mainServer.plooper.load()->getGcm());
             int method = ctx.global["method"];
             if(method == METHOD_GET)
             {
@@ -739,17 +749,17 @@ private:
             graft::registerRTARequests(http_router);
         }
 
-        graft::ServerOpts sopts;
-        sopts.http_address = "127.0.0.1:9084";
-        sopts.coap_address = "127.0.0.1:9086";
-        sopts.http_connection_timeout = .001;
-        sopts.upstream_request_timeout = .005;
-        sopts.workers_count = 0;
-        sopts.worker_queue_len = 0;
-        sopts.cryptonode_rpc_address = "127.0.0.1:1234";
-        sopts.timer_poll_interval_ms = 50;
+        graft::ConfigOpts copts;
+        copts.http_address = "127.0.0.1:9084";
+        copts.coap_address = "127.0.0.1:9086";
+        copts.http_connection_timeout = .001;
+        copts.upstream_request_timeout = .005;
+        copts.workers_count = 0;
+        copts.worker_queue_len = 0;
+        copts.cryptonode_rpc_address = "127.0.0.1:1234";
+        copts.timer_poll_interval_ms = 50;
 
-        mainServer.sopts = sopts;
+        mainServer.copts = copts;
         mainServer.run();
     }
 
@@ -873,7 +883,7 @@ bool GraftServerCommonTest::crypton_ready = false;
 
 TEST_F(GraftServerCommonTest, GETtp)
 {//GET -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -900,7 +910,7 @@ TEST_F(GraftServerCommonTest, clientTimeout)
 
 TEST_F(GraftServerCommonTest, cryptonTimeout)
 {//GET -> threadPool -> CryptoNode -> timeout
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -945,7 +955,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
             return graft::Status::Forward;
         };
 
-        mainServer.pmanager.load()->addPeriodicTask(
+        mainServer.plooper.load()->addPeriodicTask(
                     graft::Router::Handler3(nullptr, action, nullptr),
                     std::chrono::milliseconds(ms)
                     );
@@ -961,7 +971,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
     for(int i=0; i<N; ++i)
     {
         int n = ms_all/((i+1)*ms_step);
-        n -= (mainServer.pmanager.load()->get_c_opts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
+        n -= (mainServer.plooper.load()->getCopts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
         EXPECT_LE(n-2, cntrs[i]);
         EXPECT_LE(cntrs[i], n+1);
         EXPECT_EQ(cntrs_all[i]-1, 2*cntrs[i]);
@@ -970,7 +980,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
 
 TEST_F(GraftServerCommonTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -986,7 +996,7 @@ TEST_F(GraftServerCommonTest, GETtpCNtp)
 
 TEST_F(GraftServerCommonTest, POSTtp)
 {//POST -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1002,7 +1012,7 @@ TEST_F(GraftServerCommonTest, POSTtp)
 
 TEST_F(GraftServerCommonTest, POSTtpCNtp)
 {//POST -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1021,7 +1031,7 @@ TEST_F(GraftServerCommonTest, POSTtpCNtp)
 
 TEST_F(GraftServerCommonTest, clPOSTtp)
 {//POST cmdline -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1038,7 +1048,7 @@ TEST_F(GraftServerCommonTest, clPOSTtp)
 
 TEST_F(GraftServerCommonTest, clPOSTtpCNtp)
 {//POST cmdline -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.pmanager.load()->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1502,6 +1512,118 @@ TEST_F(GraftServerCommonTest, testRTAFullFlow)
 }
 
 /////////////////////////////////
+// GraftServerPostponeTest fixture
+
+class GraftServerPostponeTest : public GraftServerTestBase
+{
+public:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    public:
+        bool do_callback = true;
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            data = std::string(hm->body.p, hm->body.len);
+            std::string method(hm->method.p, hm->method.len);
+            graft::Input in; in.load(data);
+            Sstr ss = in.get<Sstr>();
+            headers = "Content-Type: application/json\r\nConnection: close";
+
+            if(!do_callback) return true;
+
+            std::string uuid_str = ss.s;
+            auto send_callback = [uuid_str]()
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                Client callback_client;
+                std::string url = "http://127.0.0.1:9084/callback/" + uuid_str;
+                std::string post_data = "it is callback post data";
+                callback_client.serve(url,"",post_data);
+
+                EXPECT_EQ(false, callback_client.get_closed());
+                EXPECT_EQ(200, callback_client.get_resp_code());
+                std::string s = callback_client.get_body();
+                EXPECT_EQ(s, post_data);
+            };
+            std::thread th(send_callback);
+            th.detach();
+
+            return true;
+        }
+    };
+};
+
+TEST_F(GraftServerPostponeTest, common)
+{
+    auto callback_action = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        output.body = input.data();
+        assert(vars.count("id") == 1);
+        std::string id = vars.find("id")->second;
+        boost::uuids::string_generator sg;
+        boost::uuids::uuid uuid = sg(id);
+
+        ctx.setNextTaskId(uuid);
+        return graft::Status::Ok;
+    };
+
+    std::string postpone_result = "this is postpone result";
+
+    auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        switch(ctx.local.getLastStatus())
+        {
+        case graft::Status::None:
+        {
+            boost::uuids::uuid uuid = ctx.getId();
+            Sstr ss; ss.s = boost::uuids::to_string(uuid);
+            output.load(ss);
+            return graft::Status::Forward;
+        } break;
+        case graft::Status::Forward:
+        {
+            boost::uuids::uuid uuid = ctx.getId();
+            return graft::Status::Postpone;
+        } break;
+        case graft::Status::Postpone:
+        {
+            boost::uuids::uuid uuid = ctx.getId();
+            output.body = postpone_result;
+            return graft::Status::Ok;
+        } break;
+        }
+    };
+
+    TempCryptoN crypton;
+    crypton.run();
+    MainServer mainServer;
+    mainServer.router.addRoute("/json_rpc",METHOD_POST,{nullptr,action,nullptr});
+    mainServer.router.addRoute("/callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,callback_action,nullptr});
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    std::string s = client.get_body();
+    EXPECT_EQ(s, postpone_result);
+
+    //make hang postpones
+    crypton.do_callback = false;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(500, client.get_resp_code());
+    std::string body = client.get_body();
+    EXPECT_EQ(body, "Postpone task response timeout");
+
+    mainServer.stop_and_wait_for();
+    crypton.stop_and_wait_for();
+}
+
+/////////////////////////////////
 // GraftServerForwardTest fixture
 
 class GraftServerForwardTest : public GraftServerTestBase
@@ -1553,7 +1675,7 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JRResponseResult, GetVersionResp);
 TEST_F(GraftServerForwardTest, DISABLED_getVersion)
 {
     MainServer mainServer;
-    mainServer.sopts.cryptonode_rpc_address = "localhost:38281";
+    mainServer.copts.cryptonode_rpc_address = "localhost:38281";
     graft::registerForwardRequests(mainServer.router);
     mainServer.run();
 
@@ -1571,4 +1693,88 @@ TEST_F(GraftServerForwardTest, DISABLED_getVersion)
     EXPECT_NO_THROW( JRResponseResult result = in.get<JRResponseResult>() );
 
     mainServer.stop_and_wait_for();
+}
+
+/////////////////////////////////
+// GraftServerBlockingTest fixture
+
+class GraftServerBlockingTest : public GraftServerTestBase
+{
+public:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    public:
+        bool ignore = false;
+        std::string answer;
+        std::string body;
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            body = std::string(hm->body.p, hm->body.len);
+            std::string method(hm->method.p, hm->method.len);
+            if(ignore) return false;
+            data = answer;
+            headers = "Content-Type: application/json\r\nConnection: close";
+            return true;
+        }
+    };
+};
+
+TEST_F(GraftServerBlockingTest, common)
+{
+    TempCryptoN crypton;
+    crypton.run();
+    auto pre_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        Sstr ss; ss.s = "my string";
+        graft::Output out; out.load(ss);
+        //check io thread exceprtion
+        crypton.answer = "crypton answer";
+        graft::Input res;
+        std::string err;
+        int state = 0;
+        try
+        {
+            graft::TaskManager::sendUpstreamBlocking(out, res, err);
+            state = 1;
+        }
+        catch(std::exception& ex)
+        {
+            state = 2;
+        }
+        EXPECT_EQ(state,2);
+        return graft::Status::Ok;
+    };
+    auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        Sstr ss; ss.s = "my string";
+        graft::Output out; out.load(ss);
+        //without error
+        crypton.answer = "crypton answer";
+        graft::Input res;
+        std::string err;
+        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        EXPECT_EQ(res.body, crypton.answer);
+        EXPECT_EQ(err.empty(), true);
+        //with error
+        res.body.clear();
+        crypton.ignore = true;
+        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        EXPECT_EQ(err.empty(), false);
+        return graft::Status::Ok;
+    };
+
+    MainServer mainServer;
+    mainServer.router.addRoute("/json_block", METHOD_POST|METHOD_GET,
+                               graft::Router::Handler3(pre_action, action, nullptr));
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/json_block", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+
+    mainServer.stop_and_wait_for();
+    crypton.stop_and_wait_for();
 }
