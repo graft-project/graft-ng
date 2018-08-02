@@ -40,7 +40,7 @@ namespace {
     static const char * PATH_REQUEST =  "/cryptonode/authorize_rta_tx_request";
     static const char * PATH_RESPONSE = "/cryptonode/authorize_rta_tx_response";
     static const size_t RTA_VOTES_TO_REJECT =  1/*2*/; // TODO: 1 and 3 while testing
-    static const size_t RTA_VOTES_TO_APPROVE = 1/*7*/;
+    static const size_t RTA_VOTES_TO_APPROVE = 4/*7*/;
 }
 
 namespace graft {
@@ -205,7 +205,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     }
 
     string tx_id_str = epee::string_tools::pod_to_hex(tx_hash);
-    LOG_PRINT_L0(__FUNCTION__ << "incoming auth req with tx: " << tx_id_str);
+    LOG_PRINT_L0(__FUNCTION__ << " incoming auth req with tx: " << tx_id_str);
     // check if we already processed this tx
 
     if (ctx.global.hasKey(tx_id_str + CONTEXT_KEY_TX_BY_TXID)) {
@@ -296,133 +296,132 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
 
     try {
 
+        MulticastRequestJsonRpc req;
+        LOG_PRINT_L0(__FUNCTION__ << " begin");
 
-    MulticastRequestJsonRpc req;
-    LOG_PRINT_L0(__FUNCTION__ << " begin");
+        if (!input.get(req)) { // can't parse request
+            LOG_ERROR("failed to parse request: " + input.data());
+            return errorCustomError(string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
+        }
 
-    if (!input.get(req)) { // can't parse request
-        LOG_ERROR("failed to parse request: " + input.data());
-        return errorCustomError(string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
-    }
+        // TODO: check if our address is listed in "receiver_addresses"
+        AuthorizeRtaTxResponse rtaAuthResp;
+        Input innerIn;
 
-    // TODO: check if our address is listed in "receiver_addresses"
-    AuthorizeRtaTxResponse rtaAuthResp;
-    Input innerIn;
+        innerIn.load(req.params.data);
 
-    innerIn.load(req.params.data);
+        if (!innerIn.getT<serializer::JSON_B64>(rtaAuthResp)) {
+            LOG_ERROR("error deserialize rta auth response");
+            return errorInvalidParams(output);
+        }
 
-    if (!innerIn.getT<serializer::JSON_B64>(rtaAuthResp)) {
-        LOG_ERROR("error deserialize rta auth response");
-        return errorInvalidParams(output);
-    }
-
-    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
-    LOG_PRINT_L0(__FUNCTION__ << " supernode loaded from context");
+        SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+        LOG_PRINT_L0(__FUNCTION__ << " supernode loaded from context");
 
 
-    RTAAuthResult result = static_cast<RTAAuthResult>(rtaAuthResp.result);
-    // sanity check
-    if (result != RTAAuthResult::Approved && result != RTAAuthResult::Rejected) {
-        LOG_ERROR("Invalid rta auth result: " << rtaAuthResp.result);
-        return errorInvalidParams(output);
-    }
+        RTAAuthResult result = static_cast<RTAAuthResult>(rtaAuthResp.result);
+        // sanity check
+        if (result != RTAAuthResult::Approved && result != RTAAuthResult::Rejected) {
+            LOG_ERROR("Invalid rta auth result: " << rtaAuthResp.result);
+            return errorInvalidParams(output);
+        }
 
-    LOG_PRINT_L0(__FUNCTION__ << " rta result: " << int(result));
+        LOG_PRINT_L0(__FUNCTION__ << " rta result: " << int(result));
 
-    string ctx_payment_id_key = rtaAuthResp.tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID;
+        string ctx_payment_id_key = rtaAuthResp.tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID;
 
-    if (!ctx.global.hasKey(ctx_payment_id_key)) {
-        LOG_ERROR("no payment_id for tx: " << rtaAuthResp.tx_id);
-        return errorCustomError(string("unknown tx: ") + rtaAuthResp.tx_id, ERROR_INTERNAL_ERROR, output);
-    }
-    string payment_id = ctx.global.get(ctx_payment_id_key, std::string());
+        if (!ctx.global.hasKey(ctx_payment_id_key)) {
+            LOG_ERROR("no payment_id for tx: " << rtaAuthResp.tx_id);
+            return errorCustomError(string("unknown tx: ") + rtaAuthResp.tx_id, ERROR_INTERNAL_ERROR, output);
+        }
+        string payment_id = ctx.global.get(ctx_payment_id_key, std::string());
 
-    LOG_PRINT_L0(__FUNCTION__ << " payment_id: " << payment_id);
+        LOG_PRINT_L0(__FUNCTION__ << " payment_id: " << payment_id);
 
-    // validate signature
-    bool signOk = validateAuthResponse(rtaAuthResp, supernode);
-    if (!signOk) {
-        string msg = "failed to validate signature for rta auth response";
-        LOG_ERROR(msg);
-        return errorCustomError(msg,
-                                ERROR_RTA_SIGNATURE_FAILED,
-                                output);
-    }
-    LOG_PRINT_L0(__FUNCTION__ << " rta_result signature validated ");
+        // validate signature
+        bool signOk = validateAuthResponse(rtaAuthResp, supernode);
+        if (!signOk) {
+            string msg = "failed to validate signature for rta auth response";
+            LOG_ERROR(msg);
+            return errorCustomError(msg,
+                                    ERROR_RTA_SIGNATURE_FAILED,
+                                    output);
+        }
+        LOG_PRINT_L0(__FUNCTION__ << " rta_result signature validated ");
 
-    // stop handling it if we already processed response
+        // stop handling it if we already processed response
 
-    RtaAuthResult authResult;
-    string ctx_tx_to_auth_resp = rtaAuthResp.tx_id + CONTEXT_KEY_AUTH_RESULT_BY_TXID;
-    if (ctx.global.hasKey(ctx_tx_to_auth_resp)) {
-        authResult = ctx.global.get(ctx_tx_to_auth_resp, authResult);
-    }
+        RtaAuthResult authResult;
+        string ctx_tx_to_auth_resp = rtaAuthResp.tx_id + CONTEXT_KEY_AUTH_RESULT_BY_TXID;
+        if (ctx.global.hasKey(ctx_tx_to_auth_resp)) {
+            authResult = ctx.global.get(ctx_tx_to_auth_resp, authResult);
+        }
 
-    if (authResult.alreadyApproved(rtaAuthResp.signature.address)
-            || authResult.alreadyRejected(rtaAuthResp.signature.address)) {
-        return errorCustomError(string("supernode: ") + rtaAuthResp.signature.address + " already processed",
-                                ERROR_ADDRESS_INVALID, output);
-    }
+        if (authResult.alreadyApproved(rtaAuthResp.signature.address)
+                || authResult.alreadyRejected(rtaAuthResp.signature.address)) {
+            return errorCustomError(string("supernode: ") + rtaAuthResp.signature.address + " already processed",
+                                    ERROR_ADDRESS_INVALID, output);
+        }
 
-    if (result == RTAAuthResult::Approved) {
-        authResult.approved.push_back(rtaAuthResp.signature);
-    } else {
-        authResult.rejected.push_back(rtaAuthResp.signature);
-    }
+        if (result == RTAAuthResult::Approved) {
+            authResult.approved.push_back(rtaAuthResp.signature);
+        } else {
+            authResult.rejected.push_back(rtaAuthResp.signature);
+        }
 
-    LOG_PRINT_L0(__FUNCTION__ << " rta result accepted from " << rtaAuthResp.signature.address);
-    // store result in context
-    ctx.global.set(ctx_tx_to_auth_resp, authResult, RTA_TX_TTL);
-    LOG_PRINT_L0("approved votes: " << authResult.approved.size());
-    LOG_PRINT_L0("rejected votes: " << authResult.rejected.size());
+        LOG_PRINT_L0(__FUNCTION__ << " rta result accepted from " << rtaAuthResp.signature.address);
+        // store result in context
+        ctx.global.set(ctx_tx_to_auth_resp, authResult, RTA_TX_TTL);
+        LOG_PRINT_L0("approved votes: " << authResult.approved.size());
+        LOG_PRINT_L0("rejected votes: " << authResult.rejected.size());
 
-    LOG_PRINT_L0(__FUNCTION__ << " end");
-    if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
-        string msg = string("rta auth response processed but no tx found for tx id: ") + rtaAuthResp.tx_id;
-        LOG_ERROR(msg);
-        return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
-    }
+        LOG_PRINT_L0(__FUNCTION__ << " end");
+        if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
+            string msg = string("rta auth response processed but no tx found for tx id: ") + rtaAuthResp.tx_id;
+            LOG_ERROR(msg);
+            return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
+        }
 
-    if (authResult.rejected.size() >= RTA_VOTES_TO_REJECT) {
-        LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " rejected by auth sample, updating status");
-        // tx rejected by auth sample, broadcast status;
-        ctx.global[__FUNCTION__] = RtaAuthResponseHandlerState::StatusBroadcastReply;
-        ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int> (RTAStatus::Fail), RTA_TX_TTL);
-        buildBroadcastSaleStatusOutput(payment_id, static_cast<int> (RTAStatus::Fail), supernode, output);
-        return Status::Forward;
-    } else if (authResult.approved.size() >= RTA_VOTES_TO_APPROVE) {
-        LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " approved by auth sample, pushing to tx pool");
-        SendRawTxRequest req;
+        if (authResult.rejected.size() >= RTA_VOTES_TO_REJECT) {
+            LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " rejected by auth sample, updating status");
+            // tx rejected by auth sample, broadcast status;
+            ctx.global[__FUNCTION__] = RtaAuthResponseHandlerState::StatusBroadcastReply;
+            ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int> (RTAStatus::Fail), RTA_TX_TTL);
+            buildBroadcastSaleStatusOutput(payment_id, static_cast<int> (RTAStatus::Fail), supernode, output);
+            return Status::Forward;
+        } else if (authResult.approved.size() >= RTA_VOTES_TO_APPROVE) {
+            LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " approved by auth sample, pushing to tx pool");
+            SendRawTxRequest req;
 
-        // store tx_id in local context so we can use it when broadcasting status
-        ctx.local[CONTEXT_TX_ID] = rtaAuthResp.tx_id;
+            // store tx_id in local context so we can use it when broadcasting status
+            ctx.local[CONTEXT_TX_ID] = rtaAuthResp.tx_id;
 
-        cryptonote::transaction tx = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID, cryptonote::transaction());
-        putRtaSignaturesToTx(tx, authResult.approved);
-        createSendRawTxRequest(tx, req);
-        // call cryptonode
+            cryptonote::transaction tx = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID, cryptonote::transaction());
+            putRtaSignaturesToTx(tx, authResult.approved);
+            createSendRawTxRequest(tx, req);
+            // call cryptonode
 
-        output.load(req);
-        output.path = "/sendrawtransaction";
-        ctx.local[__FUNCTION__] = RtaAuthResponseHandlerState::TransactionPushReply;
-        return Status::Forward;
-    } else {
-        LOG_PRINT_L0("not enough votes for approval/reject, keep waiting for other votes");
-        AuthorizeRtaTxResponseJsonRpcResponse out;
-        out.result.Result = STATUS_OK;
-        output.load(out);
-        return Status::Ok;
-    }
+            output.load(req);
+            output.path = "/sendrawtransaction";
+            ctx.local[__FUNCTION__] = RtaAuthResponseHandlerState::TransactionPushReply;
+            return Status::Forward;
+        } else {
+            LOG_PRINT_L0("not enough votes for approval/reject, keep waiting for other votes");
+            AuthorizeRtaTxResponseJsonRpcResponse out;
+            out.result.Result = STATUS_OK;
+            output.load(out);
+            return Status::Ok;
+        }
 
 
     } catch (const std::exception &e) {
         LOG_ERROR("std::exception  catched: " << e.what());
         return errorInternalError(string("exception in cryptonode/authorize_rta_tx_response handler: ") +  e.what(),
-                                         output);
+                                  output);
     } catch (...) {
         LOG_ERROR("unhandled exception");
         return errorInternalError(string("unknown exception in cryptonode/authorize_rta_tx_response handler"),
-                                         output);
+                                  output);
     }
 }
 
@@ -445,18 +444,41 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
     if (payment_id.empty()) {
         LOG_ERROR("Internal error, payment id not found for tx id: " << tx_id);
     }
-    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
-    // parse and handle "sendrawtransaction" response from cryptonode
 
-    int status = static_cast<int>(RTAStatus::Success);
-    if (!input.get(resp) || resp.status != "OK") {
-        // broadcast with status "Fail"
-        LOG_ERROR("failed to push tx to tx pool");
-        // TODO: put txid to context, read it here and add to error message;
-        status = static_cast<int>(RTAStatus::Fail);
+    RTAStatus status = static_cast<RTAStatus>(ctx.global.get(payment_id + CONTEXT_KEY_STATUS, int(RTAStatus::None)));
+    if (status == RTAStatus::None) {
+        LOG_ERROR("can't find status for payment_id: " << payment_id);
+        return errorInvalidParams(output);
     }
-    LOG_PRINT_L0(__FUNCTION__ << " broadcasting status for payment id: " << payment_id << ", status : " << status);
-    buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
+
+
+    if (!input.get(resp)) {
+        LOG_ERROR("Failed to parse input: " << input.data());
+        return errorInvalidParams(output);
+    }
+
+    if (status != RTAStatus::InProgress) {
+        MWARNING("payment: " << payment_id << ", most likely already processed,  status: " << int(status));
+        return sendOkResponseToCryptonode(output);
+    }
+
+    if (resp.status != "OK") {
+        // check for double spend
+        if (resp.double_spend) { // specific cast, we can get cryptonode's /sendrawtransaction response before status broadcast,
+                                 // just ignore it for now
+            LOG_ERROR("double spend for payment: " << payment_id << ", tx: " << tx_id);
+            return sendOkResponseToCryptonode(output);
+        }
+        status = RTAStatus::Fail;
+        LOG_ERROR("failed to put tx to pool: " << tx_id << ", reason: " << resp.reason);
+    } else {
+        status = RTAStatus::Success;
+    }
+
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+
+    LOG_PRINT_L0(__FUNCTION__ << " broadcasting status for payment id: " << payment_id << ", status : " << int(status));
+    buildBroadcastSaleStatusOutput(payment_id, int(status), supernode, output);
     ctx.local[__FUNCTION__] = RtaAuthResponseHandlerState::StatusBroadcastReply;
     LOG_PRINT_L0(__FUNCTION__ << " end");
     return Status::Forward;
@@ -538,9 +560,11 @@ Status authorizeRtaTxResponseHandler(const Router::vars_t& vars, const graft::In
         switch (state) {
         // actually not a reply, just incoming multicast. same as "called by client" and client is cryptonode here
         case RtaAuthResponseHandlerState::RtaAuthReply:
+            ctx.local[__FUNCTION__] = RtaAuthResponseHandlerState::TransactionPushReply;
             return handleRtaAuthResponseMulticast(vars, input, ctx, output);
 
         case RtaAuthResponseHandlerState::TransactionPushReply:
+            ctx.local[__FUNCTION__] = RtaAuthResponseHandlerState::StatusBroadcastReply;
             return handleCryptonodeTxPushResponse(vars, input, ctx, output);
 
         case RtaAuthResponseHandlerState::StatusBroadcastReply:
