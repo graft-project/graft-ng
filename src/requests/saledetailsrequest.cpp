@@ -7,6 +7,7 @@
 #include "requests/unicast.h"
 #include "utils/utils.h"
 
+
 namespace graft {
 
 // json-rpc request from POS
@@ -33,13 +34,23 @@ bool fillAuthSampleWithFees(const SaleDetailsRequest &req, graft::Context &ctx, 
         error.message  = MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE;
         return false;
     }
+
+    if (!ctx.global.hasKey(req.PaymentID + CONTEXT_KEY_SALE)) {
+        error.code = ERROR_PAYMENT_ID_INVALID;
+        error.message = string("sale data missing for payment: ") + req.PaymentID;
+        return false;
+    }
+
+    SaleData sale_data = ctx.global.get(req.PaymentID + CONTEXT_KEY_SALE, SaleData());
+
+    uint64_t total_fee = static_cast<uint64_t>(std::round(sale_data.Amount * AUTHSAMPLE_FEE_PERCENTAGE / 100.0));
+
     for (const auto &member : authSample) {
         SupernodeFee snf;
         snf.Address = member->walletAddress();
-        snf.Fee = 0; // TODO: how do we get fee amounts or percentage
+        snf.Fee = total_fee / authSample.size();
         resp.AuthSample.push_back(snf);
     }
-
 }
 
 Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input,

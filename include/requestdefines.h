@@ -64,6 +64,8 @@ static const std::string CONTEXT_KEY_TX_BY_TXID(":tx_id_to_tx");
 // key to store tx id in local context
 static const std::string CONTEXT_TX_ID("tx_id");
 
+static const double AUTHSAMPLE_FEE_PERCENTAGE = 0.5;
+
 
 namespace graft {
 
