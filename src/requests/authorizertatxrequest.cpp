@@ -375,7 +375,13 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
     ctx.global.set(ctx_tx_to_auth_resp, authResult, RTA_TX_TTL);
     LOG_PRINT_L0("approved votes: " << authResult.approved.size());
     LOG_PRINT_L0("rejected votes: " << authResult.rejected.size());
+
     LOG_PRINT_L0(__FUNCTION__ << " end");
+    if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
+        string msg = string("rta auth response processed but no tx found for tx id: ") + rtaAuthResp.tx_id;
+        LOG_ERROR(msg);
+        return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
+    }
 
     if (authResult.rejected.size() >= RTA_VOTES_TO_REJECT) {
         LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " rejected by auth sample, updating status");
@@ -387,11 +393,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
     } else if (authResult.approved.size() >= RTA_VOTES_TO_APPROVE) {
         LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " approved by auth sample, pushing to tx pool");
         SendRawTxRequest req;
-        if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
-            string msg = string("Auth sample voted to approve tx but no tx found for id: ") + rtaAuthResp.tx_id;
-            LOG_ERROR(msg);
-            return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
-        }
+
         // store tx_id in local context so we can use it when broadcasting status
         ctx.local[CONTEXT_TX_ID] = rtaAuthResp.tx_id;
 
