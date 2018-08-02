@@ -68,7 +68,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
     if (!fsl->buildAuthSample(in.BlockNumber, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
         return errorBuildAuthSample(output);
     }
-    LOG_PRINT_L0(__FUNCTION__ << "incoming pay, tx: " << epee::string_tools::pod_to_hex(tx_hash) << ", payment_id: " << in.PaymentID);
+    LOG_PRINT_L0(__FUNCTION__ << " incoming pay, tx: " << epee::string_tools::pod_to_hex(tx_hash) << ", payment_id: " << in.PaymentID);
     // map tx_id -> payment id
     ctx.global.set(epee::string_tools::pod_to_hex(tx_hash) + CONTEXT_KEY_PAYMENT_ID_BY_TXID,
                    in.PaymentID, RTA_TX_TTL);
@@ -85,7 +85,6 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
     authTxReq.tx_hex = tx_hex;
     authTxReq.payment_id = in.PaymentID;
 
-    LOG_PRINT_L0("tx_hex: " << authTxReq.tx_hex);
     innerOut.loadT<serializer::JSON_B64>(authTxReq);
     cryptonode_req.method = "multicast";
     cryptonode_req.params.callback_uri =  "/cryptonode/authorize_rta_tx_request";
