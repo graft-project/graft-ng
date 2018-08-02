@@ -154,11 +154,13 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
     {
         bt->setError(e.what());
         params.input.reset();
+        throw;
     }
     catch(...)
     {
         bt->setError("unknown exception");
         params.input.reset();
+        throw;
     }
     LOG_PRINT_RQS_BT(3,bt,"pre_action completed with result " << bt->getStrStatus());
 }
@@ -190,11 +192,13 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     {
         bt->setError(e.what());
         params.input.reset();
+        throw;
     }
     catch(...)
     {
         bt->setError("unknown exception");
         params.input.reset();
+        throw;
     }
     LOG_PRINT_RQS_BT(3,bt,"post_action completed with result " << bt->getStrStatus());
 }
