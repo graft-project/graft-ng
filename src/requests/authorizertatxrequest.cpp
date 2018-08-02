@@ -46,6 +46,7 @@ namespace {
 namespace graft {
 
 
+
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeSignature,
                               (std::string, address, std::string()),
                               (std::string, signature, std::string())
@@ -87,6 +88,23 @@ struct RtaAuthResult
 {
     std::vector<SupernodeSignature> approved;
     std::vector<SupernodeSignature> rejected;
+    bool alreadyApproved(const std::string &address)
+    {
+        return contains(approved, address);
+    }
+
+    bool alreadyRejected(const std::string &address)
+    {
+        return contains(rejected, address);
+    }
+
+private:
+    bool contains(const std::vector<SupernodeSignature> &v, const std::string &address)
+    {
+        return std::find_if(v.begin(), v.end(), [&](const SupernodeSignature &item) {
+            return item.address == address;
+        }) != v.end();
+    }
 };
 
 // TODO: this function duplicates PendingTransaction::putRtaSignatures
@@ -188,10 +206,16 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
         return errorInvalidTransaction(authReq.tx_hex, output);
     }
 
+    // check if we already processed this tx
+    string tx_id_str = epee::string_tools::pod_to_hex(tx_hash);
+    if (ctx.global.hasKey(tx_id_str + CONTEXT_KEY_TX_BY_TXID)) {
+        return errorCustomError("tx already processed", ERROR_INVALID_PARAMS, output);
+    }
+
     // check if we have a fee assigned by sender wallet
     uint64 amount = 0;
     if (!supernode->getAmountFromTx(tx, amount)) {
-        LOG_ERROR("can't parse supernode fee for tx: " << epee::string_tools::pod_to_hex(tx_hash));
+        LOG_ERROR("can't parse supernode fee for tx: " << tx_id_str);
         return errorCustomError("can't parse supernode fee for tx", ERROR_INVALID_PARAMS, output);
     }
 
@@ -208,7 +232,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     authResponseMulticast.params.receiver_addresses = req.params.receiver_addresses;
     authResponseMulticast.params.callback_uri = PATH_RESPONSE;
     AuthorizeRtaTxResponse authResponse;
-    authResponse.tx_id = epee::string_tools::pod_to_hex(tx_hash);
+    authResponse.tx_id = tx_id_str;
     authResponse.result = static_cast<int>(amount > 0 ? RTAAuthResult::Approved : RTAAuthResult::Rejected);
     authResponse.signature.signature = signAuthResponse(authResponse, supernode);
     authResponse.signature.address   = supernode->walletAddress();
@@ -325,10 +349,18 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
     }
     LOG_PRINT_L0(__FUNCTION__ << " rta_result signature validated ");
 
+    // stop handling it if we already processed response
+
     RtaAuthResult authResult;
     string ctx_tx_to_auth_resp = rtaAuthResp.tx_id + CONTEXT_KEY_AUTH_RESULT_BY_TXID;
     if (ctx.global.hasKey(ctx_tx_to_auth_resp)) {
         authResult = ctx.global.get(ctx_tx_to_auth_resp, authResult);
+    }
+
+    if (authResult.alreadyApproved(rtaAuthResp.signature.address)
+            || authResult.alreadyRejected(rtaAuthResp.signature.address)) {
+        return errorCustomError(string("supernode: ") + rtaAuthResp.signature.address + " already processed",
+                                ERROR_ADDRESS_INVALID, output);
     }
 
     if (result == RTAAuthResult::Approved) {
@@ -351,7 +383,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int> (RTAStatus::Fail), RTA_TX_TTL);
         buildBroadcastSaleStatusOutput(payment_id, static_cast<int> (RTAStatus::Fail), supernode, output);
         return Status::Forward;
-    } else if (authResult.rejected.size() >= RTA_VOTES_TO_APPROVE) {
+    } else if (authResult.approved.size() >= RTA_VOTES_TO_APPROVE) {
         LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " rejected by auth sample, pushing to tx pool");
         SendRawTxRequest req;
         if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
