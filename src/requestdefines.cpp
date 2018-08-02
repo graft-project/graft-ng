@@ -160,6 +160,19 @@ void buildBroadcastSaleStatusOutput(const std::string &payment_id, int status, c
     output.load(cryptonode_req);
 }
 
+GRAFT_DEFINE_IO_STRUCT_INITED(ResultResponse,
+                        (int, Result, STATUS_OK)
+                       );
+
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(ResultResponseJsonRpc, ResultResponse);
+
+Status sendOkResponseToCryptonode(Output &output)
+{
+    ResultResponseJsonRpc res;
+    output.load(res);
+    return Status::Ok;
+}
+
 
 
 }

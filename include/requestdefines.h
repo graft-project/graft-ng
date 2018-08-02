@@ -83,6 +83,8 @@ Status errorInvalidTransaction(const std::string &tx_data, Output &output);
 Status errorInternalError(const std::string &message, Output &output);
 Status errorCustomError(const std::string &message, int code, Output &output);
 
+Status sendOkResponseToCryptonode(Output &output);
+
 
 bool errorFinishedPayment(int status, Output &output);
 /*!
