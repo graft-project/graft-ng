@@ -115,6 +115,7 @@ void Looper::serve()
     for (;;)
     {
         mg_mgr_poll(m_mgr.get(), m_copts.timer_poll_interval_ms);
+        cb_event_x();
         getTimerList().eval();
         checkUpstreamBlockingIO();
         executePostponedTasks();
@@ -162,7 +163,7 @@ void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev
     case MG_EV_CLOSE:
     {
         assert(ct->getSelf());
-        if(ct->getSelf()) break;
+        if(!ct->getSelf()) break;
         ct->getManager().onClientDone(ct->getSelf());
         ct->m_client->handler = static_empty_ev_handler;
         ct->m_client = nullptr;
