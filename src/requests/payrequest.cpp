@@ -81,7 +81,10 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     Output innerOut;
     AuthorizeRtaTxRequest authTxReq;
+
     authTxReq.tx_hex = tx_hex;
+    authTxReq.payment_id = in.PaymentID;
+
     LOG_PRINT_L0("tx_hex: " << authTxReq.tx_hex);
     innerOut.loadT<serializer::JSON_B64>(authTxReq);
     cryptonode_req.method = "multicast";

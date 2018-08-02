@@ -215,6 +215,8 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
 
     // store tx
     ctx.global.set(authResponse.tx_id + CONTEXT_KEY_TX_BY_TXID, tx, RTA_TX_TTL);
+    // TODO: remove it when payment id will be in tx.extra
+    ctx.global.set(authResponse.tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID, authReq.payment_id, RTA_TX_TTL);
 
     Output innerOut;
     innerOut.loadT<serializer::JSON_B64>(authResponse);
@@ -308,8 +310,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         LOG_ERROR("no payment_id for tx: " << rtaAuthResp.tx_id);
         return errorCustomError(string("unknown tx: ") + rtaAuthResp.tx_id, ERROR_INTERNAL_ERROR, output);
     }
-
-    string payment_id = ctx.global.get(ctx_payment_id_key, "");
+    string payment_id = ctx.global.get(ctx_payment_id_key, std::string());
 
     LOG_PRINT_L0(__FUNCTION__ << " payment_id: " << payment_id);
 
@@ -336,9 +337,13 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         authResult.rejected.push_back(rtaAuthResp.signature);
     }
 
+    LOG_PRINT_L0(__FUNCTION__ << " rta result accepted from " << rtaAuthResp.signature.address);
+    // store result in context
+    ctx.global.set(ctx_tx_to_auth_resp, authResult, RTA_TX_TTL);
     LOG_PRINT_L0("approved votes: " << authResult.approved.size());
     LOG_PRINT_L0("rejected votes: " << authResult.rejected.size());
     LOG_PRINT_L0(__FUNCTION__ << " end");
+
     if (authResult.rejected.size() >= RTA_VOTES_TO_REJECT) {
         LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " rejected by auth sample, updating status");
         // tx rejected by auth sample, broadcast status;
@@ -377,10 +382,13 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
 
     } catch (const std::exception &e) {
         LOG_ERROR("std::exception  catched: " << e.what());
+        return errorInternalError(string("exception in cryptonode/authorize_rta_tx_response handler: ") +  e.what(),
+                                         output);
     } catch (...) {
         LOG_ERROR("unhandled exception");
+        return errorInternalError(string("unknown exception in cryptonode/authorize_rta_tx_response handler"),
+                                         output);
     }
-    return Status::Error;
 }
 
 
@@ -397,7 +405,7 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
         abort();
     }
     // obtain payment id for given tx_id
-    string payment_id = ctx.global.get(tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID, "");
+    string payment_id = ctx.global.get(tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID, std::string());
     if (payment_id.empty()) {
         LOG_ERROR("Internal error, payment id not found for tx id: " << tx_id);
     }
