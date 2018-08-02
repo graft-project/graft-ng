@@ -40,7 +40,7 @@ namespace {
     static const char * PATH_REQUEST =  "/cryptonode/authorize_rta_tx_request";
     static const char * PATH_RESPONSE = "/cryptonode/authorize_rta_tx_response";
     static const size_t RTA_VOTES_TO_REJECT =  1/*2*/; // TODO: 1 and 3 while testing
-    static const size_t RTA_VOTES_TO_APPROVE = 3/*7*/;
+    static const size_t RTA_VOTES_TO_APPROVE = 1/*7*/;
 }
 
 namespace graft {
@@ -430,6 +430,7 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
                                graft::Context& ctx, graft::Output& output)
 {
 
+    LOG_PRINT_L0(__FUNCTION__ << " begin");
     SendRawTxResponse resp;
     // check if we have tx_id in local context
     string tx_id = ctx.local[CONTEXT_TX_ID];
@@ -452,9 +453,10 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
         // TODO: put txid to context, read it here and add to error message;
         status = static_cast<int>(RTAStatus::Fail);
     }
-
+    LOG_PRINT_L0(__FUNCTION__ << " broadcasting status for payment id: " << payment_id << ", status : " << status);
     buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
     ctx.local[__FUNCTION__] = RtaAuthResponseHandlerState::StatusBroadcastReply;
+    LOG_PRINT_L0(__FUNCTION__ << " end");
     return Status::Forward;
 }
 
@@ -463,6 +465,7 @@ Status handleStatusBroadcastResponse(const Router::vars_t& vars, const graft::In
                                      graft::Context& ctx, graft::Output& output)
 {
     // TODO: check if cryptonode broadcasted status
+    LOG_PRINT_L0(__FUNCTION__ << " begin");
     BroadcastResponseFromCryptonodeJsonRpc in;
     JsonRpcErrorResponse error;
     if (!input.get(in) || in.error.code != 0 || in.result.status != STATUS_OK) {
@@ -472,8 +475,8 @@ Status handleStatusBroadcastResponse(const Router::vars_t& vars, const graft::In
     // most likely cryptonode doesn't really care what we reply here
     AuthorizeRtaTxResponseJsonRpcResponse outResponse;
     outResponse.result.Result = STATUS_OK;
-
     output.load(outResponse);
+    LOG_PRINT_L0(__FUNCTION__ << " end");
     return Status::Ok;
 }
 
@@ -490,20 +493,27 @@ Status handleStatusBroadcastResponse(const Router::vars_t& vars, const graft::In
 Status authorizeRtaTxRequestHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
+    try {
+        RtaAuthRequestHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : RtaAuthRequestHandlerState::ClientRequest;
 
-    RtaAuthRequestHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : RtaAuthRequestHandlerState::ClientRequest;
-    switch (state) {
-    case RtaAuthRequestHandlerState::ClientRequest:
-        LOG_PRINT_L0("called by client, payload: " << input.data());
-        ctx.local[__FUNCTION__] = RtaAuthRequestHandlerState::CryptonodeReply;
-        return handleTxAuthRequest(vars, input, ctx, output);
-    case RtaAuthRequestHandlerState::CryptonodeReply:
-        return handleCryptonodeMulticastStatus(vars, input, ctx, output);
-    default: // internal error
-        return errorInternalError(string("authorize_rta_tx_request: unhandled state: ") + to_string(int(state)),
-                                  output);
-    };
-
+        LOG_PRINT_L0(__FUNCTION__ << " state: " << (int) state);
+        switch (state) {
+        case RtaAuthRequestHandlerState::ClientRequest:
+            LOG_PRINT_L0("called by client, payload: " << input.data());
+            ctx.local[__FUNCTION__] = RtaAuthRequestHandlerState::CryptonodeReply;
+            return handleTxAuthRequest(vars, input, ctx, output);
+        case RtaAuthRequestHandlerState::CryptonodeReply:
+            return handleCryptonodeMulticastStatus(vars, input, ctx, output);
+        default: // internal error
+            return errorInternalError(string("authorize_rta_tx_request: unhandled state: ") + to_string(int(state)),
+                                      output);
+        };
+    } catch (const std::exception &e) {
+        LOG_ERROR(__FUNCTION__ << " exception thrown: " << e.what());
+    } catch (...) {
+        LOG_ERROR(__FUNCTION__ << " unknown exception thrown");
+    }
+    return errorInternalError("exception thrown", output);
 
 }
 
@@ -519,24 +529,32 @@ Status authorizeRtaTxResponseHandler(const Router::vars_t& vars, const graft::In
                                  graft::Context& ctx, graft::Output& output)
 {
 
-    LOG_PRINT_L0(PATH_RESPONSE << " called with payload: " << input.data());
-    RtaAuthResponseHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : RtaAuthResponseHandlerState::RtaAuthReply;
-    LOG_PRINT_L0("current state: " << int(state));
+    try {
+        RtaAuthResponseHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : RtaAuthResponseHandlerState::RtaAuthReply;
+        LOG_PRINT_L0(__FUNCTION__ << " state: " << int(state));
 
-    switch (state) {
-    // actually not a reply, just incoming multicast. same as "called by client" and client is cryptonode here
-    case RtaAuthResponseHandlerState::RtaAuthReply:
-        return handleRtaAuthResponseMulticast(vars, input, ctx, output);
+        switch (state) {
+        // actually not a reply, just incoming multicast. same as "called by client" and client is cryptonode here
+        case RtaAuthResponseHandlerState::RtaAuthReply:
+            return handleRtaAuthResponseMulticast(vars, input, ctx, output);
 
-    case RtaAuthResponseHandlerState::TransactionPushReply:
-        return handleCryptonodeTxPushResponse(vars, input, ctx, output);
+        case RtaAuthResponseHandlerState::TransactionPushReply:
+            return handleCryptonodeTxPushResponse(vars, input, ctx, output);
 
-    case RtaAuthResponseHandlerState::StatusBroadcastReply:
-        return handleStatusBroadcastResponse(vars, input, ctx, output);
-    default:
-        LOG_ERROR("Internal error, unexpected state: " << (int)state);
-        abort();
-    };
+        case RtaAuthResponseHandlerState::StatusBroadcastReply:
+            return handleStatusBroadcastResponse(vars, input, ctx, output);
+        default:
+            LOG_ERROR("Internal error, unexpected state: " << (int)state);
+            abort();
+        };
+    } catch (const std::exception &e) {
+        LOG_ERROR(__FUNCTION__ << " exception thrown: " << e.what());
+    } catch (...) {
+        LOG_ERROR(__FUNCTION__ << " unknown exception thrown");
+    }
+    return errorInternalError("exception thrown", output);
+
+
 }
 
 
