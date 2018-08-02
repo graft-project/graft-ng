@@ -258,6 +258,14 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
         build_tier_sample(Supernode::TIER4_STAKE_AMOUNT, std::numeric_limits<uint64_t>::max());
     }
 
+    std::string auth_sample_str;
+    for (const auto &a : out) {
+        auth_sample_str += a->walletAddress() + "\n";
+    }
+    LOG_PRINT_L0("known supernodes: " << this->size());
+    LOG_PRINT_L0("auth sample: " << auth_sample_str);
+
+
     return out.size() == AUTH_SAMPLE_SIZE;
 }
 
