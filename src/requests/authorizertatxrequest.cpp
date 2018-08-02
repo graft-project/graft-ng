@@ -34,6 +34,7 @@
 #include "requests/broadcast.h"
 #include "rta/supernode.h"
 #include <misc_log_ex.h>
+#include <exception>
 
 namespace {
     static const char * PATH_REQUEST =  "/cryptonode/authorize_rta_tx_request";
@@ -178,16 +179,19 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     cryptonote::blobdata tx_blob;
 
     if (!epee::string_tools::parse_hexstr_to_binbuff(authReq.tx_hex, tx_blob)) {
+        LOG_ERROR("Failed to parse hex tx: " << authReq.tx_hex);
         return errorInvalidTransaction(authReq.tx_hex, output);
     }
 
     if (!cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash, tx_prefix_hash)) {
+        LOG_ERROR("Failed to parse and validate tx from blob: " << authReq.tx_hex);
         return errorInvalidTransaction(authReq.tx_hex, output);
     }
 
     // check if we have a fee assigned by sender wallet
     uint64 amount = 0;
     if (!supernode->getAmountFromTx(tx, amount)) {
+        LOG_ERROR("can't parse supernode fee for tx: " << epee::string_tools::pod_to_hex(tx_hash));
         return errorCustomError("can't parse supernode fee for tx", ERROR_INVALID_PARAMS, output);
     }
 
@@ -202,7 +206,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     authResponseMulticast.method = "multicast";
     authResponseMulticast.params.sender_address = supernode->walletAddress();
     authResponseMulticast.params.receiver_addresses = req.params.receiver_addresses;
-    authResponseMulticast.params.callback_uri = string("/cryptonode") + PATH_RESPONSE;
+    authResponseMulticast.params.callback_uri = PATH_RESPONSE;
     AuthorizeRtaTxResponse authResponse;
     authResponse.tx_id = epee::string_tools::pod_to_hex(tx_hash);
     authResponse.result = static_cast<int>(amount > 0 ? RTAAuthResult::Approved : RTAAuthResult::Rejected);
@@ -217,6 +221,8 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     authResponseMulticast.params.data = innerOut.data();
     output.load(authResponseMulticast);
     output.path = "/json_rpc/rta";
+    LOG_PRINT_L0("transaction " << authResponse.tx_id << ", validate status: " << authResponse.result);
+    LOG_PRINT_L0("calling supernode: " << output.path << " with payload: " << output.data());
     return Status::Forward;
 }
 
@@ -260,9 +266,15 @@ Status handleCryptonodeMulticastStatus(const Router::vars_t& vars, const graft::
 Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::Input& input,
                             graft::Context& ctx, graft::Output& output)
 {
+
+    try {
+
+
     MulticastRequestJsonRpc req;
+    LOG_PRINT_L0(__FUNCTION__ << " begin");
 
     if (!input.get(req)) { // can't parse request
+        LOG_ERROR("failed to parse request: " + input.data());
         return errorCustomError(string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
     }
 
@@ -273,10 +285,13 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
     innerIn.load(req.params.data);
 
     if (!innerIn.getT<serializer::JSON_B64>(rtaAuthResp)) {
+        LOG_ERROR("error deserialize rta auth response");
         return errorInvalidParams(output);
     }
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+    LOG_PRINT_L0(__FUNCTION__ << " supernode loaded from context");
+
 
     RTAAuthResult result = static_cast<RTAAuthResult>(rtaAuthResp.result);
     // sanity check
@@ -285,6 +300,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         return errorInvalidParams(output);
     }
 
+    LOG_PRINT_L0(__FUNCTION__ << " rta result: " << int(result));
 
     string ctx_payment_id_key = rtaAuthResp.tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID;
 
@@ -295,13 +311,18 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
 
     string payment_id = ctx.global.get(ctx_payment_id_key, "");
 
+    LOG_PRINT_L0(__FUNCTION__ << " payment_id: " << payment_id);
+
     // validate signature
     bool signOk = validateAuthResponse(rtaAuthResp, supernode);
     if (!signOk) {
-        return errorCustomError(string("failed to validate signature for rta auth response"),
+        string msg = "failed to validate signature for rta auth response";
+        LOG_ERROR(msg);
+        return errorCustomError(msg,
                                 ERROR_RTA_SIGNATURE_FAILED,
                                 output);
     }
+    LOG_PRINT_L0(__FUNCTION__ << " rta_result signature validated ");
 
     RtaAuthResult authResult;
     string ctx_tx_to_auth_resp = rtaAuthResp.tx_id + CONTEXT_KEY_AUTH_RESULT_BY_TXID;
@@ -315,13 +336,18 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         authResult.rejected.push_back(rtaAuthResp.signature);
     }
 
+    LOG_PRINT_L0("approved votes: " << authResult.approved.size());
+    LOG_PRINT_L0("rejected votes: " << authResult.rejected.size());
+    LOG_PRINT_L0(__FUNCTION__ << " end");
     if (authResult.rejected.size() >= RTA_VOTES_TO_REJECT) {
+        LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " rejected by auth sample, updating status");
         // tx rejected by auth sample, broadcast status;
         ctx.global[__FUNCTION__] = RtaAuthResponseHandlerState::StatusBroadcastReply;
         ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int> (RTAStatus::Fail), RTA_TX_TTL);
         buildBroadcastSaleStatusOutput(payment_id, static_cast<int> (RTAStatus::Fail), supernode, output);
         return Status::Forward;
     } else if (authResult.rejected.size() >= RTA_VOTES_TO_APPROVE) {
+        LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " rejected by auth sample, pushing to tx pool");
         SendRawTxRequest req;
         if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
             string msg = string("Auth sample voted to approve tx but no tx found for id: ") + rtaAuthResp.tx_id;
@@ -340,8 +366,23 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         output.path = "/sendrawtransaction";
         ctx.local[__FUNCTION__] = RtaAuthResponseHandlerState::TransactionPushReply;
         return Status::Forward;
+    } else {
+        LOG_PRINT_L0("not enough votes for approval/reject, keep waiting for other votes");
+        AuthorizeRtaTxResponseJsonRpcResponse out;
+        out.result.Result = STATUS_OK;
+        output.load(out);
+        return Status::Ok;
     }
+
+
+    } catch (const std::exception &e) {
+        LOG_ERROR("std::exception  catched: " << e.what());
+    } catch (...) {
+        LOG_ERROR("unhandled exception");
+    }
+    return Status::Error;
 }
+
 
 // handles "/sendrawtransaction" response
 Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::Input& input,
@@ -437,8 +478,9 @@ Status authorizeRtaTxResponseHandler(const Router::vars_t& vars, const graft::In
                                  graft::Context& ctx, graft::Output& output)
 {
 
-    LOG_PRINT_L0(PATH_RESPONSE << "called with payload: " << input.data());
+    LOG_PRINT_L0(PATH_RESPONSE << " called with payload: " << input.data());
     RtaAuthResponseHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : RtaAuthResponseHandlerState::RtaAuthReply;
+    LOG_PRINT_L0("current state: " << int(state));
 
     switch (state) {
     // actually not a reply, just incoming multicast. same as "called by client" and client is cryptonode here
