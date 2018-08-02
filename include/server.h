@@ -7,19 +7,19 @@ namespace graft {
 class GraftServer
 {
 public:
-    bool init(int argc, const char** argv);
-    void serve();
+    static bool run(int argc, const char** argv);
 protected:
     virtual bool initConfigOption(int argc, const char** argv);
     virtual void intiConnectionManagers();
 private:
-    void initSignals();
     void initLog(int log_level);
     void initGlobalContext();
-
     void prepareDataDirAndSupernodes();
     void startSupernodePeriodicTasks();
-
+    bool init(int argc, const char** argv);
+    void serve();
+    void stop(bool force = false) { m_looper->stop(force); }
+    static void initSignals();
     void addGlobalCtxCleaner();
     void setHttpRouters(HttpConnectionManager& httpcm);
     void setCoapRouters(CoapConnectionManager& coapcm);

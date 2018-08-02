@@ -75,6 +75,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/authorizertatxrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp

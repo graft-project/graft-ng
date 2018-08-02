@@ -6,17 +6,36 @@
 #include "context.h"
 #include "timer.h"
 #include "self_holder.h"
+#include <misc_log_ex.h>
 #include "CMakeConfig.h"
 #include <future>
 #include <deque>
 
+#define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << client_addr(client) << "]" << x)
+
+#define LOG_PRINT_RQS_BT(level,bt,x) \
+{ \
+    ClientTask* cr = dynamic_cast<ClientTask*>(bt.get()); \
+    if(cr) \
+    { \
+        LOG_PRINT_CLN(level,cr->m_client,x); \
+    } \
+    else \
+    { \
+        LOG_PRINT_L##level(x); \
+    } \
+}
+
+
+
 struct mg_mgr;
 struct mg_connection;
 
-namespace graft {
+namespace graft
+{
+extern std::string client_addr(mg_connection* client);
 
 class UpstreamSender;
-
 class TaskManager;
 class ConnectionManager;
 
@@ -117,6 +136,9 @@ public:
     Output& getOutput() { return m_output; }
     const Router::Handler3& getHandler3() const { return m_params.h3; }
     Context& getCtx() { return m_ctx; }
+
+    const char* getStrStatus();
+    static const char* getStrStatus(Status s);
 protected:
     BaseTask(TaskManager& manager, const Router::JobParams& prms);
 
@@ -218,6 +240,7 @@ public:
 
     void cb_event(uint64_t cnt);
 protected:
+    bool canStop();
     void executePostponedTasks();
     void setIOThread(bool current);
     void checkUpstreamBlockingIO();

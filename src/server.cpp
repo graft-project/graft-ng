@@ -1,6 +1,5 @@
 #include "server.h"
 #include "backtrace.h"
-#include <misc_log_ex.h>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include "requests.h"
@@ -26,10 +25,21 @@ namespace tools {
 
 namespace graft {
 
-static std::function<void (int sig_num)> stop_handler;
-static void signal_handler_stop(int sig_num)
+static std::function<void (int sig_num)> int_handler, term_handler, hup_handler;
+
+static void signal_handler_shutdown(int sig_num)
 {
-    if(stop_handler) stop_handler(sig_num);
+    if(int_handler) int_handler(sig_num);
+}
+
+static void signal_handler_terminate(int sig_num)
+{
+    if(term_handler) term_handler(sig_num);
+}
+
+static void signal_handler_restart(int sig_num)
+{
+    if(hup_handler) hup_handler(sig_num);
 }
 
 void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
@@ -52,6 +62,10 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     Router forward_router;
     graft::registerForwardRequests(forward_router);
     httpcm.addRouter(forward_router);
+
+    Router health_router;
+    graft::registerHealthcheckRequests(health_router);
+    httpcm.addRouter(health_router);
 }
 
 void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
@@ -83,8 +97,6 @@ void GraftServer::initGlobalContext()
 
 bool GraftServer::init(int argc, const char** argv)
 {
-    initSignals();
-
     bool res = initConfigOption(argc, argv);
     if(!res) return false;
 
@@ -117,15 +129,46 @@ void GraftServer::serve()
 {
     LOG_PRINT_L0("Starting server on: [http] " << m_configOpts.http_address << ", [coap] " << m_configOpts.coap_address);
 
-    stop_handler = [this](int sig_num)
-    {
-        LOG_PRINT_L0("Stoping server");
-        m_looper->stop();
-    };
-
     m_looper->serve();
+}
 
-    stop_handler = nullptr;
+bool GraftServer::run(int argc, const char** argv)
+{
+    initSignals();
+
+    for(bool run = true; run;)
+    {
+        run = false;
+        GraftServer gs;
+
+        if(!gs.init(argc, argv)) return false;
+        argc = 1;
+
+        //shutdown
+        int_handler = [&gs](int sig_num)
+        {
+            LOG_PRINT_L0("Stopping server");
+            gs.stop();
+        };
+
+        //terminate
+        term_handler = [&gs](int sig_num)
+        {
+            LOG_PRINT_L0("Force stopping server");
+            gs.stop(true);
+        };
+
+        //restart
+        hup_handler = [&gs,&run](int sig_num)
+        {
+            LOG_PRINT_L0("Restarting server");
+            run = true;
+            gs.stop();
+        };
+
+        gs.serve();
+    }
+    return true;
 }
 
 void GraftServer::initSignals()
@@ -141,48 +184,85 @@ void GraftServer::initSignals()
 
     sa.sa_sigaction = NULL;
     sa.sa_flags = 0;
-    sa.sa_handler = signal_handler_stop;
+    sa.sa_handler = signal_handler_shutdown;
     ::sigaction(SIGINT, &sa, NULL);
+
+    sa.sa_handler = signal_handler_terminate;
     ::sigaction(SIGTERM, &sa, NULL);
+
+    sa.sa_handler = signal_handler_restart;
+    ::sigaction(SIGHUP, &sa, NULL);
 }
 
-void GraftServer::initLog(int log_level)
+namespace details
 {
-    mlog_configure("", true);
+
+namespace po = boost::program_options;
+
+void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
+{
+    int log_level = 3;
+    bool log_console = true;
+    std::string log_filename;
+
+    //from config
+    const boost::property_tree::ptree& log_conf = config.get_child("logging");
+    boost::optional<int> level  = log_conf.get_optional<int>("loglevel");
+    if(level) log_level = level.get();
+    boost::optional<std::string> log_file  = log_conf.get_optional<std::string>("logfile");
+    if(log_file) log_filename = log_file.get();
+    boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
+    if(log_to_console) log_console = log_to_console.get();
+
+    //override from cmdline
+    if (vm.count("log-level")) log_level = vm["log-level"].as<int>();
+    if (vm.count("log-file")) log_filename = vm["log-file"].as<std::string>();
+    if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
+
+    mlog_configure(log_filename, log_console);
     mlog_set_log_level(log_level);
+}
+
+} //namespace details
+
+void usage(const boost::program_options::options_description& desc)
+{
+    std::string sigmsg = "Supported signals:\n"
+            "  INT  - Shutdown server gracefully closing all pending tasks.\n"
+            "  TEMP - Shutdown server even if there are pending tasks.\n"
+            "  HUP  - Restart server with updated configuration parameters.\n";
+
+    std::cout << desc << "\n" << sigmsg << "\n";
 }
 
 bool GraftServer::initConfigOption(int argc, const char** argv)
 {
     namespace po = boost::program_options;
-    using namespace std;
 
-    int log_level = 1;
-    string config_filename;
-
-    po::options_description desc("Allowed options");
-    desc.add_options()
-            ("help", "produce help message")
-            ("config-file", po::value<string>(), "config filename (config.ini by default)")
-            ("log-level", po::value<int>(), "log-level. (3 by default)");
-
+    std::string config_filename;
     po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);
 
-    if (vm.count("help")) {
-        cout << desc << "\n";
-        return false;
-    }
+    {
+        po::options_description desc("Allowed options");
+        desc.add_options()
+                ("help", "produce help message")
+                ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
+                ("log-level", po::value<int>(), "log-level. (3 by default)")
+                ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
+                ("log-file", po::value<std::string>(), "log file");
 
-    if (vm.count("config-file")) {
-        config_filename = vm["config-file"].as<string>();
-    }
-    if (vm.count("log-level")) {
-        log_level = vm["log-level"].as<int>();
-    }
+        po::store(po::parse_command_line(argc, argv, desc), vm);
+        po::notify(vm);
 
-    initLog(log_level);
+        if (vm.count("help")) {
+            usage(desc);
+            return false;
+        }
+
+        if (vm.count("config-file")) {
+            config_filename = vm["config-file"].as<std::string>();
+        }
+    }
 
     // load config
     boost::property_tree::ptree config;
@@ -191,7 +271,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     if (config_filename.empty()) {
         fs::path selfpath = argv[0];
         selfpath = selfpath.remove_filename();
-        config_filename  = (selfpath /= "config.ini").string();
+        config_filename  = (selfpath / "config.ini").string();
     }
 
     boost::property_tree::ini_parser::read_ini(config_filename, config);
@@ -207,7 +287,6 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     // [upstream]
     //  uri_name=uri_value #pairs for uri substitution
     //
-
     // data directory structure
     //        .
     //        ├── stake-wallet
@@ -223,9 +302,12 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     //            ├── supernode_tier1_2.address.txt
     //            └── supernode_tier1_2.keys
 
+    details::init_log(config, vm);
+
+
     const boost::property_tree::ptree& server_conf = config.get_child("server");
-    m_configOpts.http_address = server_conf.get<string>("http-address");
-    m_configOpts.coap_address = server_conf.get<string>("coap-address");
+    m_configOpts.http_address = server_conf.get<std::string>("http-address");
+    m_configOpts.coap_address = server_conf.get<std::string>("coap-address");
     m_configOpts.timer_poll_interval_ms = server_conf.get<int>("timer-poll-interval-ms");
     m_configOpts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
     m_configOpts.workers_count = server_conf.get<int>("workers-count");
@@ -245,15 +327,14 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     }
 
     const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
-    m_configOpts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
-    // m_configOpts.cryptonode_p2p_address = cryptonode_conf.get<string>("p2p-address");
 
+    m_configOpts.cryptonode_rpc_address = cryptonode_conf.get<string>("rpc-address");
     const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
     graft::OutHttp::uri_substitutions.clear();
     std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf](auto it)
     {
         std::string name(it.first);
-        std::string val(uri_subst_conf.get<string>(name));
+        std::string val(uri_subst_conf.get<std::string>(name));
         graft::OutHttp::uri_substitutions.insert({std::move(name), std::move(val)});
     });
 
@@ -347,8 +428,6 @@ void GraftServer::startSupernodePeriodicTasks()
     auto supernodeRefreshWorker = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
             graft::Output& output)->graft::Status
     {
-
-
         switch (ctx.local.getLastStatus()) {
         case graft::Status::Forward: // reply from cryptonode
             return graft::Status::Ok;
@@ -395,7 +474,7 @@ void GraftServer::startSupernodePeriodicTasks()
             return graft::Status::Forward;
         }
     };
-    size_t initial_interval_ms = 3000;
+    size_t initial_interval_ms = 1000;
     assert(m_looper);
     m_looper->addPeriodicTask(
                 graft::Router::Handler3(nullptr, supernodeRefreshWorker, nullptr),
