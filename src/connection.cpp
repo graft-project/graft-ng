@@ -58,7 +58,6 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
             setError(Status::Error, ss.str().c_str());
             TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
             upstream->handler = static_empty_ev_handler;
-            m_upstream = nullptr;
             releaseItself();
         }
     } break;
@@ -71,7 +70,6 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
         TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
-        m_upstream = nullptr;
         releaseItself();
     } break;
     case MG_EV_CLOSE:
@@ -80,7 +78,6 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         setError(Status::Error, "cryptonode connection unexpectedly closed");
         TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
-        m_upstream = nullptr;
         releaseItself();
     } break;
     case MG_EV_TIMER:
@@ -90,7 +87,6 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
         TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
-        m_upstream = nullptr;
         releaseItself();
     } break;
     default:
