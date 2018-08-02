@@ -190,8 +190,6 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     }
 
     // de-serialize transaction
-    LOG_PRINT_L0("transaction to validate: " << authReq.tx_hex);
-
     cryptonote::transaction tx;
     crypto::hash tx_hash, tx_prefix_hash;
     cryptonote::blobdata tx_blob;
@@ -206,9 +204,12 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
         return errorInvalidTransaction(authReq.tx_hex, output);
     }
 
-    // check if we already processed this tx
     string tx_id_str = epee::string_tools::pod_to_hex(tx_hash);
+    LOG_PRINT_L0(__FUNCTION__ << "incoming auth req with tx: " << tx_id_str);
+    // check if we already processed this tx
+
     if (ctx.global.hasKey(tx_id_str + CONTEXT_KEY_TX_BY_TXID)) {
+        LOG_ERROR("tx already processed: " << tx_id_str);
         return errorCustomError("tx already processed", ERROR_INVALID_PARAMS, output);
     }
 
@@ -384,7 +385,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         buildBroadcastSaleStatusOutput(payment_id, static_cast<int> (RTAStatus::Fail), supernode, output);
         return Status::Forward;
     } else if (authResult.approved.size() >= RTA_VOTES_TO_APPROVE) {
-        LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " rejected by auth sample, pushing to tx pool");
+        LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " approved by auth sample, pushing to tx pool");
         SendRawTxRequest req;
         if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
             string msg = string("Auth sample voted to approve tx but no tx found for id: ") + rtaAuthResp.tx_id;
