@@ -232,7 +232,6 @@ public:
     virtual void notifyJobReady() = 0;
 
     void cb_event(uint64_t cnt);
-    void cb_event_x();
 protected:
     bool canStop();
     void executePostponedTasks();

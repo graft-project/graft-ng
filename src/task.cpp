@@ -366,11 +366,6 @@ void TaskManager::setIOThread(bool current)
 
 void TaskManager::cb_event(uint64_t cnt)
 {
-
-}
-
-void TaskManager::cb_event_x()
-{
     //When multiple threads write to the output queue of the thread pool.
     //It is possible that a hole appears when a thread has not completed to set
     //the cell data in the queue. The hole leads to failure of pop operations.
