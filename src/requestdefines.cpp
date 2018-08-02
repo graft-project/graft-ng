@@ -6,6 +6,7 @@
 #include "requests/salestatusrequest.h"
 
 #include <string_tools.h> // epee
+#include <misc_log_ex.h>
 
 namespace graft {
 
@@ -120,6 +121,7 @@ Status errorCustomError(const std::string &message, int code, Output &output)
     err.message = message;
     JsonRpcErrorResponse resp;
     resp.error = err;
+    LOG_ERROR(__FUNCTION__ << " called with " << message << code);
     output.load(resp);
     return Status::Error;
 }
