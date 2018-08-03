@@ -107,6 +107,13 @@ enum class RTAStatus : int
 };
 
 /*!
+ * \brief isFiniteRtaStatus - checks if given rta status is finite, i.e. no transition possible for given status
+ * \param status            - input status
+ * \return                  - true if status finite
+ */
+bool isFiniteRtaStatus(RTAStatus status);
+
+/*!
  * \brief The RTAAuthResult enum - result of RTA TX verification
  */
 enum class RTAAuthResult : int

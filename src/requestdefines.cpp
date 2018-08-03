@@ -173,6 +173,12 @@ Status sendOkResponseToCryptonode(Output &output)
     return Status::Ok;
 }
 
+bool isFiniteRtaStatus(RTAStatus status)
+{
+    return !(status == RTAStatus::None || status == RTAStatus::InProgress
+            || status == RTAStatus::Waiting);
+}
+
 
 
 }

@@ -74,8 +74,15 @@ Status updateSaleStatusHandler(const Router::vars_t& vars, const graft::Input& i
         output.load(resp);
         return Status::Error;
     } else {
-        ctx.global[ussb.PaymentID + CONTEXT_KEY_STATUS] = ussb.Status;
-        LOG_PRINT_L0("sale status updated for payment id: " << ussb.PaymentID << " to: " << ussb.Status);
+        // TODO: complete state chart for status transitions
+        RTAStatus currentStatus = static_cast<RTAStatus>(ctx.global.get(ussb.PaymentID + CONTEXT_KEY_STATUS, int(RTAStatus::None)));
+        if (!isFiniteRtaStatus(currentStatus)) {
+            ctx.global.set(ussb.PaymentID + CONTEXT_KEY_STATUS, ussb.Status, RTA_TX_TTL);
+            LOG_PRINT_L0("sale status updated for payment id: " << ussb.PaymentID << " to: " << ussb.Status);
+        } else {
+            MWARNING("Current status already in finite state: " << int(currentStatus)
+                     << ", wont update to: " << ussb.Status);
+        }
     }
 
     BroadcastResponseToCryptonodeJsonRpc resp;
