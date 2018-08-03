@@ -69,14 +69,32 @@ uint64_t Supernode::daemonHeight() const
 
 bool Supernode::exportKeyImages(vector<Supernode::SignedKeyImage> &key_images) const
 {
-    key_images = m_wallet->export_key_images();
-    return !key_images.empty();
+    try {
+        key_images = m_wallet->export_key_images();
+        return !key_images.empty();
+    } catch (const std::exception &e) {
+        LOG_ERROR("wallet exception: " << e.what());
+        return false;
+    } catch (...) {
+        LOG_ERROR("unknown exception");
+        return false;
+    }
 }
 
 bool Supernode::importKeyImages(const vector<Supernode::SignedKeyImage> &key_images, uint64_t &height)
 {
+
     uint64_t spent = 0, unspent = 0;
-    height = m_wallet->import_key_images(key_images, spent, unspent);
+    try {
+        m_wallet->import_key_images(key_images, spent, unspent);
+    } catch (const std::exception &e) {
+        LOG_ERROR("wallet exception: " << e.what());
+        return false;
+    } catch (...) {
+        LOG_ERROR("unknown exception");
+        return false;
+    }
+
     return height > 0;
 }
 
