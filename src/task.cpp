@@ -142,6 +142,8 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
 
     try
     {
+        // Please read the comment about exceptions and noexcept specifier
+        // near 'void terminate()' function in main.cpp
         Status status = params.h3.pre_action(params.vars, params.input, ctx, output);
         bt->setLastStatus(status);
         if(Status::Ok == status && (params.h3.worker_action || params.h3.post_action)
@@ -179,6 +181,8 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
 
     try
     {
+        // Please read the comment about exceptions and noexcept specifier
+        // near 'void terminate()' function in main.cpp
         Status status = params.h3.post_action(params.vars, params.input, ctx, output);
         bt->setLastStatus(status);
         if(Status::Forward == status)

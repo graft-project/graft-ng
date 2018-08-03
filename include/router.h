@@ -87,6 +87,8 @@ public:
         m_routes.push_front(r);
     }
 
+    // Please read the comment about exceptions and noexcept specifier
+    // near 'void terminate()' function in main.cpp
     void addRoute(const std::string& endpoint, int methods, const Handler3&& ph3)
     {
         m_routes.push_front({m_endpointPrefix + endpoint, methods, std::move(ph3)});

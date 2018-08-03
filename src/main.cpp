@@ -6,6 +6,10 @@ namespace graft
 
 std::terminate_handler prev_terminate = nullptr;
 
+// Unhandled exception in a handler with noexcept specifier causes
+// termination of the program, stack backtrace is created upon the termination.
+// The exception in a handler with no noexcept specifier doesn't effect
+// the workflow, the error propagates back to the client.
 void terminate()
 {
     std::cerr << "\nTerminate called, dump stack:\n";
