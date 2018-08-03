@@ -326,7 +326,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
             return errorInvalidParams(output);
         }
 
-        LOG_PRINT_L0(__FUNCTION__ << " rta result: " << int(result));
+        LOG_PRINT_L0(__FUNCTION__ << " incoming tx auth response for tx: " << rtaAuthResp.tx_id << ", result: " << int(result));
 
         string ctx_payment_id_key = rtaAuthResp.tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID;
 
