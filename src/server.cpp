@@ -428,52 +428,61 @@ void GraftServer::startSupernodePeriodicTasks()
     auto supernodeRefreshWorker = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
             graft::Output& output)->graft::Status
     {
-        switch (ctx.local.getLastStatus()) {
-        case graft::Status::Forward: // reply from cryptonode
-            return graft::Status::Ok;
-        case graft::Status::Ok:
-        case graft::Status::None:
-            graft::SupernodePtr supernode;
 
-            LOG_PRINT_L1("supernodeRefreshWorker");
-            LOG_PRINT_L1("input: " << input.data());
-            LOG_PRINT_L1("output: " << output.data());
-            LOG_PRINT_L1("last status: " << (int)ctx.local.getLastStatus());
-
-            supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
-
-
-            if (!supernode.get()) {
-                LOG_ERROR("supernode is not set in global context");
-                return graft::Status::Error;
-            }
-
-            LOG_PRINT_L0("about to refresh supernode: " << supernode->walletAddress());
-
-            if (!supernode->refresh()) {
+        try {
+            switch (ctx.local.getLastStatus()) {
+            case graft::Status::Forward: // reply from cryptonode
                 return graft::Status::Ok;
+            case graft::Status::Ok:
+            case graft::Status::None:
+                graft::SupernodePtr supernode;
+
+                LOG_PRINT_L1("supernodeRefreshWorker");
+                LOG_PRINT_L1("input: " << input.data());
+                LOG_PRINT_L1("output: " << output.data());
+                LOG_PRINT_L1("last status: " << (int)ctx.local.getLastStatus());
+
+                supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
+
+
+                if (!supernode.get()) {
+                    LOG_ERROR("supernode is not set in global context");
+                    return graft::Status::Error;
+                }
+
+                LOG_PRINT_L0("about to refresh supernode: " << supernode->walletAddress());
+
+                if (!supernode->refresh()) {
+                    return graft::Status::Ok;
+                }
+
+                LOG_PRINT_L0("supernode refresh done, stake amount: " << supernode->stakeAmount());
+
+                graft::SendSupernodeAnnounceJsonRpcRequest req;
+                if (!supernode->prepareAnnounce(req.params)) {
+                    LOG_ERROR("Can't prepare announce");
+                    return graft::Status::Ok;
+                }
+
+                req.method = "send_supernode_announce";
+                req.id = 0;
+                output.load(req);
+
+                output.path = "/json_rpc/rta";
+                // DBG: without cryptonode
+                // output.path = "/dapi/v2.0/send_supernode_announce";
+
+                LOG_PRINT_L1("Calling cryptonode: sending announce");
+                return graft::Status::Forward;
             }
-
-            LOG_PRINT_L0("supernode refresh done, stake amount: " << supernode->stakeAmount());
-
-            graft::SendSupernodeAnnounceJsonRpcRequest req;
-            if (!supernode->prepareAnnounce(req.params)) {
-                LOG_ERROR("Can't prepare announce");
-                return graft::Status::Ok;
-            }
-
-            req.method = "send_supernode_announce";
-            req.id = 0;
-            output.load(req);
-
-            output.path = "/json_rpc/rta";
-            // DBG: without cryptonode
-            // output.path = "/dapi/v2.0/send_supernode_announce";
-
-            LOG_PRINT_L1("Calling cryptonode: sending announce");
-            return graft::Status::Forward;
+        } catch (std::exception &e) {
+            LOG_ERROR("Exception thrown: " << e.what());
+        } catch (...) {
+            LOG_ERROR("Unknown exception thrown");
         }
+        return Status::Ok;
     };
+
     size_t initial_interval_ms = 1000;
     assert(m_looper);
     m_looper->addPeriodicTask(
