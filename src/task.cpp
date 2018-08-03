@@ -154,11 +154,13 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
     {
         bt->setError(e.what());
         params.input.reset();
+        throw;
     }
     catch(...)
     {
         bt->setError("unknown exception");
         params.input.reset();
+        throw;
     }
     LOG_PRINT_RQS_BT(3,bt,"pre_action completed with result " << bt->getStrStatus());
 }
@@ -190,11 +192,13 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     {
         bt->setError(e.what());
         params.input.reset();
+        throw;
     }
     catch(...)
     {
         bt->setError("unknown exception");
         params.input.reset();
+        throw;
     }
     LOG_PRINT_RQS_BT(3,bt,"post_action completed with result " << bt->getStrStatus());
 }
@@ -365,11 +369,6 @@ void TaskManager::setIOThread(bool current)
 }
 
 void TaskManager::cb_event(uint64_t cnt)
-{
-
-}
-
-void TaskManager::cb_event_x()
 {
     //When multiple threads write to the output queue of the thread pool.
     //It is possible that a hole appears when a thread has not completed to set

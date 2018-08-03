@@ -120,7 +120,6 @@ void Looper::serve()
     for (;;)
     {
         mg_mgr_poll(m_mgr.get(), m_copts.timer_poll_interval_ms);
-        cb_event_x();
         getTimerList().eval();
         checkUpstreamBlockingIO();
         executePostponedTasks();
