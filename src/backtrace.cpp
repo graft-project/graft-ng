@@ -15,7 +15,7 @@
 
 #include "backtrace.h"
 
-#define TRACE_SIZE_MAX 16
+#define TRACE_SIZE_MAX 32
 #define FUNC_NAME_SIZE_MAX 256
 
 /* This structure mirrors the one found in /usr/include/asm/ucontext.h */
