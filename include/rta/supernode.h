@@ -160,6 +160,8 @@ public:
      */
     bool signMessage(const std::string &msg, crypto::signature &signature) const;
 
+
+    bool signHash(const crypto::hash &hash, crypto::signature &signature) const;
     /*!
      * \brief verifySignature - verifies signature
      * \param msg             - message to verify
@@ -174,6 +176,10 @@ public:
      * \param result        - result will be written here;
      * \return              - true on success
      */
+
+    bool verifyHash(const crypto::hash &hash, const std::string &address, const crypto::signature &signature) const;
+
+
     void getScoreHash(const crypto::hash &block_hash, crypto::hash &result) const;
 
     std::string networkAddress() const;

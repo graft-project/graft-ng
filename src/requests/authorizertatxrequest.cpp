@@ -49,7 +49,8 @@ namespace graft {
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeSignature,
                               (std::string, address, std::string()),
-                              (std::string, signature, std::string())
+                              (std::string, result_signature, std::string()), // signarure for tx_id + result
+                              (std::string, tx_signature, std::string())      // signature for tx_id only
                               );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(AuthorizeRtaTxRequestResponse,
@@ -108,14 +109,17 @@ private:
 };
 
 // TODO: this function duplicates PendingTransaction::putRtaSignatures
-void putRtaSignaturesToTx(cryptonote::transaction &tx, const std::vector<SupernodeSignature> &signatures)
+void putRtaSignaturesToTx(cryptonote::transaction &tx, const std::vector<SupernodeSignature> &signatures, bool testnet)
 {
     std::vector<cryptonote::rta_signature> bin_signs;
     for (const auto &sign : signatures) {
         cryptonote::rta_signature bin_sign;
-        epee::string_tools::hex_to_pod(sign.address, bin_sign.address);
-        epee::string_tools::hex_to_pod(sign.signature, bin_sign.signature);
-         bin_signs.push_back(bin_sign);
+        if (!cryptonote::get_account_address_from_str(bin_sign.address, testnet, sign.address)) {
+            LOG_ERROR("error parsing address from string: " << sign.address);
+            continue;
+        }
+        epee::string_tools::hex_to_pod(sign.tx_signature, bin_sign.signature);
+        bin_signs.push_back(bin_sign);
     }
     tx.put_rta_signatures(bin_signs);
 }
@@ -127,11 +131,16 @@ void putRtaSignaturesToTx(cryptonote::transaction &tx, const std::vector<Superno
  * \param supernode
  * \return
  */
-string signAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr &supernode)
+bool signAuthResponse(AuthorizeRtaTxResponse &arg, const SupernodePtr &supernode)
 {
     crypto::signature sign;
     supernode->signMessage(arg.tx_id + ":" + to_string(arg.result), sign);
-    return epee::string_tools::pod_to_hex(sign);
+    arg.signature.result_signature = epee::string_tools::pod_to_hex(sign);
+    crypto::hash tx_id;
+    epee::string_tools::hex_to_pod(arg.tx_id, tx_id);
+    supernode->signHash(tx_id, sign);
+    arg.signature.tx_signature = epee::string_tools::pod_to_hex(sign);
+    arg.signature.address = supernode->walletAddress();
 }
 
 /*!
@@ -142,14 +151,30 @@ string signAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr &s
  */
 bool validateAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr &supernode)
 {
-    crypto::signature sign;
-    if (!epee::string_tools::hex_to_pod(arg.signature.signature, sign)) {
-        LOG_ERROR("Error parsing signature: " << arg.signature.signature);
+    crypto::signature sign_result;
+    crypto::signature sign_tx_id;
+    crypto::hash tx_id;
+    if (!epee::string_tools::hex_to_pod(arg.signature.result_signature, sign_result)) {
+        LOG_ERROR("Error parsing signature: " << arg.signature.result_signature);
         return false;
     }
 
+    if (!epee::string_tools::hex_to_pod(arg.signature.tx_signature, sign_tx_id)) {
+        LOG_ERROR("Error parsing signature: " << arg.signature.result_signature);
+        return false;
+    }
+
+    if (!epee::string_tools::hex_to_pod(arg.tx_id, tx_id)) {
+        LOG_ERROR("Error parsing tx_id: " << arg.tx_id);
+        return false;
+    }
+
+
+
     std::string msg = arg.tx_id + ":" + to_string(arg.result);
-    return supernode->verifySignature(msg, arg.signature.address, sign);
+    bool r1 = supernode->verifySignature(msg, arg.signature.address, sign_result);
+    bool r2 = supernode->verifyHash(tx_id, arg.signature.address, sign_tx_id);
+    return r1 && r2;
 }
 
 /*!
@@ -235,7 +260,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     AuthorizeRtaTxResponse authResponse;
     authResponse.tx_id = tx_id_str;
     authResponse.result = static_cast<int>(amount > 0 ? RTAAuthResult::Approved : RTAAuthResult::Rejected);
-    authResponse.signature.signature = signAuthResponse(authResponse, supernode);
+    signAuthResponse(authResponse, supernode);
     authResponse.signature.address   = supernode->walletAddress();
 
     // store tx
@@ -326,7 +351,9 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
             return errorInvalidParams(output);
         }
 
-        LOG_PRINT_L0(__FUNCTION__ << " incoming tx auth response for tx: " << rtaAuthResp.tx_id << ", result: " << int(result));
+        LOG_PRINT_L0(__FUNCTION__ << " incoming tx auth response for tx: " << rtaAuthResp.tx_id
+                     << ", from: " << rtaAuthResp.signature.address
+                     << ", result: " << int(result));
 
         string ctx_payment_id_key = rtaAuthResp.tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID;
 
@@ -382,6 +409,8 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
             return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
         }
 
+        // authResult = ctx.global.get(ctx_tx_to_auth_resp, RtaAuthResult());
+
         if (authResult.rejected.size() >= RTA_VOTES_TO_REJECT) {
             LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " rejected by auth sample, updating status");
             // tx rejected by auth sample, broadcast status;
@@ -395,12 +424,37 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
 
             // store tx_id in local context so we can use it when broadcasting status
             ctx.local[CONTEXT_TX_ID] = rtaAuthResp.tx_id;
-
             cryptonote::transaction tx = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID, cryptonote::transaction());
-            putRtaSignaturesToTx(tx, authResult.approved);
-            createSendRawTxRequest(tx, req);
-            // call cryptonode
 
+            {
+
+                LOG_PRINT_L0("  rta signatures in context: ");
+                std::string buf;
+                buf += "\n";
+                for (const auto & rta_sign:  authResult.approved) {
+                    buf += string("      address: ") + rta_sign.address + "\n";
+                    buf += string("      signature: ") + rta_sign.tx_signature + "\n";
+                }
+                LOG_PRINT_L0(buf);
+            }
+
+
+            putRtaSignaturesToTx(tx, authResult.approved, supernode->testnet());
+
+
+            createSendRawTxRequest(tx, req);
+            {
+                LOG_PRINT_L0("sending tx to cryptonode:  " << req.tx_as_hex);
+                LOG_PRINT_L0("  rta signatures: ");
+                std::string buf;
+                buf += "\n";
+                for (const auto & rta_sign:  tx.rta_signatures) {
+                    buf += string("      address: ") + cryptonote::get_account_address_as_str(true, rta_sign.address) + "\n";
+                    buf += string("      signature: ") + epee::string_tools::pod_to_hex(rta_sign.signature) + "\n";
+                }
+                LOG_PRINT_L0(buf);
+            }
+            // call cryptonode
             output.load(req);
             output.path = "/sendrawtransaction";
             ctx.local[__FUNCTION__] = RtaAuthResponseHandlerState::TransactionPushReply;
@@ -470,7 +524,8 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
             return sendOkResponseToCryptonode(output);
         }
         status = RTAStatus::Fail;
-        LOG_ERROR("failed to put tx to pool: " << tx_id << ", reason: " << resp.reason);
+        // LOG_ERROR("failed to put tx to pool: " << tx_id << ", reason: " << resp.reason);
+        LOG_ERROR("failed to put tx to pool: " << tx_id << ", input: " << input.data());
     } else {
         status = RTAStatus::Success;
     }

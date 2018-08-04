@@ -95,7 +95,8 @@ bool Supernode::importKeyImages(const vector<Supernode::SignedKeyImage> &key_ima
         return false;
     }
 
-    return height > 0;
+    height = this->daemonHeight();
+    return true;
 }
 
 Supernode *Supernode::createFromViewOnlyWallet(const string &path, const string &address, const secret_key &viewkey, bool testnet)
@@ -258,6 +259,11 @@ bool Supernode::signMessage(const string &msg, crypto::signature &signature) con
 
     crypto::hash hash;
     crypto::cn_fast_hash(msg.data(), msg.size(), hash);
+    return this->signHash(hash, signature);
+}
+
+bool Supernode::signHash(const crypto::hash &hash, crypto::signature &signature) const
+{
     const cryptonote::account_keys &keys = m_wallet->get_account().get_keys();
     crypto::generate_signature(hash, keys.m_account_address.m_spend_public_key, keys.m_spend_secret_key, signature);
     return true;
@@ -265,13 +271,19 @@ bool Supernode::signMessage(const string &msg, crypto::signature &signature) con
 
 bool Supernode::verifySignature(const string &msg, const string &address, const crypto::signature &signature) const
 {
+    crypto::hash hash;
+    crypto::cn_fast_hash(msg.data(), msg.size(), hash);
+    return verifyHash(hash, address, signature);
+}
+
+bool Supernode::verifyHash(const crypto::hash &hash, const string &address, const crypto::signature &signature) const
+{
+
     cryptonote::account_public_address wallet_addr;
     if (!cryptonote::get_account_address_from_str(wallet_addr, m_wallet->testnet(), address)) {
         LOG_ERROR("Error parsing address");
         return false;
     }
-    crypto::hash hash;
-    crypto::cn_fast_hash(msg.data(), msg.size(), hash);
     return crypto::check_signature(hash, wallet_addr.m_spend_public_key, signature);
 }
 
