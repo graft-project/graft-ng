@@ -11,13 +11,14 @@ namespace graft {
 
 // fee per supernode
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeFee,
-                       (std::string, Address, ""),
+                       (std::string, Address, std::string()),
                        (uint64_t, Fee, 0)
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SaleDetailsRequest,
-                             (std::string, PaymentID, ""),
-                             (uint64_t, BlockNumber, 0)
+                             (std::string, PaymentID, std::string()),
+                             (uint64_t, BlockNumber, 0),
+                             (std::string, callback_uri, std::string()) // this is for the case if supernode needs to ask remote supernode for details
                              );
 
 GRAFT_DEFINE_IO_STRUCT(SaleDetailsResponse,

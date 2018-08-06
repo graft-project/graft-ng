@@ -5,7 +5,7 @@
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
 #include "requests/unicast.h"
-#include "utils/utils.h"
+#include "common/utils.h"
 
 
 namespace graft {
@@ -17,30 +17,24 @@ GRAFT_DEFINE_JSON_RPC_REQUEST(SaleDetailsRequestJsonRpc, SaleDetailsRequest);
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SaleDetailsResponseJsonRpc, SaleDetailsResponse);
 
 
-enum class SaleDetailsHandlerState : int {
-    ClientRequest = 0,
-    ResponseFromAuthSample,
 
-};
 
-bool fillAuthSampleWithFees(const SaleDetailsRequest &req, graft::Context &ctx, SaleDetailsResponse &resp, JsonRpcError &error,
-                            std::vector<SupernodePtr> &authSample)
+// helper function. prepares sale details response for given request
+bool prepareSaleDetailsResponse(const SaleDetailsRequest &req, graft::Context &ctx, SaleDetailsResponse &resp, JsonRpcError &error,
+                                const std::vector<SupernodePtr> &authSample)
 {
-    FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     // generate auth sample
+    SaleDetailsResponseJsonRpc out;
 
-    if (!fsl->buildAuthSample(req.BlockNumber, authSample)) {
-        error.code = ERROR_INVALID_PARAMS;
-        error.message  = MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE;
-        return false;
-    }
 
     if (!ctx.global.hasKey(req.PaymentID + CONTEXT_KEY_SALE)) {
         error.code = ERROR_PAYMENT_ID_INVALID;
         error.message = string("sale data missing for payment: ") + req.PaymentID;
+        LOG_ERROR(__FUNCTION__ << " " << error.message);
         return false;
     }
 
+    resp.Details = ctx.global.get(req.PaymentID + CONTEXT_KEY_SALE_DETAILS, std::string());
     SaleData sale_data = ctx.global.get(req.PaymentID + CONTEXT_KEY_SALE, SaleData());
 
     uint64_t total_fee = static_cast<uint64_t>(std::round(sale_data.Amount * AUTHSAMPLE_FEE_PERCENTAGE / 100.0));
@@ -51,12 +45,13 @@ bool fillAuthSampleWithFees(const SaleDetailsRequest &req, graft::Context &ctx, 
         snf.Fee = total_fee / authSample.size();
         resp.AuthSample.push_back(snf);
     }
+
+    return true;
 }
 
 Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input,
                            graft::Context& ctx, graft::Output& output)
 {
-    ctx.local[__FUNCTION__] = SaleDetailsHandlerState::ResponseFromAuthSample;
     // in case we have sale data locally, just return it to the client;
     // in case we don't have:
     // 1. build auth sample for given block
@@ -70,7 +65,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         return errorInvalidParams(output);
     }
 
-    const SaleDetailsRequest &in = req.params;
+    SaleDetailsRequest in = req.params;
 
 
     if (in.PaymentID.empty())
@@ -84,33 +79,63 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     {
         return Status::Error;
     }
-    SaleDetailsResponseJsonRpc out;
-    std::vector<SupernodePtr> authSample;
-    fillAuthSampleWithFees(in, ctx, out.result, error, authSample);
-    // we have sale details locally, easy way
-    if (ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_DETAILS)) {
-        LOG_PRINT_L0("we have sale details locally for payment id: " << in.PaymentID);
-        std::string details = ctx.global.get(in.PaymentID + CONTEXT_KEY_SALE_DETAILS, std::string());
-        out.result.Details = details;
-        output.load(out);
+
+    if (ctx.global.hasKey(in.PaymentID + CONTEXT_SALE_DETAILS_RESULT)) {
+        SaleDetailsResponse sdr = ctx.global.get(in.PaymentID + CONTEXT_SALE_DETAILS_RESULT, SaleDetailsResponse());
+        output.load(sdr);
         return Status::Ok;
+    }
+
+    vector<SupernodePtr> authSample;
+    FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
+
+    if (!fsl->buildAuthSample(in.BlockNumber, authSample)) {
+        return  errorBuildAuthSample(output);
+    }
+
+    // we have sale details locally, easy way
+    bool have_data_locally = ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_DETAILS);
+
+    // TODO: testing remote flow
+    // have_data_locally = false;
+
+    if (have_data_locally) {
+        LOG_PRINT_L0("we have sale details locally for payment id: " << in.PaymentID);
+        SaleDetailsResponse resp;
+        SaleDetailsResponseJsonRpc out;
+        if (!prepareSaleDetailsResponse(in, ctx, resp, error, authSample)) {
+            JsonRpcErrorResponse er;
+            er.error = error;
+            output.load(error);
+            return Status::Error;
+        } else {
+            out.result = resp;
+            output.load(out);
+            return Status::Ok;
+        }
     } else {
         // we don't have a sale details, request it from remote supernode
         LOG_PRINT_L0("we DON'T have sale details locally for payment id: " << in.PaymentID);
+        // store payment id so we can cache sale_details from remote supernode
+        ctx.local["payment_id"] = in.PaymentID;
         Output innerOut;
+        in.callback_uri = "/cryptonode/callback/sale_details/" + boost::uuids::to_string(ctx.getId());
         innerOut.loadT<serializer::JSON_B64>(in);
         UnicastRequestJsonRpc unicastReq;
         SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
         unicastReq.params.sender_address = supernode->walletAddress();
-        int maxIndex = authSample.size() - 1;
-        unicastReq.params.receiver_address = authSample.at(utils::random_number(0, maxIndex))->walletAddress();
+        size_t maxIndex = authSample.size() - 1;
+        size_t randomIndex = utils::random_number<size_t>(0, maxIndex);
+        unicastReq.params.receiver_address = authSample.at(randomIndex)->walletAddress();
         unicastReq.params.data = innerOut.data();
-        unicastReq.params.wait_answer = true;
+        unicastReq.params.callback_uri = "/cryptonode/sale_details/";
         unicastReq.method = "unicast";
 
         output.load(unicastReq);
         output.path = "/json_rpc/rta";
-        LOG_PRINT_L0("calling cryptonode: " << output.uri);
+        LOG_PRINT_L0(__FUNCTION__ << ", remote address: " << unicastReq.params.receiver_address);
+        LOG_PRINT_L0(__FUNCTION__ << ", callback uri: " << in.callback_uri);
+        LOG_PRINT_L0("calling cryptonode: " << output.path);
         LOG_PRINT_L0("\t with data: " << output.data());
     }
 
@@ -118,10 +143,70 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     return Status::Forward;
 }
 
+// unicast response from remote supernode (via cryptonode)
+// this function called in "Postponed" state.
+// returns output to the waiting client
 Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input& input,
                            graft::Context& ctx, graft::Output& output)
 {
 
+    if (ctx.local.getLastStatus() != Status::Postpone) {
+        string msg = string("Expected postponed status but status is : " + to_string(int(ctx.local.getLastStatus())));
+        LOG_ERROR(msg);
+        return errorInternalError(msg, output);
+    }
+
+    // LOG_PRINT_L0("received data: " << input.data());
+    string id = boost::uuids::to_string(ctx.getId());
+    if (!ctx.global.hasKey(id + CONTEXT_SALE_DETAILS_RESULT)) {
+        string msg = "no sale details response found for id: " + id;
+        LOG_ERROR(msg);
+        return errorInternalError(msg, output);
+    }
+
+    Input inputLocal;
+    inputLocal.load(ctx.global.get(id + CONTEXT_SALE_DETAILS_RESULT, string()));
+    UnicastRequestJsonRpc in;
+
+    if (!inputLocal.get(in)) {
+        LOG_ERROR("Failed to parse response: " << inputLocal.data());
+        return errorInternalError("Failed to parse response", output);
+    }
+
+    UnicastRequest unicastReq = in.params;
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+
+    if (unicastReq.receiver_address != supernode->walletAddress()) {
+        string msg =  string("wrong receiver address: " + unicastReq.receiver_address + ", expected address: " + supernode->walletAddress());
+        LOG_ERROR(msg);
+        return errorInternalError(msg, output);
+    }
+
+
+    Input innerIn;
+    innerIn.load(unicastReq.data);
+
+    SaleDetailsResponse sdr;
+
+    if (!innerIn.getT<serializer::JSON_B64>(sdr)) {
+        LOG_ERROR("error deserialize rta auth response");
+        return errorInvalidParams(output);
+    }
+
+    string payment_id = ctx.local["payment_id"];
+
+    ctx.global.set(payment_id + CONTEXT_SALE_DETAILS_RESULT, sdr, RTA_TX_TTL);
+
+    // just forward response to the client
+    output.load(sdr);
+    return Status::Ok;
+
+}
+
+// handles cryptonode's "ok"
+Status handleUnicastAcknowledge(const Router::vars_t& vars, const graft::Input& input,
+                                graft::Context& ctx, graft::Output& output)
+{
     UnicastResponseFromCryptonodeJsonRpc resp;
 
     JsonRpcErrorResponse error;
@@ -132,40 +217,176 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
         return Status::Error;
     }
 
-//    SaleDetailsResponseJsonRpc out;
-//    std::vector<SupernodePtr> authSample;
-//    fillAuthSampleWithFees(in, ctx, out.result, error, authSample);
-//    // we have sale details locally, easy way
-//    if (ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_DETAILS)) {
-//        std::string details = ctx.global.get(in.PaymentID + CONTEXT_KEY_SALE_DETAILS, std::string());
-//        out.result.Details = details;
-//        output.load(out);
-//        return Status::Ok;
-
-    LOG_PRINT_L0(__FUNCTION__ << " data: " << input.data());
-    output.load(error);
-    return Status::Ok;
-
+    return Status::Postpone; // waiting for callback
 }
 
-Status saleDetailsHandler(const Router::vars_t& vars, const graft::Input& input,
+// handles remote "sale_details"
+
+Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::Input& input,
+                                        graft::Context& ctx, graft::Output& output)
+{
+    UnicastRequestJsonRpc in;
+
+    if (!input.get(in)) {
+        LOG_ERROR("Failed to parse response: " << input.data());
+        return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
+    }
+
+    UnicastRequest unicastReq = in.params;
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+
+    if (unicastReq.receiver_address != supernode->walletAddress()) {
+        string msg =  string("wrong receiver address: " + supernode->walletAddress());
+        LOG_ERROR(msg);
+        return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
+    }
+
+
+    Input innerIn;
+    innerIn.load(unicastReq.data);
+
+    SaleDetailsRequest sdr;
+
+    if (!innerIn.getT<serializer::JSON_B64>(sdr)) {
+        LOG_ERROR("error deserialize rta auth response");
+        return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
+    }
+
+    vector<SupernodePtr> authSample;
+    FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
+
+    if (!fsl->buildAuthSample(sdr.BlockNumber, authSample)) {
+        return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
+    }
+
+    if (ctx.global.hasKey(sdr.PaymentID + CONTEXT_KEY_SALE_DETAILS)) {
+        LOG_PRINT_L0("we have sale details for payment id: " << sdr.PaymentID);
+        SaleDetailsResponse resp;
+
+        JsonRpcError error;
+        if (!prepareSaleDetailsResponse(sdr, ctx, resp, error, authSample)) {
+            LOG_ERROR("Error preparing sale details response");
+            return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
+        } else {
+            UnicastRequestJsonRpc callbackReq;
+            Output innerOut;
+            innerOut.loadT<serializer::JSON_B64>(resp);
+
+            callbackReq.params.data = innerOut.data();
+            callbackReq.params.callback_uri = sdr.callback_uri;
+            callbackReq.params.sender_address = supernode->walletAddress();
+            callbackReq.params.receiver_address = unicastReq.sender_address;
+            callbackReq.method = "unicast";
+            output.load(callbackReq);
+            output.path = "/json_rpc/rta";
+            LOG_PRINT_L0(__FUNCTION__ << ", performing sale details callback, remote URI: " << sdr.callback_uri << ", remote addr: " << unicastReq.sender_address);
+            return Status::Forward;
+        }
+    }
+    LOG_ERROR("no sale details for payment: " << sdr.PaymentID);
+    return sendOkResponseToCryptonode(output);
+}
+
+
+
+
+// ========================================================================================================
+
+// handlers for
+// 1) client requests
+// 2) callbacks with response
+// 3) requests from remote cryptonode
+
+// handles client requests
+Status saleDetailsClientHandler(const Router::vars_t& vars, const graft::Input& input,
                                 graft::Context& ctx, graft::Output& output)
 {
 
-    SaleDetailsHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : SaleDetailsHandlerState::ClientRequest;
+    enum class ClientHandlerState : int {
+        ClientRequest = 0,      // request from client (initial state)
+        UnicastAcknowledge,     // unicast to cryptonode delivered
+        CallbackFromAuthSample, // response from remote supernode (random auth sample member)
+    };
 
+    ClientHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : ClientHandlerState::ClientRequest;
+    LOG_PRINT_L0(__FUNCTION__ << " state: " << int(state) << ", task_id: " << boost::uuids::to_string(ctx.getId()));
     switch (state) {
-    case SaleDetailsHandlerState::ClientRequest:
+    case ClientHandlerState::ClientRequest:
+        ctx.local[__FUNCTION__] = ClientHandlerState::UnicastAcknowledge;
         return handleClientRequest(vars, input, ctx, output);
-    case SaleDetailsHandlerState::ResponseFromAuthSample:
+    case ClientHandlerState::UnicastAcknowledge:
+        ctx.local[__FUNCTION__] = ClientHandlerState::CallbackFromAuthSample;
+        return handleUnicastAcknowledge(vars, input, ctx, output);
+    case ClientHandlerState::CallbackFromAuthSample:
         return handleSaleDetailsResponse(vars, input, ctx, output);
     }
 }
 
+// handles callback with response from remote supernode
+// /cryptonode/callback/sale_details/{id:[0-9a-fA-F-]+}
+// there's no states for this handler, only one state
+Status saleDetailsCallbackHandler(const Router::vars_t& vars, const graft::Input& input,
+                                  graft::Context& ctx, graft::Output& output)
+{
+
+    if (vars.count("id") == 0) {
+        string msg = string("Can't parse request id from URL");
+        LOG_ERROR(msg);
+        return errorInternalError(msg, output);
+    }
+
+    std::string id = vars.find("id")->second;
+    boost::uuids::string_generator sg;
+    boost::uuids::uuid uuid = sg(id);
+    ctx.global.set(id + CONTEXT_SALE_DETAILS_RESULT, input.data(), RTA_TX_TTL);
+    ctx.setNextTaskId(uuid);
+    return graft::Status::Ok; // initial handler will be called (clientHandler)
+}
+
+
+// handles unicast requests from remote cryptonode.
+Status saleDetailsUnicastHandler(const Router::vars_t& vars, const graft::Input& input,
+                                 graft::Context& ctx, graft::Output& output)
+{
+    enum class State: int {
+        ClientRequest = 0,    // requests comes from cryptonode
+        CallbackToClient,     // unicast callback sent to cryptonode
+        CallbackAcknowledge,  // cryptonode accepted callbacks,
+    };
+
+    State state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : State::ClientRequest;
+
+    LOG_PRINT_L0(__FUNCTION__ << " state: " << int(state));
+
+    switch (state) {
+    case State::ClientRequest:
+        ctx.local[__FUNCTION__] = State::CallbackToClient;
+        return handleSaleDetailsUnicastRequest(vars, input, ctx, output); // send Unicast callback
+    case State::CallbackToClient:
+        ctx.local[__FUNCTION__] = State::CallbackAcknowledge;
+        return sendOkResponseToCryptonode(output);                       //  cryptonode accepted uncast callback,
+    case State::CallbackAcknowledge:
+        ctx.local[__FUNCTION__] = State::CallbackAcknowledge;
+        return sendOkResponseToCryptonode(output);                       // send ok as reply to initial request
+    }
+}
+
+
 void registerSaleDetailsRequest(Router &router)
 {
-    Router::Handler3 h3(nullptr, saleDetailsHandler, nullptr);
-    router.addRoute("/sale_details", METHOD_POST, h3);
+    // client requests
+    Router::Handler3 clientHandler(nullptr, saleDetailsClientHandler, nullptr);
+    router.addRoute("/sale_details", METHOD_POST, clientHandler);
+
+    // unicast callbacks from remote supernode (responses)
+    Router::Handler3 callbackHandler(nullptr, saleDetailsCallbackHandler, nullptr);
+    router.addRoute("/cryptonode/callback/sale_details/{id:[0-9a-fA-F-]+}",
+                    METHOD_POST, callbackHandler);
+
+    // unicast requests from remote supernode (requests)
+    Router::Handler3 unicastRequestHandler(nullptr, saleDetailsUnicastHandler, nullptr);
+    router.addRoute("/cryptonode/sale_details/",
+                    METHOD_POST, unicastRequestHandler);
 }
 
 }
