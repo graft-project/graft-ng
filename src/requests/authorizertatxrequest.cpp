@@ -408,27 +408,10 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         } else if (authResult.approved.size() >= RTA_VOTES_TO_APPROVE) {
             LOG_PRINT_L0("tx " << rtaAuthResp.tx_id << " approved by auth sample, pushing to tx pool");
             SendRawTxRequest req;
-
             // store tx_id in local context so we can use it when broadcasting status
             ctx.local[CONTEXT_TX_ID] = rtaAuthResp.tx_id;
             cryptonote::transaction tx = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID, cryptonote::transaction());
-
-            {
-
-                LOG_PRINT_L0("  rta signatures in context: ");
-                std::string buf;
-                buf += "\n";
-                for (const auto & rta_sign:  authResult.approved) {
-                    buf += string("      address: ") + rta_sign.address + "\n";
-                    buf += string("      signature: ") + rta_sign.tx_signature + "\n";
-                }
-                LOG_PRINT_L0(buf);
-            }
-
-
             putRtaSignaturesToTx(tx, authResult.approved, supernode->testnet());
-
-
             createSendRawTxRequest(tx, req);
             {
                 LOG_PRINT_L0("sending tx to cryptonode:  " << req.tx_as_hex);
@@ -441,10 +424,12 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
                 }
                 LOG_PRINT_L0(buf);
             }
+
             // call cryptonode
             output.load(req);
             output.path = "/sendrawtransaction";
             ctx.local[__FUNCTION__] = RtaAuthResponseHandlerState::TransactionPushReply;
+
             return Status::Forward;
         } else {
             LOG_PRINT_L0("not enough votes for approval/reject, keep waiting for other votes");
@@ -472,7 +457,8 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
                                graft::Context& ctx, graft::Output& output)
 {
 
-    LOG_PRINT_L0(__FUNCTION__ << " begin");
+    LOG_PRINT_L0(__FUNCTION__ << " begin for task: " << boost::uuids::to_string(ctx.getId()));
+
     SendRawTxResponse resp;
     // check if we have tx_id in local context
     string tx_id = ctx.local[CONTEXT_TX_ID];
@@ -598,7 +584,8 @@ Status authorizeRtaTxResponseHandler(const Router::vars_t& vars, const graft::In
 
     try {
         RtaAuthResponseHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : RtaAuthResponseHandlerState::RtaAuthReply;
-        LOG_PRINT_L0(__FUNCTION__ << " state: " << int(state));
+        LOG_PRINT_L0(__FUNCTION__ << " state: " << int(state) << ", status: "<< (int) ctx.local.getLastStatus() << ", task id: " << boost::uuids::to_string(ctx.getId()));
+        LOG_PRINT_L0("auth_resp: input: " << input.data());
 
         switch (state) {
         // actually not a reply, just incoming multicast. same as "called by client" and client is cryptonode here
