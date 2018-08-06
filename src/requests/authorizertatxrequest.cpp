@@ -187,9 +187,9 @@ bool validateAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr 
  */
 
 Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input,
-                            graft::Context& ctx, graft::Output& output)
+                            graft::Context& ctx, graft::Output& output) noexcept
 {
-    LOG_PRINT_L0(PATH_REQUEST << "called with payload: " << input.data());
+
     MulticastRequestJsonRpc req;
     if (!input.get(req)) { // can't parse request
         return errorCustomError(string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
@@ -197,18 +197,10 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
-    // check if we handling own request
-    if (req.params.sender_address == supernode->walletAddress()) {
-        MulticastResponseToCryptonodeJsonRpc resp;
-        resp.result.status = "OK";
-        output.load(resp);
-        return Status::Ok;
-    }
 
     AuthorizeRtaTxRequest authReq;
     Input innerInput;
     innerInput.load(req.params.data);
-    LOG_PRINT_L0("input loaded");
 
     if (!innerInput.getT<serializer::JSON_B64>(authReq)) {
         return errorInvalidParams(output);
@@ -245,12 +237,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
         return errorCustomError("can't parse supernode fee for tx", ERROR_INVALID_PARAMS, output);
     }
 
-//    // TODO: read payment id from transaction, map tx_id to payment_id
-//    // string payment_id
-//    if (!supernode->getPaymentIdFromTx(tx, payment_id) || payment_id.empty()) {
-//        return errorInvalidPaymentID(output);
-//    }
-    // for the alpha we'll get payment id from /pay request
+   // TODO: read payment id from transaction, map tx_id to payment_id
 
     MulticastRequestJsonRpc authResponseMulticast;
     authResponseMulticast.method = "multicast";
@@ -274,7 +261,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     output.load(authResponseMulticast);
     output.path = "/json_rpc/rta";
     LOG_PRINT_L0("transaction " << authResponse.tx_id << ", validate status: " << authResponse.result);
-    LOG_PRINT_L0("calling supernode: " << output.path << " with payload: " << output.data());
+    LOG_PRINT_L0(__FUNCTION__ <<  " calling cryptonode: " << output.path << " with payload: " << output.data());
     return Status::Forward;
 }
 
@@ -297,7 +284,7 @@ Status handleCryptonodeMulticastStatus(const Router::vars_t& vars, const graft::
 
     JsonRpcErrorResponse error;
     if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
-        return  errorInternalError("Error nulticasting request", output);
+        return  errorInternalError("Error multicasting request", output);
     }
 
     AuthorizeRtaTxRequestJsonRpcResponse out;
@@ -570,7 +557,7 @@ Status handleStatusBroadcastResponse(const Router::vars_t& vars, const graft::In
  * \return
  */
 Status authorizeRtaTxRequestHandler(const Router::vars_t& vars, const graft::Input& input,
-                                 graft::Context& ctx, graft::Output& output)
+                                 graft::Context& ctx, graft::Output& output) noexcept
 {
     try {
         RtaAuthRequestHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : RtaAuthRequestHandlerState::ClientRequest;
@@ -582,6 +569,7 @@ Status authorizeRtaTxRequestHandler(const Router::vars_t& vars, const graft::Inp
             ctx.local[__FUNCTION__] = RtaAuthRequestHandlerState::CryptonodeReply;
             return handleTxAuthRequest(vars, input, ctx, output);
         case RtaAuthRequestHandlerState::CryptonodeReply:
+            LOG_PRINT_L0("cyptonode reply, payload: " << input.data());
             return handleCryptonodeMulticastStatus(vars, input, ctx, output);
         default: // internal error
             return errorInternalError(string("authorize_rta_tx_request: unhandled state: ") + to_string(int(state)),
