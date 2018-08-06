@@ -156,16 +156,15 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
         return errorInternalError(msg, output);
     }
 
-    // LOG_PRINT_L0("received data: " << input.data());
-    string id = boost::uuids::to_string(ctx.getId());
-    if (!ctx.global.hasKey(id + CONTEXT_SALE_DETAILS_RESULT)) {
-        string msg = "no sale details response found for id: " + id;
+    string task_id = boost::uuids::to_string(ctx.getId());
+    if (!ctx.global.hasKey(task_id + CONTEXT_SALE_DETAILS_RESULT)) {
+        string msg = "no sale details response found for id: " + task_id;
         LOG_ERROR(msg);
         return errorInternalError(msg, output);
     }
 
     Input inputLocal;
-    inputLocal.load(ctx.global.get(id + CONTEXT_SALE_DETAILS_RESULT, string()));
+    inputLocal.load(ctx.global.get(task_id + CONTEXT_SALE_DETAILS_RESULT, string()));
     UnicastRequestJsonRpc in;
 
     if (!inputLocal.get(in)) {
@@ -182,7 +181,6 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
         return errorInternalError(msg, output);
     }
 
-
     Input innerIn;
     innerIn.load(unicastReq.data);
 
@@ -195,9 +193,13 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
 
     string payment_id = ctx.local["payment_id"];
 
+    // cache response;
     ctx.global.set(payment_id + CONTEXT_SALE_DETAILS_RESULT, sdr, RTA_TX_TTL);
 
-    // just forward response to the client
+    // remove callback reply
+    ctx.global.remove(task_id + CONTEXT_SALE_DETAILS_RESULT);
+
+    // send response to the client
     output.load(sdr);
     return Status::Ok;
 
