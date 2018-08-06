@@ -89,6 +89,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
     cryptonode_req.method = "multicast";
     cryptonode_req.params.callback_uri =  "/cryptonode/authorize_rta_tx_request";
     cryptonode_req.params.data = innerOut.data();
+    cryptonode_req.params.sender_address = supernode->walletAddress();
     // store payment id as we need it to change the sale/pay state in next call
     ctx.local["payment_id"] = in.PaymentID;
     // TODO: what is the purpose of PayData?
@@ -98,8 +99,8 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     output.load(cryptonode_req);
     output.path = "/json_rpc/rta";
-    LOG_PRINT_L0("calling cryptonode: " << output.path);
-    LOG_PRINT_L0("\t with data: " << output.data());
+    LOG_PRINT_L0(__FUNCTION__ << " calling cryptonode: " << output.path);
+    LOG_PRINT_L0(__FUNCTION__  << "\t with data: " << output.data());
     return Status::Forward;
 }
 
@@ -156,6 +157,7 @@ Status handleStatusBroadcastReply(const Router::vars_t& vars, const graft::Input
     PayResponseJsonRpc out;
     out.result.Result = STATUS_OK;
     output.load(out);
+    LOG_PRINT_L0("pay: response to client: " << output.data());
     return Status::Ok;
 }
 
