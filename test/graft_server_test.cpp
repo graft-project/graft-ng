@@ -568,7 +568,7 @@ public:
             mg_mgr_init(&m_mgr, nullptr, nullptr);
         }
 
-        void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string())
+        void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string(), int timeout_ms = 0)
         {
             m_exit = false; m_closed = false;
             client = mg_connect_http(&m_mgr, graft::static_ev_handler<Client>, url.c_str(),
@@ -576,9 +576,22 @@ public:
                                      (post_data.empty())? nullptr : post_data.c_str()); //last nullptr means GET
             assert(client);
             client->user_data = this;
+
+            int poll_time_ms = 1000;
+            if(0 < timeout_ms)
+            {
+                poll_time_ms = timeout_ms/4;
+                if(poll_time_ms == 0) ++poll_time_ms;
+            }
+            auto end = std::chrono::steady_clock::now()
+                    + std::chrono::duration<int,std::milli>(timeout_ms);
             while(!m_exit)
             {
-                mg_mgr_poll(&m_mgr, 1000);
+                mg_mgr_poll(&m_mgr, poll_time_ms);
+                if(0 < timeout_ms && end <= std::chrono::steady_clock::now())
+                {
+                    client->flags |= MG_F_CLOSE_IMMEDIATELY;
+                }
             }
         }
 
@@ -894,7 +907,7 @@ TEST_F(GraftServerCommonTest, GETtp)
     EXPECT_EQ("0123", iocheck);
 }
 
-TEST_F(GraftServerCommonTest, clientTimeout)
+TEST_F(GraftServerCommonTest, clientAcceptTimeout)
 {//GET -> timout
     iocheck = ""; skip_ctx_check = true;
     Client client;
@@ -906,6 +919,24 @@ TEST_F(GraftServerCommonTest, clientTimeout)
     EXPECT_EQ(true, client.get_closed());
     std::string res = client.get_body();
     EXPECT_EQ("", res);
+}
+
+TEST_F(GraftServerTestBase, clientTimeout)
+{//it checks that there is no crash
+    auto action = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        return graft::Status::Ok;
+    };
+
+    MainServer server;
+    server.router.addRoute("/timeout", METHOD_POST, {nullptr, action, nullptr});
+    server.run();
+
+    Client client;
+    client.serve("http://127.0.0.1:9084/timeout", "", "post data", 200);
+
+    server.stop_and_wait_for();
 }
 
 TEST_F(GraftServerCommonTest, cryptonTimeout)
