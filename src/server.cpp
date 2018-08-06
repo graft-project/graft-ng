@@ -472,7 +472,7 @@ void GraftServer::startSupernodePeriodicTasks()
                 // DBG: without cryptonode
                 // output.path = "/dapi/v2.0/send_supernode_announce";
 
-                LOG_PRINT_L1("Calling cryptonode: sending announce");
+                LOG_PRINT_L0("Calling cryptonode: sending announce");
                 return graft::Status::Forward;
             }
         } catch (std::exception &e) {
