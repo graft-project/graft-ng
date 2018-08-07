@@ -93,7 +93,7 @@ void TaskManager::Execute(BaseTaskPtr bt)
     auto& params = bt->getParams();
 
     ExecutePreAction(bt);
-    if(params.h3.pre_action && Status::Ok != bt->getLastStatus() && Status::Forward != bt->getLastStatus())
+    if(params.h3.pre_action && Status::Ok != bt->getLastStatus())
     {
         processResult(bt);
         return;
