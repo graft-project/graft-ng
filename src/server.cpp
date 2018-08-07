@@ -8,6 +8,10 @@
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
+
+
 namespace consts {
    static const char * DATA_PATH = "supernode/data";
    static const char * STAKE_WALLET_PATH = "stake-wallet";

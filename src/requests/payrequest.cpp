@@ -14,6 +14,9 @@
 #include <cryptonote_protocol/blobdatatype.h>
 #include <cryptonote_basic/cryptonote_format_utils.h>
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.payrequest"
+
 namespace graft {
 
 

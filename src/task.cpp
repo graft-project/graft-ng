@@ -2,6 +2,9 @@
 #include "connection.h"
 #include "router.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
+
 namespace graft {
 
 thread_local bool TaskManager::io_thread = false;

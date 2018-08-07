@@ -1,6 +1,9 @@
 #include "connection.h"
 #include "mongoosex.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.connection"
+
 namespace graft {
 
 std::string client_addr(mg_connection* client)

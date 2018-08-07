@@ -8,6 +8,9 @@
 #include "common/utils.h"
 
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.saledetailsrequest"
+
 namespace graft {
 
 // json-rpc request from POS

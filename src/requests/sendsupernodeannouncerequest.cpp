@@ -36,6 +36,9 @@
 #include <boost/shared_ptr.hpp>
 
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.sendsupernodeannouncerequest"
+
 namespace {
     static const char * PATH = "/send_supernode_announce";
 

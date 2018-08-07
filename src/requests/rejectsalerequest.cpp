@@ -1,6 +1,9 @@
 #include "rejectsalerequest.h"
 #include "requestdefines.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.rejectsalerequest"
+
 namespace graft {
 
 Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input& input,
