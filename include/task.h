@@ -244,7 +244,7 @@ private:
     void ExecutePostAction(BaseTaskPtr bt, GJ* gj = nullptr);  //gj equals nullptr if threadPool was skipped for some reasons
     void Execute(BaseTaskPtr bt);
     void processResult(BaseTaskPtr bt);
-    void respondAndDie(BaseTaskPtr bt, const std::string& s);
+    void respondAndDie(BaseTaskPtr bt, const std::string& s, bool keep_alive = false);
     void postponeTask(BaseTaskPtr bt);
 
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);

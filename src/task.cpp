@@ -54,7 +54,7 @@ void TaskManager::onTimer(BaseTaskPtr bt)
     Execute(bt);
 }
 
-void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s)
+void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s, bool keep_alive)
 {
     ClientTask* ct = dynamic_cast<ClientTask*>(bt.get());
     if(ct)
@@ -71,7 +71,8 @@ void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s)
     if (it != m_postponedTasks.end())
         m_postponedTasks.erase(it);
 
-    bt->finalize();
+    if(!keep_alive)
+        bt->finalize();
 }
 
 void TaskManager::schedule(PeriodicTask* pt)
@@ -96,6 +97,8 @@ void TaskManager::Execute(BaseTaskPtr bt)
     if(params.h3.pre_action && Status::Ok != bt->getLastStatus())
     {
         processResult(bt);
+        if(Status::Again == bt->getLastStatus())
+            Execute(bt);
         return;
     }
     if(params.h3.worker_action)
@@ -111,6 +114,8 @@ void TaskManager::Execute(BaseTaskPtr bt)
         //special case when worker_action is absent
         ExecutePostAction(bt, nullptr);
         processResult(bt);
+        if(Status::Again == bt->getLastStatus())
+            Execute(bt);
     }
 }
 
@@ -128,8 +133,18 @@ bool TaskManager::tryProcessReadyJob()
     if(!res) return res;
     ++m_cntJobDone;
     BaseTaskPtr bt = gj->getTask();
+    if(Status::Again == bt->getLastStatus())
+    {
+        processResult(bt);
+        Execute(bt);
+        return true;
+    }
     ExecutePostAction(bt, &*gj);
     processResult(bt);
+    if(Status::Again == bt->getLastStatus())
+    {
+        Execute(bt);
+    }
     return true;
 }
 
@@ -252,6 +267,10 @@ void TaskManager::processResult(BaseTaskPtr bt)
     {
         LOG_PRINT_RQS_BT(3,bt,"Sending request to CryptoNode");
         sendUpstream(bt);
+    } break;
+    case Status::Again:
+    {
+        respondAndDie(bt, bt->getOutput().data(), true);
     } break;
     case Status::Ok:
     {
