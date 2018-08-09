@@ -68,11 +68,12 @@ void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
 
 bool GraftServer::init(int argc, const char** argv)
 {
-    bool res = initConfigOption(argc, argv);
+    ConfigOpts configOpts;
+    bool res = initConfigOption(argc, argv, configOpts);
     if(!res) return false;
 
     assert(!m_looper);
-    m_looper = std::make_unique<Looper>(m_configOpts);
+    m_looper = std::make_unique<Looper>(configOpts);
     assert(m_looper);
 
     addGlobalCtxCleaner();
@@ -91,7 +92,7 @@ bool GraftServer::init(int argc, const char** argv)
 
 void GraftServer::serve()
 {
-    LOG_PRINT_L0("Starting server on: [http] " << m_configOpts.http_address << ", [coap] " << m_configOpts.coap_address);
+    LOG_PRINT_L0("Starting server on: [http] " << getCopts().http_address << ", [coap] " << getCopts().coap_address);
 
     m_looper->serve();
 }
@@ -199,7 +200,7 @@ void usage(const boost::program_options::options_description& desc)
     std::cout << desc << "\n" << sigmsg << "\n";
 }
 
-bool GraftServer::initConfigOption(int argc, const char** argv)
+bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& configOpts)
 {
     namespace po = boost::program_options;
 
@@ -254,19 +255,19 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     details::init_log(config, vm);
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
-    m_configOpts.http_address = server_conf.get<std::string>("http-address");
-    m_configOpts.coap_address = server_conf.get<std::string>("coap-address");
-    m_configOpts.timer_poll_interval_ms = server_conf.get<int>("timer-poll-interval-ms");
-    m_configOpts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
-    m_configOpts.workers_count = server_conf.get<int>("workers-count");
-    m_configOpts.worker_queue_len = server_conf.get<int>("worker-queue-len");
-    m_configOpts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
-    m_configOpts.data_dir = server_conf.get<std::string>("data-dir");
-    m_configOpts.lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
+    configOpts.http_address = server_conf.get<std::string>("http-address");
+    configOpts.coap_address = server_conf.get<std::string>("coap-address");
+    configOpts.timer_poll_interval_ms = server_conf.get<int>("timer-poll-interval-ms");
+    configOpts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
+    configOpts.workers_count = server_conf.get<int>("workers-count");
+    configOpts.worker_queue_len = server_conf.get<int>("worker-queue-len");
+    configOpts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
+    configOpts.data_dir = server_conf.get<std::string>("data-dir");
+    configOpts.lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
 
     const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
-    m_configOpts.cryptonode_rpc_address = cryptonode_conf.get<std::string>("rpc-address");
-    //m_configOpts.cryptonode_p2p_address = cryptonode_conf.get<std::string>("p2p-address");
+    configOpts.cryptonode_rpc_address = cryptonode_conf.get<std::string>("rpc-address");
+    //configOpts.cryptonode_p2p_address = cryptonode_conf.get<std::string>("p2p-address");
 
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
 
@@ -301,7 +302,7 @@ void GraftServer::addGlobalCtxCleaner()
     };
     m_looper->addPeriodicTask(
                 graft::Router::Handler3(nullptr, cleaner, nullptr),
-                std::chrono::milliseconds(m_configOpts.lru_timeout_ms)
+                std::chrono::milliseconds(m_looper->getCopts().lru_timeout_ms)
                 );
 }
 
