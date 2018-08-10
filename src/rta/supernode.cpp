@@ -10,6 +10,9 @@
 #include <iostream>
 #include <ctime>
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.supernode"
+
 using namespace std;
 
 namespace graft {
@@ -151,6 +154,7 @@ Supernode *Supernode::load(const string &wallet_path, const string &wallet_passw
 bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
 {
     // check if address match
+    MDEBUG("updating supernode from announce: " << announce.address);
     if (this->walletAddress() != announce.address) {
         LOG_ERROR("wrong address. this address: " << this->walletAddress() << ", announce address: " << announce.address);
         return false;
@@ -187,6 +191,7 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
     // TODO: check self amount vs announced amount
     setNetworkAddress(announce.network_address);
     m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
+    MDEBUG(this->walletAddress() <<  ": last update time updated to :" << m_last_update_time);
     return true;
 
 }
