@@ -72,12 +72,15 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/authorizertatxrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
+    ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
     )
@@ -118,11 +121,13 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/mnemonics
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/ringct
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/wallet
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/utils
     )
 
 set(CRYPTONODE_LIBS
     easylogging
     wallet
+    utils
     mnemonics
     ringct
     epee

@@ -9,10 +9,11 @@ int main(int argc, const char** argv)
         if(!res) return -2;
     } catch (const std::exception & e) {
         std::cerr << "Exception thrown: " << e.what() << std::endl;
+        throw;
         return -1;
-    }
-    catch(...) {
+    } catch(...) {
         std::cerr << "Exception of unknown type!\n";
+        throw;
         return -1;
     }
 

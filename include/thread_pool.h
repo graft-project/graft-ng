@@ -59,11 +59,13 @@ public:
             {
                 ctx.local.setError(e.what());
                 input_ref.reset();
+                throw;
             }
             catch(...)
             {
                 ctx.local.setError("unknown exception");
                 input_ref.reset();
+                throw;
             }
         }
         Watcher* save_m_watcher = m_watcher; //save m_watcher before move itself into resulting queue

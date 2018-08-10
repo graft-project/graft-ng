@@ -36,7 +36,8 @@
 #include <requests.h>
 #include <requests/getinforequest.h>
 #include <requests/sendrawtxrequest.h>
-
+#include <requests/authorizertatxrequest.h>
+#include <requests/sendtxauthresponserequest.h>
 
 
 // cryptonode includes
@@ -73,8 +74,11 @@ struct CryptonodeHandlersTest : public ::testing::Test
         looper = std::make_unique<Looper>(copts);
 
         Router router;
+
         graft::registerGetInfoRequest(router);
         graft::registerSendRawTxRequest(router);
+        graft::registerAuthorizeRtaTxRequests(router);
+
         httpcm = std::make_unique<HttpConnectionManager>();
         httpcm->addRouter(router);
         httpcm->enableRouting();
@@ -170,6 +174,8 @@ TEST_F(CryptonodeHandlersTest, getinfo)
 
     std::string response_s = send_request("http://localhost:8855/cryptonode/getinfo");
     EXPECT_FALSE(response_s.empty());
+    server_thread.join();
+    return;
 
     LOG_PRINT_L2("response: " << response_s);
     Input in; in.load(response_s);

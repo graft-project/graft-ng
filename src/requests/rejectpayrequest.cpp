@@ -23,7 +23,7 @@ Status rejectPayHandler(const Router::vars_t& vars, const graft::Input& input,
 void registerRejectPayRequest(Router &router)
 {
     Router::Handler3 h3(nullptr, rejectPayHandler, nullptr);
-    router.addRoute("/dapi/reject_pay", METHOD_POST, h3);
+    router.addRoute("/reject_pay", METHOD_POST, h3);
 }
 
 }

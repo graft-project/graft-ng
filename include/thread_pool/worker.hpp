@@ -167,6 +167,7 @@ inline void Worker<Task, Queue>::threadFunc(size_t id, Worker* steal_donor)
             catch(...)
             {
                 // suppress all exceptions
+                throw;
             }
         }
         else
