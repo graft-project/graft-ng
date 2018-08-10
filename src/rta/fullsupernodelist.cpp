@@ -119,11 +119,11 @@ std::future<void> ThreadPool::runAsync()
 const uint8_t FullSupernodeList::AUTH_SAMPLE_SIZE;
 const size_t FullSupernodeList::ITEMS_PER_TIER;
 const uint64_t FullSupernodeList::AUTH_SAMPLE_HASH_HEIGHT;
-
+const uint64_t FullSupernodeList::ANNOUNCE_TTL_SECONDS;
 
 FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
-    : m_testnet(testnet)
-    , m_daemon_address(daemon_address)
+    : m_daemon_address(daemon_address)
+    , m_testnet(testnet)
     , m_rpc_client(daemon_address, "", "")
     , m_tp(new utils::ThreadPool())
 {
@@ -342,7 +342,10 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
     {
         boost::shared_lock<boost::shared_mutex> readerLock(m_access);
         for (const auto &it : m_list) {
-            if (it.second->stakeAmount() >= tier_min_stake
+            size_t seconds_since_last_update =  size_t(std::time(nullptr)) - it.second->lastUpdateTime();
+            MDEBUG("supernode " << it.first << ", updates " << seconds_since_last_update << " seconds ago");
+            if (seconds_since_last_update < ANNOUNCE_TTL_SECONDS
+                    && it.second->stakeAmount() >= tier_min_stake
                     && it.second->stakeAmount() < tier_max_stake
                     && find_if(selected_items.begin(), selected_items.end(), [&](const auto &sn) {
                                return sn->walletAddress() == it.first;
