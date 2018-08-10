@@ -151,7 +151,7 @@ set(COMMON_LIBS
 find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread regex)
 
 if(NOT Boost_FOUND)
-    die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
+    message(FATAL_ERROR "Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
 elseif(Boost_FOUND)
     message(STATUS "Found Boost Version: ${Boost_VERSION}")
 endif()
