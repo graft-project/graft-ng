@@ -8,6 +8,7 @@
 #include <cryptonote_basic/cryptonote_basic_impl.h>
 #include <boost/filesystem.hpp>
 #include <iostream>
+#include <ctime>
 
 using namespace std;
 
@@ -16,6 +17,7 @@ namespace graft {
 Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
                      const string &seed_language)
     : m_wallet{new tools::wallet2(testnet)}
+    , m_last_update_time {0}
 {
     bool keys_file_exists;
     bool wallet_file_exists;
@@ -87,6 +89,7 @@ bool Supernode::importKeyImages(const vector<Supernode::SignedKeyImage> &key_ima
     uint64_t spent = 0, unspent = 0;
     try {
         m_wallet->import_key_images(key_images, spent, unspent);
+        m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
     } catch (const std::exception &e) {
         LOG_ERROR("wallet exception: " << e.what());
         return false;
@@ -183,6 +186,7 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
     }
     // TODO: check self amount vs announced amount
     setNetworkAddress(announce.network_address);
+    m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
     return true;
 
 }
@@ -342,6 +346,11 @@ bool Supernode::validateAddress(const string &address, bool testnet)
 {
     cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
     return address.size() > 0 && cryptonote::get_account_address_from_str(acc, testnet, address);
+}
+
+uint64_t Supernode::lastUpdateTime() const
+{
+    return m_last_update_time;
 }
 
 Supernode::Supernode(bool testnet)
