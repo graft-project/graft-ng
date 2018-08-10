@@ -1,6 +1,9 @@
 #include "rejectpayrequest.h"
 #include "requestdefines.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.rejectpayrequest"
+
 namespace graft {
 
 Status rejectPayHandler(const Router::vars_t& vars, const graft::Input& input,

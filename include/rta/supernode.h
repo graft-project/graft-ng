@@ -211,6 +211,12 @@ public:
 
     static bool validateAddress(const std::string &address, bool testnet);
 
+    /*!
+     * \brief lastUpdateTime - returns timestamp when supernode updated last time
+     * \return
+     */
+    uint64_t lastUpdateTime() const;
+
 private:
     Supernode(bool testnet = false);
 
@@ -219,6 +225,7 @@ private:
     // mutable tools::wallet2 m_wallet;
     mutable wallet2_ptr m_wallet;
     std::string    m_network_address;
+    uint64_t       m_last_update_time;
 };
 
 using SupernodePtr = boost::shared_ptr<Supernode>;

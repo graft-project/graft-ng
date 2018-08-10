@@ -36,6 +36,9 @@
 #include <boost/shared_ptr.hpp>
 
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.sendsupernodeannouncerequest"
+
 namespace {
     static const char * PATH = "/send_supernode_announce";
 
@@ -89,6 +92,7 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
 
         //  handle announce
         const SupernodeAnnounce & announce = req.params;
+        MINFO("received announce for address: " << announce.address);
 
         if (fsl->exists(announce.address)) {
             if (!fsl->get(announce.address)->updateFromAnnounce(announce)) {
@@ -101,11 +105,13 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
             // this task asynchronously
 
             std::string watchonly_wallets_path = ctx.global["watchonly_wallets_path"];
+            assert(!watchonly_wallets_path.empty());
             boost::filesystem::path p(watchonly_wallets_path);
             p /= announce.address;
             std::string wallet_path = p.string();
             std::string cryptonode_rpc_address = ctx.global["cryptonode_rpc_address"];
             bool testnet = ctx.global["testnet"];
+            MINFO("creating wallet in: " << p.string());
 
             auto worker = [announce, wallet_path, cryptonode_rpc_address, testnet, fsl]() {
                 Supernode * s  = Supernode::createFromAnnounce(wallet_path, announce,

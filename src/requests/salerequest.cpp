@@ -9,6 +9,9 @@
 
 #include <string>
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.salerequest"
+
 BOOST_HANA_ADAPT_STRUCT(graft::SaleData,
                         Address,
                         BlockNumber,

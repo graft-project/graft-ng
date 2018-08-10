@@ -8,6 +8,10 @@
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
+
+
 namespace consts {
    static const char * DATA_PATH = "supernode/data";
    static const char * STAKE_WALLET_PATH = "stake-wallet";
@@ -87,12 +91,14 @@ void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
 
 void GraftServer::initGlobalContext()
 {
+//  TODO: why context intialized second time here?
     graft::Context ctx(m_looper->getGcm());
     const ConfigOpts& copts = m_looper->getCopts();
+//  copts is empty here
 
-    ctx.global["testnet"] = copts.testnet;
-    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
-    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
+//    ctx.global["testnet"] = copts.testnet;
+//    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
+//    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
 }
 
 bool GraftServer::init(int argc, const char** argv)
@@ -108,10 +114,10 @@ bool GraftServer::init(int argc, const char** argv)
 
     prepareDataDirAndSupernodes();
 
+
     addGlobalCtxCleaner();
 
     startSupernodePeriodicTasks();
-
 
     for(auto& cm : m_conManagers)
     {
@@ -364,6 +370,7 @@ void GraftServer::prepareDataDirAndSupernodes()
     }
 
     std::cout << boost::filesystem::absolute(data_path).string() << std::endl;
+
     m_configOpts.watchonly_wallets_path = watchonly_wallets_path.string();
 
     // create supernode instance and put it into global context
@@ -377,10 +384,10 @@ void GraftServer::prepareDataDirAndSupernodes()
     supernode->setNetworkAddress(m_configOpts.http_address + "/dapi/v2.0");
 
     // create fullsupernode list instance and put it into global context
-    LOG_PRINT_L0("loading supernode list");
     graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
                 m_configOpts.cryptonode_rpc_address, m_configOpts.testnet);
     size_t found_wallets = 0;
+    MINFO("loading supernodes wallets from: " << watchonly_wallets_path.string());
     size_t loaded_wallets = fsl->loadFromDirThreaded(watchonly_wallets_path.string(), found_wallets);
 
     if (found_wallets != loaded_wallets) {
@@ -396,6 +403,9 @@ void GraftServer::prepareDataDirAndSupernodes()
     graft::Context ctx(m_looper->getGcm());
     ctx.global["supernode"] = supernode;
     ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
+    ctx.global["testnet"] = m_configOpts.testnet;
+    ctx.global["watchonly_wallets_path"] = m_configOpts.watchonly_wallets_path;
+    ctx.global["cryptonode_rpc_address"] = m_configOpts.cryptonode_rpc_address;
 }
 
 void GraftServer::intiConnectionManagers()

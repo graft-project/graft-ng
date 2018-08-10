@@ -2,6 +2,10 @@
 #include "requestdefines.h"
 #include "jsonrpc.h"
 
+
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.paystatusrequest"
+
 namespace graft {
 
 // json-rpc request from client
