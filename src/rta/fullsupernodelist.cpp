@@ -12,6 +12,8 @@
 #include <iostream>
 #include <future>
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.fullsupernodelist"
 
 namespace fs = boost::filesystem;
 using namespace boost::multiprecision;
@@ -343,8 +345,8 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
         boost::shared_lock<boost::shared_mutex> readerLock(m_access);
         for (const auto &it : m_list) {
             size_t seconds_since_last_update =  size_t(std::time(nullptr)) - it.second->lastUpdateTime();
-            MDEBUG("supernode " << it.first << ", updates " << seconds_since_last_update << " seconds ago");
-            if (seconds_since_last_update < ANNOUNCE_TTL_SECONDS
+            MDEBUG("supernode " << it.first << ", updated " << seconds_since_last_update << " seconds ago");
+            if (/*seconds_since_last_update < ANNOUNCE_TTL_SECONDS*/ true
                     && it.second->stakeAmount() >= tier_min_stake
                     && it.second->stakeAmount() < tier_max_stake
                     && find_if(selected_items.begin(), selected_items.end(), [&](const auto &sn) {
