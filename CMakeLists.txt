@@ -148,7 +148,7 @@ set(COMMON_LIBS
 #set(Boost_USE_MULTITHREADED ON)
 #set(Boost_USE_STATIC_RUNTIME ON)
 
-find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread regex)
+find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system chrono filesystem program_options serialization thread regex)
 
 if(NOT Boost_FOUND)
     die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
@@ -178,6 +178,7 @@ target_link_libraries(graft_server PRIVATE
     ${GS_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_CHRONO_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
