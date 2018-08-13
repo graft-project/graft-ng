@@ -35,6 +35,7 @@
 
 // cryptonode includes
 
+#include <requests/sendsupernodeannouncerequest.h>
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
 #include <misc_log_ex.h>
@@ -83,7 +84,7 @@ TEST_F(SupernodeTest, watchOnly)
 
     // create view only supernode
     crypto::secret_key viewkey = sn1.exportViewkey();
-    std::vector<Supernode::KeyImage> key_images;
+    std::vector<Supernode::SignedKeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
     boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
@@ -93,7 +94,8 @@ TEST_F(SupernodeTest, watchOnly)
 
     sn2->setDaemonAddress(daemon_addr);
     sn2->refresh();
-    sn2->importKeyImages(key_images);
+    uint64_t height = 0;
+    sn2->importKeyImages(key_images, height);
 
 
     EXPECT_TRUE(sn2->walletAddress() == sn1.walletAddress());
@@ -144,7 +146,7 @@ struct FullSupernodeListTest : public ::testing::Test
     FullSupernodeListTest()
     {
         mlog_configure("", true);
-        mlog_set_log_level(1);
+        mlog_set_log_level(2);
     }
 };
 
@@ -166,7 +168,7 @@ TEST_F(FullSupernodeListTest, basic)
 
     // create view only supernode
     crypto::secret_key viewkey = sn1.exportViewkey();
-    std::vector<Supernode::KeyImage> key_images;
+    std::vector<Supernode::SignedKeyImage> key_images;
     sn1.exportKeyImages(key_images);
 
     boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
@@ -180,7 +182,7 @@ TEST_F(FullSupernodeListTest, basic)
     EXPECT_EQ(sn_list.size(), 1);
 
     EXPECT_TRUE(sn_list.exists(sn1_viewonly->walletAddress()));
-    FullSupernodeList::SupernodePtr sn1_viewonly_ptr = sn_list.get(sn1_viewonly->walletAddress());
+    SupernodePtr sn1_viewonly_ptr = sn_list.get(sn1_viewonly->walletAddress());
 
     EXPECT_TRUE(sn1_viewonly_ptr.get() != nullptr);
     EXPECT_FALSE(sn_list.exists("123213123123"));
@@ -261,6 +263,8 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     FullSupernodeList sn_list(daemon_addr, testnet);
     size_t loadedItems = sn_list.loadFromDir(".");
 
+    ASSERT_TRUE(loadedItems > 0);
+
     std::string hash_str;
     sn_list.getBlockHash(2, hash_str);
 
@@ -303,13 +307,13 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     crypto::hash h;
     epee::string_tools::hex_to_pod(hash_str, h);
 
-    std::vector<FullSupernodeList::SupernodePtr> auth_sample;
-    std::vector<FullSupernodeList::SupernodePtr> auth_sample2;
+    std::vector<SupernodePtr> auth_sample;
+    std::vector<SupernodePtr> auth_sample2;
     // test if result is reproducable
     sn_list.buildAuthSample(2122, auth_sample);
     sn_list.buildAuthSample(2122, auth_sample2);
-    ASSERT_EQ(auth_sample.size(), 8);
-    ASSERT_EQ(auth_sample2.size(), 8);
+    ASSERT_EQ(auth_sample.size(), FullSupernodeList::AUTH_SAMPLE_SIZE);
+    ASSERT_EQ(auth_sample2.size(), FullSupernodeList::AUTH_SAMPLE_SIZE);
     std::vector<std::string> auth_sample1_addresses, auth_sample2_addresses;
 
     for (const auto & it: auth_sample) {
@@ -322,7 +326,7 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     EXPECT_TRUE(auth_sample1_addresses == auth_sample2_addresses);
 
     std::set<std::string> s1(auth_sample1_addresses.begin(), auth_sample1_addresses.end());
-    EXPECT_TRUE(s1.size() == 8);
+    EXPECT_TRUE(s1.size() == FullSupernodeList::AUTH_SAMPLE_SIZE);
 
     std::vector<std::string> tier1_as_addresses, tier2_as_addresses, tier3_as_addresses, tier4_as_addresses;
 
@@ -337,10 +341,10 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
             tier4_as_addresses.push_back(it->walletAddress());
     }
 
-    EXPECT_EQ(tier1_as_addresses.size(), 2);
-    EXPECT_EQ(tier2_as_addresses.size(), 2);
-    EXPECT_EQ(tier3_as_addresses.size(), 2);
-    EXPECT_EQ(tier4_as_addresses.size(), 2);
+    EXPECT_EQ(tier1_as_addresses.size(), FullSupernodeList::ITEMS_PER_TIER);
+    EXPECT_EQ(tier2_as_addresses.size(), FullSupernodeList::ITEMS_PER_TIER);
+    EXPECT_EQ(tier3_as_addresses.size(), FullSupernodeList::ITEMS_PER_TIER);
+    EXPECT_EQ(tier4_as_addresses.size(), FullSupernodeList::ITEMS_PER_TIER);
 
     // make sure we have correct addresses in auth sample;
     std::sort(tier1_as_addresses.begin(), tier1_as_addresses.end());
@@ -424,4 +428,42 @@ TEST_F(FullSupernodeListTest, threadPool)
             LOG_PRINT_L0("worker thread done");
         });
     }
+}
+
+
+TEST_F(FullSupernodeListTest, announce1)
+{
+
+    const std::string daemon_addr = "localhost:28881";
+    const bool testnet = true;
+    // create Supernode instance from existing wallet
+    Supernode sn ("supernode_tier1_1", "", daemon_addr, testnet);
+
+    sn.refresh();
+
+    ASSERT_TRUE(sn.stakeAmount() > 0);
+
+
+    boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+
+    FullSupernodeList fsl(daemon_addr, testnet);
+
+    SupernodeAnnounce announce;
+    ASSERT_TRUE(sn.prepareAnnounce(announce));
+
+
+    SupernodePtr watch_only_sn1 {Supernode::createFromAnnounce(temp_path.string(), announce,
+                                                                                 daemon_addr, testnet)};
+    ASSERT_TRUE(watch_only_sn1.get() != nullptr);
+    watch_only_sn1->refresh();
+    EXPECT_EQ(watch_only_sn1->stakeAmount(), sn.stakeAmount());
+
+    temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+
+    announce.secret_viewkey = "";
+
+    SupernodePtr watch_only_sn2 {Supernode::createFromAnnounce(temp_path.string(), announce,
+                                                                                 daemon_addr, testnet)};
+    ASSERT_TRUE(watch_only_sn2.get() == nullptr);
+
 }

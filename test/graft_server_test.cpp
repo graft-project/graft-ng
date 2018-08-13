@@ -1783,7 +1783,7 @@ TEST_F(GraftServerTestBase, DISABLED_getVersion)
     graft::registerForwardRequests(mainServer.router);
     mainServer.run();
 
-    graft::JsonRpcRequestEmpty request;
+    graft::JsonRpcRequestHeader request;
     request.method = "get_version";
 
     std::string post_data = request.toJson().GetString();

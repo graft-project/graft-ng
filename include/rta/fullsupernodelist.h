@@ -3,8 +3,8 @@
 
 #include "rta/supernode.h"
 #include "rta/DaemonRpcClient.h"
-#include <cryptonote_config.h>
 
+#include <cryptonote_config.h>
 #include <string>
 #include <vector>
 #include <future>
@@ -20,14 +20,14 @@ namespace utils {
     class ThreadPool;
 }
 
+
 class FullSupernodeList
 {
 public:
-    static const uint8_t  AUTH_SAMPLE_SIZE = 8;
-    static const size_t   ITEMS_PER_TIER = 2;
+    static const uint8_t  AUTH_SAMPLE_SIZE = 4;
+    static const size_t   ITEMS_PER_TIER = 1;
     static const uint64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
-
-    using SupernodePtr = boost::shared_ptr<Supernode>;
+    static const uint64_t ANNOUNCE_TTL_SECONDS = 60 * 2; // if more than ANNOUNCE_TTL_SECONDS passed from last annouce - supernode excluded from auth sample selection
 
     FullSupernodeList(const std::string &daemon_address, bool testnet = false);
     ~FullSupernodeList();
@@ -37,6 +37,8 @@ public:
      * @return true if item was added. false if already in list
      */
     bool add(Supernode * item);
+
+    bool add(SupernodePtr item);
     /*!
      * \brief loadFromDir - loads list from a directory. Directory should contain wallet key files
      * \param base_dir    - path to the base directory with wallet files
@@ -78,7 +80,7 @@ public:
      * \param key_images - list of key images
      * \return           - true of successfully updated
      */
-    bool update(const std::string &address, const std::vector<Supernode::KeyImage> &key_images);
+    bool update(const std::string &address, const std::vector<Supernode::SignedKeyImage> &key_images);
 
     /*!
      * \brief get      - returns supernode instance (pointer)
@@ -123,9 +125,11 @@ public:
      */
     size_t refreshedItems() const;
 
+
 private:
     void selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
-                              std::vector<SupernodePtr> &output);
+                              std::vector<SupernodePtr> &output, const std::vector<SupernodePtr> &selected_items,
+                              size_t max_items);
     bool bestSupernode(std::vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result);
 
     bool loadWallet(const std::string &wallet_path);
@@ -139,6 +143,9 @@ private:
     std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
 };
+
+using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;
+
 
 } // namespace graft
 

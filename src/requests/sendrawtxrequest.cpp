@@ -30,6 +30,9 @@
 #include "requestdefines.h"
 #include <misc_log_ex.h>
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.sendrawtxrequest"
+
 namespace graft {
 
 
@@ -74,15 +77,21 @@ bool createSendRawTxRequest(const tools::wallet2::pending_tx &ptx, SendRawTxRequ
 {
     assert(ptx.dests.size() == 1);
 
-    for (const auto &dest : ptx.dests) {
-        request.tx_info.amount += dest.amount;
-    }
+//    for (const auto &dest : ptx.dests) {
+//        request.tx_info.amount += dest.amount;
+//    }
 
-    request.tx_info.fee = ptx.fee;
-    request.tx_info.dest_address = cryptonote::get_account_address_as_str(true, ptx.dests[0].addr);
-    request.tx_info.id = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx.tx));
+//    request.tx_info.fee = ptx.fee;
+//    request.tx_info.dest_address = cryptonote::get_account_address_as_str(true, ptx.dests[0].addr);
+//    request.tx_info.id = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx.tx));
     request.tx_as_hex = epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx));
 
+    return true;
+}
+
+bool createSendRawTxRequest(const cryptonote::transaction &tx, SendRawTxRequest &request)
+{
+    request.tx_as_hex = epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(tx));
     return true;
 }
 

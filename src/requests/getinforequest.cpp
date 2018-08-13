@@ -25,10 +25,13 @@
 // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 #include "getinforequest.h"
 #include "requestdefines.h"
 #include <misc_log_ex.h>
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.getinforequest"
 
 namespace graft {
 
@@ -55,9 +58,12 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
     LOG_PRINT_L2(__FUNCTION__);
     if (!ctx.local.hasKey(__FUNCTION__)) {
         LOG_PRINT_L2("call from client, forwarding to cryptonode...");
-        JsonRpcRequestEmpty req;
+        JsonRpcRequestHeader req;
         req.method = "get_info";
         output.load(req);
+        output.path = "/json_rpc";
+        // alternatively, it could NOT be done like this:
+        // output.uri = ctx.global.getConfig()->cryptonode_rpc_address + "/json_rpc";
         ctx.local[__FUNCTION__] = true;
         return Status::Forward;
     } else {
@@ -74,19 +80,27 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
         Status status = ctx.local.getLastStatus();
         std::string error = ctx.local.getLastError();
 
-        GetInfoResponseJsonRpc resp = input.get<GetInfoResponseJsonRpc>();
+        LOG_PRINT_L2("status: " << (int)status);
+        LOG_PRINT_L2("error: " << error);
+        LOG_PRINT_L2("input.http code: " << input.resp_code);
+        LOG_PRINT_L2("input.http status msg: " << input.resp_status_msg);
 
-        if (resp.error.code == 0) { // no error, normal reply
-            GetInfoResponse ret;
-            ret = resp.result;
-            output.load(ret);
-            return Status::Ok;
-        } else { // error response
+        GetInfoResponseJsonRpc resp;
+        bool parsed = input.get<GetInfoResponseJsonRpc>(resp);
+
+        if (!parsed || resp.error.code != 0) {
+            LOG_PRINT_L2("error response");
             ErrorResponse ret;
             ret.code = ERROR_INTERNAL_ERROR;
             ret.message = resp.error.message;
             output.load(ret);
             return Status::Error;
+        } else {
+            LOG_PRINT_L2("normal reply");
+            GetInfoResponse ret;
+            ret = resp.result;
+            output.load(ret);
+            return Status::Ok;
         }
     }
 }
