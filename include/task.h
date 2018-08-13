@@ -107,9 +107,16 @@ struct ConfigOpts
     int worker_queue_len;
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
-    // data directory - where
+    // data directory - base directory where supernode stake wallet and other supernodes wallets are located
     std::string data_dir;
     int lru_timeout_ms;
+    // testnet flag
+    bool testnet;
+    std::string stake_wallet_name;
+    size_t stake_wallet_refresh_interval_ms;
+    // runtime parameters.
+    // path to watch-only wallets (supernodes)
+    std::string watchonly_wallets_path;
 };
 
 class BaseTask : public SelfHolder<BaseTask>
@@ -214,7 +221,7 @@ public:
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
     GlobalContextMap& getGcm() { return m_gcm; }
-    const ConfigOpts& getCopts() const { return m_copts; }
+    ConfigOpts& getCopts() { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
 
     static TaskManager* from(mg_mgr* mgr);

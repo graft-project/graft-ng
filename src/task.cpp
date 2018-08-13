@@ -2,6 +2,9 @@
 #include "connection.h"
 #include "router.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
+
 namespace graft {
 
 thread_local bool TaskManager::io_thread = false;
@@ -154,11 +157,13 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
     {
         bt->setError(e.what());
         params.input.reset();
+        throw;
     }
     catch(...)
     {
         bt->setError("unknown exception");
         params.input.reset();
+        throw;
     }
     LOG_PRINT_RQS_BT(3,bt,"pre_action completed with result " << bt->getStrStatus());
 }
@@ -190,11 +195,13 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     {
         bt->setError(e.what());
         params.input.reset();
+        throw;
     }
     catch(...)
     {
         bt->setError("unknown exception");
         params.input.reset();
+        throw;
     }
     LOG_PRINT_RQS_BT(3,bt,"post_action completed with result " << bt->getStrStatus());
 }
@@ -411,8 +418,12 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     //here you can send a job to the thread pool or send response to client
     //uss will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
-        LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered ");
-        if(!bt->getSelf()) return; //it is possible that a client has closed connection already
+        LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered : '" << bt->getInput().body << "'");
+        if(!bt->getSelf())
+        {//it is possible that a client has closed connection already
+            ++m_cntUpstreamSenderDone;
+            return;
+        }
         Execute(bt);
     }
     ++m_cntUpstreamSenderDone;

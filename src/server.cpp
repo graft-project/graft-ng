@@ -3,6 +3,29 @@
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include "requests.h"
+#include "requestdefines.h"
+#include "requests/sendsupernodeannouncerequest.h"
+#include "rta/supernode.h"
+#include "rta/fullsupernodelist.h"
+
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
+
+
+namespace consts {
+   static const char * DATA_PATH = "supernode/data";
+   static const char * STAKE_WALLET_PATH = "stake-wallet";
+   static const char * WATCHONLY_WALLET_PATH = "stake-wallet";
+   static const size_t DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS = 5 * 1000;
+}
+
+namespace tools {
+    // TODO: make it crossplatform
+    std::string getHomeDir()
+    {
+        return std::string(getenv("HOME"));
+    }
+}
 
 namespace graft {
 
@@ -31,14 +54,14 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
         std::cout << "blah-blah" << std::endl;
         return Status::Ok;
     };
-    Router::Handler3 h3_test1(http_test, nullptr, nullptr);
+    // Router::Handler3 h3_test1(http_test, nullptr, nullptr);
 
-    dapi_router.addRoute("/test", METHOD_GET, h3_test1);
+    // dapi_router.addRoute("/test", METHOD_GET, h3_test1);
+    // httpcm.addRouter(dapi_router);
+
+    // Router http_router;
+    graft::registerRTARequests(dapi_router);
     httpcm.addRouter(dapi_router);
-
-    Router http_router;
-    graft::registerRTARequests(http_router);
-    httpcm.addRouter(http_router);
 
     Router forward_router;
     graft::registerForwardRequests(forward_router);
@@ -66,6 +89,18 @@ void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
     coapcm.addRouter(coap_router);
 }
 
+void GraftServer::initGlobalContext()
+{
+//  TODO: why context intialized second time here?
+    graft::Context ctx(m_looper->getGcm());
+    const ConfigOpts& copts = m_looper->getCopts();
+//  copts is empty here
+
+//    ctx.global["testnet"] = copts.testnet;
+//    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
+//    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
+}
+
 bool GraftServer::init(int argc, const char** argv)
 {
     ConfigOpts configOpts;
@@ -76,10 +111,14 @@ bool GraftServer::init(int argc, const char** argv)
     m_looper = std::make_unique<Looper>(configOpts);
     assert(m_looper);
 
-    addGlobalCtxCleaner();
-
     intiConnectionManagers();
 
+    prepareDataDirAndSupernodes();
+
+
+    addGlobalCtxCleaner();
+
+    startSupernodePeriodicTasks();
 
     for(auto& cm : m_conManagers)
     {
@@ -87,6 +126,9 @@ bool GraftServer::init(int argc, const char** argv)
         checkRoutes(*cm);
         cm->bind(*m_looper);
     }
+
+    initGlobalContext();
+
     return true;
 }
 
@@ -245,14 +287,30 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     //  address <IP>:<PORT>
     //  workers-count <integer>
     //  worker-queue-len <integer>
+    //  stake-wallet <string> # stake wallet filename (no path)
     // [cryptonode]
     //  rpc-address <IP>:<PORT>
     //  p2p-address <IP>:<PORT> #maybe
     // [upstream]
     //  uri_name=uri_value #pairs for uri substitution
     //
+    // data directory structure
+    //        .
+    //        ├── stake-wallet
+    //        │   ├── stake-wallet
+    //        │   ├── stake-wallet.address.txt
+    //        │   └── stake-wallet.keys
+    //        └── watch-only-wallets
+    //            ├── supernode_tier1_1
+    //            ├── supernode_tier1_1.address.txt
+    //            ├── supernode_tier1_1.keys
+    //            ................................
+    //            ├── supernode_tier1_2
+    //            ├── supernode_tier1_2.address.txt
+    //            └── supernode_tier1_2.keys
 
     details::init_log(config, vm);
+
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
     configOpts.http_address = server_conf.get<std::string>("http-address");
@@ -264,13 +322,19 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
     configOpts.data_dir = server_conf.get<std::string>("data-dir");
     configOpts.lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
+    configOpts.testnet = server_conf.get<bool>("testnet", false);
+    configOpts.stake_wallet_name = server_conf.get<string>("stake-wallet-name", "stake-wallet");
+    configOpts.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
+                                                                      consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
+    if (configOpts.data_dir.empty()) {
+        boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
+        p /= ".graft/";
+        p /= consts::DATA_PATH;
+        configOpts.data_dir = p.string();
+    }
 
     const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
     configOpts.cryptonode_rpc_address = cryptonode_conf.get<std::string>("rpc-address");
-    //configOpts.cryptonode_p2p_address = cryptonode_conf.get<std::string>("p2p-address");
-
-    const boost::property_tree::ptree& log_conf = config.get_child("logging");
-
     const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
     graft::OutHttp::uri_substitutions.clear();
     std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf](auto it)
@@ -279,7 +343,69 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         std::string val(uri_subst_conf.get<std::string>(name));
         graft::OutHttp::uri_substitutions.insert({std::move(name), std::move(val)});
     });
+
     return true;
+}
+
+void GraftServer::prepareDataDirAndSupernodes()
+{
+    // create data directory if not exists
+    boost::filesystem::path data_path(getCopts().data_dir);
+    boost::filesystem::path stake_wallet_path = data_path / "stake-wallet";
+    boost::filesystem::path watchonly_wallets_path = data_path / "watch-only-wallets";
+
+    if (!boost::filesystem::exists(data_path)) {
+        boost::system::error_code ec;
+        if (!boost::filesystem::create_directories(data_path, ec)) {
+            throw std::runtime_error(ec.message());
+        }
+
+        if (!boost::filesystem::create_directories(stake_wallet_path, ec)) {
+            throw std::runtime_error(ec.message());
+        }
+
+        if (!boost::filesystem::create_directories(watchonly_wallets_path, ec)) {
+            throw std::runtime_error(ec.message());
+        }
+    }
+
+    std::cout << boost::filesystem::absolute(data_path).string() << std::endl;
+
+    getCopts().watchonly_wallets_path = watchonly_wallets_path.string();
+
+    // create supernode instance and put it into global context
+    graft::SupernodePtr supernode = boost::make_shared<graft::Supernode>(
+                    (stake_wallet_path / getCopts().stake_wallet_name).string(),
+                    "", // TODO
+                    getCopts().cryptonode_rpc_address,
+                    getCopts().testnet
+                    );
+
+    supernode->setNetworkAddress(getCopts().http_address + "/dapi/v2.0");
+
+    // create fullsupernode list instance and put it into global context
+    graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
+                getCopts().cryptonode_rpc_address, getCopts().testnet);
+    size_t found_wallets = 0;
+    MINFO("loading supernodes wallets from: " << watchonly_wallets_path.string());
+    size_t loaded_wallets = fsl->loadFromDirThreaded(watchonly_wallets_path.string(), found_wallets);
+
+    if (found_wallets != loaded_wallets) {
+        LOG_ERROR("found wallets: " << found_wallets << ", loaded wallets: " << loaded_wallets);
+    }
+    LOG_PRINT_L0("supernode list loaded");
+
+    // add our supernode as well, it wont be added from announce;
+    fsl->add(supernode);
+
+    //put fsl into global context
+    assert(m_looper);
+    graft::Context ctx(m_looper->getGcm());
+    ctx.global["supernode"] = supernode;
+    ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
+    ctx.global["testnet"] = getCopts().testnet;
+    ctx.global["watchonly_wallets_path"] = getCopts().watchonly_wallets_path;
+    ctx.global["cryptonode_rpc_address"] = getCopts().cryptonode_rpc_address;
 }
 
 void GraftServer::intiConnectionManagers()
@@ -303,6 +429,76 @@ void GraftServer::addGlobalCtxCleaner()
     m_looper->addPeriodicTask(
                 graft::Router::Handler3(nullptr, cleaner, nullptr),
                 std::chrono::milliseconds(m_looper->getCopts().lru_timeout_ms)
+                );
+}
+
+void GraftServer::startSupernodePeriodicTasks()
+{
+    // update supernode every interval_ms
+    auto supernodeRefreshWorker = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+            graft::Output& output)->graft::Status
+    {
+
+        try {
+            switch (ctx.local.getLastStatus()) {
+            case graft::Status::Forward: // reply from cryptonode
+                return graft::Status::Ok;
+            case graft::Status::Ok:
+            case graft::Status::None:
+                graft::SupernodePtr supernode;
+
+                LOG_PRINT_L1("supernodeRefreshWorker");
+                LOG_PRINT_L1("input: " << input.data());
+                LOG_PRINT_L1("output: " << output.data());
+                LOG_PRINT_L1("last status: " << (int)ctx.local.getLastStatus());
+
+                supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
+
+
+                if (!supernode.get()) {
+                    LOG_ERROR("supernode is not set in global context");
+                    return graft::Status::Error;
+                }
+
+                LOG_PRINT_L0("about to refresh supernode: " << supernode->walletAddress());
+
+                if (!supernode->refresh()) {
+                    return graft::Status::Ok;
+                }
+
+                LOG_PRINT_L0("supernode refresh done, stake amount: " << supernode->stakeAmount());
+
+                graft::SendSupernodeAnnounceJsonRpcRequest req;
+                if (!supernode->prepareAnnounce(req.params)) {
+                    LOG_ERROR("Can't prepare announce");
+                    return graft::Status::Ok;
+                }
+
+                req.method = "send_supernode_announce";
+                req.id = 0;
+                output.load(req);
+
+                output.path = "/json_rpc/rta";
+                // DBG: without cryptonode
+                // output.path = "/dapi/v2.0/send_supernode_announce";
+
+                LOG_PRINT_L0("Calling cryptonode: sending announce");
+                return graft::Status::Forward;
+            }
+        } catch (std::exception &e) {
+            LOG_ERROR("Exception thrown: " << e.what());
+        } catch (...) {
+            LOG_ERROR("Unknown exception thrown");
+        }
+        return Status::Ok;
+    };
+
+    size_t initial_interval_ms = 1000;
+    assert(m_looper);
+    m_looper->addPeriodicTask(
+                graft::Router::Handler3(nullptr, supernodeRefreshWorker, nullptr),
+                std::chrono::milliseconds(getCopts().stake_wallet_refresh_interval_ms),
+                std::chrono::milliseconds(initial_interval_ms)
                 );
 }
 

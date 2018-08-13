@@ -1,5 +1,8 @@
 #include "healthcheckrequest.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.healthcheckrequest"
+
 namespace graft {
 
 Status healthcheckHandler(const Router::vars_t& vars, const graft::Input& input,

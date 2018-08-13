@@ -36,7 +36,6 @@
 namespace graft {
 
 
-
 /*!
  * \brief   defines new stucture for json-rpc request
  * \param   Name - name of new type to be defined
@@ -45,17 +44,17 @@ namespace graft {
  */
 #define GRAFT_DEFINE_JSON_RPC_REQUEST(Name, Param)              \
     GRAFT_DEFINE_IO_STRUCT_INITED(Name,                         \
-        (std::string,         json,     "2.0"),                 \
+        (std::string,         jsonrpc,     "2.0"),              \
         (std::string,         method,   ""),                    \
         (uint64_t,            id,       0),                     \
-        (std::vector<Param>,  params, std::vector<Param>())    \
+        (Param,               params,  Param())                 \
     );
 
 /*!
- *  JsonRpcRequestEmpty - Generic JsonRPC request without params
+ *  JsonRpcRequestHeader - Helper structure to parse JSON-RPC request and get method/id fiends
  */
-GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcRequestEmpty,     \
-     (std::string,         json,     "2.0"),           \
+GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcRequestHeader,    \
+     (std::string,         jsonrpc,     "2.0"),        \
      (std::string,         method,   ""),              \
      (uint64_t,            id,       0)                \
 );
@@ -69,11 +68,11 @@ GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcRequestEmpty,     \
  * \param params - vector of params
  */
 template <typename T, typename P>
-void initJsonRpcRequest(T &t, uint64_t id, const std::string &method, const std::vector<P> &params)
+void initJsonRpcRequest(T &t, uint64_t id, const std::string &method, const P &params)
 {
     t.id = id;
     t.method = method;
-    t.json = "2.0";
+    t.jsonrpc = "2.0";
     t.params = std::move(params);
 }
 GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcError,
@@ -88,11 +87,11 @@ GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcError,
  *          Type must be defined with GRAFT_DEFINE_IO_STRUCT
  */
 #define GRAFT_DEFINE_JSON_RPC_RESPONSE(Name, Result) \
-    GRAFT_DEFINE_IO_STRUCT(Name,          \
-        (std::string,         json),      \
-        (uint64_t,            id),        \
-        (Result,              result),    \
-        (JsonRpcError,        error)      \
+    GRAFT_DEFINE_IO_STRUCT_INITED(Name,                    \
+        (std::string,         jsonrpc, "2.0"),             \
+        (uint64_t,            id,          0),             \
+        (Result,              result,  Result()),          \
+        (JsonRpcError,        error,   JsonRpcError())     \
     );
 
 /*!
@@ -102,17 +101,17 @@ GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcError,
  *          Type must be defined with GRAFT_DEFINE_IO_STRUCT
  */
 #define GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(Name, Result) \
-    GRAFT_DEFINE_IO_STRUCT(Name,          \
-        (std::string,         json),      \
-        (uint64_t,            id),        \
-        (Result,              result)    \
+    GRAFT_DEFINE_IO_STRUCT_INITED(Name,               \
+        (std::string,         jsonrpc,  "2.0"),       \
+        (uint64_t,            id,          0),        \
+        (Result,              result,      Result())  \
     );
 
 
-GRAFT_DEFINE_IO_STRUCT(JsonRpcErrorResponse, \
-        (std::string,         json),      \
-        (uint64_t,            id),        \
-        (JsonRpcError,        error)     \
+GRAFT_DEFINE_IO_STRUCT_INITED(JsonRpcErrorResponse,      \
+        (std::string,         jsonrpc, "2.0"),           \
+        (uint64_t,            id,         0 ),           \
+        (JsonRpcError,        error,   JsonRpcError())   \
     );
 }
 
