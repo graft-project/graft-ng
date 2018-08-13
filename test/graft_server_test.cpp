@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "context.h"
-#include "graft_manager.h"
+#include "connection.h"
+#include "mongoosex.h"
 #include "requests.h"
 #include "salerequest.h"
 #include "salestatusrequest.h"
@@ -12,6 +13,8 @@
 #include "requestdefines.h"
 #include "inout.h"
 #include <deque>
+#include <jsonrpc.h>
+#include <boost/uuid/uuid_io.hpp>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -69,7 +72,7 @@ TEST(InOut, common)
         \"unlock_time\": 1\
     }";
     //remove all spaces
-    s.erase(remove_if(s.begin(), s.end(), isspace), s.end());
+    s.erase(std::remove_if(s.begin(), s.end(), isspace), s.end());
     EXPECT_EQ(s_out, s);
 }
 
@@ -178,6 +181,24 @@ TEST(InOut, makeUri)
         output.uri = "$my_path";
         std::string url = output.makeUri("");
         EXPECT_EQ(url, "https://mysite.com:4321/endpoint?q=1&n=2");
+    }
+    {
+        graft::Output output;
+        std::string default_uri = "localhost:28881";
+        output.path = "json_rpc";
+        std::string url = output.makeUri(default_uri);
+        EXPECT_EQ(url, "localhost:28881/json_rpc");
+
+        output.path = "/json_rpc";
+        output.proto = "https";
+        url = output.makeUri(default_uri);
+        EXPECT_EQ(url, "https://localhost:28881/json_rpc");
+
+        output.path = "/json_rpc";
+        output.proto = "https";
+        output.uri = "http://aaa.bbb:12345/something";
+        url = output.makeUri(default_uri);
+        EXPECT_EQ(url, "https://aaa.bbb:12345/json_rpc");
     }
 }
 
@@ -306,7 +327,7 @@ TEST(Context, multithreaded)
     std::atomic<uint64_t> g_count(0);
     std::function<bool(uint64_t&)> f = [](uint64_t& v)->bool { ++v; return true; };
     int pass_cnt;
-    {//get pass count so that overall will take about 100 ms
+    {//get pass count so that overall will take about 1000 ms
         graft::Context ctx(m);
         auto begin = std::chrono::high_resolution_clock::now();
         std::for_each(v_keys.begin(), v_keys.end(), [&] (auto& key)
@@ -315,12 +336,16 @@ TEST(Context, multithreaded)
             ++g_count;
         });
         auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::high_resolution_clock::duration d = std::chrono::milliseconds(100);
+        std::chrono::high_resolution_clock::duration d = std::chrono::milliseconds(1000);
         pass_cnt = d.count() / (end - begin).count();
     }
 
+    EXPECT_LE(2, pass_cnt);
+
+    const int th_count = 4;
+
     //forward and backward passes
-    bool stop = false;
+    std::atomic_int stop(0);
 
     auto f_f = [&] ()
     {
@@ -330,12 +355,12 @@ TEST(Context, multithreaded)
         {
             std::for_each(v_keys.begin(), v_keys.end(), [&] (auto& key)
             {
-                while(!stop && cnt == g_count);
+                while( stop < th_count - 1 && cnt == g_count);
                 ctx.global.apply(key, f);
                 cnt = ++g_count;
             });
         }
-        stop = true;
+        ++stop;
     };
     auto f_b = [&] ()
     {
@@ -345,26 +370,32 @@ TEST(Context, multithreaded)
         {
             std::for_each(v_keys.rbegin(), v_keys.rend(), [&] (auto& key)
             {
-                while(!stop && cnt == g_count);
+                while( stop < th_count - 1 && cnt == g_count);
                 ctx.global.apply(key, f);
                 cnt = ++g_count;
             });
         }
-        stop = true;
+        ++stop;
     };
 
-    std::thread tf(f_f);
-    std::thread tb(f_b);
+    std::thread ths[th_count];
+    for(int i=0; i < th_count; ++i)
+    {
+        ths[i] = (i%2)? std::thread(f_f) : std::thread(f_b);
+    }
 
     int main_count = 0;
-    while( !stop )
+    while( stop < th_count )
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         ++g_count;
         ++main_count;
     }
-    tf.join();
-    tb.join();
+
+    for(int i=0; i < th_count; ++i)
+    {
+        ths[i].join();
+    }
 
     uint64_t sum = 0;
     {
@@ -379,147 +410,157 @@ TEST(Context, multithreaded)
 }
 
 /////////////////////////////////
-// GraftServerTest fixture
+// GraftServerTestBase fixture
 
-class GraftServerTest : public ::testing::Test
+class GraftServerTestBase : public ::testing::Test
 {
-public:
-    static std::string iocheck;
-    static bool skip_ctx_check;
-    static std::deque<graft::Status> res_que_action;
-    static graft::Router::Handler3 h3_test;
-    static std::thread t_CN;
-    static std::thread t_srv;
-    static bool crypton_ready;
-    static graft::Manager* pmanager;
-    static std::atomic<graft::GraftServer*> pserver;
-
-    const std::string uri_base = "http://localhost:9084/root/";
-    const std::string dapi_url = "http://localhost:9084/dapi";
-
-private:
+protected:
     //Server to simulate CryptoNode (its object is created in non-main thread)
     class TempCryptoNodeServer
     {
     public:
-        static void run()
+        std::string port = "1234";
+        int connect_timeout_ms = 1000;
+        int poll_timeout_ms = 1000;
+    public:
+        void run()
+        {
+            ready = false;
+            stop = false;
+            th = std::thread([this]{ x_run(); });
+            while(!ready)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        }
+        void stop_and_wait_for()
+        {
+            stop = true;
+            th.join();
+        }
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) = 0;
+        virtual void onClose() { }
+    private:
+        std::thread th;
+        std::atomic_bool ready;
+        std::atomic_bool stop;
+    private:
+        void x_run()
         {
             mg_mgr mgr;
-            mg_mgr_init(&mgr, NULL, 0);
-            mg_connection *nc = mg_bind(&mgr, "1234", ev_handler_http);
+            mg_mgr_init(&mgr, this, 0);
+            mg_connection *nc = mg_bind(&mgr, port.c_str(), ev_handler_http_s);
             mg_set_protocol_http_websocket(nc);
             ready = true;
             for (;;) {
-                mg_mgr_poll(&mgr, 1000);
+                mg_mgr_poll(&mgr, poll_timeout_ms);
                 if(stop) break;
             }
             mg_mgr_free(&mgr);
         }
     private:
-        static void ev_handler_empty(mg_connection *client, int ev, void *ev_data)
+        static void ev_handler_empty_s(mg_connection *client, int ev, void *ev_data)
         {
         }
-        static void ev_handler_http(mg_connection *client, int ev, void *ev_data)
+        static void ev_handler_http_s(mg_connection *client, int ev, void *ev_data)
         {
-            switch (ev)
+            TempCryptoNodeServer* This = static_cast<TempCryptoNodeServer*>(client->mgr->user_data);
+            assert(dynamic_cast<TempCryptoNodeServer*>(This));
+            This->ev_handler_http(client, ev, ev_data);
+        }
+        void ev_handler_http(mg_connection *client, int ev, void *ev_data)
+        {
+            switch(ev)
             {
             case MG_EV_HTTP_REQUEST:
             {
                 mg_set_timer(client, 0);
-
                 struct http_message *hm = (struct http_message *) ev_data;
-                std::string data(hm->uri.p, hm->uri.len);
-                graft::Context ctx(pmanager->get_gcm());
-                int method = ctx.global["method"];
-                if(method == METHOD_GET)
-                {
-                    std::string s = ctx.global["requestPath"];
-                    EXPECT_EQ(s, iocheck);
-                    iocheck = s += '4'; skip_ctx_check = true;
-                    ctx.global["requestPath"] = s;
-                }
-                else
-                {
-                    data = std::string(hm->body.p, hm->body.len);
-                    graft::Input in; in.load(data.c_str(), data.size());
-                    Sstr ss = in.get<Sstr>();
-                    EXPECT_EQ(ss.s, iocheck);
-                    iocheck = ss.s += '4'; skip_ctx_check = true;
-                    graft::Output out; out.load(ss);
-                    auto pair = out.get();
-                    data = std::string(pair.first, pair.second);
-                }
-                bool doTimeout = ctx.global.hasKey("doCryptonTimeoutOnce") && (int)ctx.global["doCryptonTimeoutOnce"];
-                if(doTimeout)
-                {
-                    ctx.global["doCryptonTimeoutOnce"] = (int)false;
-                    crypton_ready = false;
-                    break;
-                }
-                mg_send_head(client, 200, data.size(), "Content-Type: application/json\r\nConnection: close");
+                int status_code = 200;
+                std::string headers, data;
+                bool res = onHttpRequest(hm, status_code, headers, data);
+                if(!res) break;
+                mg_send_head(client, status_code, data.size(), headers.c_str());
                 mg_send(client, data.c_str(), data.size());
                 client->flags |= MG_F_SEND_AND_CLOSE;
             } break;
             case MG_EV_CLOSE:
             {
-                crypton_ready = true;
-             } break;
+                onClose();
+            } break;
             case MG_EV_ACCEPT:
             {
-                mg_set_timer(client, mg_time() + 1000);
+                mg_set_timer(client, mg_time() + connect_timeout_ms);
             } break;
             case MG_EV_TIMER:
             {
                 mg_set_timer(client, 0);
-                client->handler = ev_handler_empty; //without this we will get MG_EV_HTTP_REQUEST
+                client->handler = ev_handler_empty_s; //without this we will get MG_EV_HTTP_REQUEST
                 client->flags |= MG_F_CLOSE_IMMEDIATELY;
              } break;
             default:
                 break;
             }
         }
-    public:
-        static bool ready;
-        static bool stop;
     };
 
-    //prepare and run GraftServer (it is called in non-main thread)
-    static void run_server()
+public:
+    class MainServer
     {
-        assert(h3_test.worker_action);
-        graft::Router http_router;
+    public:
+        graft::ConfigOpts copts;
+        graft::Router router;
+    public:
+        MainServer()
         {
-            http_router.addRoute("/root/r{id:\\d+}", METHOD_GET, h3_test);
-            http_router.addRoute("/root/r{id:\\d+}", METHOD_POST, h3_test);
-            http_router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, h3_test);
-            graft::registerRTARequests(http_router);
+            copts.http_address = "127.0.0.1:9084";
+            copts.coap_address = "127.0.0.1:9086";
+            copts.http_connection_timeout = 1;
+            copts.upstream_request_timeout = 1;
+            copts.workers_count = 0;
+            copts.worker_queue_len = 0;
+            copts.cryptonode_rpc_address = "127.0.0.1:1234";
+            copts.timer_poll_interval_ms = 50;
         }
+    public:
+        void run()
+        {
+            th = std::thread([this]{ x_run(); });
+            while(!plooper || !plooper.load()->ready())
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        }
+        void stop_and_wait_for()
+        {
+            plooper.load()->stop();
+            th.join();
+        }
+    public:
+        std::atomic<graft::Looper*> plooper{nullptr};
+        std::atomic<graft::HttpConnectionManager*> phttpcm{nullptr};
+    private:
+        std::thread th;
+    private:
+        void x_run()
+        {
+            graft::Looper looper(copts);
+            plooper = &looper;
+            graft::HttpConnectionManager httpcm;
+            phttpcm = &httpcm;
 
-        graft::ServerOpts sopts;
-        sopts.http_address = "127.0.0.1:9084";
-        sopts.coap_address = "127.0.0.1:9086";
-        sopts.http_connection_timeout = .001;
-        sopts.upstream_request_timeout = .005;
-        sopts.workers_count = 0;
-        sopts.worker_queue_len = 0;
-        sopts.cryptonode_rpc_address = "127.0.0.1:1234";
-        sopts.timer_poll_interval_ms = 50;
+            httpcm.addRouter(router);
+            bool res = httpcm.enableRouting();
+            EXPECT_EQ(res, true);
 
-        graft::Manager manager(sopts);
-        pmanager = &manager;
-
-        manager.addRouter(http_router);
-        bool res = manager.enableRouting();
-        EXPECT_EQ(res, true);
-
-        graft::GraftServer gs;
-        pserver = &gs;
-        gs.serve(manager.get_mg_mgr());
-    }
-
+            httpcm.bind(looper);
+            looper.serve();
+        }
+    };
 public:
     //http client (its objects are created in the main thread)
-    class Client : public graft::StaticMongooseHandler<Client>
+    class Client
     {
     public:
         Client()
@@ -527,17 +568,30 @@ public:
             mg_mgr_init(&m_mgr, nullptr, nullptr);
         }
 
-        void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string())
+        void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string(), int timeout_ms = 0)
         {
             m_exit = false; m_closed = false;
-            client = mg_connect_http(&m_mgr, static_ev_handler, url.c_str(),
+            client = mg_connect_http(&m_mgr, graft::static_ev_handler<Client>, url.c_str(),
                                      (extra_headers.empty())? nullptr : extra_headers.c_str(),
                                      (post_data.empty())? nullptr : post_data.c_str()); //last nullptr means GET
             assert(client);
             client->user_data = this;
+
+            int poll_time_ms = 1000;
+            if(0 < timeout_ms)
+            {
+                poll_time_ms = timeout_ms/4;
+                if(poll_time_ms == 0) ++poll_time_ms;
+            }
+            auto end = std::chrono::steady_clock::now()
+                    + std::chrono::duration<int,std::milli>(timeout_ms);
             while(!m_exit)
             {
-                mg_mgr_poll(&m_mgr, 1000);
+                mg_mgr_poll(&m_mgr, poll_time_ms);
+                if(0 < timeout_ms && end <= std::chrono::steady_clock::now())
+                {
+                    client->flags |= MG_F_CLOSE_IMMEDIATELY;
+                }
             }
         }
 
@@ -557,8 +611,7 @@ public:
         {
             mg_mgr_free(&m_mgr);
         }
-    private:
-        friend class graft::StaticMongooseHandler<Client>;
+    public:
         void ev_handler(mg_connection* client, int ev, void *ev_data)
         {
             assert(client == this->client);
@@ -581,7 +634,7 @@ public:
                 m_resp_code = hm->resp_code;
                 m_body = std::string(hm->body.p, hm->body.len);
                 client->flags |= MG_F_CLOSE_IMMEDIATELY;
-                client->handler = static_empty_ev_handler;
+                client->handler = graft::static_empty_ev_handler;
                 m_exit = true;
             } break;
             case MG_EV_RECV:
@@ -592,7 +645,7 @@ public:
             } break;
             case MG_EV_CLOSE:
             {
-                client->handler = static_empty_ev_handler;
+                client->handler = graft::static_empty_ev_handler;
                 m_closed = true;
                 m_exit = true;
             } break;
@@ -608,6 +661,63 @@ public:
         std::string m_message;
     };
 
+protected:
+    virtual void SetUp() override
+    { }
+    virtual void TearDown() override
+    { }
+
+};
+
+/////////////////////////////////
+// GraftServerCommonTest fixture
+
+class GraftServerCommonTest : public GraftServerTestBase
+{
+private:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            data = std::string(hm->uri.p, hm->uri.len);
+            graft::Context ctx(mainServer.plooper.load()->getGcm());
+            int method = ctx.global["method"];
+            if(method == METHOD_GET)
+            {
+                std::string s = ctx.global["requestPath"];
+                EXPECT_EQ(s, iocheck);
+                iocheck = s += '4'; skip_ctx_check = true;
+                ctx.global["requestPath"] = s;
+            }
+            else
+            {
+                data = std::string(hm->body.p, hm->body.len);
+                graft::Input in; in.load(data.c_str(), data.size());
+                Sstr ss = in.get<Sstr>();
+                EXPECT_EQ(ss.s, iocheck);
+                iocheck = ss.s += '4'; skip_ctx_check = true;
+                graft::Output out; out.load(ss);
+                auto pair = out.get();
+                data = std::string(pair.first, pair.second);
+            }
+            bool doTimeout = ctx.global.hasKey("doCryptonTimeoutOnce") && (int)ctx.global["doCryptonTimeoutOnce"];
+            if(doTimeout)
+            {
+                ctx.global["doCryptonTimeoutOnce"] = (int)false;
+                crypton_ready = false;
+                return false;
+            }
+            headers = "Content-Type: application/json\r\nConnection: close";
+            return true;
+        }
+
+        virtual void onClose() override
+        {
+            crypton_ready = true;
+        }
+
+    };
 public:
     static std::string run_cmdline_read(const std::string& cmdl)
     {
@@ -628,6 +738,42 @@ public:
         s << "curl --data \"" << json_data << "\" " << url;
         std::string ss = s.str();
         return run_cmdline_read(ss.c_str());
+    }
+
+public:
+    static bool skip_ctx_check;
+    static std::string iocheck;
+    static std::deque<graft::Status> res_que_action;
+    static TempCryptoN tempCryptoN;
+    static MainServer mainServer;
+    static bool crypton_ready;
+
+    const std::string uri_base = "http://localhost:9084/root/";
+    const std::string dapi_url = "http://localhost:9084/dapi";
+private:
+    static void init_server(graft::Router::Handler3 h3_test)
+    {
+        assert(h3_test.worker_action);
+        graft::Router& http_router = mainServer.router;
+        {
+            http_router.addRoute("/root/r{id:\\d+}", METHOD_GET, h3_test);
+            http_router.addRoute("/root/r{id:\\d+}", METHOD_POST, h3_test);
+            http_router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, h3_test);
+            graft::registerRTARequests(http_router);
+        }
+
+        graft::ConfigOpts copts;
+        copts.http_address = "127.0.0.1:9084";
+        copts.coap_address = "127.0.0.1:9086";
+        copts.http_connection_timeout = .001;
+        copts.upstream_request_timeout = .005;
+        copts.workers_count = 0;
+        copts.worker_queue_len = 0;
+        copts.cryptonode_rpc_address = "127.0.0.1:1234";
+        copts.timer_poll_interval_ms = 50;
+
+        mainServer.copts = copts;
+        mainServer.run();
     }
 
 protected:
@@ -728,52 +874,29 @@ protected:
             return ctx.local.getLastStatus();
         };
 
-        h3_test = graft::Router::Handler3(pre_action, action, post_action);
+        init_server(graft::Router::Handler3(pre_action, action, post_action));
 
-        t_CN = std::thread([]{ TempCryptoNodeServer::run(); });
-        t_srv = std::thread([]{ run_server(); });
-
-        while(!TempCryptoNodeServer::ready || !pserver || !pserver.load()->ready())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+        tempCryptoN.run();
     }
 
     static void TearDownTestCase()
     {
-        {
-            Client client;
-            client.serve("http://localhost:9084/root/exit");
-        }
-        TempCryptoNodeServer::stop = true;
-
-        t_srv.join();
-        t_CN.join();
+        mainServer.stop_and_wait_for();
+        tempCryptoN.stop_and_wait_for();
     }
-
-    virtual void SetUp() override
-    { }
-    virtual void TearDown() override
-    { }
-
 };
 
-std::string GraftServerTest::iocheck;
-bool GraftServerTest::skip_ctx_check = false;
-std::deque<graft::Status> GraftServerTest::res_que_action;
-graft::Router::Handler3 GraftServerTest::h3_test;
-std::thread GraftServerTest::t_CN;
-std::thread GraftServerTest::t_srv;
-bool GraftServerTest::crypton_ready = false;
-graft::Manager* GraftServerTest::pmanager = nullptr;
-std::atomic<graft::GraftServer*> GraftServerTest::pserver(nullptr);
+bool GraftServerCommonTest::skip_ctx_check = false;
+std::string GraftServerCommonTest::iocheck;
+std::deque<graft::Status> GraftServerCommonTest::res_que_action;
+GraftServerCommonTest::TempCryptoN GraftServerCommonTest::tempCryptoN;
+GraftServerCommonTest::MainServer GraftServerCommonTest::mainServer;
+bool GraftServerCommonTest::crypton_ready = false;
 
-bool GraftServerTest::TempCryptoNodeServer::ready = false;
-bool GraftServerTest::TempCryptoNodeServer::stop = false;
 
-TEST_F(GraftServerTest, GETtp)
+TEST_F(GraftServerCommonTest, GETtp)
 {//GET -> threadPool
-    graft::Context ctx(pmanager->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -784,7 +907,7 @@ TEST_F(GraftServerTest, GETtp)
     EXPECT_EQ("0123", iocheck);
 }
 
-TEST_F(GraftServerTest, clientTimeout)
+TEST_F(GraftServerCommonTest, clientAcceptTimeout)
 {//GET -> timout
     iocheck = ""; skip_ctx_check = true;
     Client client;
@@ -798,9 +921,27 @@ TEST_F(GraftServerTest, clientTimeout)
     EXPECT_EQ("", res);
 }
 
-TEST_F(GraftServerTest, cryptonTimeout)
+TEST_F(GraftServerTestBase, clientTimeout)
+{//it checks that there is no crash
+    auto action = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        return graft::Status::Ok;
+    };
+
+    MainServer server;
+    server.router.addRoute("/timeout", METHOD_POST, {nullptr, action, nullptr});
+    server.run();
+
+    Client client;
+    client.serve("http://127.0.0.1:9084/timeout", "", "post data", 200);
+
+    server.stop_and_wait_for();
+}
+
+TEST_F(GraftServerCommonTest, cryptonTimeout)
 {//GET -> threadPool -> CryptoNode -> timeout
-    graft::Context ctx(pmanager->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -823,7 +964,7 @@ TEST_F(GraftServerTest, cryptonTimeout)
     }
 }
 
-TEST_F(GraftServerTest, timerEvents)
+TEST_F(GraftServerCommonTest, timerEvents)
 {
     constexpr int ms_all = 5000, ms_step = 100, N = 5;
     int cntrs_all[N]; for(int& v:cntrs_all){ v = 0; }
@@ -845,7 +986,7 @@ TEST_F(GraftServerTest, timerEvents)
             return graft::Status::Forward;
         };
 
-        pmanager->addPeriodicTask(
+        mainServer.plooper.load()->addPeriodicTask(
                     graft::Router::Handler3(nullptr, action, nullptr),
                     std::chrono::milliseconds(ms)
                     );
@@ -861,16 +1002,16 @@ TEST_F(GraftServerTest, timerEvents)
     for(int i=0; i<N; ++i)
     {
         int n = ms_all/((i+1)*ms_step);
-        n -= (pmanager->get_c_opts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
+        n -= (mainServer.plooper.load()->getCopts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
         EXPECT_LE(n-2, cntrs[i]);
         EXPECT_LE(cntrs[i], n+1);
         EXPECT_EQ(cntrs_all[i]-1, 2*cntrs[i]);
     }
 }
 
-TEST_F(GraftServerTest, GETtpCNtp)
+TEST_F(GraftServerCommonTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(pmanager->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -884,9 +1025,9 @@ TEST_F(GraftServerTest, GETtpCNtp)
     EXPECT_EQ("01234123", iocheck);
 }
 
-TEST_F(GraftServerTest, POSTtp)
+TEST_F(GraftServerCommonTest, POSTtp)
 {//POST -> threadPool
-    graft::Context ctx(pmanager->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -900,9 +1041,9 @@ TEST_F(GraftServerTest, POSTtp)
     EXPECT_EQ("0123", iocheck);
 }
 
-TEST_F(GraftServerTest, POSTtpCNtp)
+TEST_F(GraftServerCommonTest, POSTtpCNtp)
 {//POST -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(pmanager->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -919,9 +1060,9 @@ TEST_F(GraftServerTest, POSTtpCNtp)
     EXPECT_EQ("01234123", iocheck);
 }
 
-TEST_F(GraftServerTest, clPOSTtp)
+TEST_F(GraftServerCommonTest, clPOSTtp)
 {//POST cmdline -> threadPool
-    graft::Context ctx(pmanager->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -936,9 +1077,9 @@ TEST_F(GraftServerTest, clPOSTtp)
     }
 }
 
-TEST_F(GraftServerTest, clPOSTtpCNtp)
+TEST_F(GraftServerCommonTest, clPOSTtpCNtp)
 {//POST cmdline -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(pmanager->get_gcm());
+    graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -956,7 +1097,7 @@ TEST_F(GraftServerTest, clPOSTtpCNtp)
     }
 }
 
-TEST_F(GraftServerTest, testSaleRequest)
+TEST_F(GraftServerCommonTest, testSaleRequest)
 {
     std::string sale_url(dapi_url + "/sale");
     graft::Input response;
@@ -992,7 +1133,7 @@ TEST_F(GraftServerTest, testSaleRequest)
     EXPECT_EQ(custom_pid, sale_response.PaymentID);
 }
 
-TEST_F(GraftServerTest, testSaleStatusRequest)
+TEST_F(GraftServerCommonTest, testSaleStatusRequest)
 {
     std::string sale_status_url(dapi_url + "/sale_status");
     graft::Input response;
@@ -1015,7 +1156,7 @@ TEST_F(GraftServerTest, testSaleStatusRequest)
     EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
 }
 
-TEST_F(GraftServerTest, testRejectSaleRequest)
+TEST_F(GraftServerCommonTest, testRejectSaleRequest)
 {
     std::string reject_sale_url(dapi_url + "/reject_sale");
     graft::Input response;
@@ -1038,7 +1179,7 @@ TEST_F(GraftServerTest, testRejectSaleRequest)
     EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
 }
 
-TEST_F(GraftServerTest, testSaleDetailsRequest)
+TEST_F(GraftServerCommonTest, testSaleDetailsRequest)
 {
     std::string sale_details_url(dapi_url + "/sale_details");
     graft::Input response;
@@ -1061,7 +1202,7 @@ TEST_F(GraftServerTest, testSaleDetailsRequest)
     EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
 }
 
-TEST_F(GraftServerTest, testPayRequest)
+TEST_F(GraftServerCommonTest, testPayRequest)
 {
     std::string pay_url(dapi_url + "/pay");
     graft::Input response;
@@ -1116,7 +1257,7 @@ TEST_F(GraftServerTest, testPayRequest)
     EXPECT_EQ(MESSAGE_AMOUNT_INVALID, error_response.message);
 }
 
-TEST_F(GraftServerTest, testPayStatusRequest)
+TEST_F(GraftServerCommonTest, testPayStatusRequest)
 {
     std::string pay_status_url(dapi_url + "/pay_status");
     graft::Input response;
@@ -1139,7 +1280,7 @@ TEST_F(GraftServerTest, testPayStatusRequest)
     EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
 }
 
-TEST_F(GraftServerTest, testRejectPayRequest)
+TEST_F(GraftServerCommonTest, testRejectPayRequest)
 {
     std::string reject_pay_url(dapi_url + "/reject_pay");
     graft::Input response;
@@ -1162,7 +1303,7 @@ TEST_F(GraftServerTest, testRejectPayRequest)
     EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
 }
 
-TEST_F(GraftServerTest, testRTARejectSaleFlow)
+TEST_F(GraftServerCommonTest, testRTARejectSaleFlow)
 {
     graft::Input response;
     std::string res;
@@ -1199,7 +1340,7 @@ TEST_F(GraftServerTest, testRTARejectSaleFlow)
     EXPECT_EQ(static_cast<int>(graft::RTAStatus::RejectedByPOS), sale_status_response.Status);
 }
 
-TEST_F(GraftServerTest, testRTARejectPayFlow)
+TEST_F(GraftServerCommonTest, testRTARejectPayFlow)
 {
     graft::Input response;
     std::string res;
@@ -1251,7 +1392,7 @@ TEST_F(GraftServerTest, testRTARejectPayFlow)
     EXPECT_EQ(static_cast<int>(graft::RTAStatus::RejectedByWallet), pay_status_response.Status);
 }
 
-TEST_F(GraftServerTest, testRTAFailedPayment)
+TEST_F(GraftServerCommonTest, testRTAFailedPayment)
 {
     graft::Input response;
     std::string res;
@@ -1297,7 +1438,7 @@ TEST_F(GraftServerTest, testRTAFailedPayment)
     EXPECT_EQ(MESSAGE_RTA_FAILED, error_response.message);
 }
 
-TEST_F(GraftServerTest, testRTACompletedPayment)
+TEST_F(GraftServerCommonTest, testRTACompletedPayment)
 {
     graft::Input response;
     std::string res;
@@ -1343,7 +1484,7 @@ TEST_F(GraftServerTest, testRTACompletedPayment)
     EXPECT_EQ(MESSAGE_RTA_COMPLETED, error_response.message);
 }
 
-TEST_F(GraftServerTest, testRTAFullFlow)
+TEST_F(GraftServerCommonTest, testRTAFullFlow)
 {
     graft::Input response;
     std::string res;
@@ -1399,4 +1540,272 @@ TEST_F(GraftServerTest, testRTAFullFlow)
     response.load(res.data(), res.length());
     sale_status_response = response.get<graft::SaleStatusResponse>();
     EXPECT_EQ(static_cast<int>(graft::RTAStatus::Success), sale_status_response.Status);
+}
+
+/////////////////////////////////
+// GraftServerPostponeTest fixture
+
+class GraftServerPostponeTest : public GraftServerTestBase
+{
+public:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    public:
+        bool do_callback = true;
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            data = std::string(hm->body.p, hm->body.len);
+            std::string method(hm->method.p, hm->method.len);
+            graft::Input in; in.load(data);
+            Sstr ss = in.get<Sstr>();
+            headers = "Content-Type: application/json\r\nConnection: close";
+
+            if(!do_callback) return true;
+
+            std::string uuid_str = ss.s;
+            auto send_callback = [uuid_str]()
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                Client callback_client;
+                std::string url = "http://127.0.0.1:9084/callback/" + uuid_str;
+                std::string post_data = "it is callback post data";
+                callback_client.serve(url,"",post_data);
+
+                EXPECT_EQ(false, callback_client.get_closed());
+                EXPECT_EQ(200, callback_client.get_resp_code());
+                std::string s = callback_client.get_body();
+                EXPECT_EQ(s, post_data);
+            };
+            std::thread th(send_callback);
+            th.detach();
+
+            return true;
+        }
+    };
+};
+
+TEST_F(GraftServerPostponeTest, common)
+{
+    auto callback_action = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        output.body = input.data();
+        assert(vars.count("id") == 1);
+        std::string id = vars.find("id")->second;
+        boost::uuids::string_generator sg;
+        boost::uuids::uuid uuid = sg(id);
+
+        ctx.setNextTaskId(uuid);
+        return graft::Status::Ok;
+    };
+
+    std::string postpone_result = "this is postpone result";
+
+    auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        switch(ctx.local.getLastStatus())
+        {
+        case graft::Status::None:
+        {
+            boost::uuids::uuid uuid = ctx.getId();
+            Sstr ss; ss.s = boost::uuids::to_string(uuid);
+            output.load(ss);
+            return graft::Status::Forward;
+        } break;
+        case graft::Status::Forward:
+        {
+            boost::uuids::uuid uuid = ctx.getId();
+            return graft::Status::Postpone;
+        } break;
+        case graft::Status::Postpone:
+        {
+            boost::uuids::uuid uuid = ctx.getId();
+            output.body = postpone_result;
+            return graft::Status::Ok;
+        } break;
+        }
+    };
+
+    TempCryptoN crypton;
+    crypton.run();
+    MainServer mainServer;
+    mainServer.router.addRoute("/json_rpc",METHOD_POST,{nullptr,action,nullptr});
+    mainServer.router.addRoute("/callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,callback_action,nullptr});
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    std::string s = client.get_body();
+    EXPECT_EQ(s, postpone_result);
+
+    //make hang postpones
+    crypton.do_callback = false;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(500, client.get_resp_code());
+    std::string body = client.get_body();
+    EXPECT_EQ(body, "Postpone task response timeout");
+
+    mainServer.stop_and_wait_for();
+    crypton.stop_and_wait_for();
+}
+
+/////////////////////////////////
+// GraftServerForwardTest fixture
+
+class GraftServerForwardTest : public GraftServerTestBase
+{
+public:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            data = std::string(hm->body.p, hm->body.len);
+            std::string method(hm->method.p, hm->method.len);
+            headers = "Content-Type: application/json\r\nConnection: close";
+            return true;
+        }
+    };
+};
+
+TEST_F(GraftServerForwardTest, inner)
+{
+    TempCryptoN crypton;
+    crypton.run();
+    MainServer mainServer;
+    graft::registerForwardRequests(mainServer.router);
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    std::string s = client.get_body();
+    EXPECT_EQ(s, post_data);
+
+    mainServer.stop_and_wait_for();
+    crypton.stop_and_wait_for();
+}
+
+GRAFT_DEFINE_IO_STRUCT(GetVersionResp,
+                       (std::string, status),
+                       (uint32_t, version)
+                       );
+
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JRResponseResult, GetVersionResp);
+
+//you can run cryptonodes and enable this tests using
+//--gtest_also_run_disabled_tests
+//https://github.com/google/googletest/blob/master/googletest/docs/advanced.md
+TEST_F(GraftServerForwardTest, DISABLED_getVersion)
+{
+    MainServer mainServer;
+    mainServer.copts.cryptonode_rpc_address = "localhost:38281";
+    graft::registerForwardRequests(mainServer.router);
+    mainServer.run();
+
+    graft::JsonRpcRequestHeader request;
+    request.method = "get_version";
+
+    std::string post_data = request.toJson().GetString();
+    Client client;
+    client.serve("http://localhost:9084/json_rpc", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    std::string response_s = client.get_body();
+
+    graft::Input in; in.load(response_s);
+    EXPECT_NO_THROW( JRResponseResult result = in.get<JRResponseResult>() );
+
+    mainServer.stop_and_wait_for();
+}
+
+/////////////////////////////////
+// GraftServerBlockingTest fixture
+
+class GraftServerBlockingTest : public GraftServerTestBase
+{
+public:
+    class TempCryptoN : public TempCryptoNodeServer
+    {
+    public:
+        bool ignore = false;
+        std::string answer;
+        std::string body;
+    protected:
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        {
+            body = std::string(hm->body.p, hm->body.len);
+            std::string method(hm->method.p, hm->method.len);
+            if(ignore) return false;
+            data = answer;
+            headers = "Content-Type: application/json\r\nConnection: close";
+            return true;
+        }
+    };
+};
+
+TEST_F(GraftServerBlockingTest, common)
+{
+    TempCryptoN crypton;
+    crypton.run();
+    auto pre_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        Sstr ss; ss.s = "my string";
+        graft::Output out; out.load(ss);
+        //check io thread exceprtion
+        crypton.answer = "crypton answer";
+        graft::Input res;
+        std::string err;
+        int state = 0;
+        try
+        {
+            graft::TaskManager::sendUpstreamBlocking(out, res, err);
+            state = 1;
+        }
+        catch(std::exception& ex)
+        {
+            state = 2;
+        }
+        EXPECT_EQ(state,2);
+        return graft::Status::Ok;
+    };
+    auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        Sstr ss; ss.s = "my string";
+        graft::Output out; out.load(ss);
+        //without error
+        crypton.answer = "crypton answer";
+        graft::Input res;
+        std::string err;
+        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        EXPECT_EQ(res.body, crypton.answer);
+        EXPECT_EQ(err.empty(), true);
+        //with error
+        res.body.clear();
+        crypton.ignore = true;
+        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        EXPECT_EQ(err.empty(), false);
+        return graft::Status::Ok;
+    };
+
+    MainServer mainServer;
+    mainServer.router.addRoute("/json_block", METHOD_POST|METHOD_GET,
+                               graft::Router::Handler3(pre_action, action, nullptr));
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/json_block", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+
+    mainServer.stop_and_wait_for();
+    crypton.stop_and_wait_for();
 }

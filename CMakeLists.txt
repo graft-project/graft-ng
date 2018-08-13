@@ -48,7 +48,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DBUILD_SHARED_LIBS=ON # TODO: fix so cryptonode's libs can be statically linked
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DHAVE_EVP_MD_CTX_NEW=YES
     )
 
 set(CMAKE_CXX_STANDARD 14)
@@ -56,8 +56,10 @@ set(CMAKE_CXX_STANDARD 14)
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 
 set(GS_SOURCES
-    ${PROJECT_SOURCE_DIR}/src/graft_manager.cpp
+    ${PROJECT_SOURCE_DIR}/src/task.cpp
+    ${PROJECT_SOURCE_DIR}/src/connection.cpp
     ${PROJECT_SOURCE_DIR}/src/inout.cpp
+    ${PROJECT_SOURCE_DIR}/src/router.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
     ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/requests.cpp
@@ -70,16 +72,24 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
-    ${PROJECT_SOURCE_DIR}/src/routers_http.cpp
-    ${PROJECT_SOURCE_DIR}/src/routers_coap.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/authorizertatxrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
+    ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
     )
 
 set(GS_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/mongoose
     ${PROJECT_SOURCE_DIR}/modules/libr3/include
     ${PROJECT_SOURCE_DIR}/include/requests
+    ${PROJECT_SOURCE_DIR}/include/rta
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_BINARY_DIR}
     )
@@ -102,6 +112,7 @@ set(CRYPTONODE_INCLUDE_DIRS
 set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/unbound
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/lib
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/common
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/crypto
@@ -110,21 +121,26 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/mnemonics
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/ringct
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/wallet
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/utils
     )
 
 set(CRYPTONODE_LIBS
     easylogging
+    wallet
+    utils
+    mnemonics
+    ringct
     epee
     cryptonote_core
     cryptonote_basic
-    cncrypto
-    wallet # if linked statically: once we add any call to this library from source code, weird linker errors happening
-    mnemonics
-    ringct
     common
+    unbound
+    cncrypto
     )
 
 set(COMMON_LIBS
+    ssl
+    crypto
     readline
     )
 
@@ -132,7 +148,7 @@ set(COMMON_LIBS
 #set(Boost_USE_MULTITHREADED ON)
 #set(Boost_USE_STATIC_RUNTIME ON)
 
-find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread)
+find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system filesystem program_options serialization thread regex)
 
 if(NOT Boost_FOUND)
     die("Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (1.65) or the equivalent")
@@ -148,6 +164,7 @@ link_directories(${CRYPTONODE_LIB_DIRS})
 
 add_executable(graft_server
     ${GS_SOURCES}
+    ${PROJECT_SOURCE_DIR}/src/server.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
 
@@ -165,8 +182,13 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+    ${COMMON_LIBS}
     )
+
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
+
+set_target_properties(graft_server PROPERTIES LINK_FLAGS "-rdynamic")
 
 add_dependencies(graft_server libr3 cryptonode)
 
@@ -200,6 +222,7 @@ if (OPT_BUILD_TESTS)
                 ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
@@ -217,6 +240,7 @@ if (OPT_BUILD_TESTS)
             ${GS_LIBS}
             ${Boost_LIBRARIES}
             ${CMAKE_THREAD_LIBS_INIT}
+            ${COMMON_LIBS}
             )
 
 
@@ -238,6 +262,6 @@ if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
     add_custom_command(
         TARGET graft_server POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/data/config.ini
-        ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
+        ${CMAKE_SOURCE_DIR}/data/*
+        ${CMAKE_CURRENT_BINARY_DIR}/)
 endif()

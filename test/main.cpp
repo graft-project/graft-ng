@@ -27,12 +27,16 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <gtest/gtest.h>
+#include <misc_log_ex.h>
 
 int main(int argc, char **argv)
 {
+    mlog_configure("test.log", false);
+    mlog_set_log_level(2);
+
     // disabling following test cases by default, but these tests can be still run
     // with explictily passed --gtest_filter="GryptonodeHandlersTest.*"
-    testing::GTEST_FLAG(filter) = "-CryptonodeHandlersTest.*";
+    testing::GTEST_FLAG(filter) = "-CryptonodeHandlersTest.*:SupernodeTest.*:FullSupernodeListTest.*";
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

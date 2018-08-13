@@ -4,18 +4,19 @@
 
 ### Dependencies
 
-| Dependency     | Min. Version  | Debian/Ubuntu Pkg  | Arch Pkg       | Optional | Purpose          |
-| -------------- | ------------- | ------------------ | -------------- | -------- | ---------------- |
-| GCC            | 4.7.3         | `build-essential`  | `base-devel`   | NO       |                  |
-| CMake          | 3.11.0        | `cmake`^           | `cmake`        | NO       |                  |
-| pkg-config     | any           | `pkg-config`       | `base-devel`   | NO       |                  |
-| Boost          | 1.65          | `libboost-all-dev` | `boost`        | NO       | C++ libraries    |
-| OpenSSL        | basically any | `libssl-dev`       | `openssl`      | NO       |                  |
-| autoconf       | any           | `autoconf`         |                | NO       | libr3 dependency |
-| automake       | any           | `automake`         |                | NO       | libr3 dependency |
-| check          | any           | `check`            |                | NO       | libr3 dependency |
-| PCRE3          | any           | `libpcre3-dev`     |                | NO       | libr3 dependency |
-| RapidJson      | 1.1.0         | `rapidjson-dev`    |                | NO       |                  |
+| Dependency     | Min. Version  | Debian/Ubuntu Pkg  | Arch Pkg       | Optional | Purpose                |
+| -------------- | ------------- | ------------------ | -------------- | -------- | ---------------------- |
+| GCC            | 4.7.3         | `build-essential`  | `base-devel`   | NO       |                        |
+| CMake          | 3.11.0        | `cmake`^           | `cmake`        | NO       |                        |
+| pkg-config     | any           | `pkg-config`       | `base-devel`   | NO       |                        |
+| Boost          | 1.65          | `libboost-all-dev` | `boost`        | NO       | C++ libraries          |
+| OpenSSL        | basically any | `libssl-dev`       | `openssl`      | NO       |                        |
+| autoconf       | any           | `autoconf`         |                | NO       | libr3 dependency       |
+| automake       | any           | `automake`         |                | NO       | libr3 dependency       |
+| check          | any           | `check`            |                | NO       | libr3 dependency       |
+| PCRE3          | any           | `libpcre3-dev`     |                | NO       | libr3 dependency       |
+| RapidJson      | 1.1.0         | `rapidjson-dev`    |                | NO       |                        |
+| Readline       | 7.0           | `libreadline-dev`  |                | NO       | command line interface |
 
 [^] Some Debian/Ubuntu versions (for example, Ubuntu 16.04) don't support CMake 3.11.0 from the package. To install it manually see **Install non-standard dependencies** bellow.
 
@@ -52,5 +53,30 @@ git submodule update --recursive
 ### Build instructions
 
 #### Linux (Ubuntu)
+
+To build graft_server, please run the following commands:
+
+```bash
+mkdir -p <build directory>
+cd <build directory>
+cmake  <project root>
+make
+```
+
+If you want to build unit test suit as well, run *cmake* with additional parameter:
+
+```bash
+mkdir -p <build directory>
+cd <build directory>
+cmake  <project root> -DOPT_BUILD_TEST
+make --all
+```
+
+Then execute *graft_server_test* to run the tests.
+
+```bash
+<build directory>/graft_server_test
+```
+
 #### MacOS
 #### Windows

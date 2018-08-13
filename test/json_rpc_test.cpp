@@ -31,7 +31,7 @@
 #include <gtest/gtest.h>
 #include <inout.h>
 #include <jsonrpc.h>
-#include <graft_manager.h>
+#include <connection.h>
 #include <router.h>
 
 #include <string>
@@ -83,7 +83,7 @@ TEST(JsonRPCFormat, request_parse)
     std::string json_rpc_req = "{\"json\":\"2.0\",\"id\":\"0\",\"method\":\"Hello\",\"params\": {\"return_success\" : \"false\"} }";
     Input in; in.load(json_rpc_req);
     JsonRpcTestRequest req = in.get<JsonRpcTestRequest>();
-    LOG_PRINT_L0("Params size: " << req.params.size());
+
 }
 
 TEST(JsonRPCFormat, malformed_source)
@@ -133,7 +133,7 @@ struct JsonRpcTest : public ::testing::Test
 
         JsonRpcTestRequest request = input.get<JsonRpcTestRequest>();
         // success response;
-        if (request.params.size() && request.params.at(0).return_success) {
+        if (request.params.return_success) {
             LOG_PRINT_L0("Returning 'result' response...");
             JsonRpcTestResponseResult response;
             response.id = request.id;
@@ -152,7 +152,6 @@ struct JsonRpcTest : public ::testing::Test
             JsonRpcErrorResponse response;
             response.error.message  = "Something wrong";
             response.error.code  = -1;
-            response.json = "2.0";
             response.id = request.id;
             output.load(response);
             return Status::Error;
@@ -161,15 +160,16 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
-        ServerOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
+        ConfigOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
-        Manager manager(sopts);
-        manager.addRouter(router);
-        manager.enableRouting();
-        this->manager = &manager;
-        server.serve(manager.get_mg_mgr());
+        Looper looper(sopts);
+        httpcm.addRouter(router);
+        httpcm.enableRouting();
+        this->looper = &looper;
+        httpcm.bind(looper);
+        looper.serve();
     }
 
     void stopServer()
@@ -186,7 +186,7 @@ struct JsonRpcTest : public ::testing::Test
             this->startServer();
         });
         LOG_PRINT_L0("Server thread started..");
-        while (!server.ready()) {
+        while (!looper || !looper->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
@@ -246,8 +246,8 @@ struct JsonRpcTest : public ::testing::Test
     virtual void TearDown() override
     { }
 
-    GraftServer server;
-    Manager   * manager;
+    HttpConnectionManager httpcm;
+    Looper   * looper{nullptr};
     std::thread server_thread;
 };
 
@@ -256,10 +256,8 @@ TEST_F(JsonRpcTest, common)
 {
     JsonRpcTestRequest request;
     request.id = 0;
-    request.json = "2.0";
     TestRequestParam request_param; request_param.return_success = true;
-    std::vector<TestRequestParam> params {request_param};
-    initJsonRpcRequest(request, 1, "Hello", params);
+    initJsonRpcRequest(request, 1, "Hello", request_param);
     LOG_PRINT_L0("Sending request...");
     std::string response_s = send_request("http://localhost:8855/jsonrpc/test", escape_string_curl(request.toJson().GetString()));
     LOG_PRINT_L0("response: " << response_s);
@@ -273,7 +271,7 @@ TEST_F(JsonRpcTest, common)
     EXPECT_TRUE(response_result.result.baz.size() == 10);
 
 
-    request.params[0].return_success = false;
+    request.params.return_success = false;
     LOG_PRINT_L0("Sending request...");
     response_s = send_request("http://localhost:8855/jsonrpc/test", escape_string_curl(request.toJson().GetString()));
     LOG_PRINT_L0("response: " << response_s);
@@ -283,7 +281,7 @@ TEST_F(JsonRpcTest, common)
     EXPECT_TRUE(response_error.error.code == -1);
 
     LOG_PRINT_L0("Stopping server..");
-    manager->stop();
+    looper->stop();
     LOG_PRINT_L0("Waiting for a server thread done...");
     server_thread.join();
     LOG_PRINT_L0("Server thread done...");

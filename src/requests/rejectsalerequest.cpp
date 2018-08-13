@@ -1,6 +1,9 @@
 #include "rejectsalerequest.h"
 #include "requestdefines.h"
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.rejectsalerequest"
+
 namespace graft {
 
 Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input& input,
@@ -23,7 +26,7 @@ Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input& input,
 void registerRejectSaleRequest(Router &router)
 {
     Router::Handler3 h3(nullptr, rejectSaleHandler, nullptr);
-    router.addRoute("/dapi/reject_sale", METHOD_POST, h3);
+    router.addRoute("/reject_sale", METHOD_POST, h3);
 }
 
 }

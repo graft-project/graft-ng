@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common/utils.h"
+
 #include <utility>
 #include <string>
 #include <vector>
@@ -101,6 +103,20 @@ namespace graft
             }
         };
 
+        template<typename T>
+        struct JSON_B64
+        {
+            static std::string serialize(const T& t)
+            {
+                return utils::base64_encode(t.toJson().GetString());
+            }
+            static void deserialize(const std::string& s, T& t)
+            {
+                t = T::fromJson(utils::base64_decode(s));
+            }
+        };
+
+
 
     } //namespace serializer
 
@@ -181,10 +197,19 @@ namespace graft
             return body;
         }
     public:
+        /*!
+         * \brief makeUri - please DO NOT use it. It is for internal usage.
+         * Set uri, proto, host, port, path members if you need.
+         * The function forms real URI substituting absent parts according to Config.ini.
+         * It is public to be accessed from tests and other classes.
+         * \param default_uri - this parameter always comes from [cryptonode]rpc-address of Config.ini.
+         * \return
+         */
         std::string makeUri(const std::string& default_uri) const;
     public:
         std::string host;
         std::string port;
+        std::string path;
         static std::unordered_map<std::string, std::string> uri_substitutions;
     };
 
@@ -247,6 +272,19 @@ namespace graft
             T t;
             S<T>::deserialize(body, t);
             return t;
+        }
+
+        template<template<typename> typename S = serializer::JSON, typename T>
+        bool getT(T &result) const
+        {
+            try {
+                result = this->getT<S,T>();
+                return true;
+            } catch (const serializer::JsonParseError & /*err*/) {
+                return false;
+            } catch (...) {
+                return false;
+            }
         }
 
         void load(const char *buf, size_t size)
