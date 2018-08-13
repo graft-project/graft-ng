@@ -35,6 +35,13 @@ namespace graft
 {
 extern std::string client_addr(mg_connection* client);
 
+//The function serves to truncate logging output in case source has unreadable
+//characters, and to prevent unusual behaviour during console output.
+//Unreadable characters converted to escaped hexadecimal sequences or \r,\n,\t.
+//If other characters are met which codes less 0x20 or more 0x7E and the result
+//exceeds hint_len, it stops.
+std::string make_dump_output(const std::string& in, int hint_len = 256);
+
 class UpstreamSender;
 class TaskManager;
 class ConnectionManager;
