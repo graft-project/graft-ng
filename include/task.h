@@ -11,7 +11,7 @@
 #include <future>
 #include <deque>
 
-#define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << client_addr(client) << "]" << x)
+#define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << client_addr(client) << "] " << x)
 
 #define LOG_PRINT_RQS_BT(level,bt,x) \
 { \
