@@ -369,9 +369,12 @@ void GraftServer::prepareDataDirAndSupernodes()
         }
     }
 
-    std::cout << boost::filesystem::absolute(data_path).string() << std::endl;
+
 
     m_configOpts.watchonly_wallets_path = watchonly_wallets_path.string();
+
+    MINFO("data path: " << data_path.string());
+    MINFO("stake wallet path: " << stake_wallet_path.string());
 
     // create supernode instance and put it into global context
     graft::SupernodePtr supernode = boost::make_shared<graft::Supernode>(
