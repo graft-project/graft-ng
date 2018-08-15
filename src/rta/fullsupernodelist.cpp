@@ -295,6 +295,7 @@ std::future<void> FullSupernodeList::refreshAsync()
         SupernodePtr sn = this->get(address);
         if (sn) {
             sn->refresh();
+
             ++m_refresh_counter;
         }
     };
@@ -345,14 +346,18 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
         boost::shared_lock<boost::shared_mutex> readerLock(m_access);
         for (const auto &it : m_list) {
             size_t seconds_since_last_update =  size_t(std::time(nullptr)) - it.second->lastUpdateTime();
-            MDEBUG("supernode " << it.first << ", updated " << seconds_since_last_update << " seconds ago");
+            MDEBUG("checking supernode " << it.first << ", updated: " << seconds_since_last_update << " seconds ago"
+                   << ", stake amount: " << it.second->stakeAmount());
             if (/*seconds_since_last_update < ANNOUNCE_TTL_SECONDS*/ true
                     && it.second->stakeAmount() >= tier_min_stake
                     && it.second->stakeAmount() < tier_max_stake
                     && find_if(selected_items.begin(), selected_items.end(), [&](const auto &sn) {
                                return sn->walletAddress() == it.first;
-                            }) == selected_items.end())
+                       }) == selected_items.end()) {
+                MDEBUG("supernode: " << it.first << " selected for auth sample");
                 all_tier_items.push_back(it.second);
+            }
+
         }
     }
     if (all_tier_items.empty()) {
