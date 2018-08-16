@@ -191,7 +191,7 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
     // TODO: check self amount vs announced amount
     setNetworkAddress(announce.network_address);
     m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
-    MDEBUG(this->walletAddress() <<  ": last update time updated to :" << m_last_update_time);
+    MDEBUG(this->walletAddress() <<  ": last update time updated to: " << m_last_update_time);
     return true;
 
 }
