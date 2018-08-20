@@ -1,12 +1,17 @@
 #include "server.h"
-#include "backtrace.h"
+
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
+
+#include "backtrace.h"
+#include "connection.h"
 #include "requests.h"
 #include "requestdefines.h"
 #include "requests/sendsupernodeannouncerequest.h"
+#include "system_info.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
@@ -29,6 +34,9 @@ namespace tools {
 
 namespace graft {
 
+namespace po = boost::program_options;
+namespace pt = boost::property_tree;
+
 static std::function<void (int sig_num)> int_handler, term_handler, hup_handler;
 
 static void signal_handler_shutdown(int sig_num)
@@ -44,6 +52,19 @@ static void signal_handler_terminate(int sig_num)
 static void signal_handler_restart(int sig_num)
 {
     if(hup_handler) hup_handler(sig_num);
+}
+
+GraftServer::GraftServer(void)
+{
+}
+
+GraftServer::~GraftServer(void)
+{
+}
+
+void GraftServer::stop(bool force)
+{
+    m_looper->stop(force);
 }
 
 void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
@@ -91,14 +112,27 @@ void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
 
 void GraftServer::initGlobalContext()
 {
-//  TODO: why context intialized second time here?
-    graft::Context ctx(m_looper->getGcm());
-    const ConfigOpts& copts = m_looper->getCopts();
+//  //TODO: why context intialized second time here?
+    //graft::Context ctx(m_looper->getGcm());
+    //const ConfigOpts& copts = m_looper->getCopts();
 //  copts is empty here
 
 //    ctx.global["testnet"] = copts.testnet;
 //    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
 //    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
+
+    //assert(m_looper);
+    //assert(m_sys_info);
+    //graft::Context ctx(m_looper->getGcm());
+    //ctx.global["system_info_provider"] = m_sys_info.get();
+//static_cast<graft::supernode::SystemInfoProvider*>(
+}
+
+void GraftServer::create_system_info_provider(void)
+{
+    assert(!m_sys_info);
+    m_sys_info = std::make_unique<graft::supernode::SystemInfoProvider>();
+    assert(m_sys_info);
 }
 
 bool GraftServer::init(int argc, const char** argv)
@@ -109,6 +143,8 @@ bool GraftServer::init(int argc, const char** argv)
     assert(!m_looper);
     m_looper = std::make_unique<Looper>(m_configOpts);
     assert(m_looper);
+
+    create_system_info_provider();
 
     intiConnectionManagers();
 
@@ -205,28 +241,27 @@ namespace details
 
 namespace po = boost::program_options;
 
-void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
+void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm, ConfigOpts& co)
 {
-    int log_level = 3;
-    bool log_console = true;
-    std::string log_filename;
+    co.log_level = 3;
+    co.log_console = true;
 
     //from config
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
     boost::optional<int> level  = log_conf.get_optional<int>("loglevel");
-    if(level) log_level = level.get();
+    if(level) co.log_level = level.get();
     boost::optional<std::string> log_file  = log_conf.get_optional<std::string>("logfile");
-    if(log_file) log_filename = log_file.get();
+    if(log_file) co.log_filename = log_file.get();
     boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
-    if(log_to_console) log_console = log_to_console.get();
+    if(log_to_console) co.log_console = log_to_console.get();
 
     //override from cmdline
-    if (vm.count("log-level")) log_level = vm["log-level"].as<int>();
-    if (vm.count("log-file")) log_filename = vm["log-file"].as<std::string>();
-    if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
+    if(vm.count("log-level"))   co.log_level    = vm["log-level"].as<int>();
+    if(vm.count("log-file"))    co.log_filename = vm["log-file"].as<std::string>();
+    if(vm.count("log-console")) co.log_console  = vm["log-console"].as<bool>();
 
-    mlog_configure(log_filename, log_console);
-    mlog_set_log_level(log_level);
+    mlog_configure(co.log_filename, co.log_console);
+    mlog_set_log_level(co.log_level);
 }
 
 } //namespace details
@@ -308,8 +343,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     //            ├── supernode_tier1_2.address.txt
     //            └── supernode_tier1_2.keys
 
-    details::init_log(config, vm);
-
+    details::init_log(config, vm, m_configOpts);
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
     m_configOpts.http_address = server_conf.get<std::string>("http-address");
@@ -369,8 +403,6 @@ void GraftServer::prepareDataDirAndSupernodes()
         }
     }
 
-
-
     m_configOpts.watchonly_wallets_path = watchonly_wallets_path.string();
 
     MINFO("data path: " << data_path.string());
@@ -409,6 +441,11 @@ void GraftServer::prepareDataDirAndSupernodes()
     ctx.global["testnet"] = m_configOpts.testnet;
     ctx.global["watchonly_wallets_path"] = m_configOpts.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configOpts.cryptonode_rpc_address;
+    //ctx.global["looper"] = m_looper.get();
+
+    assert(m_sys_info);
+    ctx.runtime_sys_info(*(m_sys_info.get()));
+    ctx.config_opts(m_configOpts);
 }
 
 void GraftServer::intiConnectionManagers()

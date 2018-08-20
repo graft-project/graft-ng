@@ -15,6 +15,8 @@
 #include "authorizertatxrequest.h"
 #include "sendsupernodeannouncerequest.h"
 
+#include "requests/system_info.h"
+
 
 namespace graft {
 
@@ -40,6 +42,7 @@ void registerForwardRequests(graft::Router &router)
 void registerHealthcheckRequests(Router &router)
 {
     graft::registerHealthcheckRequest(router);
+    graft::supernode::request::system_info::register_request(router);
 }
 
 }

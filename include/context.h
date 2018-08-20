@@ -17,13 +17,23 @@
 #include "graft_utility.hpp"
 #include "graft_constants.h"
 
+namespace graft { class ConfigOpts; }
+namespace graft { namespace supernode { class SystemInfoProvider; } }
+
 namespace graft
 {
 using GlobalContextMap = graft::TSHashtable<std::string, boost::any>;
+using supernode::SystemInfoProvider;
 
 class Context
 {
 public:
+    const ConfigOpts& config_opts(void) const;
+    void config_opts(const ConfigOpts& copts);
+
+    SystemInfoProvider& runtime_sys_info(void);
+    void runtime_sys_info(SystemInfoProvider& sip);
+
     class Local
     {
     private:
@@ -194,7 +204,7 @@ public:
         }
 
         template<typename T>
-        T get(const std::string& key, T defval)
+        T get(const std::string& key, T defval) const
         {
             return boost::any_cast<T>(
                 m_map.valueFor(
@@ -247,4 +257,5 @@ private:
     mutable uuid_t m_uuid;
     uuid_t m_nextUuid;
 };
+
 }//namespace graft
