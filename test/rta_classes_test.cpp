@@ -261,7 +261,8 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     const bool testnet = true;
 
     FullSupernodeList sn_list(daemon_addr, testnet);
-    size_t loadedItems = sn_list.loadFromDir(".");
+    size_t foundItems = 0;
+    size_t loadedItems = sn_list.loadFromDirThreaded(".", foundItems);
 
     ASSERT_TRUE(loadedItems > 0);
 
@@ -309,24 +310,32 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
 
     std::vector<SupernodePtr> auth_sample;
     std::vector<SupernodePtr> auth_sample2;
+
+
     // test if result is reproducable
-    sn_list.buildAuthSample(2122, auth_sample);
-    sn_list.buildAuthSample(2122, auth_sample2);
-    ASSERT_EQ(auth_sample.size(), FullSupernodeList::AUTH_SAMPLE_SIZE);
-    ASSERT_EQ(auth_sample2.size(), FullSupernodeList::AUTH_SAMPLE_SIZE);
-    std::vector<std::string> auth_sample1_addresses, auth_sample2_addresses;
+    for (size_t i = 0; i < 100; ++i) {
 
-    for (const auto & it: auth_sample) {
-        auth_sample1_addresses.push_back(it->walletAddress());
+        sn_list.buildAuthSample(10000 + i, auth_sample);
+        sn_list.buildAuthSample(10000 + i, auth_sample2);
+        ASSERT_EQ(auth_sample.size(), FullSupernodeList::AUTH_SAMPLE_SIZE);
+        ASSERT_EQ(auth_sample2.size(), FullSupernodeList::AUTH_SAMPLE_SIZE);
+
+        std::vector<std::string> auth_sample1_addresses, auth_sample2_addresses;
+
+        for (const auto & it: auth_sample) {
+            auth_sample1_addresses.push_back(it->walletAddress());
+        }
+        for (const auto & it: auth_sample2) {
+            auth_sample2_addresses.push_back(it->walletAddress());
+        }
+
+        EXPECT_TRUE(auth_sample1_addresses == auth_sample2_addresses);
+
+        std::set<std::string> s1(auth_sample1_addresses.begin(), auth_sample1_addresses.end());
+        EXPECT_TRUE(s1.size() == FullSupernodeList::AUTH_SAMPLE_SIZE);
     }
-    for (const auto & it: auth_sample2) {
-        auth_sample2_addresses.push_back(it->walletAddress());
-    }
 
-    EXPECT_TRUE(auth_sample1_addresses == auth_sample2_addresses);
 
-    std::set<std::string> s1(auth_sample1_addresses.begin(), auth_sample1_addresses.end());
-    EXPECT_TRUE(s1.size() == FullSupernodeList::AUTH_SAMPLE_SIZE);
 
     std::vector<std::string> tier1_as_addresses, tier2_as_addresses, tier3_as_addresses, tier4_as_addresses;
 
@@ -357,12 +366,10 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
     std::set_intersection(tier1_addresses.begin(), tier1_addresses.end(),
                           tier1_as_addresses.begin(), tier1_as_addresses.end(),
                           std::back_inserter(tier1_intersection));
-//    std::cout << "tier1 supernodes: " << std::endl;
-//    print_container(std::cout, tier1_intersection, ", \n");
+//  std::cout << "tier1 supernodes: " << std::endl;
+//  print_container(std::cout, tier1_intersection, ", \n");
 
     EXPECT_TRUE(tier1_as_addresses == tier1_intersection);
-
-
 
     std::set_intersection(tier2_addresses.begin(), tier2_addresses.end(),
                           tier2_as_addresses.begin(), tier2_as_addresses.end(),
@@ -391,8 +398,6 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
 
     EXPECT_TRUE(tier4_as_addresses == tier4_intersection);
     EXPECT_FALSE(tier4_as_addresses == tier2_intersection);
-
-
  }
 
 

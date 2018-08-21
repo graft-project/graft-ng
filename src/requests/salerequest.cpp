@@ -46,6 +46,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     SaleRequestJsonRpc req;
     JsonRpcError error;
     error.code = 0;
+    MDEBUG(__FUNCTION__ << " begin");
 
     if (!input.get(req)) {
         return errorInvalidParams(output);
@@ -116,7 +117,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     for (const auto & sn : authSample) {
         cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
     }
-
+    MDEBUG(__FUNCTION__ << "processed client request, multicasting sale data for payment_id: " << payment_id);
     cryptonode_req.method = "multicast";
     cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side
     cryptonode_req.params.data = innerOut.data();
@@ -124,6 +125,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     output.path = "/json_rpc/rta";
     LOG_PRINT_L0("calling cryptonode: " << output.path);
     LOG_PRINT_L0("\t with data: " << output.data());
+    MDEBUG(__FUNCTION__ << " end");
 
     return Status::Forward;
 }
@@ -133,6 +135,7 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
                                 graft::Context& ctx, graft::Output& output)
 {
     // check cryptonode reply
+    MDEBUG(__FUNCTION__ << " begin");
     MulticastResponseFromCryptonodeJsonRpc resp;
 
     JsonRpcErrorResponse error;
@@ -146,9 +149,10 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
     int status = ctx.global.get(payment_id + CONTEXT_KEY_STATUS, static_cast<int>((RTAStatus::Waiting)));
 
     buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
-
+    MDEBUG(__FUNCTION__ << "processed sale multicast, broadcasting sale status for payment_id: " << payment_id);
     LOG_PRINT_L0("calling cryptonode: " << output.path);
     LOG_PRINT_L0("\t with data: " << output.data());
+    MDEBUG(__FUNCTION__ << " end");
 
     return Status::Forward;
 }
@@ -158,6 +162,7 @@ Status handleSaleStatusBroadcastReply(const Router::vars_t& vars, const graft::I
 {
 
     // TODO: check if cryptonode broadcasted status
+    MDEBUG(__FUNCTION__ << " begin");
     BroadcastResponseFromCryptonodeJsonRpc resp;
     JsonRpcErrorResponse error;
     if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
@@ -171,6 +176,8 @@ Status handleSaleStatusBroadcastReply(const Router::vars_t& vars, const graft::I
     out.result.BlockNumber = data.BlockNumber;
     out.result.PaymentID = payment_id;
     output.load(out);
+    MDEBUG(__FUNCTION__ << "processed sale status broadcast, reply to client, payment_id: " << payment_id);
+    MDEBUG(__FUNCTION__ << " end");
     return Status::Ok;
 }
 
@@ -187,7 +194,7 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
 {
 
     SaleHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : SaleHandlerState::ClientRequest;
-
+    MDEBUG(__FUNCTION__ << ", state: " << int(state));
     // state machine to perform two calls to cryptonode and return result to the client
     switch (state) {
     // client requested "/sale"
@@ -203,11 +210,8 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
         LOG_PRINT_L0("SaleMulticast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         ctx.local[__FUNCTION__] = SaleHandlerState::SaleStatusReply;
-        // handleSameMulticast returns Forward, call performed according traffic capture but after that moment
-        // this handler never called again, but it supposed to be "broadcast" reply from cryptonode
         return handleSaleMulticastReply(vars, input, ctx, output);
     case SaleHandlerState::SaleStatusReply:
-        // this code never reached and previous output (with "broadcast" request to cryptonode) returned to client
         LOG_PRINT_L0("SaleStatusBroadcast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         return handleSaleStatusBroadcastReply(vars, input, ctx, output);
