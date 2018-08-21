@@ -76,6 +76,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/system_info.cpp
     ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
@@ -91,6 +92,7 @@ set(GS_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/include/requests
     ${PROJECT_SOURCE_DIR}/include/rta
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_BINARY_DIR}
     )
 
@@ -225,6 +227,7 @@ if (OPT_BUILD_TESTS)
                 ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/main.cpp
+                ${PROJECT_SOURCE_DIR}/test/request/system_info.cpp
         )
 
         target_include_directories(graft_server_test PRIVATE

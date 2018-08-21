@@ -1,3 +1,44 @@
-_out
-.ycm_extra_conf.py
+#vim's
+.ycm*
 
+# cpp-build
+build
+
+
+
+
+
+
+
+#.vagrant
+#.vs
+#**/.idea/**
+#!**/.idea/codeStyleSettings.xml
+#Debug
+#bin
+#cmake-build-debug
+#cmake-build-release
+#cmake-build-relwithdebinfo
+#*.ipch
+#*.sdf
+#*.db
+#*.opendb
+
+# For Python
+# Byte-compiled / optimized / DLL files
+#__pycache__/
+#*.py[cod]
+#*$py.class
+
+# C extensions
+#*.so
+#vagrant_up.bat
+#vagrant_halt.bat
+#virtual_boxes/vmware/Vagrantfile
+
+
+#binary generated
+#*.txz
+#
+#*.tar
+#

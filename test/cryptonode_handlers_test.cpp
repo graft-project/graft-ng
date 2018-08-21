@@ -37,7 +37,7 @@
 #include <requests/getinforequest.h>
 #include <requests/sendrawtxrequest.h>
 #include <requests/authorizertatxrequest.h>
-#include <requests/sendtxauthresponserequest.h>
+//#include <requests/sendtxauthresponserequest.h>
 
 
 // cryptonode includes
