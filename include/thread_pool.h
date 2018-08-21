@@ -48,6 +48,8 @@ public:
 
             try
             {
+                // Please read the comment about exceptions and noexcept specifier
+                // near 'void terminate()' function in main.cpp
                 Status status = h3_ref.worker_action(vars_cref, input_ref, ctx, output_ref);
                 Context::LocalFriend::setLastStatus(ctx.local, status);
                 if(Status::Ok == status && h3_ref.post_action || Status::Forward == status)
