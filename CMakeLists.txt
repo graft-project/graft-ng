@@ -221,6 +221,7 @@ if (OPT_BUILD_TESTS)
 
         add_executable(graft_server_test
                 ${GS_SOURCES}
+                ${PROJECT_SOURCE_DIR}/src/server.cpp
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_test.cpp
