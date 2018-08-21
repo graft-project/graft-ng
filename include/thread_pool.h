@@ -39,37 +39,10 @@ public:
     //main payload
     virtual void operator () ()
     {
-        {
-            decltype(auto) vars_cref = m_bt->getVars();
-            decltype(auto) input_ref = m_bt->getInput();
-            decltype(auto) output_ref = m_bt->getOutput();
-            decltype(auto) h3_ref = m_bt->getHandler3();
-            decltype(auto) ctx = m_bt->getCtx();
+        // Please read the comment about exceptions and noexcept specifier
+        // near 'void terminate()' function in main.cpp
+        m_bt->getManager().runWorkerActionFromTheThreadPool(m_bt);
 
-            try
-            {
-                // Please read the comment about exceptions and noexcept specifier
-                // near 'void terminate()' function in main.cpp
-                Status status = h3_ref.worker_action(vars_cref, input_ref, ctx, output_ref);
-                Context::LocalFriend::setLastStatus(ctx.local, status);
-                if(Status::Ok == status && h3_ref.post_action || Status::Forward == status)
-                {
-                    input_ref.assign(output_ref);
-                }
-            }
-            catch(const std::exception& e)
-            {
-                ctx.local.setError(e.what());
-                input_ref.reset();
-                throw;
-            }
-            catch(...)
-            {
-                ctx.local.setError("unknown exception");
-                input_ref.reset();
-                throw;
-            }
-        }
         Watcher* save_m_watcher = m_watcher; //save m_watcher before move itself into resulting queue
         m_rq->push(std::move(*this)); //similar to "delete this;"
         save_m_watcher->notifyJobReady();

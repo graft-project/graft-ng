@@ -1,6 +1,7 @@
 #include "task.h"
 #include "connection.h"
 #include "router.h"
+#include "state_machine.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -9,6 +10,131 @@ namespace graft {
 
 thread_local bool TaskManager::io_thread = false;
 TaskManager* TaskManager::g_upstreamManager{nullptr};
+
+const StateMachine::Guard StateMachine::has(Router::Handler H3::* act)
+{
+    return [act](BaseTaskPtr bt)->bool
+    {
+        return (bt->getHandler3().*act != nullptr);
+    };
+}
+
+const StateMachine::Guard StateMachine::hasnt(Router::Handler H3::* act)
+{
+    return [act](BaseTaskPtr bt)->bool
+    {
+        return (bt->getHandler3().*act == nullptr);
+    };
+}
+
+void StateMachine::init_table()
+{
+
+    const Action run_forward = [](BaseTaskPtr bt)
+    {
+        bt->getManager().processForward(bt);
+    };
+
+    const Action run_response = [](BaseTaskPtr bt)
+    {
+        assert(St::Again == bt->getLastStatus());
+        bt->getManager().respondAndDie(bt, bt->getOutput().data(), false);
+    };
+
+    const Action run_error_response = [](BaseTaskPtr bt)
+    {
+        assert(St::Error == bt->getLastStatus() ||
+               St::InternalError == bt->getLastStatus() ||
+               St::Stop == bt->getLastStatus());
+        bt->getManager().respondAndDie(bt, bt->getOutput().data());
+    };
+
+    const Action run_drop = [](BaseTaskPtr bt)
+    {
+        assert(St::Drop == bt->getLastStatus());
+        bt->getManager().respondAndDie(bt, "Job done Drop."); //TODO: Expect HTTP Error Response
+    };
+
+    const Action run_ok_response = [](BaseTaskPtr bt)
+    {
+        assert(St::Ok == bt->getLastStatus());
+        bt->getManager().processOk(bt);
+    };
+
+    const Action run_postpone = [](BaseTaskPtr bt)
+    {
+        assert(St::Postpone == bt->getLastStatus());
+        bt->getManager().postponeTask(bt);
+    };
+
+    const Action check_overflow = [](BaseTaskPtr bt)
+    {
+        bt->getManager().checkThreadPoolOverflow(bt);
+    };
+
+    const Action run_preaction = [](BaseTaskPtr bt)
+    {
+        bt->getManager().runPreAction(bt);
+    };
+
+    const Action run_workeraction = [](BaseTaskPtr bt)
+    {
+        bt->getManager().runWorkerAction(bt);
+    };
+
+    const Action run_postaction = [](BaseTaskPtr bt)
+    {
+        bt->getManager().runPostAction(bt);
+    };
+
+#define ANY { }
+
+    m_table = std::vector<row>(
+    {
+//      Start                   Status          Target              Guard               Action
+        {EXECUTE,               ANY,            PRE_ACTION,         nullptr,            check_overflow },
+        {PRE_ACTION,            {St::Busy},     EXIT,               nullptr,            nullptr },
+        {PRE_ACTION,            {St::None, St::Ok, St::Forward, St::Postpone},
+                                                CHK_PRE_ACTION,     nullptr,            run_preaction },
+        {CHK_PRE_ACTION,        {St::Again},    PRE_ACTION,         nullptr,            run_response },
+        {CHK_PRE_ACTION,        {St::Ok},       WORKER_ACTION,      has(&H3::pre_action), nullptr },
+        {CHK_PRE_ACTION,        {St::Forward},  POST_ACTION,        has(&H3::pre_action), nullptr },
+        {CHK_PRE_ACTION,        {St::Error, St::InternalError, St::Stop},
+                                                EXIT,               has(&H3::pre_action), run_error_response },
+        {CHK_PRE_ACTION,        {St::Drop},     EXIT,               has(&H3::pre_action), run_drop },
+        {CHK_PRE_ACTION,        {St::None, St::Ok, St::Forward, St::Postpone},
+                                                WORKER_ACTION,      nullptr,            nullptr },
+        {WORKER_ACTION,         ANY,            CHK_WORKER_ACTION,  nullptr,            run_workeraction },
+        {CHK_WORKER_ACTION,     ANY,            EXIT,               has(&H3::worker_action), nullptr },
+        {CHK_WORKER_ACTION,     ANY,            POST_ACTION,        nullptr,            nullptr },
+
+        {WORKER_ACTION_DONE,    {St::Again},    WORKER_ACTION,      nullptr,            run_response },
+        {WORKER_ACTION_DONE,    ANY,            POST_ACTION,        nullptr,            nullptr },
+        {POST_ACTION,           ANY,            CHK_POST_ACTION,    nullptr,            run_postaction },
+        {CHK_POST_ACTION,       {St::Again},    POST_ACTION,        nullptr,            run_response },
+        {CHK_POST_ACTION,       {St::Forward},  EXIT,               nullptr,            run_forward },
+        {CHK_POST_ACTION,       {St::Ok},       EXIT,               nullptr,            run_ok_response },
+        {CHK_POST_ACTION,       {St::Error, St::InternalError, St::Stop},
+                                                EXIT,               nullptr,            run_error_response },
+        {CHK_POST_ACTION,       {St::Drop},     EXIT,               nullptr,            run_drop },
+        {CHK_POST_ACTION,       {St::Postpone}, EXIT,               nullptr,            run_postpone },
+    });
+
+#undef ANY
+
+}
+
+TaskManager::TaskManager(const ConfigOpts& copts) : m_copts(copts)
+{
+    // TODO: validate options, throw exception if any mandatory options missing
+    initThreadPool(copts.workers_count, copts.worker_queue_len);
+    m_stateMachine = std::make_unique<StateMachine>();
+}
+
+TaskManager::~TaskManager()
+{
+
+}
 
 //pay attension, input is output and vice versa
 void TaskManager::sendUpstreamBlocking(Output& output, Input& input, std::string& err)
@@ -57,7 +183,7 @@ void TaskManager::onTimer(BaseTaskPtr bt)
     Execute(bt);
 }
 
-void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s)
+void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s, bool die)
 {
     ClientTask* ct = dynamic_cast<ClientTask*>(bt.get());
     if(ct)
@@ -74,47 +200,13 @@ void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s)
     if (it != m_postponedTasks.end())
         m_postponedTasks.erase(it);
 
-    bt->finalize();
+    if(die)
+        bt->finalize();
 }
 
 void TaskManager::schedule(PeriodicTask* pt)
 {
     m_timerList.push(pt->getTimeout(), pt->getSelf());
-}
-
-void TaskManager::Execute(BaseTaskPtr bt)
-{
-    assert(m_cntJobDone <= m_cntJobSent);
-    if(m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
-    {//check overflow
-        bt->getCtx().local.setError("Service Unavailable", Status::Busy);
-        respondAndDie(bt,"Thread pool overflow");
-        return;
-    }
-    assert(m_cntJobSent - m_cntJobDone < m_threadPoolInputSize);
-
-    auto& params = bt->getParams();
-
-    ExecutePreAction(bt);
-    if(params.h3.pre_action && Status::Ok != bt->getLastStatus() && Status::Forward != bt->getLastStatus())
-    {
-        processResult(bt);
-        return;
-    }
-    if(params.h3.worker_action)
-    {
-        ++m_cntJobSent;
-        m_threadPool->post(
-                    GJPtr( bt, m_resQueue.get(), this ),
-                    true
-                    );
-    }
-    else
-    {
-        //special case when worker_action is absent
-        ExecutePostAction(bt, nullptr);
-        processResult(bt);
-    }
 }
 
 bool TaskManager::canStop()
@@ -131,15 +223,37 @@ bool TaskManager::tryProcessReadyJob()
     if(!res) return res;
     ++m_cntJobDone;
     BaseTaskPtr bt = gj->getTask();
-    ExecutePostAction(bt, &*gj);
-    processResult(bt);
+
+    LOG_PRINT_RQS_BT(2,bt,"worker_action completed with result " << bt->getStrStatus());
+    m_stateMachine->dispatch(bt, StateMachine::State::WORKER_ACTION_DONE);
+
     return true;
 }
 
-void TaskManager::ExecutePreAction(BaseTaskPtr bt)
+void TaskManager::Execute(BaseTaskPtr bt)
+{
+    m_stateMachine->dispatch(bt, StateMachine::State::EXECUTE);
+}
+
+void TaskManager::checkThreadPoolOverflow(BaseTaskPtr bt)
 {
     auto& params = bt->getParams();
+
+    assert(m_cntJobDone <= m_cntJobSent);
+    if(params.h3.worker_action && m_cntJobSent - m_cntJobDone == m_threadPoolInputSize)
+    {//check overflow
+        bt->getCtx().local.setError("Service Unavailable", Status::Busy);
+        respondAndDie(bt,"Thread pool overflow");
+    }
+    assert(m_cntJobSent - m_cntJobDone <= m_threadPoolInputSize);
+}
+
+void TaskManager::runPreAction(BaseTaskPtr bt)
+{
+    auto& params = bt->getParams();
+
     if(!params.h3.pre_action) return;
+
     auto& ctx = bt->getCtx();
     auto& output = bt->getOutput();
 
@@ -170,17 +284,25 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
     LOG_PRINT_RQS_BT(3,bt,"pre_action completed with result " << bt->getStrStatus());
 }
 
-void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
+void TaskManager::runWorkerAction(BaseTaskPtr bt)
 {
-    if(gj)
-    {
-        LOG_PRINT_RQS_BT(2,bt,"worker_action completed with result " << bt->getStrStatus());
-    }
-    //post_action if not empty, will be called in any case, even if worker_action results as some kind of error or exception.
-    //But, in case pre_action finishes as error both worker_action and post_action will be skipped.
-    //post_action has a chance to fix result of pre_action. In case of error was before it it should just return that error.
     auto& params = bt->getParams();
-    if(!params.h3.post_action) return;
+
+    if(params.h3.worker_action)
+    {
+        ++m_cntJobSent;
+        m_threadPool->post(
+                    GJPtr( bt, m_resQueue.get(), this ),
+                    true
+                    );
+    }
+}
+
+//the function is called from the Thread Pool
+//So pay attension this is another thread than others member functions
+void TaskManager::runWorkerActionFromTheThreadPool(BaseTaskPtr bt)
+{
+    auto& params = bt->getParams();
     auto& ctx = bt->getCtx();
     auto& output = bt->getOutput();
 
@@ -188,11 +310,49 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     {
         // Please read the comment about exceptions and noexcept specifier
         // near 'void terminate()' function in main.cpp
-        Status status = params.h3.post_action(params.vars, params.input, ctx, output);
+        Status status = params.h3.worker_action(params.vars, params.input, ctx, output);
         bt->setLastStatus(status);
-        if(Status::Forward == status)
+        if(Status::Ok == status && params.h3.post_action || Status::Forward == status)
         {
             params.input.assign(output);
+        }
+    }
+    catch(const std::exception& e)
+    {
+        ctx.local.setError(e.what());
+        params.input.reset();
+        throw;
+    }
+    catch(...)
+    {
+        ctx.local.setError("unknown exception");
+        params.input.reset();
+        throw;
+    }
+
+}
+
+void TaskManager::runPostAction(BaseTaskPtr bt)
+{
+    auto& params = bt->getParams();
+
+    if(!params.h3.post_action) return;
+
+    auto& ctx = bt->getCtx();
+    auto& output = bt->getOutput();
+
+    try
+    {
+        Status status = params.h3.post_action(params.vars, params.input, ctx, output);
+        //in case of pre_action or worker_action return Forward we call post_action in any case
+        //but we should ignore post_action result status and output
+        if(Status::Forward != bt->getLastStatus())
+        {
+            bt->setLastStatus(status);
+            if(Status::Forward == status)
+            {
+                params.input.assign(output);
+            }
         }
     }
     catch(const std::exception& e)
@@ -255,46 +415,24 @@ void TaskManager::executePostponedTasks()
     }
 }
 
-void TaskManager::processResult(BaseTaskPtr bt)
+void TaskManager::processForward(BaseTaskPtr bt)
 {
-    switch(bt->getLastStatus())
+    assert(Status::Forward == bt->getLastStatus());
+    LOG_PRINT_RQS_BT(3,bt,"Sending request to CryptoNode");
+    sendUpstream(bt);
+}
+
+void TaskManager::processOk(BaseTaskPtr bt)
+{
+    Context::uuid_t nextUuid = bt->getCtx().getNextTaskId();
+    if(!nextUuid.is_nil())
     {
-    case Status::Forward:
-    {
-        LOG_PRINT_RQS_BT(3,bt,"Sending request to CryptoNode");
-        sendUpstream(bt);
-    } break;
-    case Status::Ok:
-    {
-        Context::uuid_t nextUuid = bt->getCtx().getNextTaskId();
-        if(!nextUuid.is_nil())
-        {
-            auto it = m_postponedTasks.find(nextUuid);
-            assert(it != m_postponedTasks.end());
-            m_readyToResume.push_back(it->second);
-            m_postponedTasks.erase(it);
-        }
-        respondAndDie(bt, bt->getOutput().data());
-    } break;
-    case Status::InternalError:
-    case Status::Error:
-    case Status::Stop:
-    {
-        respondAndDie(bt, bt->getOutput().data());
-    } break;
-    case Status::Drop:
-    {
-        respondAndDie(bt, "Job done Drop."); //TODO: Expect HTTP Error Response
-    } break;
-    case Status::Postpone:
-    {
-        postponeTask(bt);
-    } break;
-    default:
-    {
-        assert(false);
-    } break;
+        auto it = m_postponedTasks.find(nextUuid);
+        assert(it != m_postponedTasks.end());
+        m_readyToResume.push_back(it->second);
+        m_postponedTasks.erase(it);
     }
+    respondAndDie(bt, bt->getOutput().data());
 }
 
 void TaskManager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms)
@@ -415,22 +553,20 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     {
         bt->setError(uss.getError().c_str(), uss.getStatus());
         LOG_PRINT_RQS_BT(2,bt, "CryptoNode done with error: " << uss.getError().c_str());
-        processResult(bt);
+        assert(Status::Error == bt->getLastStatus()); //Status::Error only possible value now
+        respondAndDie(bt, bt->getOutput().data());
+
         ++m_cntUpstreamSenderDone;
         return;
     }
     //here you can send a job to the thread pool or send response to client
     //uss will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
-        LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered : '" << bt->getInput().body << "'");
-        if(!bt->getSelf())
-        {//it is possible that a client has closed connection already
-            ++m_cntUpstreamSenderDone;
-            return;
-        }
+        LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered ");
+        if(!bt->getSelf()) return; //it is possible that a client has closed connection already
         Execute(bt);
+        ++m_cntUpstreamSenderDone;
     }
-    ++m_cntUpstreamSenderDone;
     //uss will be destroyed on exit
 }
 
