@@ -12,7 +12,7 @@
 #include <future>
 #include <deque>
 
-#define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << client_addr(client) << "]" << x)
+#define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << client_addr(client) << "] " << x)
 
 #define LOG_PRINT_RQS_BT(level,bt,x) \
 { \
@@ -223,7 +223,7 @@ public:
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
     GlobalContextMap& getGcm() { return m_gcm; }
-    const ConfigOpts& getCopts() const { return m_copts; }
+    ConfigOpts& getCopts() { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
 
     static TaskManager* from(mg_mgr* mgr);
