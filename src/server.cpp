@@ -337,8 +337,8 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.cryptonode_rpc_address = cryptonode_conf.get<std::string>("rpc-address");
 
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
-    boost::optional<int> log_trunc_bin_size  = log_conf.get_optional<int>("trunc-bin-size");
-    configOpts.log_trunc_bin_size = (log_trunc_bin_size)? log_trunc_bin_size.get() : -1;
+    boost::optional<int> log_trunc_to_size  = log_conf.get_optional<int>("trunc-to-size");
+    configOpts.log_trunc_to_size = (log_trunc_to_size)? log_trunc_to_size.get() : -1;
 
     const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
     graft::OutHttp::uri_substitutions.clear();

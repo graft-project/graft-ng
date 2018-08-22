@@ -108,7 +108,7 @@ struct ConfigOpts
     int worker_queue_len;
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
-    int log_trunc_bin_size;
+    int log_trunc_to_size;
     // data directory - base directory where supernode stake wallet and other supernodes wallets are located
     std::string data_dir;
     int lru_timeout_ms;
