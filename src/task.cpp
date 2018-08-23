@@ -261,7 +261,10 @@ void TaskManager::runPreAction(BaseTaskPtr bt)
     {
         // Please read the comment about exceptions and noexcept specifier
         // near 'void terminate()' function in main.cpp
+        mlog_current_log_category = params.h3.name;
         Status status = params.h3.pre_action(params.vars, params.input, ctx, output);
+        mlog_current_log_category.clear();
+
         bt->setLastStatus(status);
         if(Status::Ok == status && (params.h3.worker_action || params.h3.post_action)
                 || Status::Forward == status)
@@ -310,7 +313,11 @@ void TaskManager::runWorkerActionFromTheThreadPool(BaseTaskPtr bt)
     {
         // Please read the comment about exceptions and noexcept specifier
         // near 'void terminate()' function in main.cpp
+
+        mlog_current_log_category = params.h3.name;
         Status status = params.h3.worker_action(params.vars, params.input, ctx, output);
+        mlog_current_log_category.clear();
+
         bt->setLastStatus(status);
         if(Status::Ok == status && params.h3.post_action || Status::Forward == status)
         {
@@ -343,7 +350,10 @@ void TaskManager::runPostAction(BaseTaskPtr bt)
 
     try
     {
+        mlog_current_log_category = params.h3.name;
         Status status = params.h3.post_action(params.vars, params.input, ctx, output);
+        mlog_current_log_category.clear();
+
         //in case of pre_action or worker_action return Forward we call post_action in any case
         //but we should ignore post_action result status and output
         if(Status::Forward != bt->getLastStatus())

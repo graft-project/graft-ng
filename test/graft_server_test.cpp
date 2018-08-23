@@ -1,4 +1,9 @@
 #include <gtest/gtest.h>
+#include <deque>
+#include <jsonrpc.h>
+#include <boost/uuid/uuid_io.hpp>
+#include <misc_log_ex.h>
+
 #include "context.h"
 #include "connection.h"
 #include "mongoosex.h"
@@ -12,9 +17,6 @@
 #include "rejectpayrequest.h"
 #include "requestdefines.h"
 #include "inout.h"
-#include <deque>
-#include <jsonrpc.h>
-#include <boost/uuid/uuid_io.hpp>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -935,6 +937,42 @@ TEST_F(GraftServerTestBase, clientTimeout)
 
     Client client;
     client.serve("http://127.0.0.1:9084/timeout", "", "post data", 200);
+
+    server.stop_and_wait_for();
+}
+
+//This test requires comparing logging output, their categories with expected.
+TEST_F(GraftServerTestBase, logging)
+{
+    const std::string cat = "handler";
+
+    auto pre = [cat](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        EXPECT_EQ(mlog_current_log_category, cat);
+        LOG_PRINT_L0("This is pre");
+        return graft::Status::Ok;
+    };
+
+    auto worker = [cat](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        EXPECT_EQ(mlog_current_log_category, cat);
+        LOG_PRINT_L0("This is worker");
+        return graft::Status::Ok;
+    };
+
+    auto post = [cat](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        EXPECT_EQ(mlog_current_log_category, cat);
+        LOG_PRINT_L0("This is post");
+        return graft::Status::Ok;
+    };
+
+    MainServer server;
+    server.router.addRoute("/logging", METHOD_GET, {pre, worker, post, cat.c_str()});
+    server.run();
+
+    Client client;
+    client.serve("http://127.0.0.1:9084/logging");
 
     server.stop_and_wait_for();
 }
