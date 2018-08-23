@@ -236,6 +236,8 @@ public:
 
     static void sendUpstreamBlocking(Output& output, Input& input, std::string& err);
 
+    void runWorkerActionFromTheThreadPool(BaseTaskPtr bt);
+
     virtual void notifyJobReady() = 0;
 
     void cb_event(uint64_t cnt);

@@ -147,7 +147,10 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
     {
         // Please read the comment about exceptions and noexcept specifier
         // near 'void terminate()' function in main.cpp
+        mlog_current_log_category = params.h3.name;
         Status status = params.h3.pre_action(params.vars, params.input, ctx, output);
+        mlog_current_log_category.clear();
+
         bt->setLastStatus(status);
         if(Status::Ok == status && (params.h3.worker_action || params.h3.post_action)
                 || Status::Forward == status)
@@ -170,6 +173,44 @@ void TaskManager::ExecutePreAction(BaseTaskPtr bt)
     LOG_PRINT_RQS_BT(3,bt,"pre_action completed with result " << bt->getStrStatus());
 }
 
+//the function is called from the Thread Pool
+//So pay attension this is another thread than others member functions
+void TaskManager::runWorkerActionFromTheThreadPool(BaseTaskPtr bt)
+{
+    auto& params = bt->getParams();
+    auto& ctx = bt->getCtx();
+    auto& output = bt->getOutput();
+
+    try
+    {
+        // Please read the comment about exceptions and noexcept specifier
+        // near 'void terminate()' function in main.cpp
+
+        mlog_current_log_category = params.h3.name;
+        Status status = params.h3.worker_action(params.vars, params.input, ctx, output);
+        mlog_current_log_category.clear();
+
+        bt->setLastStatus(status);
+        if(Status::Ok == status && params.h3.post_action || Status::Forward == status)
+        {
+            params.input.assign(output);
+        }
+    }
+    catch(const std::exception& e)
+    {
+        ctx.local.setError(e.what());
+        params.input.reset();
+        throw;
+    }
+    catch(...)
+    {
+        ctx.local.setError("unknown exception");
+        params.input.reset();
+        throw;
+    }
+
+}
+
 void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
 {
     if(gj)
@@ -188,7 +229,10 @@ void TaskManager::ExecutePostAction(BaseTaskPtr bt, GJ* gj)
     {
         // Please read the comment about exceptions and noexcept specifier
         // near 'void terminate()' function in main.cpp
+        mlog_current_log_category = params.h3.name;
         Status status = params.h3.post_action(params.vars, params.input, ctx, output);
+        mlog_current_log_category.clear();
+
         bt->setLastStatus(status);
         if(Status::Forward == status)
         {
