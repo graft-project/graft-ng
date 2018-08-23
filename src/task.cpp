@@ -11,6 +11,49 @@ namespace graft {
 thread_local bool TaskManager::io_thread = false;
 TaskManager* TaskManager::g_upstreamManager{nullptr};
 
+void StateMachine::process(BaseTaskPtr bt)
+{
+    static const char *state_strs[] = { GRAFT_STATE_LIST(EXP_TO_STR) };
+
+    St cur_stat = status(bt);
+
+    for(auto& r : m_table)
+    {
+        if(m_state != std::get<0>(r)) continue;
+
+        Statuses& ss = std::get<1>(r);
+        if(ss.size()!=0)
+        {
+            bool res = false;
+            for(auto s : ss)
+            {
+                if(s == cur_stat)
+                {
+                    res = true;
+                    break;
+                }
+            }
+            if(!res) continue;
+        }
+
+        Guard& g = std::get<3>(r);
+        if(g && !g(bt)) continue;
+
+        Action& a = std::get<4>(r);
+        if(a) a(bt);
+
+        State prev_state = m_state;
+        m_state = std::get<2>(r);
+
+        mlog_current_log_category = "sm";
+        LOG_PRINT_RQS_BT(3,bt, "sm: " << state_strs[int(prev_state)] << "->" << state_strs[int(m_state)] );
+        mlog_current_log_category.clear();
+
+        return;
+    }
+    throw std::runtime_error("State machine table is not complete");
+}
+
 const StateMachine::Guard StateMachine::has(Router::Handler H3::* act)
 {
     return [act](BaseTaskPtr bt)->bool

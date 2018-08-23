@@ -8,19 +8,20 @@ namespace graft
 class StateMachine final
 {
 public:
-    enum State
-    {
-        EXECUTE,
-        PRE_ACTION,
-        CHK_PRE_ACTION,
-        WORKER_ACTION,
-        CHK_WORKER_ACTION,
-        WORKER_ACTION_DONE,
-        POST_ACTION,
-        CHK_POST_ACTION,
-        AGAIN,
-        EXIT,
-    };
+
+#define GRAFT_STATE_LIST(EXP) \
+    EXP(EXECUTE) \
+    EXP(PRE_ACTION) \
+    EXP(CHK_PRE_ACTION) \
+    EXP(WORKER_ACTION) \
+    EXP(CHK_WORKER_ACTION) \
+    EXP(WORKER_ACTION_DONE) \
+    EXP(POST_ACTION) \
+    EXP(CHK_POST_ACTION) \
+    EXP(AGAIN) \
+    EXP(EXIT) \
+
+    enum State { GRAFT_STATE_LIST(EXP_TO_ENUM) };
 
     using St = graft::Status;
     using Statuses = std::initializer_list<graft::Status>;
@@ -35,7 +36,6 @@ public:
 
     void dispatch(BaseTaskPtr bt, State initial_state)
     {
-//        state(State(initial_state));
         state(initial_state);
         while(state() != EXIT)
         {
@@ -49,40 +49,7 @@ private:
     State state(State state) { return m_state = state; }
     St status(BaseTaskPtr bt) const { return bt->getLastStatus(); }
 
-    void process(BaseTaskPtr bt)
-    {
-        St cur_stat = status(bt);
-
-        for(auto& r : m_table)
-        {
-            if(m_state != std::get<0>(r)) continue;
-
-            Statuses& ss = std::get<1>(r);
-            if(ss.size()!=0)
-            {
-                bool res = false;
-                for(auto s : ss)
-                {
-                    if(s == cur_stat)
-                    {
-                        res = true;
-                        break;
-                    }
-                }
-                if(!res) continue;
-            }
-
-            Guard& g = std::get<3>(r);
-            if(g && !g(bt)) continue;
-
-            Action& a = std::get<4>(r);
-            if(a) a(bt);
-            m_state = std::get<2>(r);
-            return;
-        }
-        throw std::runtime_error("State machine table is not complete");
-    }
-private:
+    void process(BaseTaskPtr bt);
 
     using H3 = Router::Handler3;
 
