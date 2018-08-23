@@ -307,6 +307,7 @@ bool Supernode::refresh()
 {
     try {
         m_wallet->refresh();
+        m_wallet->store();
     } catch (...) {
         LOG_ERROR("Failed to refresh supernode wallet: " << this->walletAddress());
         return false;
