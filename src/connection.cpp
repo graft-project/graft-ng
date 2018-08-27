@@ -1,10 +1,35 @@
 #include "connection.h"
+
 #include "mongoosex.h"
+#include "system_info.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.connection"
 
 namespace graft {
+
+graft::supernode::ISystemInfoProducer& get_system_info_producer(const graft::Context& ctx)
+{
+    graft::supernode::ISystemInfoProducer* psip =
+      ctx.global.operator[]<graft::supernode::ISystemInfoProducer*>("system_info_producer");
+    assert(psip);
+    return *psip;
+}
+
+void collect_system_info_http_total_req(const graft::Context& ctx)
+{
+    get_system_info_producer(ctx).count_http_request_total();
+}
+
+void collect_system_info_http_routed_req(const graft::Context& ctx)
+{
+    get_system_info_producer(ctx).count_http_request_routed();
+}
+
+void collect_system_info_http_unrouted_req(const graft::Context& ctx)
+{
+    get_system_info_producer(ctx).count_http_request_unrouted();
+}
 
 std::string client_addr(mg_connection* client)
 {
@@ -247,6 +272,8 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     {
     case MG_EV_HTTP_REQUEST:
     {
+        collect_system_info_http_total_req(manager->getGcm());
+
         mg_set_timer(client, 0);
 
         struct http_message *hm = (struct http_message *) ev_data;
@@ -262,6 +289,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         Router::JobParams prms;
         if (httpcm->matchRoute(uri, method, prms))
         {
+            collect_system_info_http_routed_req(manager->getGcm());
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
             LOG_PRINT_CLN(2,client,"Matching Route found; body = " << std::string(body.p, body.len));
@@ -276,6 +304,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         }
         else
         {
+            collect_system_info_http_unrouted_req(manager->getGcm());
             LOG_PRINT_CLN(2,client,"Matching Route not found; closing connection");
             mg_http_send_error(client, 500, "invalid parameter");
             client->flags |= MG_F_SEND_AND_CLOSE;

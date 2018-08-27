@@ -136,12 +136,32 @@ void Client::on_mg_close(mg_connection* client)
   exit_ = true;
 }
 
+namespace po = boost::program_options;
+namespace pt = boost::property_tree;
+
+class GraftServerForTest : public graft::GraftServer
+{
+  private:
+    void override_config_values(pt::ptree& ini_data, po::variables_map& cmdline_data) override;
+};
+
+void GraftServerForTest::override_config_values(pt::ptree& ini_data, po::variables_map& cmdline_data)
+{
+  std::cout << "GraftServerForTest::override_config_values called" << std::endl;
+  ini_data.put("", 0);
+}
+
 TEST(Supernode, RequestSystemInfo)
 {
-  graft::GraftServer srv;
-  const int argc = 4;
-  const char* argv[] = {"1", "2", "3", "4"};
+  GraftServerForTest srv;
+  const int argc = 1;
+  //const char* argv[] = {"1", "2", "3", "4"};
+  const char* argv[] = {"./graft_server"};
   srv.run(argc, argv);
+  std::cout << "srv.running ...." << std::endl;
+
+  Client client;
+  client.serve("http://127.0.0.1:9084/timeout", "", "post data", 200);
   //graft::Context ctx(mainServer.plooper.load()->getGcm());
   //ctx.global["method"] = METHOD_GET;
   //ctx.global["requestPath"] = std::string("0");
@@ -153,4 +173,56 @@ TEST(Supernode, RequestSystemInfo)
   //EXPECT_EQ("0123", iocheck);
   EXPECT_EQ(true, true);
 }
+
+class TestForNGRTA103 : public ::testing::Test
+{
+  public:
+    TestForNGRTA103(void)
+    : pgs_(nullptr)
+    , srv_running_(false)
+    {
+    }
+
+    ~TestForNGRTA103(void)
+    {
+    }
+
+    void server_thread_func(void)
+    {
+      graft::GraftServer grft_srv;
+      pgs_ = &grft_srv;
+      const int argc = 1;
+      const char* argv[] = {"./graft_server"};
+      srv_running_ = true;
+      grft_srv.run(argc, argv);
+    }
+
+    void run_supernode_server(void)
+    {
+      server_thread_ = std::thread([this]{ server_thread_func(); });
+
+      //while(!pgs || !pgs_.load()->ready())
+      //  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+
+    }
+
+  private:
+  public:
+    std::atomic<graft::GraftServer*> pgs_;
+    std::atomic<bool> srv_running_;
+    std::thread server_thread_;
+
+};
+
+TEST_F(TestForNGRTA103, body)
+{
+  //auto server_thread =
+  //
+  pgs_ = nullptr;
+
+  EXPECT_EQ(true, true);
+}
+
+
 

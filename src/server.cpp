@@ -1,7 +1,6 @@
 #include "server.h"
+
 #include "backtrace.h"
-#include <boost/program_options.hpp>
-#include <boost/property_tree/ini_parser.hpp>
 #include "requests.h"
 #include "requestdefines.h"
 #include "requests/sendsupernodeannouncerequest.h"
@@ -91,14 +90,27 @@ void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
 
 void GraftServer::initGlobalContext()
 {
-//  TODO: why context intialized second time here?
-    graft::Context ctx(m_looper->getGcm());
-    const ConfigOpts& copts = m_looper->getCopts();
+//  //TODO: why context intialized second time here?
+    //graft::Context ctx(m_looper->getGcm());
+    //const ConfigOpts& copts = m_looper->getCopts();
 //  copts is empty here
 
 //    ctx.global["testnet"] = copts.testnet;
 //    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
 //    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
+
+    assert(m_looper);
+    assert(m_sys_info);
+    graft::Context ctx(m_looper->getGcm());
+    ctx.global["system_info_producer"] = static_cast<graft::supernode::ISystemInfoProducer*>(m_sys_info.get());
+    ctx.global["system_info_consumer"] = static_cast<graft::supernode::ISystemInfoConsumer*>(m_sys_info.get());
+}
+
+void GraftServer::create_system_info_provider(void)
+{
+    assert(!m_sys_info);
+    m_sys_info = std::make_unique<graft::supernode::SystmeInfoProvider>();
+    assert(m_sys_info);
 }
 
 bool GraftServer::init(int argc, const char** argv)
@@ -109,6 +121,8 @@ bool GraftServer::init(int argc, const char** argv)
     assert(!m_looper);
     m_looper = std::make_unique<Looper>(m_configOpts);
     assert(m_looper);
+
+    create_system_info_provider();
 
     intiConnectionManagers();
 
@@ -243,6 +257,10 @@ void usage(const boost::program_options::options_description& desc)
 
 bool GraftServer::initConfigOption(int argc, const char** argv)
 {
+    std::cout << "gs::initConfigOpion argc:" << argc << std::endl;
+    for(int i = 0; i < argc; ++i)
+      std::cout << "arg-" << (i + 1) << ": [" << argv[i] << "]" << std::endl;
+
     namespace po = boost::program_options;
 
     std::string config_filename;
@@ -281,6 +299,11 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     }
 
     boost::property_tree::ini_parser::read_ini(config_filename, config);
+
+    //std::cout << "before override_config_values" << std::endl;
+    //override_config_values(config, vm);
+    //std::cout << "after override_config_values" << std::endl;
+
     // now we have only following parameters
     // [server]
     //  address <IP>:<PORT>
@@ -309,7 +332,6 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     //            └── supernode_tier1_2.keys
 
     details::init_log(config, vm);
-
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
     m_configOpts.http_address = server_conf.get<std::string>("http-address");
@@ -368,8 +390,6 @@ void GraftServer::prepareDataDirAndSupernodes()
             throw std::runtime_error(ec.message());
         }
     }
-
-
 
     m_configOpts.watchonly_wallets_path = watchonly_wallets_path.string();
 

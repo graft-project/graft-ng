@@ -54,6 +54,11 @@ ExternalProject_Add(
 set(CMAKE_CXX_STANDARD 14)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
+add_definitions("-Wall")
+#add_definitions("-Wpedantic")
+#add_definitions("-std=c++11 -pipe -fPIC -DPIC")
+#add_definitions("-Wno-deprecated")
+#add_definitions("-Wextra")
 
 set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/task.cpp
@@ -84,6 +89,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
+    ${PROJECT_SOURCE_DIR}/src/system_info.cpp
     )
 
 set(GS_INCLUDE_DIRS
@@ -222,6 +228,7 @@ if (OPT_BUILD_TESTS)
         add_executable(graft_server_test
                 ${GS_SOURCES}
                 ${PROJECT_SOURCE_DIR}/src/server.cpp
+                ${PROJECT_SOURCE_DIR}/src/system_info.cpp
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_test.cpp
