@@ -21,13 +21,15 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     vars;
     input;
 
-    graft::supernode::ISystemInfoConsumer* psip = ctx.global.operator[]<graft::supernode::ISystemInfoConsumer*>("system_info_consumer");
+    graft::supernode::SystemInfoProvider* psip = ctx.global.operator[]<graft::supernode::SystemInfoProvider*>("system_info_provider");
+    //graft::supernode::SystemInfoProvider* psip = ctx.global.get("system_info_provider", nullptr);
     assert(psip);
 
     Response out;
     out.runningInfo.http_request_total_cnt = psip->http_request_total_cnt();
     out.runningInfo.http_request_routed_cnt = psip->http_request_routed_cnt();
     out.runningInfo.http_request_unrouted_cnt = psip->http_request_unrouted_cnt();
+    out.runningInfo.server_uptime_sec = psip->server_uptime_sec();
     output.load(out);
     return Status::Ok;
 }

@@ -16,11 +16,10 @@ namespace pt = boost::property_tree;
 class GraftServer
 {
 public:
-    bool run(int argc, const char** argv);
+    static bool run(int argc, const char** argv);
 protected:
     virtual bool initConfigOption(int argc, const char** argv);
     virtual void intiConnectionManagers();
-    virtual void override_config_values(pt::ptree& ini_data, po::variables_map& cmdline_data) { std::cout << "<<<<<<<<<" << std::endl; }
 private:
     void initLog(int log_level);
     void initGlobalContext();
@@ -39,7 +38,7 @@ private:
     ConfigOpts m_configOpts;
     std::unique_ptr<graft::Looper> m_looper;
     std::vector<std::unique_ptr<graft::ConnectionManager>> m_conManagers;
-    std::unique_ptr<graft::supernode::SystmeInfoProvider> m_sys_info;
+    std::unique_ptr<graft::supernode::SystemInfoProvider> m_sys_info;
 };
 
 }//namespace graft

@@ -102,14 +102,14 @@ void GraftServer::initGlobalContext()
     assert(m_looper);
     assert(m_sys_info);
     graft::Context ctx(m_looper->getGcm());
-    ctx.global["system_info_producer"] = static_cast<graft::supernode::ISystemInfoProducer*>(m_sys_info.get());
-    ctx.global["system_info_consumer"] = static_cast<graft::supernode::ISystemInfoConsumer*>(m_sys_info.get());
+    ctx.global["system_info_provider"] = m_sys_info.get();
+//static_cast<graft::supernode::SystemInfoProvider*>(
 }
 
 void GraftServer::create_system_info_provider(void)
 {
     assert(!m_sys_info);
-    m_sys_info = std::make_unique<graft::supernode::SystmeInfoProvider>();
+    m_sys_info = std::make_unique<graft::supernode::SystemInfoProvider>();
     assert(m_sys_info);
 }
 
@@ -299,11 +299,6 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     }
 
     boost::property_tree::ini_parser::read_ini(config_filename, config);
-
-    //std::cout << "before override_config_values" << std::endl;
-    //override_config_values(config, vm);
-    //std::cout << "after override_config_values" << std::endl;
-
     // now we have only following parameters
     // [server]
     //  address <IP>:<PORT>

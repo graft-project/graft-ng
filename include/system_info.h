@@ -2,47 +2,42 @@
 
 #include <atomic>
 #include <cstdint>
+#include <chrono>
 
 namespace graft { namespace supernode {
 
+using u32 = std::uint32_t;
 using u64 = std::uint64_t;
+using SysClockTimePoint = std::chrono::time_point<std::chrono::system_clock>;
 
-class ISystemInfoConsumer
+class SystemInfoProvider
 {
   public:
-    virtual u64 http_request_total_cnt(void) = 0;
-    virtual u64 http_request_routed_cnt(void) = 0;
-    virtual u64 http_request_unrouted_cnt(void) = 0;
-};
+    SystemInfoProvider(void);
+    ~SystemInfoProvider(void);
 
-class ISystemInfoProducer
-{
-  public:
-    virtual void count_http_request_total(void) = 0;
-    virtual void count_http_request_routed(void) = 0;
-    virtual void count_http_request_unrouted(void) = 0;
-};
+  // interface for producer
+    void count_http_request_total(void) { ++m_http_req_total_cnt; }
+    void count_http_request_routed(void) { ++m_http_req_routed_cnt; }
+    void count_http_request_unrouted(void) { ++m_http_req_unrouted_cnt; }
 
-class SystmeInfoProvider : public ISystemInfoConsumer, public ISystemInfoProducer
-{
-  public:
-    SystmeInfoProvider(void);
-    ~SystmeInfoProvider(void);
+  // interface for consumer
+    u64 http_request_total_cnt(void) const { return m_http_req_total_cnt; }
+    u64 http_request_routed_cnt(void) const { return m_http_req_routed_cnt; }
+    u64 http_request_unrouted_cnt(void) const { return m_http_req_unrouted_cnt; }
 
-  public:
-    void count_http_request_total(void) override { ++http_req_total_cnt_; }
-    void count_http_request_routed(void) override { ++http_req_routed_cnt_; }
-    void count_http_request_unrouted(void) override { ++http_req_unrouted_cnt_; }
-
-  public:
-    u64 http_request_total_cnt(void) override { return http_req_total_cnt_; }
-    u64 http_request_routed_cnt(void) override { return http_req_routed_cnt_; }
-    u64 http_request_unrouted_cnt(void) override { return http_req_unrouted_cnt_; }
+    u32 server_uptime_sec(void) const
+    {
+        return std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now() - m_server_start_time).count();
+    }
 
   private:
-    std::atomic<u64>  http_req_total_cnt_;
-    std::atomic<u64>  http_req_routed_cnt_;
-    std::atomic<u64>  http_req_unrouted_cnt_;
+    std::atomic<u64>  m_http_req_total_cnt;
+    std::atomic<u64>  m_http_req_routed_cnt;
+    std::atomic<u64>  m_http_req_unrouted_cnt;
+
+    const SysClockTimePoint m_server_start_time;
 };
 
 } }

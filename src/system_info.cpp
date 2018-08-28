@@ -2,14 +2,15 @@
 
 namespace graft { namespace supernode {
 
-SystmeInfoProvider::SystmeInfoProvider(void)
-: http_req_total_cnt_(0)
-, http_req_routed_cnt_(0)
-, http_req_unrouted_cnt_(0)
+SystemInfoProvider::SystemInfoProvider(void)
+: m_http_req_total_cnt(0)
+, m_http_req_routed_cnt(0)
+, m_http_req_unrouted_cnt(0)
+, m_server_start_time(std::chrono::system_clock::now())
 {
 }
 
-SystmeInfoProvider::~SystmeInfoProvider(void)
+SystemInfoProvider::~SystemInfoProvider(void)
 {
 }
 

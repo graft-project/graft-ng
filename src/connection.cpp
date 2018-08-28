@@ -8,27 +8,28 @@
 
 namespace graft {
 
-graft::supernode::ISystemInfoProducer& get_system_info_producer(const graft::Context& ctx)
+inline graft::supernode::SystemInfoProvider& get_system_info_provider(const graft::Context& ctx)
 {
-    graft::supernode::ISystemInfoProducer* psip =
-      ctx.global.operator[]<graft::supernode::ISystemInfoProducer*>("system_info_producer");
+    graft::supernode::SystemInfoProvider* psip = ctx.global.operator[]<graft::supernode::SystemInfoProvider*>("system_info_provider");
+    //graft::supernode::SystemInfoProvider* psip = ctx.global.get("system_info_provider", nullptr);
+      //ctx.global.operator[]<graft::supernode::ISystemInfoProvider*>("system_info_provider");
     assert(psip);
     return *psip;
 }
 
 void collect_system_info_http_total_req(const graft::Context& ctx)
 {
-    get_system_info_producer(ctx).count_http_request_total();
+    get_system_info_provider(ctx).count_http_request_total();
 }
 
 void collect_system_info_http_routed_req(const graft::Context& ctx)
 {
-    get_system_info_producer(ctx).count_http_request_routed();
+    get_system_info_provider(ctx).count_http_request_routed();
 }
 
 void collect_system_info_http_unrouted_req(const graft::Context& ctx)
 {
-    get_system_info_producer(ctx).count_http_request_unrouted();
+    get_system_info_provider(ctx).count_http_request_unrouted();
 }
 
 std::string client_addr(mg_connection* client)

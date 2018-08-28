@@ -142,14 +142,14 @@ namespace pt = boost::property_tree;
 class GraftServerForTest : public graft::GraftServer
 {
   private:
-    void override_config_values(pt::ptree& ini_data, po::variables_map& cmdline_data) override;
+    //void override_config_values(pt::ptree& ini_data, po::variables_map& cmdline_data) override;
 };
 
-void GraftServerForTest::override_config_values(pt::ptree& ini_data, po::variables_map& cmdline_data)
-{
-  std::cout << "GraftServerForTest::override_config_values called" << std::endl;
-  ini_data.put("", 0);
-}
+//void GraftServerForTest::override_config_values(pt::ptree& ini_data, po::variables_map& cmdline_data)
+//{
+//  std::cout << "GraftServerForTest::override_config_values called" << std::endl;
+//  ini_data.put("", 0);
+//}
 
 TEST(Supernode, RequestSystemInfo)
 {

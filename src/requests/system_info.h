@@ -9,10 +9,33 @@
 //#include "router.h"
 //using Input = InHttp;
 //using Output = OutHttp;
+
+
+/*
+Plan part A
+systemUptimeSec
+
+systemHttpRespStatusOK                    (200)
+systemHttpRespStatusError                 (500)
+systemHttpRespStatusDrop                  (400)
+systemHttpRespStatusBusy                  (503)
+
+systemUpstreamHttpReq
+systemUpstreamHttpResp
+
+
+systemHttpReqBytesRow
+systemHttpRespBytesRow
+
+systemUpstreamHttpReqBytesRow
+systemUpstreamHttpRespBytesRow
+*/
+
 namespace graft { template<typename In, typename Out> class RouterT; class InHttp; class OutHttp; using Router = RouterT<InHttp, OutHttp>; }
 
 namespace graft { namespace supernode { namespace request { namespace system_info {
 
+using u32 = std::uint32_t;
 using u64 = std::uint64_t;
 
 GRAFT_DEFINE_IO_STRUCT_INITED(Configuratioon,
@@ -23,7 +46,8 @@ GRAFT_DEFINE_IO_STRUCT_INITED(Running,
     (std::string, some_value, std::string()),
     (u64, http_request_total_cnt, 0),
     (u64, http_request_routed_cnt, 0),
-    (u64, http_request_unrouted_cnt, 0)
+    (u64, http_request_unrouted_cnt, 0),
+    (u32, server_uptime_sec, 0)
 );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(EndPoint,
