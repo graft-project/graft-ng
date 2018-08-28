@@ -9,6 +9,7 @@
 #include "log.h"
 #include "serveropts.h"
 #include <misc_log_ex.h>
+#include "handler_api.h"
 #include <future>
 #include <deque>
 
@@ -183,16 +184,15 @@ public:
 
 class StateMachine;
 
-class TaskManager
+class TaskManager : private HandlerAPI
 {
 public:
     TaskManager(const ConfigOpts& copts);
     virtual ~TaskManager();
 
     void sendUpstream(BaseTaskPtr bt);
-    void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
     void addPeriodicTask(const Router::Handler3& h3,
-            std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms);
+            std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max());
 
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
@@ -210,7 +210,10 @@ public:
     void onTimer(BaseTaskPtr bt);
     void onUpstreamDone(UpstreamSender& uss);
 
-    static void sendUpstreamBlocking(Output& output, Input& input, std::string& err);
+    virtual void sendUpstreamBlocking(Output& output, Input& input, std::string& err) override;
+    virtual bool addPeriodicTask(const Router::Handler& h_worker,
+                                 std::chrono::milliseconds interval_ms,
+                                 std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max()) override;
 
     void runWorkerActionFromTheThreadPool(BaseTaskPtr bt);
 
@@ -222,6 +225,7 @@ protected:
     void executePostponedTasks();
     void setIOThread(bool current);
     void checkUpstreamBlockingIO();
+    void checkPeriodicTaskIO();
 
     ConfigOpts m_copts;
 private:
@@ -262,9 +266,12 @@ private:
     using PromiseItem = UpstreamTask::PromiseItem;
     using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;
 
+    using PeridicTaskItem = std::tuple<Router::Handler3, std::chrono::milliseconds, std::chrono::milliseconds>;
+    using PeriodicTaskQueue = tp::MPMCBoundedQueue<PeridicTaskItem>;
+
     std::unique_ptr<PromiseQueue> m_promiseQueue;
+    std::unique_ptr<PeriodicTaskQueue> m_periodicTaskQueue;
     static thread_local bool io_thread;
-    static TaskManager* g_upstreamManager;
 
     friend class StateMachine;
     std::unique_ptr<StateMachine> m_stateMachine;

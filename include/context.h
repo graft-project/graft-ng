@@ -19,7 +19,32 @@
 
 namespace graft
 {
-using GlobalContextMap = graft::TSHashtable<std::string, std::any>;
+class HandlerAPI;
+
+class GlobalContextMap : public TSHashtable<std::string, std::any>
+{
+public:
+    GlobalContextMap(HandlerAPI* handlerAPI = nullptr) : m_handlerAPI(handlerAPI) { }
+protected:
+    HandlerAPI* m_handlerAPI;
+};
+
+class GlobalContextMapFriend : protected GlobalContextMap
+{
+public:
+    GlobalContextMapFriend() = delete;
+    static void cleanup(GlobalContextMap& gcm)
+    {
+        GlobalContextMapFriend& gcmf = static_cast<GlobalContextMapFriend&>(gcm);
+        TSHashtable<std::string, std::any>& ht = gcmf;
+        ht.cleanup();
+    }
+    static HandlerAPI* handlerAPI(GlobalContextMap& gcm)
+    {
+        GlobalContextMapFriend& gcmf = static_cast<GlobalContextMapFriend&>(gcm);
+        return gcmf.m_handlerAPI;
+    }
+};
 
 class Context
 {
@@ -311,6 +336,11 @@ public:
             GlobalFriend& gf = static_cast<GlobalFriend&>(global);
             gf.m_map.cleanup(all);
         }
+        static HandlerAPI* handlerAPI(Global& global)
+        {
+            GlobalFriend& gf = static_cast<GlobalFriend&>(global);
+            return GlobalContextMapFriend::handlerAPI(gf.m_map);
+        }
     };
 
     using uuid_t = boost::uuids::uuid;
@@ -327,6 +357,8 @@ public:
     uuid_t getId() const { if(m_uuid.is_nil()) m_uuid = boost::uuids::random_generator()(); return m_uuid; }
     void setNextTaskId(uuid_t uuid) { m_nextUuid = uuid; }
     uuid_t getNextTaskId() const { return m_nextUuid; }
+
+    HandlerAPI* handlerAPI() { return GlobalFriend::handlerAPI(global); }
 
 private:
     mutable uuid_t m_uuid;
