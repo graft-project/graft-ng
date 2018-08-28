@@ -55,9 +55,9 @@ private:
 
         for(auto& r : m_table)
         {
-            if(m_state != std::get<0>(r)) continue;
+            if(m_state != std::get<smStateStart>(r)) continue;
 
-            Statuses& ss = std::get<1>(r);
+            Statuses& ss = std::get<smStatuses>(r);
             if(ss.size()!=0)
             {
                 bool res = false;
@@ -72,12 +72,12 @@ private:
                 if(!res) continue;
             }
 
-            Guard& g = std::get<3>(r);
+            Guard& g = std::get<smGuard>(r);
             if(g && !g(bt)) continue;
 
-            Action& a = std::get<4>(r);
+            Action& a = std::get<smAction>(r);
             if(a) a(bt);
-            m_state = std::get<2>(r);
+            m_state = std::get<smStateEnd>(r);
             return;
         }
         throw std::runtime_error("State machine table is not complete");
@@ -90,7 +90,8 @@ private:
     const Guard hasnt(Router::Handler H3::* act);
 
     State m_state;
-    using row = std::tuple<State, Statuses, State, Guard, Action>;
+    enum columns          { smStateStart,   smStatuses, smStateEnd, smGuard,    smAction};
+    using row = std::tuple< State,          Statuses,   State,      Guard,      Action  >;
     std::vector<row> m_table;
 };
 
