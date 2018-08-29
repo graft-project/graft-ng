@@ -98,6 +98,7 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
             if (!fsl->get(announce.address)->updateFromAnnounce(announce)) {
                 error.code = ERROR_INTERNAL_ERROR;
                 error.message = "Failed to update supernode with announce";
+                LOG_ERROR(error.message);
                 break;
             }
         } else {
