@@ -20,16 +20,22 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
 {
     vars;
     input;
-
-    graft::supernode::SystemInfoProvider* psip = ctx.global.operator[]<graft::supernode::SystemInfoProvider*>("system_info_provider");
-    //graft::supernode::SystemInfoProvider* psip = ctx.global.get("system_info_provider", nullptr);
-    assert(psip);
+    graft::supernode::SystemInfoProvider& sip = graft::supernode::get_system_info_provider_from_ctx(ctx);
 
     Response out;
-    out.runningInfo.http_request_total_cnt = psip->http_request_total_cnt();
-    out.runningInfo.http_request_routed_cnt = psip->http_request_routed_cnt();
-    out.runningInfo.http_request_unrouted_cnt = psip->http_request_unrouted_cnt();
-    out.runningInfo.server_uptime_sec = psip->server_uptime_sec();
+    auto& ri = out.runningInfo;
+
+    ri.http_request_total_cnt     = sip.http_request_total_cnt();
+    ri.http_request_routed_cnt    = sip.http_request_routed_cnt();
+    ri.http_request_unrouted_cnt  = sip.http_request_unrouted_cnt();
+
+    ri.system_http_resp_status_ok    = sip.http_resp_status_ok_cnt();
+    ri.system_http_resp_status_error = sip.http_resp_status_error_cnt();
+    ri.system_http_resp_status_drop  = sip.http_resp_status_drop_cnt();
+    ri.system_http_resp_status_busy  = sip.http_resp_status_busy_cnt();
+
+    ri.system_uptime_sec = sip.system_uptime_sec();
+
     output.load(out);
     return Status::Ok;
 }

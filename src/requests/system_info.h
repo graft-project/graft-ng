@@ -47,7 +47,11 @@ GRAFT_DEFINE_IO_STRUCT_INITED(Running,
     (u64, http_request_total_cnt, 0),
     (u64, http_request_routed_cnt, 0),
     (u64, http_request_unrouted_cnt, 0),
-    (u32, server_uptime_sec, 0)
+    (u64, system_http_resp_status_ok, 0),
+    (u64, system_http_resp_status_error, 0),
+    (u64, system_http_resp_status_drop, 0),
+    (u64, system_http_resp_status_busy, 0),
+    (u32, system_uptime_sec, 0)
 );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(EndPoint,

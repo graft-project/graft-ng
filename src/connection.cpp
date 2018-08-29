@@ -8,30 +8,6 @@
 
 namespace graft {
 
-inline graft::supernode::SystemInfoProvider& get_system_info_provider(const graft::Context& ctx)
-{
-    graft::supernode::SystemInfoProvider* psip = ctx.global.operator[]<graft::supernode::SystemInfoProvider*>("system_info_provider");
-    //graft::supernode::SystemInfoProvider* psip = ctx.global.get("system_info_provider", nullptr);
-      //ctx.global.operator[]<graft::supernode::ISystemInfoProvider*>("system_info_provider");
-    assert(psip);
-    return *psip;
-}
-
-void collect_system_info_http_total_req(const graft::Context& ctx)
-{
-    get_system_info_provider(ctx).count_http_request_total();
-}
-
-void collect_system_info_http_routed_req(const graft::Context& ctx)
-{
-    get_system_info_provider(ctx).count_http_request_routed();
-}
-
-void collect_system_info_http_unrouted_req(const graft::Context& ctx)
-{
-    get_system_info_provider(ctx).count_http_request_unrouted();
-}
-
 std::string client_addr(mg_connection* client)
 {
     if(!client) return "disconnected";
@@ -273,7 +249,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     {
     case MG_EV_HTTP_REQUEST:
     {
-        collect_system_info_http_total_req(manager->getGcm());
+        graft::supernode::get_system_info_provider_from_ctx(manager->getGcm()).count_http_request_total();
 
         mg_set_timer(client, 0);
 
@@ -290,7 +266,8 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         Router::JobParams prms;
         if (httpcm->matchRoute(uri, method, prms))
         {
-            collect_system_info_http_routed_req(manager->getGcm());
+            graft::supernode::get_system_info_provider_from_ctx(manager->getGcm()).count_http_request_routed();
+
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
             LOG_PRINT_CLN(2,client,"Matching Route found; body = " << std::string(body.p, body.len));
@@ -305,7 +282,8 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         }
         else
         {
-            collect_system_info_http_unrouted_req(manager->getGcm());
+            graft::supernode::get_system_info_provider_from_ctx(manager->getGcm()).count_http_request_unrouted();
+
             LOG_PRINT_CLN(2,client,"Matching Route not found; closing connection");
             mg_http_send_error(client, 500, "invalid parameter");
             client->flags |= MG_F_SEND_AND_CLOSE;
@@ -391,18 +369,20 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
 void ConnectionManager::respond(ClientTask* ct, const std::string& s)
 {
     if(!ct->getSelf()) return; //it is possible that a client has closed connection already
-    int code;
+
+    int code = 0;
+    auto& ctx = ct->getCtx();
+    auto& sip = graft::supernode::get_system_info_provider_from_ctx(ctx);
     switch(ct->getCtx().local.getLastStatus())
     {
-    case Status::Ok: code = 200; break;
-    case Status::InternalError:
-    case Status::Error: code = 500; break;
-    case Status::Busy: code = 503; break;
-    case Status::Drop: code = 400; break;
-    default: assert(false); break;
+      case Status::Ok:              { code = 200; sip.count_http_resp_status_ok(); }    break;
+      case Status::InternalError:
+      case Status::Error:           { code = 500; sip.count_http_resp_status_error(); } break;
+      case Status::Busy:            { code = 503; sip.count_http_resp_status_busy(); }  break;
+      case Status::Drop:            { code = 400; sip.count_http_resp_status_drop(); }  break;
+      default:                      assert(false);                                      break;
     }
 
-    auto& ctx = ct->getCtx();
     auto& client = ct->m_client;
     LOG_PRINT_CLN(2, ct->m_client, "Reply to client: " << s);
     if(Status::Ok == ctx.local.getLastStatus())
