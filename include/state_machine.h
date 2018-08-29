@@ -57,7 +57,8 @@ private:
     const Guard hasnt(Router::Handler H3::* act);
 
     State m_state;
-    using row = std::tuple<State, Statuses, State, Guard, Action>;
+    enum columns          { smStateStart,   smStatuses, smStateEnd, smGuard,    smAction};
+    using row = std::tuple< State,          Statuses,   State,      Guard,      Action  >;
     std::vector<row> m_table;
 };
 

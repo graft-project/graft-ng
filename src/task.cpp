@@ -19,9 +19,9 @@ void StateMachine::process(BaseTaskPtr bt)
 
     for(auto& r : m_table)
     {
-        if(m_state != std::get<0>(r)) continue;
+        if(m_state != std::get<smStateStart>(r)) continue;
 
-        Statuses& ss = std::get<1>(r);
+        Statuses& ss = std::get<smStatuses>(r);
         if(ss.size()!=0)
         {
             bool res = false;
@@ -36,14 +36,14 @@ void StateMachine::process(BaseTaskPtr bt)
             if(!res) continue;
         }
 
-        Guard& g = std::get<3>(r);
+        Guard& g = std::get<smGuard>(r);
         if(g && !g(bt)) continue;
 
-        Action& a = std::get<4>(r);
+        Action& a = std::get<smAction>(r);
         if(a) a(bt);
 
         State prev_state = m_state;
-        m_state = std::get<2>(r);
+        m_state = std::get<smStateEnd>(r);
 
         mlog_current_log_category = "sm";
         LOG_PRINT_RQS_BT(3,bt, "sm: " << state_strs[int(prev_state)] << "->" << state_strs[int(m_state)] );
