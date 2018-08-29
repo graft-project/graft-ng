@@ -28,8 +28,14 @@ class SystemInfoProvider
     void count_http_resp_status_drop(void)    { ++m_http_resp_status_drop_cnt; }    // 400
     void count_http_resp_status_busy(void)    { ++m_http_resp_status_busy_cnt; }    // 503
 
+    void count_http_req_bytes_raw(void)         { ++m_http_req_bytes_raw_cnt; }
+    void count_http_resp_bytes_raw(void)        { ++m_http_resp_bytes_raw_cnt; }
+
     void count_upstrm_http_req(void)          { ++m_upstrm_http_req_cnt; }
     void count_upstrm_http_resp(void)         { ++m_upstrm_http_resp_cnt; }
+
+    void count_upstrm_http_req_bytes_raw(void)   { ++m_upstrm_http_req_bytes_raw_cnt; }
+    void count_upstrm_http_resp_bytes_raw(void)  { ++m_upstrm_http_resp_bytes_raw_cnt; }
 
     // interface for consumer
     u64 http_request_total_cnt(void) const    { return m_http_req_total_cnt; }
@@ -41,8 +47,14 @@ class SystemInfoProvider
     u64 http_resp_status_drop_cnt(void) const  { return m_http_resp_status_drop_cnt; }    // 400
     u64 http_resp_status_busy_cnt(void) const  { return m_http_resp_status_busy_cnt; }    // 503
 
+    u64 http_req_bytes_raw_cnt(void) const  { return m_http_req_bytes_raw_cnt; }
+    u64 http_resp_bytes_raw_cnt(void) const { return m_http_resp_bytes_raw_cnt; }
+
     u64 upstrm_http_req_cnt(void) const   { return m_upstrm_http_req_cnt; }
     u64 upstrm_http_resp_cnt(void) const  { return m_upstrm_http_resp_cnt; }
+
+    u64 upstrm_http_req_bytes_raw_cnt(void)   const { return m_upstrm_http_req_bytes_raw_cnt; }
+    u64 upstrm_http_resp_bytes_raw_cnt(void)  const { return m_upstrm_http_resp_bytes_raw_cnt; }
 
     u32 system_uptime_sec(void) const
     {
@@ -60,8 +72,14 @@ class SystemInfoProvider
     std::atomic<u64>  m_http_resp_status_drop_cnt;
     std::atomic<u64>  m_http_resp_status_busy_cnt;
 
+    std::atomic<u64>  m_http_req_bytes_raw_cnt;
+    std::atomic<u64>  m_http_resp_bytes_raw_cnt;
+
     std::atomic<u64>  m_upstrm_http_req_cnt;
     std::atomic<u64>  m_upstrm_http_resp_cnt;
+
+    std::atomic<u64>  m_upstrm_http_req_bytes_raw_cnt;
+    std::atomic<u64>  m_upstrm_http_resp_bytes_raw_cnt;
 
     const SysClockTimePoint m_system_start_time;
 };

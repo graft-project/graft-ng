@@ -25,17 +25,23 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     Response out;
     auto& ri = out.runningInfo;
 
-    ri.http_request_total_cnt     = sip.http_request_total_cnt();
-    ri.http_request_routed_cnt    = sip.http_request_routed_cnt();
-    ri.http_request_unrouted_cnt  = sip.http_request_unrouted_cnt();
+    ri.http_request_total     = sip.http_request_total_cnt();
+    ri.http_request_routed    = sip.http_request_routed_cnt();
+    ri.http_request_unrouted  = sip.http_request_unrouted_cnt();
 
     ri.system_http_resp_status_ok    = sip.http_resp_status_ok_cnt();
     ri.system_http_resp_status_error = sip.http_resp_status_error_cnt();
     ri.system_http_resp_status_drop  = sip.http_resp_status_drop_cnt();
     ri.system_http_resp_status_busy  = sip.http_resp_status_busy_cnt();
 
-    ri.system_upstrm_http_req_cnt   = sip.upstrm_http_req_cnt();
-    ri.system_upstrm_http_resp_cnt  = sip.upstrm_http_resp_cnt();
+    ri.system_http_req_bytes_raw  = sip.http_req_bytes_raw_cnt();
+    ri.system_http_resp_bytes_raw = sip.http_resp_bytes_raw_cnt();
+
+    ri.system_upstrm_http_req   = sip.upstrm_http_req_cnt();
+    ri.system_upstrm_http_resp  = sip.upstrm_http_resp_cnt();
+
+    ri.system_upstrm_http_req_bytes_raw  = sip.upstrm_http_req_bytes_raw_cnt();
+    ri.system_upstrm_http_resp_bytes_raw = sip.upstrm_http_resp_bytes_raw_cnt();
 
     ri.system_uptime_sec = sip.system_uptime_sec();
 
