@@ -11,6 +11,8 @@ SystemInfoProvider::SystemInfoProvider(void)
 , m_http_resp_status_error_cnt(0)
 , m_http_resp_status_drop_cnt(0)
 , m_http_resp_status_busy_cnt(0)
+, m_upstrm_http_req_cnt(0)
+, m_upstrm_http_resp_cnt(0)
 , m_system_start_time(std::chrono::system_clock::now())
 {
 }

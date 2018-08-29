@@ -1,6 +1,7 @@
 #include "task.h"
 #include "connection.h"
 #include "router.h"
+#include "system_info.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -46,6 +47,7 @@ void TaskManager::checkUpstreamBlockingIO()
 
 void TaskManager::sendUpstream(BaseTaskPtr bt)
 {
+    graft::supernode::get_system_info_provider_from_ctx(graft::Context(getGcm())).count_upstrm_http_req();
     ++m_cntUpstreamSender;
     UpstreamSender::Ptr uss = UpstreamSender::Create();
     uss->send(*this, bt);
@@ -389,6 +391,8 @@ void TaskManager::cb_event(uint64_t cnt)
 
 void TaskManager::onUpstreamDone(UpstreamSender& uss)
 {
+    graft::supernode::get_system_info_provider_from_ctx(graft::Context(getGcm())).count_upstrm_http_resp();
+
     BaseTaskPtr bt = uss.getTask();
     UpstreamTask* ust = dynamic_cast<UpstreamTask*>(bt.get());
     if(ust)

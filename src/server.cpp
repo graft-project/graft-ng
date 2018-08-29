@@ -257,10 +257,6 @@ void usage(const boost::program_options::options_description& desc)
 
 bool GraftServer::initConfigOption(int argc, const char** argv)
 {
-    std::cout << "gs::initConfigOpion argc:" << argc << std::endl;
-    for(int i = 0; i < argc; ++i)
-      std::cout << "arg-" << (i + 1) << ": [" << argv[i] << "]" << std::endl;
-
     namespace po = boost::program_options;
 
     std::string config_filename;

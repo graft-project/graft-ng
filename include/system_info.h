@@ -18,7 +18,7 @@ class SystemInfoProvider
     SystemInfoProvider(void);
     ~SystemInfoProvider(void);
 
-  // interface for producer
+    // interface for producer
     void count_http_request_total(void)       { ++m_http_req_total_cnt; }
     void count_http_request_routed(void)      { ++m_http_req_routed_cnt; }
     void count_http_request_unrouted(void)    { ++m_http_req_unrouted_cnt; }
@@ -28,7 +28,10 @@ class SystemInfoProvider
     void count_http_resp_status_drop(void)    { ++m_http_resp_status_drop_cnt; }    // 400
     void count_http_resp_status_busy(void)    { ++m_http_resp_status_busy_cnt; }    // 503
 
-  // interface for consumer
+    void count_upstrm_http_req(void)          { ++m_upstrm_http_req_cnt; }
+    void count_upstrm_http_resp(void)         { ++m_upstrm_http_resp_cnt; }
+
+    // interface for consumer
     u64 http_request_total_cnt(void) const    { return m_http_req_total_cnt; }
     u64 http_request_routed_cnt(void) const   { return m_http_req_routed_cnt; }
     u64 http_request_unrouted_cnt(void) const { return m_http_req_unrouted_cnt; }
@@ -37,6 +40,9 @@ class SystemInfoProvider
     u64 http_resp_status_error_cnt(void) const { return m_http_resp_status_error_cnt; }   // 500
     u64 http_resp_status_drop_cnt(void) const  { return m_http_resp_status_drop_cnt; }    // 400
     u64 http_resp_status_busy_cnt(void) const  { return m_http_resp_status_busy_cnt; }    // 503
+
+    u64 upstrm_http_req_cnt(void) const   { return m_upstrm_http_req_cnt; }
+    u64 upstrm_http_resp_cnt(void) const  { return m_upstrm_http_resp_cnt; }
 
     u32 system_uptime_sec(void) const
     {
@@ -53,6 +59,9 @@ class SystemInfoProvider
     std::atomic<u64>  m_http_resp_status_error_cnt;
     std::atomic<u64>  m_http_resp_status_drop_cnt;
     std::atomic<u64>  m_http_resp_status_busy_cnt;
+
+    std::atomic<u64>  m_upstrm_http_req_cnt;
+    std::atomic<u64>  m_upstrm_http_resp_cnt;
 
     const SysClockTimePoint m_system_start_time;
 };

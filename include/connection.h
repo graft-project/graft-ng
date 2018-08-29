@@ -4,8 +4,6 @@
 
 namespace graft {
 
-class Context;
-
 namespace details
 {
 

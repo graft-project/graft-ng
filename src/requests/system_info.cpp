@@ -34,6 +34,9 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     ri.system_http_resp_status_drop  = sip.http_resp_status_drop_cnt();
     ri.system_http_resp_status_busy  = sip.http_resp_status_busy_cnt();
 
+    ri.system_upstrm_http_req_cnt   = sip.upstrm_http_req_cnt();
+    ri.system_upstrm_http_resp_cnt  = sip.upstrm_http_resp_cnt();
+
     ri.system_uptime_sec = sip.system_uptime_sec();
 
     output.load(out);
