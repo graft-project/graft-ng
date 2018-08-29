@@ -6,6 +6,7 @@
 #include "context.h"
 #include "timer.h"
 #include "self_holder.h"
+#include "log.h"
 #include <misc_log_ex.h>
 #include "CMakeConfig.h"
 #include <future>
@@ -107,6 +108,7 @@ struct ConfigOpts
     int worker_queue_len;
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
+    int log_trunc_to_size;
     // data directory - base directory where supernode stake wallet and other supernodes wallets are located
     std::string data_dir;
     int lru_timeout_ms;
