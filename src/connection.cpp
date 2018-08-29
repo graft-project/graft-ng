@@ -73,6 +73,9 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         mg_set_timer(upstream, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
         m_bt->getInput() = *hm;
+
+        std::cout << std::endl << "###  upstm-response-size:" << hm->message.len << std::endl;
+
         setError(Status::Ok);
         upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
         TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
@@ -254,6 +257,9 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         mg_set_timer(client, 0);
 
         struct http_message *hm = (struct http_message *) ev_data;
+
+        std::cout << std::endl << "###  http-req-size:" << hm->message.len << std::endl;
+
         std::string uri(hm->uri.p, hm->uri.len);
 
         int method = translateMethod(hm->method.p, hm->method.len);

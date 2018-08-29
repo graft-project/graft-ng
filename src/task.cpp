@@ -391,8 +391,6 @@ void TaskManager::cb_event(uint64_t cnt)
 
 void TaskManager::onUpstreamDone(UpstreamSender& uss)
 {
-    graft::supernode::get_system_info_provider_from_ctx(graft::Context(getGcm())).count_upstrm_http_resp();
-
     BaseTaskPtr bt = uss.getTask();
     UpstreamTask* ust = dynamic_cast<UpstreamTask*>(bt.get());
     if(ust)
@@ -401,9 +399,11 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
         {
             if(Status::Ok != uss.getStatus())
             {
+                graft::supernode::get_system_info_provider_from_ctx(graft::Context(getGcm())).count_upstrm_http_resp_err();
                 throw std::runtime_error(uss.getError().c_str());
             }
             ust->m_pi.first.set_value(bt->getInput());
+            graft::supernode::get_system_info_provider_from_ctx(graft::Context(getGcm())).count_upstrm_http_resp_ok();
         }
         catch(std::exception&)
         {

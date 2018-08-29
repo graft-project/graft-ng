@@ -20,7 +20,7 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
 {
     vars;
     input;
-    graft::supernode::SystemInfoProvider& sip = graft::supernode::get_system_info_provider_from_ctx(ctx);
+    auto& sip = graft::supernode::get_system_info_provider_from_ctx(ctx);
 
     Response out;
     auto& ri = out.runningInfo;
@@ -37,8 +37,9 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     ri.system_http_req_bytes_raw  = sip.http_req_bytes_raw_cnt();
     ri.system_http_resp_bytes_raw = sip.http_resp_bytes_raw_cnt();
 
-    ri.system_upstrm_http_req   = sip.upstrm_http_req_cnt();
-    ri.system_upstrm_http_resp  = sip.upstrm_http_resp_cnt();
+    ri.system_upstrm_http_req       = sip.upstrm_http_req_cnt();
+    ri.system_upstrm_http_resp_ok   = sip.upstrm_http_resp_ok_cnt();
+    ri.system_upstrm_http_resp_err  = sip.upstrm_http_resp_err_cnt();
 
     ri.system_upstrm_http_req_bytes_raw  = sip.upstrm_http_req_bytes_raw_cnt();
     ri.system_upstrm_http_resp_bytes_raw = sip.upstrm_http_resp_bytes_raw_cnt();

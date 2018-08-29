@@ -57,7 +57,8 @@ GRAFT_DEFINE_IO_STRUCT_INITED(Running,
     (u64, system_http_resp_bytes_raw, 0),
 
     (u64, system_upstrm_http_req, 0),
-    (u64, system_upstrm_http_resp, 0),
+    (u64, system_upstrm_http_resp_ok, 0),
+    (u64, system_upstrm_http_resp_err, 0),
 
     (u64, system_upstrm_http_req_bytes_raw, 0),
     (u64, system_upstrm_http_resp_bytes_raw, 0),

@@ -32,7 +32,8 @@ class SystemInfoProvider
     void count_http_resp_bytes_raw(void)        { ++m_http_resp_bytes_raw_cnt; }
 
     void count_upstrm_http_req(void)          { ++m_upstrm_http_req_cnt; }
-    void count_upstrm_http_resp(void)         { ++m_upstrm_http_resp_cnt; }
+    void count_upstrm_http_resp_ok(void)      { ++m_upstrm_http_resp_ok_cnt; }
+    void count_upstrm_http_resp_err(void)     { ++m_upstrm_http_resp_err_cnt; }
 
     void count_upstrm_http_req_bytes_raw(void)   { ++m_upstrm_http_req_bytes_raw_cnt; }
     void count_upstrm_http_resp_bytes_raw(void)  { ++m_upstrm_http_resp_bytes_raw_cnt; }
@@ -51,7 +52,8 @@ class SystemInfoProvider
     u64 http_resp_bytes_raw_cnt(void) const { return m_http_resp_bytes_raw_cnt; }
 
     u64 upstrm_http_req_cnt(void) const   { return m_upstrm_http_req_cnt; }
-    u64 upstrm_http_resp_cnt(void) const  { return m_upstrm_http_resp_cnt; }
+    u64 upstrm_http_resp_ok_cnt(void) const  { return m_upstrm_http_resp_ok_cnt; }
+    u64 upstrm_http_resp_err_cnt(void) const  { return m_upstrm_http_resp_err_cnt; }
 
     u64 upstrm_http_req_bytes_raw_cnt(void)   const { return m_upstrm_http_req_bytes_raw_cnt; }
     u64 upstrm_http_resp_bytes_raw_cnt(void)  const { return m_upstrm_http_resp_bytes_raw_cnt; }
@@ -76,7 +78,8 @@ class SystemInfoProvider
     std::atomic<u64>  m_http_resp_bytes_raw_cnt;
 
     std::atomic<u64>  m_upstrm_http_req_cnt;
-    std::atomic<u64>  m_upstrm_http_resp_cnt;
+    std::atomic<u64>  m_upstrm_http_resp_ok_cnt;
+    std::atomic<u64>  m_upstrm_http_resp_err_cnt;
 
     std::atomic<u64>  m_upstrm_http_req_bytes_raw_cnt;
     std::atomic<u64>  m_upstrm_http_resp_bytes_raw_cnt;

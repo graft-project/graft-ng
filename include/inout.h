@@ -75,7 +75,7 @@ struct mg_str; //from mongoose.h
  * );
  */
 
-namespace graft 
+namespace graft
 {
     namespace serializer
     {
