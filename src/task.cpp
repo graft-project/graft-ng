@@ -11,6 +11,49 @@ namespace graft {
 thread_local bool TaskManager::io_thread = false;
 TaskManager* TaskManager::g_upstreamManager{nullptr};
 
+void StateMachine::process(BaseTaskPtr bt)
+{
+    static const char *state_strs[] = { GRAFT_STATE_LIST(EXP_TO_STR) };
+
+    St cur_stat = status(bt);
+
+    for(auto& r : m_table)
+    {
+        if(m_state != std::get<smStateStart>(r)) continue;
+
+        Statuses& ss = std::get<smStatuses>(r);
+        if(ss.size()!=0)
+        {
+            bool res = false;
+            for(auto s : ss)
+            {
+                if(s == cur_stat)
+                {
+                    res = true;
+                    break;
+                }
+            }
+            if(!res) continue;
+        }
+
+        Guard& g = std::get<smGuard>(r);
+        if(g && !g(bt)) continue;
+
+        Action& a = std::get<smAction>(r);
+        if(a) a(bt);
+
+        State prev_state = m_state;
+        m_state = std::get<smStateEnd>(r);
+
+        mlog_current_log_category = "sm";
+        LOG_PRINT_RQS_BT(3,bt, "sm: " << state_strs[int(prev_state)] << "->" << state_strs[int(m_state)] );
+        mlog_current_log_category.clear();
+
+        return;
+    }
+    throw std::runtime_error("State machine table is not complete");
+}
+
 const StateMachine::Guard StateMachine::has(Router::Handler H3::* act)
 {
     return [act](BaseTaskPtr bt)->bool
@@ -261,7 +304,10 @@ void TaskManager::runPreAction(BaseTaskPtr bt)
     {
         // Please read the comment about exceptions and noexcept specifier
         // near 'void terminate()' function in main.cpp
+        mlog_current_log_category = params.h3.name;
         Status status = params.h3.pre_action(params.vars, params.input, ctx, output);
+        mlog_current_log_category.clear();
+
         bt->setLastStatus(status);
         if(Status::Ok == status && (params.h3.worker_action || params.h3.post_action)
                 || Status::Forward == status)
@@ -310,7 +356,11 @@ void TaskManager::runWorkerActionFromTheThreadPool(BaseTaskPtr bt)
     {
         // Please read the comment about exceptions and noexcept specifier
         // near 'void terminate()' function in main.cpp
+
+        mlog_current_log_category = params.h3.name;
         Status status = params.h3.worker_action(params.vars, params.input, ctx, output);
+        mlog_current_log_category.clear();
+
         bt->setLastStatus(status);
         if(Status::Ok == status && params.h3.post_action || Status::Forward == status)
         {
@@ -343,7 +393,10 @@ void TaskManager::runPostAction(BaseTaskPtr bt)
 
     try
     {
+        mlog_current_log_category = params.h3.name;
         Status status = params.h3.post_action(params.vars, params.input, ctx, output);
+        mlog_current_log_category.clear();
+
         //in case of pre_action or worker_action return Forward we call post_action in any case
         //but we should ignore post_action result status and output
         if(Status::Forward != bt->getLastStatus())
