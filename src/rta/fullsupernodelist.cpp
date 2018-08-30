@@ -231,6 +231,8 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
     crypto::hash block_hash;
     string  block_hash_str;
 
+    MDEBUG("building auth sample for height: " << height);
+
     if (!getBlockHash(height - AUTH_SAMPLE_HASH_HEIGHT, block_hash_str)) {
         LOG_ERROR("getBlockHash error");
         return false;
@@ -238,12 +240,15 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
 
     epee::string_tools::hex_to_pod(block_hash_str, block_hash);
     vector<SupernodePtr> tier_supernodes;
+    out.clear();
 
     auto out_it = back_inserter(out);
 
-    size_t remaining_items = 8;
-    auto build_tier_sample = [&](uint64_t tier_min, uint64_t tier_max) -> size_t {
-        selectTierSupernodes(block_hash, tier_min, tier_max, tier_supernodes, out, ITEMS_PER_TIER);
+
+    auto build_tier_sample = [&](uint64_t tier_min, uint64_t tier_max, size_t max_items) -> size_t {
+        if (max_items == 0)
+            return 0;
+        selectTierSupernodes(block_hash, tier_min, tier_max, tier_supernodes, out, max_items);
         copy(tier_supernodes.begin(), tier_supernodes.end(), out_it);
         size_t items_selected =  tier_supernodes.size();
         tier_supernodes.clear();
@@ -254,10 +259,11 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
     size_t tries_left = AUTH_SAMPLE_SIZE * AUTH_SAMPLE_SIZE; // not sure if it needs to be N^2
 
     while (out.size() < AUTH_SAMPLE_SIZE && tries_left--) {
-        build_tier_sample(Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT);
-        build_tier_sample(Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT);
-        build_tier_sample(Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT);
-        build_tier_sample(Supernode::TIER4_STAKE_AMOUNT, std::numeric_limits<uint64_t>::max());
+        build_tier_sample(Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT, std::min(ITEMS_PER_TIER, AUTH_SAMPLE_SIZE - out.size()));
+        build_tier_sample(Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT, std::min(ITEMS_PER_TIER, AUTH_SAMPLE_SIZE - out.size()));
+        build_tier_sample(Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT, std::min(ITEMS_PER_TIER, AUTH_SAMPLE_SIZE - out.size()));
+        build_tier_sample(Supernode::TIER4_STAKE_AMOUNT, std::numeric_limits<uint64_t>::max(),
+                          std::min(ITEMS_PER_TIER, AUTH_SAMPLE_SIZE - out.size()));
     }
 
     std::string auth_sample_str;
@@ -265,7 +271,7 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
         auth_sample_str += a->walletAddress() + "\n";
     }
     LOG_PRINT_L0("known supernodes: " << this->size());
-    LOG_PRINT_L0("auth sample: " << auth_sample_str);
+    LOG_PRINT_L0("auth sample: \n" << auth_sample_str);
 
 
     return out.size() == AUTH_SAMPLE_SIZE;
@@ -295,6 +301,7 @@ std::future<void> FullSupernodeList::refreshAsync()
         SupernodePtr sn = this->get(address);
         if (sn) {
             sn->refresh();
+
             ++m_refresh_counter;
         }
     };
@@ -345,14 +352,18 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
         boost::shared_lock<boost::shared_mutex> readerLock(m_access);
         for (const auto &it : m_list) {
             size_t seconds_since_last_update =  size_t(std::time(nullptr)) - it.second->lastUpdateTime();
-            MDEBUG("supernode " << it.first << ", updated " << seconds_since_last_update << " seconds ago");
-            if (/*seconds_since_last_update < ANNOUNCE_TTL_SECONDS*/ true
+            MDEBUG("checking supernode " << it.first << ", updated: " << seconds_since_last_update << " seconds ago"
+                   << ", stake amount: " << it.second->stakeAmount());
+            if (seconds_since_last_update < ANNOUNCE_TTL_SECONDS
                     && it.second->stakeAmount() >= tier_min_stake
                     && it.second->stakeAmount() < tier_max_stake
                     && find_if(selected_items.begin(), selected_items.end(), [&](const auto &sn) {
                                return sn->walletAddress() == it.first;
-                            }) == selected_items.end())
+                       }) == selected_items.end()) {
+                MDEBUG("supernode: " << it.first << " selected for auth sample");
                 all_tier_items.push_back(it.second);
+            }
+
         }
     }
     if (all_tier_items.empty()) {

@@ -376,6 +376,7 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
 
     auto& ctx = ct->getCtx();
     auto& client = ct->m_client;
+    LOG_PRINT_CLN(2, ct->m_client, "Reply to client: " << s);
     if(Status::Ok == ctx.local.getLastStatus())
     {
         mg_send_head(client, code, s.size(), "Content-Type: application/json\r\nConnection: close");

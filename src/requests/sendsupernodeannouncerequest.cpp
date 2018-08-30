@@ -82,7 +82,7 @@ Status handleSupernodeAnnounce(const Router::vars_t& vars, const graft::Input& i
         return Status::Error;
     }
 
-        //  handle announce
+    //  handle announce
     const SupernodeAnnounce & announce = req.params;
     MINFO("received announce for address: " << announce.address);
 
@@ -92,8 +92,6 @@ Status handleSupernodeAnnounce(const Router::vars_t& vars, const graft::Input& i
             return Status::Error;
         }
     } else {
-        // this can't be executed here as it takes too much time, we need to respond "ok" and run
-        // this task asynchronously
         std::string watchonly_wallets_path = ctx.global["watchonly_wallets_path"];
         assert(!watchonly_wallets_path.empty());
         boost::filesystem::path p(watchonly_wallets_path);
@@ -103,13 +101,13 @@ Status handleSupernodeAnnounce(const Router::vars_t& vars, const graft::Input& i
         bool testnet = ctx.global["testnet"];
         MINFO("creating wallet in: " << p.string());
 
-
         Supernode * s  = Supernode::createFromAnnounce(wallet_path, announce,
                                                        cryptonode_rpc_address,
                                                        testnet);
         if (!s) {
             LOG_ERROR("Cant create watch-only supernode wallet for address: " << announce.address);
             return Status::Error;
+
         }
 
         MINFO("About to add supernode to list [" << s << "]: " << s->walletAddress());

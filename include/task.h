@@ -6,12 +6,13 @@
 #include "context.h"
 #include "timer.h"
 #include "self_holder.h"
+#include "log.h"
 #include <misc_log_ex.h>
 #include "CMakeConfig.h"
 #include <future>
 #include <deque>
 
-#define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << client_addr(client) << "]" << x)
+#define LOG_PRINT_CLN(level,client,x) LOG_PRINT_L##level("[" << client_addr(client) << "] " << x)
 
 #define LOG_PRINT_RQS_BT(level,bt,x) \
 { \
@@ -107,6 +108,7 @@ struct ConfigOpts
     int worker_queue_len;
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
+    int log_trunc_to_size;
     // data directory - base directory where supernode stake wallet and other supernodes wallets are located
     std::string data_dir;
     int lru_timeout_ms;
@@ -221,7 +223,7 @@ public:
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
     GlobalContextMap& getGcm() { return m_gcm; }
-    const ConfigOpts& getCopts() const { return m_copts; }
+    ConfigOpts& getCopts() { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
 
     static TaskManager* from(mg_mgr* mgr);
