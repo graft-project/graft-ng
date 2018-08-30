@@ -219,28 +219,27 @@ namespace details
 
 namespace po = boost::program_options;
 
-void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
+void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm, ConfigOpts& co)
 {
-    int log_level = 3;
-    bool log_console = true;
-    std::string log_filename;
+    co.log_level = 3;
+    co.log_console = true;
 
     //from config
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
     boost::optional<int> level  = log_conf.get_optional<int>("loglevel");
-    if(level) log_level = level.get();
+    if(level) co.log_level = level.get();
     boost::optional<std::string> log_file  = log_conf.get_optional<std::string>("logfile");
-    if(log_file) log_filename = log_file.get();
+    if(log_file) co.log_filename = log_file.get();
     boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
-    if(log_to_console) log_console = log_to_console.get();
+    if(log_to_console) co.log_console = log_to_console.get();
 
     //override from cmdline
-    if (vm.count("log-level")) log_level = vm["log-level"].as<int>();
-    if (vm.count("log-file")) log_filename = vm["log-file"].as<std::string>();
-    if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
+    if(vm.count("log-level"))   co.log_level    = vm["log-level"].as<int>();
+    if(vm.count("log-file"))    co.log_filename = vm["log-file"].as<std::string>();
+    if(vm.count("log-console")) co.log_console  = vm["log-console"].as<bool>();
 
-    mlog_configure(log_filename, log_console);
-    mlog_set_log_level(log_level);
+    mlog_configure(co.log_filename, co.log_console);
+    mlog_set_log_level(co.log_level);
 }
 
 } //namespace details
@@ -322,7 +321,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv)
     //            ├── supernode_tier1_2.address.txt
     //            └── supernode_tier1_2.keys
 
-    details::init_log(config, vm);
+    details::init_log(config, vm, m_configOpts);
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
     m_configOpts.http_address = server_conf.get<std::string>("http-address");
@@ -420,6 +419,7 @@ void GraftServer::prepareDataDirAndSupernodes()
     ctx.global["testnet"] = m_configOpts.testnet;
     ctx.global["watchonly_wallets_path"] = m_configOpts.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configOpts.cryptonode_rpc_address;
+    ctx.global["looper"] = m_looper.get();
 }
 
 void GraftServer::intiConnectionManagers()

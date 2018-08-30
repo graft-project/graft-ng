@@ -117,6 +117,10 @@ struct ConfigOpts
     // runtime parameters.
     // path to watch-only wallets (supernodes)
     std::string watchonly_wallets_path;
+
+    int log_level;
+    bool log_console;
+    std::string log_filename;
 };
 
 class BaseTask : public SelfHolder<BaseTask>

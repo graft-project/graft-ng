@@ -2,6 +2,7 @@
 #include "requests/system_info.h"
 
 #include "context.h"
+#include "connection.h"
 #include "./../system_info.h"   // andrew.kibirev: yes, know that it's UGLY and Wrong. It'll be fixed.
 #include "inout.h"
 #include "router.h"
@@ -45,6 +46,32 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     ri.system_upstrm_http_resp_bytes_raw = sip.upstrm_http_resp_bytes_raw_cnt();
 
     ri.system_uptime_sec = sip.system_uptime_sec();
+
+    const graft::Looper* pl = ctx.global.get("looper", (graft::Looper*)nullptr);
+    //const graft::Looper* pl = ctx.global.operator[]<graft::Looper*>("looper");
+    //const graft::Looper* pl = nullptr;
+    if(pl)
+    {
+        auto& cfg = out.configuration;
+        const ConfigOpts& co = pl->getCopts();
+        cfg.http_address = co.http_address;
+        cfg.coap_address = co.coap_address;
+        cfg.http_connection_timeout = co.http_connection_timeout;
+        cfg.upstream_request_timeout = co.upstream_request_timeout;
+        cfg.workers_count = co.workers_count;
+        cfg.worker_queue_len = co.worker_queue_len;
+        cfg.cryptonode_rpc_address = co.cryptonode_rpc_address;
+        cfg.timer_poll_interval_ms = co.timer_poll_interval_ms;
+        cfg.data_dir = co.data_dir;
+        cfg.lru_timeout_ms = co.lru_timeout_ms;
+        cfg.testnet = co.testnet;
+        cfg.stake_wallet_name = co.stake_wallet_name;
+        cfg.stake_wallet_refresh_interval_ms = co.stake_wallet_refresh_interval_ms;
+        cfg.watchonly_wallets_path == co.watchonly_wallets_path;
+        cfg.log_level = co.log_level;
+        cfg.log_console = co.log_console;
+        cfg.log_filename = co.log_filename;
+    }
 
     output.load(out);
     return Status::Ok;

@@ -39,7 +39,23 @@ using u32 = std::uint32_t;
 using u64 = std::uint64_t;
 
 GRAFT_DEFINE_IO_STRUCT_INITED(Configuratioon,
-    (std::string, some_value, std::string())
+    (std::string, http_address, std::string()),
+    (std::string, coap_address, std::string()),
+    (u32, http_connection_timeout, 0),
+    (u32, upstream_request_timeout, 0),
+    (u32, workers_count, 0),
+    (u32, worker_queue_len, 0),
+    (std::string, cryptonode_rpc_address, std::string()),
+    (u32, timer_poll_interval_ms, 0),
+    (std::string, data_dir, std::string()),
+    (u32, lru_timeout_ms, 0),
+    (bool, testnet, false),
+    (std::string, stake_wallet_name, std::string()),
+    (u32, stake_wallet_refresh_interval_ms, 0),
+    (std::string, watchonly_wallets_path, std::string()),
+    (u32, log_level, 0),
+    (bool, log_console, false),
+    (std::string, log_filename, std::string())
 );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(Running,
