@@ -45,7 +45,7 @@ bool prepareSaleDetailsResponse(const SaleDetailsRequest &req, graft::Context &c
     for (const auto &member : authSample) {
         SupernodeFee snf;
         snf.Address = member->walletAddress();
-        snf.Fee = total_fee / authSample.size();
+        snf.Fee = std::to_string(total_fee / authSample.size());
         resp.AuthSample.push_back(snf);
     }
 
