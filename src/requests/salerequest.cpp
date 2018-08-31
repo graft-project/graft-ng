@@ -36,8 +36,9 @@ GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
 enum class SaleHandlerState : int
 {
     ClientRequest = 0,
-    SaleMulticastReply,
-    SaleStatusReply,
+    SaleMulticastRequest,
+    SaleStatusRequest,
+    SaleStatusReply
 };
 
 
@@ -92,32 +93,67 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         return errorCustomError(MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE, ERROR_INVALID_PARAMS, output);
     }
 
+    // store auth sample
+    ctx.local["auth_sample"] = authSample;
+
     // here we need to perform two actions:
     // 1. multicast sale over auth sample
     // 2. broadcast sale status
     ctx.global.set(payment_id + CONTEXT_KEY_SALE, data, SALE_TTL);
     ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
 
-    // store SaleData, payment_id and status in local context, so when we got reply from cryptonode, we just pass it to client
-    ctx.local["sale_data"]  = data;
-    ctx.local["payment_id"]  = payment_id;
-
     // prepare output for multicast
-    // multicast sale to the auth sample nodes
     SaleDataMulticast sdm;
     sdm.paymentId = payment_id;
     sdm.sale_data = data;
     sdm.status = static_cast<int>(RTAStatus::Waiting);
     sdm.details = in.SaleDetails;
-    Output innerOut;
-    innerOut.loadT<serializer::JSON_B64>(sdm);
 
+    ctx.local["sale_data_multicast"] = sdm;
+    // TODO: use only SaleDataMulticast object?
+    ctx.local["payment_id"] = payment_id;
+
+    // prepare reply to the client
+    SaleResponseJsonRpc out;
+    out.result.BlockNumber = data.BlockNumber;
+    out.result.PaymentID = payment_id;
+    output.load(out);
+    MDEBUG(__FUNCTION__ << "reply to client, payment_id: " << payment_id);
+    return Status::Again;
+}
+
+Status sendSaleDataMulticast(const Router::vars_t& vars, const graft::Input& input,
+                                graft::Context& ctx, graft::Output& output)
+{
+    // check cryptonode reply
+    MDEBUG(__FUNCTION__ << " begin");
+    MulticastResponseFromCryptonodeJsonRpc resp;
+    Output innerOut;
+
+    if (!ctx.local.hasKey("sale_data_multicast")) {
+        LOG_ERROR("Internal error. no sale data stored in context");
+        abort();
+        return Status::Error;
+    }
+
+    if (!ctx.local.hasKey("auth_sample")) {
+        LOG_ERROR("Internal error. no auth sample stored in context");
+        abort();
+        return Status::Error;
+    }
+
+    SaleDataMulticast sdm = ctx.local["sale_data_multicast"];
+    vector<SupernodePtr> authSample = ctx.local["auth_sample"];
+
+    innerOut.loadT<serializer::JSON_B64>(sdm);
     MulticastRequestJsonRpc cryptonode_req;
 
     for (const auto & sn : authSample) {
         cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
     }
-    MDEBUG(__FUNCTION__ << "processed client request, multicasting sale data for payment_id: " << payment_id);
+
+    MDEBUG(__FUNCTION__ << "processed client request, multicasting sale data for payment_id: " << sdm.paymentId);
+
     cryptonode_req.method = "multicast";
     cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side
     cryptonode_req.params.data = innerOut.data();
@@ -126,9 +162,9 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     LOG_PRINT_L0("calling cryptonode: " << output.path);
     LOG_PRINT_L0("\t with data: " << output.data());
     MDEBUG(__FUNCTION__ << " end");
-
     return Status::Forward;
 }
+
 
 
 Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& input,
@@ -157,29 +193,6 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
     return Status::Forward;
 }
 
-Status handleSaleStatusBroadcastReply(const Router::vars_t& vars, const graft::Input& input,
-                                graft::Context& ctx, graft::Output& output)
-{
-
-    // TODO: check if cryptonode broadcasted status
-    MDEBUG(__FUNCTION__ << " begin");
-    BroadcastResponseFromCryptonodeJsonRpc resp;
-    JsonRpcErrorResponse error;
-    if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
-        return errorCustomError("Error broadcasting request", ERROR_INTERNAL_ERROR, output);
-    }
-
-    // prepare reply to the client
-    SaleData data = ctx.local["sale_data"];
-    string payment_id = ctx.local["payment_id"];
-    SaleResponseJsonRpc out;
-    out.result.BlockNumber = data.BlockNumber;
-    out.result.PaymentID = payment_id;
-    output.load(out);
-    MDEBUG(__FUNCTION__ << "processed sale status broadcast, reply to client, payment_id: " << payment_id);
-    MDEBUG(__FUNCTION__ << " end");
-    return Status::Ok;
-}
 
 /*!
  * \brief saleClientHandler - handles /dapi/v2.0/sale POS request
@@ -200,21 +213,27 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
     // client requested "/sale"
     case SaleHandlerState::ClientRequest:
         LOG_PRINT_L0("called by client, payload: " << input.data());
-        ctx.local[__FUNCTION__] = SaleHandlerState::SaleMulticastReply;
+        ctx.local[__FUNCTION__] = SaleHandlerState::SaleMulticastRequest;
         // call cryptonode's "/rta/multicast" to send sale data to auth sample
         // "handleClientSaleRequest" returns Forward;
         return handleClientSaleRequest(vars, input, ctx, output);
-    case SaleHandlerState::SaleMulticastReply:
+    // we replied to client, sending multicast with sale data
+    case SaleHandlerState::SaleMulticastRequest:
+        ctx.local[__FUNCTION__] = SaleHandlerState::SaleStatusRequest;
+        return sendSaleDataMulticast(vars, input, ctx, output);
+    // multicast asknowledge from cryptonode, sending status broadcast
+    case SaleHandlerState::SaleStatusRequest:
         // handle "multicast" response from cryptonode, check it's status, send
         // "sale status" with broadcast to cryptonode
         LOG_PRINT_L0("SaleMulticast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         ctx.local[__FUNCTION__] = SaleHandlerState::SaleStatusReply;
         return handleSaleMulticastReply(vars, input, ctx, output);
+    // final state, just return Ok
     case SaleHandlerState::SaleStatusReply:
         LOG_PRINT_L0("SaleStatusBroadcast response from cryptonode: " << input.data());
         LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
-        return handleSaleStatusBroadcastReply(vars, input, ctx, output);
+        return Status::Ok;
      default:
         LOG_ERROR("Internal error: unhandled state");
         abort();
