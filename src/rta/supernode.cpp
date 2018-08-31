@@ -197,7 +197,6 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
     m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
     MDEBUG("update from announce done for: " << this->walletAddress() <<  ": last update time updated to: " << m_last_update_time);
     return true;
-
 }
 
 Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnnounce &announce, const std::string &daemon_address,
