@@ -474,6 +474,8 @@ void GraftServer::startSupernodePeriodicTasks()
                     return graft::Status::Ok;
                 }
 
+                supernode->setLastUpdateTime(static_cast<uint64_t>(std::time(nullptr)));
+
                 LOG_PRINT_L0("supernode refresh done, stake amount: " << supernode->stakeAmount());
 
                 graft::SendSupernodeAnnounceJsonRpcRequest req;
