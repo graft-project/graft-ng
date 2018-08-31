@@ -47,7 +47,6 @@ void TaskManager::checkUpstreamBlockingIO()
 
 void TaskManager::sendUpstream(BaseTaskPtr bt)
 {
-    graft::supernode::get_system_info_provider_from_ctx(graft::Context(getGcm())).count_upstrm_http_req();
     ++m_cntUpstreamSender;
     UpstreamSender::Ptr uss = UpstreamSender::Create();
     uss->send(*this, bt);
@@ -391,6 +390,11 @@ void TaskManager::cb_event(uint64_t cnt)
 
 void TaskManager::onUpstreamDone(UpstreamSender& uss)
 {
+    if(Status::Ok == uss.getStatus())
+        Context(getGcm()).runtime_sys_info().count_upstrm_http_resp_ok();
+    else
+        Context(getGcm()).runtime_sys_info().count_upstrm_http_resp_err();
+
     BaseTaskPtr bt = uss.getTask();
     UpstreamTask* ust = dynamic_cast<UpstreamTask*>(bt.get());
     if(ust)
@@ -399,11 +403,9 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
         {
             if(Status::Ok != uss.getStatus())
             {
-                graft::supernode::get_system_info_provider_from_ctx(graft::Context(getGcm())).count_upstrm_http_resp_err();
                 throw std::runtime_error(uss.getError().c_str());
             }
             ust->m_pi.first.set_value(bt->getInput());
-            graft::supernode::get_system_info_provider_from_ctx(graft::Context(getGcm())).count_upstrm_http_resp_ok();
         }
         catch(std::exception&)
         {

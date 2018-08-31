@@ -22,7 +22,6 @@ mg_mgr* getMgr(mg_connection* nc) { return nc->mgr; }
 
 void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
 {
-
 }
 
 constexpr std::pair<const char *, int> ConnectionManager::m_methods[];
@@ -44,9 +43,16 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
     m_upstream = mg::mg_connect_http_x(manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
                              extra_headers.c_str(),
                              body); //body.empty() means GET
+
+    //std::cout << "###  upstrm-send: url:" << url << "  ex-hdrs:" << extra_headers << "  body:" << body << std::endl;
+
     assert(m_upstream);
     m_upstream->user_data = this;
     mg_set_timer(m_upstream, mg_time() + opts.upstream_request_timeout);
+
+    auto& rsi = Context(manager.getGcm()).runtime_sys_info();
+    rsi.count_upstrm_http_req();
+    rsi.count_upstrm_http_req_bytes_raw(url.size() + extra_headers.size() + body.size());
 }
 
 void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
@@ -74,11 +80,15 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         http_message* hm = static_cast<http_message*>(ev_data);
         m_bt->getInput() = *hm;
 
-        std::cout << std::endl << "###  upstm-response-size:" << hm->message.len << std::endl;
+        auto* man = TaskManager::from(upstream->mgr);
+        assert(man);
+
+        //std::cout << std::endl << "###  upstm-response-size:" << hm->message.len << std::endl;
+        Context(man->getGcm()).runtime_sys_info().count_upstrm_http_resp_bytes_raw(hm->message.len);
 
         setError(Status::Ok);
         upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
-        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        man->onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
         m_upstream = nullptr;
         releaseItself();
@@ -252,13 +262,14 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     {
     case MG_EV_HTTP_REQUEST:
     {
-        graft::supernode::get_system_info_provider_from_ctx(manager->getGcm()).count_http_request_total();
+        Context(manager->getGcm()).runtime_sys_info().count_http_request_total();
 
         mg_set_timer(client, 0);
 
         struct http_message *hm = (struct http_message *) ev_data;
 
-        std::cout << std::endl << "###  http-req-size:" << hm->message.len << std::endl;
+        //std::cout << std::endl << "###  http-req-size:" << hm->message.len << std::endl;
+        Context(manager->getGcm()).runtime_sys_info().count_http_req_bytes_raw(hm->message.len);
 
         std::string uri(hm->uri.p, hm->uri.len);
 
@@ -266,13 +277,13 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         if (method < 0) return;
 
         std::string s_method(hm->method.p, hm->method.len);
-        LOG_PRINT_CLN(1,client,"New HTTP client. uri:" << std::string(hm->uri.p, hm->uri.len) << " method:" << s_method);
+        LOG_PRINT_CLN(1, client, "New HTTP client. uri:" << std::string(hm->uri.p, hm->uri.len) << " method:" << s_method);
 
         HttpConnectionManager* httpcm = HttpConnectionManager::from_accepted(client);
         Router::JobParams prms;
-        if (httpcm->matchRoute(uri, method, prms))
+        if(httpcm->matchRoute(uri, method, prms))
         {
-            graft::supernode::get_system_info_provider_from_ctx(manager->getGcm()).count_http_request_routed();
+            Context(manager->getGcm()).runtime_sys_info().count_http_request_routed();
 
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
@@ -288,7 +299,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         }
         else
         {
-            graft::supernode::get_system_info_provider_from_ctx(manager->getGcm()).count_http_request_unrouted();
+            Context(manager->getGcm()).runtime_sys_info().count_http_request_unrouted();
 
             LOG_PRINT_CLN(2,client,"Matching Route not found; closing connection");
             mg_http_send_error(client, 500, "invalid parameter");
@@ -378,32 +389,35 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
 
     int code = 0;
     auto& ctx = ct->getCtx();
-    auto& sip = graft::supernode::get_system_info_provider_from_ctx(ctx);
-    switch(ct->getCtx().local.getLastStatus())
+    auto& rsi = ctx.runtime_sys_info();
+    switch(ctx.local.getLastStatus())
     {
-      case Status::Ok:              { code = 200; sip.count_http_resp_status_ok(); }    break;
+      case Status::Ok:              { code = 200; rsi.count_http_resp_status_ok(); }    break;
       case Status::InternalError:
-      case Status::Error:           { code = 500; sip.count_http_resp_status_error(); } break;
-      case Status::Busy:            { code = 503; sip.count_http_resp_status_busy(); }  break;
-      case Status::Drop:            { code = 400; sip.count_http_resp_status_drop(); }  break;
+      case Status::Error:           { code = 500; rsi.count_http_resp_status_error(); } break;
+      case Status::Busy:            { code = 503; rsi.count_http_resp_status_busy(); }  break;
+      case Status::Drop:            { code = 400; rsi.count_http_resp_status_drop(); }  break;
       default:                      assert(false);                                      break;
     }
 
-    auto& client = ct->m_client;
-    LOG_PRINT_CLN(2, ct->m_client, "Reply to client: " << s);
+    //std::cout << "###  ConnectionManager::respond called" << std::endl;
+    //std::cout << std::endl << "### Reply to client:" << s << std::endl;
 
-    std::cout << std::endl << "### Reply to client:" << s << std::endl;
+    auto& client = ct->m_client;
+    LOG_PRINT_CLN(2, client, "Reply to client: " << s);
 
     if(Status::Ok == ctx.local.getLastStatus())
     {
         mg_send_head(client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
         mg_send(client, s.c_str(), s.size());
+        ctx.runtime_sys_info().count_http_resp_bytes_raw(s.size());
+        //std::cout << "###  http-resp-size:" << s.size() << std::endl;
     }
     else
     {
         mg_http_send_error(client, code, s.c_str());
     }
-    LOG_PRINT_CLN(2,ct->m_client,"Client request finished with result " << ct->getStrStatus());
+    LOG_PRINT_CLN(2, client, "Client request finished with result " << ct->getStrStatus());
     client->flags |= MG_F_SEND_AND_CLOSE;
     ct->getManager().onClientDone(ct->getSelf());
     client->handler = static_empty_ev_handler;

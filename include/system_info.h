@@ -28,15 +28,15 @@ class SystemInfoProvider
     void count_http_resp_status_drop(void)    { ++m_http_resp_status_drop_cnt; }    // 400
     void count_http_resp_status_busy(void)    { ++m_http_resp_status_busy_cnt; }    // 503
 
-    void count_http_req_bytes_raw(void)         { ++m_http_req_bytes_raw_cnt; }
-    void count_http_resp_bytes_raw(void)        { ++m_http_resp_bytes_raw_cnt; }
+    void count_http_req_bytes_raw(u32 inc_delta)         { m_http_req_bytes_raw_cnt += inc_delta; }
+    void count_http_resp_bytes_raw(u32 inc_delta)        { m_http_resp_bytes_raw_cnt += inc_delta; }
 
     void count_upstrm_http_req(void)          { ++m_upstrm_http_req_cnt; }
     void count_upstrm_http_resp_ok(void)      { ++m_upstrm_http_resp_ok_cnt; }
     void count_upstrm_http_resp_err(void)     { ++m_upstrm_http_resp_err_cnt; }
 
-    void count_upstrm_http_req_bytes_raw(void)   { ++m_upstrm_http_req_bytes_raw_cnt; }
-    void count_upstrm_http_resp_bytes_raw(void)  { ++m_upstrm_http_resp_bytes_raw_cnt; }
+    void count_upstrm_http_req_bytes_raw(u32 inc_delta)   { m_upstrm_http_req_bytes_raw_cnt += inc_delta; }
+    void count_upstrm_http_resp_bytes_raw(u32 inc_delta)  { m_upstrm_http_resp_bytes_raw_cnt += inc_delta; }
 
     // interface for consumer
     u64 http_request_total_cnt(void) const    { return m_http_req_total_cnt; }
@@ -87,6 +87,6 @@ class SystemInfoProvider
     const SysClockTimePoint m_system_start_time;
 };
 
-SystemInfoProvider& get_system_info_provider_from_ctx(const graft::Context& ctx);
+//SystemInfoProvider& get_system_info_provider_from_ctx(const graft::Context& ctx);
 
 } }

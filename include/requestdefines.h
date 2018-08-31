@@ -67,6 +67,9 @@ static const std::string CONTEXT_TX_ID("tx_id");
 // key to store sale_details response coming from callback
 static const std::string CONTEXT_SALE_DETAILS_RESULT(":sale_details");
 
+static const std::string CONTEXT_KEY_CONFIG_OPTS(":config-opts");
+static const std::string CONTEXT_KEY_RUNTIME_SYS_INFO(":runtime-sys-info");
+
 static const double AUTHSAMPLE_FEE_PERCENTAGE = 0.5;
 
 

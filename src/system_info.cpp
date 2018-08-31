@@ -26,14 +26,14 @@ SystemInfoProvider::~SystemInfoProvider(void)
 {
 }
 
-SystemInfoProvider& get_system_info_provider_from_ctx(const graft::Context& ctx)
-{
-    graft::supernode::SystemInfoProvider* psip = ctx.global.operator[]<graft::supernode::SystemInfoProvider*>("system_info_provider");
-    //graft::supernode::SystemInfoProvider* psip = ctx.global.get("system_info_provider", nullptr);
-      //ctx.global.operator[]<graft::supernode::ISystemInfoProvider*>("system_info_provider");
-    assert(psip);
-    return *psip;
-}
+//SystemInfoProvider& get_system_info_provider_from_ctx(const graft::Context& ctx)
+//{
+//    graft::supernode::SystemInfoProvider* psip = ctx.global.operator[]<graft::supernode::SystemInfoProvider*>("system_info_provider");
+//    //graft::supernode::SystemInfoProvider* psip = ctx.global.get("system_info_provider", nullptr);
+//      //ctx.global.operator[]<graft::supernode::ISystemInfoProvider*>("system_info_provider");
+//    assert(psip);
+//    return *psip;
+//}
 
 } }
 

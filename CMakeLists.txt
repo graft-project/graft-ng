@@ -61,8 +61,9 @@ add_definitions("-Wall")
 #add_definitions("-Wextra")
 
 set(GS_SOURCES
-    ${PROJECT_SOURCE_DIR}/src/task.cpp
     ${PROJECT_SOURCE_DIR}/src/connection.cpp
+    ${PROJECT_SOURCE_DIR}/src/context.cpp
+    ${PROJECT_SOURCE_DIR}/src/task.cpp
     ${PROJECT_SOURCE_DIR}/src/inout.cpp
     ${PROJECT_SOURCE_DIR}/src/router.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp

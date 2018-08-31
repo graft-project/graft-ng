@@ -99,10 +99,10 @@ void GraftServer::initGlobalContext()
 //    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
 //    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
 
-    assert(m_looper);
-    assert(m_sys_info);
-    graft::Context ctx(m_looper->getGcm());
-    ctx.global["system_info_provider"] = m_sys_info.get();
+    //assert(m_looper);
+    //assert(m_sys_info);
+    //graft::Context ctx(m_looper->getGcm());
+    //ctx.global["system_info_provider"] = m_sys_info.get();
 //static_cast<graft::supernode::SystemInfoProvider*>(
 }
 
@@ -419,7 +419,11 @@ void GraftServer::prepareDataDirAndSupernodes()
     ctx.global["testnet"] = m_configOpts.testnet;
     ctx.global["watchonly_wallets_path"] = m_configOpts.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configOpts.cryptonode_rpc_address;
-    ctx.global["looper"] = m_looper.get();
+    //ctx.global["looper"] = m_looper.get();
+
+    assert(m_sys_info);
+    ctx.runtime_sys_info(*(m_sys_info.get()));
+    ctx.config_opts(m_configOpts);
 }
 
 void GraftServer::intiConnectionManagers()
