@@ -362,6 +362,11 @@ uint64_t Supernode::lastUpdateTime() const
     return m_last_update_time;
 }
 
+void Supernode::setLastUpdateTime(uint64_t time)
+{
+    m_last_update_time = time;
+}
+
 Supernode::Supernode(bool testnet)
     : m_wallet{ new tools::wallet2(testnet) }
 {
