@@ -53,7 +53,7 @@ Supernode::~Supernode()
 
 uint64_t Supernode::stakeAmount() const
 {
-    return m_wallet->balance();
+    return m_wallet->unspent_balance();
 }
 
 string Supernode::walletAddress() const
@@ -195,7 +195,9 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
     // TODO: check self amount vs announced amount
     setNetworkAddress(announce.network_address);
     m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
-    MDEBUG("update from announce done for: " << this->walletAddress() <<  ": last update time updated to: " << m_last_update_time);
+    MDEBUG("update from announce done for: " << walletAddress() <<
+            "; last update time updated to: " << m_last_update_time <<
+            "; stake amount: " << stakeAmount());
     return true;
 }
 
@@ -245,7 +247,7 @@ bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
         SignedKeyImageStr skis;
         skis.key_image = epee::string_tools::pod_to_hex(ski.first);
         skis.signature = epee::string_tools::pod_to_hex(ski.second);
-        announce.signed_key_images.push_back(skis);
+        announce.signed_key_images.push_back(std::move(skis));
     }
 
     announce.stake_amount = this->stakeAmount();
@@ -309,6 +311,7 @@ bool Supernode::refresh()
 {
     try {
         m_wallet->refresh();
+        m_wallet->rescan_unspent();
         m_wallet->store();
     } catch (...) {
         LOG_ERROR("Failed to refresh supernode wallet: " << this->walletAddress());
