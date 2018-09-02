@@ -17,6 +17,10 @@ using namespace std;
 
 namespace graft {
 
+#ifndef __cpp_inline_variables
+constexpr uint64_t Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT;
+#endif
+
 Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
                      const string &seed_language)
     : m_wallet{new tools::wallet2(testnet)}
@@ -54,6 +58,16 @@ Supernode::~Supernode()
 uint64_t Supernode::stakeAmount() const
 {
     return m_wallet->unspent_balance();
+}
+
+uint32_t Supernode::tier() const
+{
+    auto stake = stakeAmount();
+    return 0 +
+        (stake >= TIER1_STAKE_AMOUNT) +
+        (stake >= TIER2_STAKE_AMOUNT) +
+        (stake >= TIER3_STAKE_AMOUNT) +
+        (stake >= TIER4_STAKE_AMOUNT);
 }
 
 uint64_t Supernode::walletBalance() const
@@ -364,12 +378,12 @@ bool Supernode::validateAddress(const string &address, bool testnet)
     return address.size() > 0 && cryptonote::get_account_address_from_str(acc, testnet, address);
 }
 
-uint64_t Supernode::lastUpdateTime() const
+int64_t Supernode::lastUpdateTime() const
 {
     return m_last_update_time;
 }
 
-void Supernode::setLastUpdateTime(uint64_t time)
+void Supernode::setLastUpdateTime(int64_t time)
 {
     m_last_update_time = time;
 }

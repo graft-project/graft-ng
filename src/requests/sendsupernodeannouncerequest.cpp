@@ -182,7 +182,7 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
                                         ERROR_INTERNAL_ERROR, output);
             }
 
-            supernode->setLastUpdateTime(static_cast<uint64_t>(std::time(nullptr)));
+            supernode->setLastUpdateTime(static_cast<int64_t>(std::time(nullptr)));
 
             graft::SendSupernodeAnnounceJsonRpcRequest req;
             if (!supernode->prepareAnnounce(req.params)) {

@@ -31,10 +31,10 @@ public:
     //  90,000 GRFT –  tier 2
     //  150,000 GRFT – tier 3
     //  250,000 GRFT – tier 4
-    static const uint64_t TIER1_STAKE_AMOUNT = COIN *  50000;
-    static const uint64_t TIER2_STAKE_AMOUNT = COIN *  90000;
-    static const uint64_t TIER3_STAKE_AMOUNT = COIN * 150000;
-    static const uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
+    static constexpr uint64_t TIER1_STAKE_AMOUNT = COIN *  50000;
+    static constexpr uint64_t TIER2_STAKE_AMOUNT = COIN *  90000;
+    static constexpr uint64_t TIER3_STAKE_AMOUNT = COIN * 150000;
+    static constexpr uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
 
     /*!
      * \brief Supernode - constructs supernode
@@ -73,6 +73,11 @@ public:
      * \return            - stake amount in atomic units
      */
     uint64_t stakeAmount() const;
+    /*!
+     * \brief tier - returns the tier of this supernode based on its stake amount
+     * \return     - the tier (1-4) of the supernode or 0 if the verified stake amount is below tier 1
+     */
+    uint32_t tier() const;
     /*!
      * \brief walletBalance - returns wallet balance as seen by the internal wallet; note that this
      *                        can be wrong for a view-only wallet with unverified transactions: you
@@ -222,13 +227,13 @@ public:
      * \brief lastUpdateTime - returns timestamp when supernode updated last time
      * \return
      */
-    uint64_t lastUpdateTime() const;
+    int64_t lastUpdateTime() const;
 
     /*!
      * \brief setLastUpdateTime - upda
      * \param time
      */
-    void setLastUpdateTime(uint64_t time);
+    void setLastUpdateTime(int64_t time);
 
 private:
     Supernode(bool testnet = false);
@@ -237,7 +242,7 @@ private:
     using wallet2_ptr = boost::scoped_ptr<tools::wallet2>;
     mutable wallet2_ptr m_wallet;
     std::string    m_network_address;
-    uint64_t       m_last_update_time;
+    int64_t        m_last_update_time;
 };
 
 using SupernodePtr = boost::shared_ptr<Supernode>;
