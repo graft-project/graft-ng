@@ -260,6 +260,9 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
         return errorCustomError("tx already processed", ERROR_INVALID_PARAMS, output);
     }
 
+    // store tx amount in global context
+    ctx.global.set(tx_id_str + CONTEXT_KEY_AMOUNT_BY_TX_ID, authReq.amount, RTA_TX_TTL);
+
     // check if we have a fee assigned by sender wallet
     uint64 amount = 0;
     if (!supernode->getAmountFromTx(tx, amount)) {
@@ -417,6 +420,9 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         MDEBUG("approved votes: " << authResult.approved.size()
                << ", rejected votes: " << authResult.rejected.size());
 
+        uint64_t tx_amount = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_AMOUNT_BY_TX_ID, 0);
+        size_t rta_votes_to_approve = tx_amount / COIN > 100 ? 4 : 2;
+
         MDEBUG(__FUNCTION__ << " end");
         if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
             string msg = string("rta auth response processed but no tx found for tx id: ") + rtaAuthResp.tx_id;
@@ -431,7 +437,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
             ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int> (RTAStatus::Fail), RTA_TX_TTL);
             buildBroadcastSaleStatusOutput(payment_id, static_cast<int> (RTAStatus::Fail), supernode, output);
             return Status::Forward;
-        } else if (authResult.approved.size() >= RTA_VOTES_TO_APPROVE) {
+        } else if (authResult.approved.size() >= rta_votes_to_approve) {
             MDEBUG("tx " << rtaAuthResp.tx_id << " approved by auth sample, pushing to tx pool");
             SendRawTxRequest req;
             // store tx_id in local context so we can use it when broadcasting status
