@@ -87,6 +87,5 @@ class SystemInfoProvider
     const SysClockTimePoint m_system_start_time;
 };
 
-//SystemInfoProvider& get_system_info_provider_from_ctx(const graft::Context& ctx);
-
 } }
+

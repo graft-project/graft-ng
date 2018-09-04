@@ -44,8 +44,6 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
                              extra_headers.c_str(),
                              body); //body.empty() means GET
 
-    //std::cout << "###  upstrm-send: url:" << url << "  ex-hdrs:" << extra_headers << "  body:" << body << std::endl;
-
     assert(m_upstream);
     m_upstream->user_data = this;
     mg_set_timer(m_upstream, mg_time() + opts.upstream_request_timeout);
@@ -83,7 +81,6 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         auto* man = TaskManager::from(upstream->mgr);
         assert(man);
 
-        //std::cout << std::endl << "###  upstm-response-size:" << hm->message.len << std::endl;
         Context(man->getGcm()).runtime_sys_info().count_upstrm_http_resp_bytes_raw(hm->message.len);
 
         setError(Status::Ok);
@@ -268,7 +265,6 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
 
         struct http_message *hm = (struct http_message *) ev_data;
 
-        //std::cout << std::endl << "###  http-req-size:" << hm->message.len << std::endl;
         Context(manager->getGcm()).runtime_sys_info().count_http_req_bytes_raw(hm->message.len);
 
         std::string uri(hm->uri.p, hm->uri.len);
@@ -316,7 +312,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     }
     case MG_EV_TIMER:
     {
-        LOG_PRINT_CLN(1,client,"Client timeout; closing connection");
+        LOG_PRINT_CLN(1, client, "Client timeout; closing connection");
         mg_set_timer(client, 0);
         client->handler = ev_handler_empty; //without this we will get MG_EV_HTTP_REQUEST
         client->flags |= MG_F_CLOSE_IMMEDIATELY;
