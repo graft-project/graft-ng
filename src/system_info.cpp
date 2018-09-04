@@ -1,7 +1,8 @@
 #include "system_info.h"
+
 #include "context.h"
 
-namespace graft { namespace supernode {
+namespace graft::supernode {
 
 SystemInfoProvider::SystemInfoProvider(void)
 : m_http_req_total_cnt(0)
@@ -26,14 +27,5 @@ SystemInfoProvider::~SystemInfoProvider(void)
 {
 }
 
-//SystemInfoProvider& get_system_info_provider_from_ctx(const graft::Context& ctx)
-//{
-//    graft::supernode::SystemInfoProvider* psip = ctx.global.operator[]<graft::supernode::SystemInfoProvider*>("system_info_provider");
-//    //graft::supernode::SystemInfoProvider* psip = ctx.global.get("system_info_provider", nullptr);
-//      //ctx.global.operator[]<graft::supernode::ISystemInfoProvider*>("system_info_provider");
-//    assert(psip);
-//    return *psip;
-//}
-
-} }
+}
 

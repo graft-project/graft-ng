@@ -1,7 +1,7 @@
-#include "supernode.h"
-#include "fullsupernodelist.h"
-#include "requests/sendsupernodeannouncerequest.h"
+#include "rta/supernode.h"
 
+#include "rta/fullsupernodelist.h"
+#include "requests/sendsupernodeannouncerequest.h"
 
 #include <misc_log_ex.h>
 #include <wallet/wallet2.h>

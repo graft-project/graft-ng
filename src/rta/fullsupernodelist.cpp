@@ -1,4 +1,4 @@
-#include "fullsupernodelist.h"
+#include "rta/fullsupernodelist.h"
 
 #include <wallet/api/wallet_manager.h>
 #include <cryptonote_basic/cryptonote_basic_impl.h>

@@ -1,6 +1,6 @@
-#ifndef SALESTATUSREQUEST_H
-#define SALESTATUSREQUEST_H
+#pragma once
 
+#include <string>
 #include "router.h"
 #include "jsonrpc.h"
 #include "rta/supernode.h"
@@ -51,4 +51,3 @@ void registerSaleStatusRequest(graft::Router &router);
 
 }
 
-#endif // SALESTATUSREQUEST_H

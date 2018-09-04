@@ -1,5 +1,7 @@
-#include "rejectpayrequest.h"
+#include "requests/rejectpayrequest.h"
+
 #include "requestdefines.h"
+#include "router.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.rejectpayrequest"

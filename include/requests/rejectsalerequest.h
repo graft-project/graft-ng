@@ -1,9 +1,11 @@
-#ifndef REJECTSALEREQUEST_H
-#define REJECTSALEREQUEST_H
+#pragma once
 
-#include "router.h"
+#include <string>
+#include "inout.h"
 
 namespace graft {
+
+template<typename In, typename Out> class RouterT; class InHttp; class OutHttp; using Router = RouterT<InHttp, OutHttp>;
 
 GRAFT_DEFINE_IO_STRUCT(RejectSaleRequest,
     (std::string, PaymentID)
@@ -17,4 +19,3 @@ void registerRejectSaleRequest(graft::Router &router);
 
 }
 
-#endif // REJECTSALEREQUEST_H

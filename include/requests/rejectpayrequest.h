@@ -1,9 +1,11 @@
-#ifndef REJECTPAYREQUEST_H
-#define REJECTPAYREQUEST_H
+#pragma once
 
-#include "router.h"
+#include <string>
+#include <def_io_struct.h>
 
 namespace graft {
+
+template<typename In, typename Out> class RouterT; class InHttp; class OutHttp; using Router = RouterT<InHttp, OutHttp>;
 
 GRAFT_DEFINE_IO_STRUCT(RejectPayRequest,
     (std::string, PaymentID)
@@ -17,4 +19,3 @@ void registerRejectPayRequest(graft::Router &router);
 
 }
 
-#endif // REJECTPAYREQUEST_H

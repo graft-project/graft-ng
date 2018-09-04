@@ -1,5 +1,4 @@
-#ifndef SALEREQUEST_H
-#define SALEREQUEST_H
+#pragma once
 
 #include "router.h"
 #include "jsonrpc.h"
@@ -34,4 +33,3 @@ void registerSaleRequest(graft::Router &router);
 
 }
 
-#endif // SALEREQUEST_H

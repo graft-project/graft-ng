@@ -1,4 +1,5 @@
-#include "payrequest.h"
+#include "requests/payrequest.h"
+
 #include "requestdefines.h"
 #include "requesttools.h"
 #include "requests/broadcast.h"

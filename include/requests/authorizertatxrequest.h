@@ -1,9 +1,7 @@
-#ifndef AUTHORIZERTATXREQUEST_H
-#define AUTHORIZERTATXREQUEST_H
+#pragma once
 
 #include "router.h"
-#include "inout.h"
-
+#include "def_io_struct.h"
 
 namespace graft {
 
@@ -16,4 +14,3 @@ void registerAuthorizeRtaTxRequests(graft::Router &router);
 
 }
 
-#endif // AUTHORIZERTATXREQUEST_H

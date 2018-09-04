@@ -3,7 +3,7 @@
 
 #include "context.h"
 #include "connection.h"
-#include "./../system_info.h"   // andrew.kibirev: yes, know that it's UGLY and Wrong. It'll be fixed.
+#include <system_info.h>   // andrew.kibirev: yes, know that it's UGLY and Wrong. It'll be fixed.
 #include "inout.h"
 #include "router.h"
 

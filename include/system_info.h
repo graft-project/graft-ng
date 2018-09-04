@@ -1,12 +1,12 @@
 #pragma once
 
 #include <atomic>
-#include <cstdint>
 #include <chrono>
+#include <cstdint>
 
 namespace graft { class Context; }
 
-namespace graft { namespace supernode {
+namespace graft::supernode {
 
 using u32 = std::uint32_t;
 using u64 = std::uint64_t;
@@ -87,5 +87,5 @@ class SystemInfoProvider
     const SysClockTimePoint m_system_start_time;
 };
 
-} }
+}
 

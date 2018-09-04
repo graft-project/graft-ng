@@ -1,5 +1,4 @@
-#ifndef SALEDETAILSREQUEST_H
-#define SALEDETAILSREQUEST_H
+#pragma once
 
 #include "inout.h"
 #include "router.h"
@@ -30,4 +29,3 @@ void registerSaleDetailsRequest(graft::Router &router);
 
 }
 
-#endif // SALEDETAILSREQUEST_H

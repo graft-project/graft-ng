@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/utils.h"
+#include "def_io_struct.h"
 
 #include <utility>
 #include <string>
@@ -17,17 +18,6 @@
 
 struct http_message; //from mongoose.h
 struct mg_str; //from mongoose.h
-
-#define GRAFT_DEFINE_IO_STRUCT(__S__, ...) \
-    struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> { \
-	BOOST_HANA_DEFINE_STRUCT(__S__, __VA_ARGS__); \
-    }
-
-#define GRAFT_DEFINE_IO_STRUCT_INITED(__S__, ...) \
-    struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> { \
-        __S__() : INIT_PAIRS(__VA_ARGS__) {} \
-	BOOST_HANA_DEFINE_STRUCT(__S__, TN_PAIRS(__VA_ARGS__)); \
-    }
 
 /*
  *  Mapping of supported C++ types to supported JSON types
@@ -75,7 +65,7 @@ struct mg_str; //from mongoose.h
  * );
  */
 
-namespace graft 
+namespace graft
 {
     namespace serializer
     {

@@ -1,5 +1,4 @@
-#ifndef SENDSUPERNODEANNOUNCEREQUEST_H
-#define SENDSUPERNODEANNOUNCEREQUEST_H
+#pragma once
 
 #include "router.h"
 #include "inout.h"
@@ -35,6 +34,4 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SendSupernodeAnnounceJsonRpcResponse, Send
 void registerSendSupernodeAnnounceRequest(graft::Router &router);
 
 }
-
-#endif // SENDSUPERNODEANNOUNCEREQUEST_H
 

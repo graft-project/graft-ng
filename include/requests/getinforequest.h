@@ -1,5 +1,4 @@
-#ifndef GETINFOREQUEST_H
-#define GETINFOREQUEST_H
+#pragma once
 
 #include "router.h"
 #include "inout.h"
@@ -47,4 +46,3 @@ void registerGetInfoRequest(graft::Router &router);
 
 }
 
-#endif // GETINFOREQUEST_H

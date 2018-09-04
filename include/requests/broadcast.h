@@ -1,5 +1,4 @@
-#ifndef BROADCAST_H
-#define BROADCAST_H
+#pragma once
 
 #include "inout.h"
 #include "jsonrpc.h"
@@ -7,7 +6,6 @@
 
 #include <vector>
 #include <string>
-
 
 namespace graft {
 
@@ -30,8 +28,5 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(BroadcastResponseToCryptonodeJsonRpc, Broa
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE(BroadcastResponseFromCryptonodeJsonRpc, BroadcastResponseFromCryptonode);
 
-
 }
 
-
-#endif // BROADCAST_H

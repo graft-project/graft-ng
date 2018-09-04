@@ -1,19 +1,20 @@
 #include "requests.h"
-#include "salerequest.h"
-#include "salestatusrequest.h"
-#include "rejectsalerequest.h"
-#include "getinforequest.h"
 
-#include "saledetailsrequest.h"
-#include "payrequest.h"
-#include "paystatusrequest.h"
-#include "rejectpayrequest.h"
-#include "forwardrequest.h"
-#include "healthcheckrequest.h"
+#include "requests/salerequest.h"
+#include "requests/salestatusrequest.h"
+#include "requests/rejectsalerequest.h"
+#include "requests/getinforequest.h"
 
-#include "sendrawtxrequest.h"
-#include "authorizertatxrequest.h"
-#include "sendsupernodeannouncerequest.h"
+#include "requests/saledetailsrequest.h"
+#include "requests/payrequest.h"
+#include "requests/paystatusrequest.h"
+#include "requests/rejectpayrequest.h"
+#include "requests/forwardrequest.h"
+#include "requests/healthcheckrequest.h"
+
+#include "requests/sendrawtxrequest.h"
+#include "requests/authorizertatxrequest.h"
+#include "requests/sendsupernodeannouncerequest.h"
 
 #include "requests/system_info.h"
 

@@ -1,11 +1,11 @@
-#ifndef SENDRAWTXREQUEST_H
-#define SENDRAWTXREQUEST_H
+#pragma once
+
+#include <string>
 
 #include "router.h"
 #include "inout.h"
 #include "jsonrpc.h"
 
-#include <string>
 #include <wallet/wallet2.h>
 
 
@@ -47,4 +47,3 @@ bool createSendRawTxRequest(const cryptonote::transaction &tx, SendRawTxRequest 
 
 }
 
-#endif // SENDRAWTXREQUEST_H
