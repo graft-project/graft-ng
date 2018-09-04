@@ -10,7 +10,8 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.systeminforeqeust"
 
-namespace graft { namespace supernode { namespace request { namespace system_info {
+//namespace graft { namespace supernode { namespace request { namespace system_info {
+namespace graft::supernode::request::system_info {
 
 using Vars = Router::vars_t;
 using Input = graft::Input;
@@ -30,24 +31,23 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     ri.http_request_routed    = rsi.http_request_routed_cnt();
     ri.http_request_unrouted  = rsi.http_request_unrouted_cnt();
 
-    ri.system_http_resp_status_ok    = rsi.http_resp_status_ok_cnt();
-    ri.system_http_resp_status_error = rsi.http_resp_status_error_cnt();
-    ri.system_http_resp_status_drop  = rsi.http_resp_status_drop_cnt();
-    ri.system_http_resp_status_busy  = rsi.http_resp_status_busy_cnt();
+    ri.http_resp_status_ok    = rsi.http_resp_status_ok_cnt();
+    ri.http_resp_status_error = rsi.http_resp_status_error_cnt();
+    ri.http_resp_status_drop  = rsi.http_resp_status_drop_cnt();
+    ri.http_resp_status_busy  = rsi.http_resp_status_busy_cnt();
 
-    ri.system_http_req_bytes_raw  = rsi.http_req_bytes_raw_cnt();
-    ri.system_http_resp_bytes_raw = rsi.http_resp_bytes_raw_cnt();
+    ri.http_req_bytes_raw  = rsi.http_req_bytes_raw_cnt();
+    ri.http_resp_bytes_raw = rsi.http_resp_bytes_raw_cnt();
 
-    ri.system_upstrm_http_req       = rsi.upstrm_http_req_cnt();
-    ri.system_upstrm_http_resp_ok   = rsi.upstrm_http_resp_ok_cnt();
-    ri.system_upstrm_http_resp_err  = rsi.upstrm_http_resp_err_cnt();
+    ri.upstrm_http_req       = rsi.upstrm_http_req_cnt();
+    ri.upstrm_http_resp_ok   = rsi.upstrm_http_resp_ok_cnt();
+    ri.upstrm_http_resp_err  = rsi.upstrm_http_resp_err_cnt();
 
-    ri.system_upstrm_http_req_bytes_raw  = rsi.upstrm_http_req_bytes_raw_cnt();
-    ri.system_upstrm_http_resp_bytes_raw = rsi.upstrm_http_resp_bytes_raw_cnt();
+    ri.upstrm_http_req_bytes_raw  = rsi.upstrm_http_req_bytes_raw_cnt();
+    ri.upstrm_http_resp_bytes_raw = rsi.upstrm_http_resp_bytes_raw_cnt();
 
-    ri.system_uptime_sec = rsi.system_uptime_sec();
+    ri.uptime_sec = rsi.system_uptime_sec();
 
-    //out.configuration = ctx.config_opts();
     auto& cfg = out.configuration;
     const ConfigOpts& co = ctx.config_opts();
     cfg.http_address = co.http_address;
@@ -79,5 +79,5 @@ void register_request(Router& router)
     router.addRoute(path, METHOD_GET, h3);
 }
 
-} } } }
+} //} } }
 

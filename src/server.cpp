@@ -1,11 +1,17 @@
 #include "server.h"
 
+#include <boost/program_options.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+
 #include "backtrace.h"
+#include "connection.h"
 #include "requests.h"
 #include "requestdefines.h"
 #include "requests/sendsupernodeannouncerequest.h"
+#include "system_info.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
@@ -28,6 +34,9 @@ namespace tools {
 
 namespace graft {
 
+namespace po = boost::program_options;
+namespace pt = boost::property_tree;
+
 static std::function<void (int sig_num)> int_handler, term_handler, hup_handler;
 
 static void signal_handler_shutdown(int sig_num)
@@ -43,6 +52,19 @@ static void signal_handler_terminate(int sig_num)
 static void signal_handler_restart(int sig_num)
 {
     if(hup_handler) hup_handler(sig_num);
+}
+
+GraftServer::GraftServer(void)
+{
+}
+
+GraftServer::~GraftServer(void)
+{
+}
+
+void GraftServer::stop(bool force)
+{
+    m_looper->stop(force);
 }
 
 void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)

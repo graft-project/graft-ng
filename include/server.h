@@ -1,21 +1,26 @@
 #pragma once
 
-#include <boost/program_options.hpp>
-#include <boost/property_tree/ini_parser.hpp>
+#include <memory>
+#include <vector>
 
-#include "connection.h"
-#include "system_info.h"
+#include "config_opts.h"
 
 namespace graft {
 
-//namespace supernode { class SystmeInfoProvider; }
+class ConnectionManager;
+class HttpConnectionManager;
+class CoapConnectionManager;
+class Looper;
 
-namespace po = boost::program_options;
-namespace pt = boost::property_tree;
+namespace supernode { class SystemInfoProvider; }
+using supernode::SystemInfoProvider;
 
 class GraftServer
 {
 public:
+    GraftServer(void);
+    ~GraftServer(void);
+
     static bool run(int argc, const char** argv);
 protected:
     virtual bool initConfigOption(int argc, const char** argv);
@@ -27,7 +32,7 @@ private:
     void startSupernodePeriodicTasks();
     bool init(int argc, const char** argv);
     void serve();
-    void stop(bool force = false) { m_looper->stop(force); }
+    void stop(bool force = false);
     static void initSignals();
     void addGlobalCtxCleaner();
     void setHttpRouters(HttpConnectionManager& httpcm);
@@ -38,7 +43,7 @@ private:
     ConfigOpts m_configOpts;
     std::unique_ptr<graft::Looper> m_looper;
     std::vector<std::unique_ptr<graft::ConnectionManager>> m_conManagers;
-    std::unique_ptr<graft::supernode::SystemInfoProvider> m_sys_info;
+    std::unique_ptr<SystemInfoProvider> m_sys_info;
 };
 
 }//namespace graft

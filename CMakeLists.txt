@@ -55,10 +55,6 @@ set(CMAKE_CXX_STANDARD 14)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 add_definitions("-Wall")
-#add_definitions("-Wpedantic")
-#add_definitions("-std=c++11 -pipe -fPIC -DPIC")
-#add_definitions("-Wno-deprecated")
-#add_definitions("-Wextra")
 
 set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/connection.cpp

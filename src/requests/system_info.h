@@ -59,27 +59,26 @@ GRAFT_DEFINE_IO_STRUCT_INITED(Configuratioon,
 );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(Running,
-    (std::string, some_value, std::string()),
     (u64, http_request_total, 0),
     (u64, http_request_routed, 0),
     (u64, http_request_unrouted, 0),
 
-    (u64, system_http_resp_status_ok, 0),
-    (u64, system_http_resp_status_error, 0),
-    (u64, system_http_resp_status_drop, 0),
-    (u64, system_http_resp_status_busy, 0),
+    (u64, http_resp_status_ok, 0),
+    (u64, http_resp_status_error, 0),
+    (u64, http_resp_status_drop, 0),
+    (u64, http_resp_status_busy, 0),
 
-    (u64, system_http_req_bytes_raw, 0),
-    (u64, system_http_resp_bytes_raw, 0),
+    (u64, http_req_bytes_raw, 0),
+    (u64, http_resp_bytes_raw, 0),
 
-    (u64, system_upstrm_http_req, 0),
-    (u64, system_upstrm_http_resp_ok, 0),
-    (u64, system_upstrm_http_resp_err, 0),
+    (u64, upstrm_http_req, 0),
+    (u64, upstrm_http_resp_ok, 0),
+    (u64, upstrm_http_resp_err, 0),
 
-    (u64, system_upstrm_http_req_bytes_raw, 0),
-    (u64, system_upstrm_http_resp_bytes_raw, 0),
+    (u64, upstrm_http_req_bytes_raw, 0),
+    (u64, upstrm_http_resp_bytes_raw, 0),
 
-    (u32, system_uptime_sec, 0)
+    (u32, uptime_sec, 0)
 );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(EndPoint,

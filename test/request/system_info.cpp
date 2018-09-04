@@ -2,6 +2,9 @@
 #include <gtest/gtest.h>
 #include <chrono>
 
+#include <boost/program_options.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+
 #include "connection.h"
 #include "mongoosex.h"
 #include "server.h"
