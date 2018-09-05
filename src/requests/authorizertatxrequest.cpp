@@ -261,6 +261,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
     }
 
     // store tx amount in global context
+    MDEBUG("storing amount for tx: " << tx_id_str << ", amount: " << authReq.amount);
     ctx.global.set(tx_id_str + CONTEXT_KEY_AMOUNT_BY_TX_ID, authReq.amount, RTA_TX_TTL);
 
     // check if we have a fee assigned by sender wallet
@@ -417,11 +418,16 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         MDEBUG("rta result accepted from " << rtaAuthResp.signature.address);
         // store result in context
         ctx.global.set(ctx_tx_to_auth_resp, authResult, RTA_TX_TTL);
-        MDEBUG("approved votes: " << authResult.approved.size()
-               << ", rejected votes: " << authResult.rejected.size());
+        if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_AMOUNT_BY_TX_ID)) {
+            string msg = string("no amount found for tx id: ") + rtaAuthResp.tx_id;
+            LOG_ERROR(msg);
+            return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
+        }
 
-        uint64_t tx_amount = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_AMOUNT_BY_TX_ID, 0);
+        uint64_t tx_amount = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_AMOUNT_BY_TX_ID, uint64_t(0));
         size_t rta_votes_to_approve = tx_amount / COIN > 100 ? 4 : 2;
+        MDEBUG("approved votes: " << authResult.approved.size()
+               << "/" << rta_votes_to_approve << ", rejected votes: " << authResult.rejected.size());
 
         MDEBUG(__FUNCTION__ << " end");
         if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
