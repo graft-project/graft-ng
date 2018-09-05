@@ -4,6 +4,7 @@
 #include "graft_constants.h"
 #include "inout.h"
 #include "rta/supernode.h"
+#include "router.h"
 
 #include <chrono>
 
@@ -162,6 +163,21 @@ struct PayData
  * \return
  */
 void buildBroadcastSaleStatusOutput(const std::string &payment_id, int status, const SupernodePtr &supernode, Output &output);
+
+
+template<typename Response>
+Status storeRequestAndReplyOk(const Router::vars_t& vars, const graft::Input& input,
+                            graft::Context& ctx, graft::Output& output) noexcept
+{
+    // store input in local ctx.
+    ctx.local["request"] = input.data();
+
+    Response response;
+    response.result.Status = STATUS_OK;
+    output.load(response);
+    return Status::Again;
+}
+
 
 
 }

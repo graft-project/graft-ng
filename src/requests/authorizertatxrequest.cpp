@@ -77,6 +77,7 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(AuthorizeRtaTxResponseJsonRpcResponse, Aut
 
 enum class RtaAuthRequestHandlerState : int {
     ClientRequest = 0, // incoming request from client
+    ClientRequestAgain,
     CryptonodeReply   // cryptonode replied to milticast
 };
 
@@ -181,6 +182,20 @@ bool validateAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr 
     return r1 && r2;
 }
 
+Status storeRequestAndReplyOk(const Router::vars_t& vars, const graft::Input& input,
+                            graft::Context& ctx, graft::Output& output) noexcept
+{
+    // store input in local ctx.
+    ctx.local["request"] = input.data();
+
+    // reply ok to the client
+    AuthorizeRtaTxRequestJsonRpcResponse out;
+    out.result.Result = STATUS_OK;
+    output.load(out);
+
+    return Status::Again;
+}
+
 /*!
  * \brief handleTxAuthRequest - handles RTA auth request multicasted over auth sample. Handler either approves or rejects transaction
  * \param vars
@@ -190,9 +205,21 @@ bool validateAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr 
  * \return
  */
 
-Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input,
+Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*input*/,
                             graft::Context& ctx, graft::Output& output) noexcept
 {
+
+
+    assert(ctx.local.getLastStatus() == Status::Again);
+
+    if (!ctx.local.hasKey("request")) {
+        LOG_ERROR("Internal error. no input for 'again' status");
+        return Status::Error;
+    }
+
+    graft::Input input;
+    string body = ctx.local["request"];
+    input.body = body;
 
     MulticastRequestJsonRpc req;
     if (!input.get(req)) { // can't parse request
@@ -200,7 +227,6 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     }
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
-
 
     AuthorizeRtaTxRequest authReq;
     Input innerInput;
@@ -552,6 +578,10 @@ Status authorizeRtaTxRequestHandler(const Router::vars_t& vars, const graft::Inp
         switch (state) {
         case RtaAuthRequestHandlerState::ClientRequest:
             MDEBUG("called by client, payload: " << input.data());
+            ctx.local[__FUNCTION__] = RtaAuthRequestHandlerState::ClientRequestAgain;
+            return storeRequestAndReplyOk(vars, input, ctx, output);
+        case RtaAuthRequestHandlerState::ClientRequestAgain:
+            MDEBUG("called with again status");
             ctx.local[__FUNCTION__] = RtaAuthRequestHandlerState::CryptonodeReply;
             return handleTxAuthRequest(vars, input, ctx, output);
         case RtaAuthRequestHandlerState::CryptonodeReply:
