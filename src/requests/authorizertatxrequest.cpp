@@ -522,7 +522,10 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
         return errorInvalidParams(output);
     }
 
-    if (status != RTAStatus::InProgress) {
+    if (status == RTAStatus::Success
+            || status == RTAStatus::Fail
+            || status == RTAStatus::RejectedByPOS
+            || status == RTAStatus::RejectedByWallet) {
         MWARNING("payment: " << payment_id << ", most likely already processed,  status: " << int(status));
         return sendOkResponseToCryptonode(output);
     }
