@@ -255,6 +255,7 @@ Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& inp
     LOG_PRINT_L0("sale details received from multicast: " << sdm.paymentId);
     // TODO: should be signed by sender??
     if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE)) {
+        // TODO: clenup after payment done;
         ctx.global[payment_id + CONTEXT_KEY_SALE] = sdm.sale_data;
         ctx.global[payment_id + CONTEXT_KEY_STATUS] = sdm.status;
         ctx.global[payment_id + CONTEXT_KEY_SALE_DETAILS] = sdm.details;
