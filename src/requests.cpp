@@ -32,6 +32,7 @@ void registerRTARequests(graft::Router &router)
     graft::registerRejectPayRequest(router);
     graft::registerAuthorizeRtaTxRequests(router);
     graft::registerSendSupernodeAnnounceRequest(router);
+
 }
 
 void registerForwardRequests(graft::Router &router)
