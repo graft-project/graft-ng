@@ -54,10 +54,12 @@ ExternalProject_Add(
 set(CMAKE_CXX_STANDARD 14)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
+add_definitions("-Wall")
 
 set(GS_SOURCES
-    ${PROJECT_SOURCE_DIR}/src/task.cpp
     ${PROJECT_SOURCE_DIR}/src/connection.cpp
+    ${PROJECT_SOURCE_DIR}/src/context.cpp
+    ${PROJECT_SOURCE_DIR}/src/task.cpp
     ${PROJECT_SOURCE_DIR}/src/inout.cpp
     ${PROJECT_SOURCE_DIR}/src/router.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
@@ -76,6 +78,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/system_info.cpp
     ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
@@ -83,6 +86,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
+    ${PROJECT_SOURCE_DIR}/src/system_info.cpp
     )
 
 set(GS_INCLUDE_DIRS
@@ -91,6 +95,7 @@ set(GS_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/include/requests
     ${PROJECT_SOURCE_DIR}/include/rta
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_BINARY_DIR}
     )
 
@@ -219,12 +224,15 @@ if (OPT_BUILD_TESTS)
 
         add_executable(graft_server_test
                 ${GS_SOURCES}
+                ${PROJECT_SOURCE_DIR}/src/server.cpp
+                ${PROJECT_SOURCE_DIR}/src/system_info.cpp
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/main.cpp
+                ${PROJECT_SOURCE_DIR}/test/request/system_info.cpp
         )
 
         target_include_directories(graft_server_test PRIVATE
