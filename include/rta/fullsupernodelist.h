@@ -24,7 +24,7 @@ namespace utils {
 class FullSupernodeList
 {
 public:
-    static const uint8_t  AUTH_SAMPLE_SIZE = 4;
+    static const uint8_t  AUTH_SAMPLE_SIZE = 1;
     static const size_t   ITEMS_PER_TIER = 1;
     static const uint64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
     static const uint64_t ANNOUNCE_TTL_SECONDS = 60 * 60; // if more than ANNOUNCE_TTL_SECONDS passed from last annouce - supernode excluded from auth sample selection

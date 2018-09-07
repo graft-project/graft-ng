@@ -425,7 +425,8 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         }
 
         uint64_t tx_amount = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_AMOUNT_BY_TX_ID, uint64_t(0));
-        size_t rta_votes_to_approve = tx_amount / COIN > 100 ? 4 : 2;
+        // size_t rta_votes_to_approve = tx_amount / COIN > 100 ? 4 : 2;
+        size_t rta_votes_to_approve = 1;
         MDEBUG("approved votes: " << authResult.approved.size()
                << "/" << rta_votes_to_approve << ", rejected votes: " << authResult.rejected.size());
 

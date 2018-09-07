@@ -98,6 +98,9 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         return  errorBuildAuthSample(output);
     }
 
+    // XXX: delme: store auth sample as we need to overwrite before sending to the client (auth sample with one-member testing)
+    ctx.local["block_number"] = in.BlockNumber;
+
     // we have sale details locally, easy way
     bool have_data_locally = ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_DETAILS);
 
@@ -192,6 +195,34 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
         LOG_ERROR("error deserialize rta auth response");
         return errorInvalidParams(output);
     }
+
+    // XXX: hack - overwrite auth sample
+    // sdr.AuthSample = ctx.local["auth_sample"];
+    // ^^^ compilation error here;
+
+    FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
+
+    // overwrinte auth sample (normally we need to store/restore auth sample but framework doesn't allow it)
+
+    uint64_t block_bumber = ctx.local["block_number"];
+    vector<SupernodePtr> authSample;
+    if (!fsl->buildAuthSample(block_bumber, authSample)) {
+        return  errorBuildAuthSample(output);
+    }
+
+    uint64_t fee = 0;
+    for (const auto & feeEntry : sdr.AuthSample) {
+        fee += std::stoll(feeEntry.Fee);
+    }
+
+    sdr.AuthSample.clear();
+    for (const auto & sn : authSample) {
+        SupernodeFee item;
+        item.Address = sn->walletAddress();
+        item.Fee = to_string(fee);
+        sdr.AuthSample.push_back(item);
+    }
+
 
     string payment_id = ctx.local["payment_id"];
 
