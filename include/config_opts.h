@@ -29,6 +29,7 @@ struct ConfigOpts
     int log_level;
     bool log_console;
     std::string log_filename;
+    std::string log_categories;
 };
 
 }

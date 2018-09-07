@@ -181,16 +181,13 @@ public:
     ConnectionManager* m_connectionManager;
 };
 
+class StateMachine;
+
 class TaskManager
 {
 public:
-    TaskManager(const ConfigOpts& copts)
-        : m_copts(copts)
-    {
-        // TODO: validate options, throw exception if any mandatory options missing
-        initThreadPool(copts.workers_count, copts.worker_queue_len);
-    }
-    virtual ~TaskManager() { }
+    TaskManager(const ConfigOpts& copts);
+    virtual ~TaskManager();
 
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms);
@@ -200,7 +197,7 @@ public:
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
     GlobalContextMap& getGcm() { return m_gcm; }
-    const ConfigOpts& getCopts() const { return m_copts; }
+    ConfigOpts& getCopts() { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
 
     static TaskManager* from(mg_mgr* mgr);
@@ -215,6 +212,8 @@ public:
 
     static void sendUpstreamBlocking(Output& output, Input& input, std::string& err);
 
+    void runWorkerActionFromTheThreadPool(BaseTaskPtr bt);
+
     virtual void notifyJobReady() = 0;
 
     void cb_event(uint64_t cnt);
@@ -226,12 +225,16 @@ protected:
 
     ConfigOpts m_copts;
 private:
-    void ExecutePreAction(BaseTaskPtr bt);
-    void ExecutePostAction(BaseTaskPtr bt, GJ* gj = nullptr);  //gj equals nullptr if threadPool was skipped for some reasons
     void Execute(BaseTaskPtr bt);
-    void processResult(BaseTaskPtr bt);
-    void respondAndDie(BaseTaskPtr bt, const std::string& s);
+    void processForward(BaseTaskPtr bt);
+    void processOk(BaseTaskPtr bt);
+    void respondAndDie(BaseTaskPtr bt, const std::string& s, bool die = true);
     void postponeTask(BaseTaskPtr bt);
+
+    void checkThreadPoolOverflow(BaseTaskPtr bt);
+    void runPreAction(BaseTaskPtr bt);
+    void runWorkerAction(BaseTaskPtr bt);
+    void runPostAction(BaseTaskPtr bt);
 
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
     bool tryProcessReadyJob();
@@ -260,6 +263,9 @@ private:
     std::unique_ptr<PromiseQueue> m_promiseQueue;
     static thread_local bool io_thread;
     static TaskManager* g_upstreamManager;
+
+    friend class StateMachine;
+    std::unique_ptr<StateMachine> m_stateMachine;
 };
 
 }//namespace graft

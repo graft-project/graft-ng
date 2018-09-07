@@ -55,7 +55,8 @@ GRAFT_DEFINE_IO_STRUCT_INITED(Configuratioon,
     (std::string, watchonly_wallets_path, std::string()),
     (u32, log_level, 0),
     (bool, log_console, false),
-    (std::string, log_filename, std::string())
+    (std::string, log_filename, std::string()),
+    (std::string, log_categories, std::string())
 );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(Running,

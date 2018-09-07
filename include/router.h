@@ -32,11 +32,11 @@ public:
         Handler3& operator = (Handler3&&) = default;
         ~Handler3() = default;
 
-        Handler3(const Handler& pre_action, const Handler& action, const Handler& post_action)
-            : pre_action(pre_action), worker_action(action), post_action(post_action)
+        Handler3(const Handler& pre_action, const Handler& action, const Handler& post_action, const std::string& name = std::string())
+            : pre_action(pre_action), worker_action(action), post_action(post_action), name(name)
         { }
-        Handler3(Handler&& pre_action, Handler&& action, Handler&& post_action)
-            : pre_action(std::move(pre_action)), worker_action(std::move(action)), post_action(std::move(post_action))
+        Handler3(Handler&& pre_action, Handler&& action, Handler&& post_action, std::string&& name = std::string())
+            : pre_action(std::move(pre_action)), worker_action(std::move(action)), post_action(std::move(post_action)), name(std::move(name))
         { }
 
         Handler3(const Handler& worker_action) : worker_action(worker_action) { }
@@ -45,6 +45,7 @@ public:
         Handler pre_action;
         Handler worker_action;
         Handler post_action;
+        std::string name;
     };
 
     struct JobParams
@@ -87,6 +88,8 @@ public:
         m_routes.push_front(r);
     }
 
+    // Please read the comment about exceptions and noexcept specifier
+    // near 'void terminate()' function in main.cpp
     void addRoute(const std::string& endpoint, int methods, const Handler3&& ph3)
     {
         m_routes.push_front({m_endpointPrefix + endpoint, methods, std::move(ph3)});

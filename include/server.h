@@ -3,14 +3,13 @@
 #include <memory>
 #include <vector>
 
-#include "config_opts.h"
-
 namespace graft {
 
 class ConnectionManager;
 class HttpConnectionManager;
 class CoapConnectionManager;
 class Looper;
+struct ConfigOpts;
 
 namespace supernode { class SystemInfoProvider; }
 using supernode::SystemInfoProvider;
@@ -23,7 +22,7 @@ public:
 
     static bool run(int argc, const char** argv);
 protected:
-    virtual bool initConfigOption(int argc, const char** argv);
+    virtual bool initConfigOption(int argc, const char** argv, ConfigOpts& configOpts);
     virtual void intiConnectionManagers();
 private:
     void initLog(int log_level);
@@ -39,8 +38,8 @@ private:
     void setCoapRouters(CoapConnectionManager& coapcm);
     static void checkRoutes(graft::ConnectionManager& cm);
     void create_system_info_provider(void);
+    ConfigOpts& getCopts();
 
-    ConfigOpts m_configOpts;
     std::unique_ptr<graft::Looper> m_looper;
     std::vector<std::unique_ptr<graft::ConnectionManager>> m_conManagers;
     std::unique_ptr<SystemInfoProvider> m_sys_info;

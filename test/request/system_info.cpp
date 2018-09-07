@@ -154,7 +154,7 @@ class GraftServerForTest : public graft::GraftServer
 //  ini_data.put("", 0);
 //}
 
-TEST(Supernode, RequestSystemInfo)
+TEST(Supernode, DISABLED_RequestSystemInfo)
 {
   GraftServerForTest srv;
   const int argc = 1;

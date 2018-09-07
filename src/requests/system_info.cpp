@@ -67,6 +67,7 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     cfg.log_level = co.log_level;
     cfg.log_console = co.log_console;
     cfg.log_filename = co.log_filename;
+    cfg.log_categories = co.log_categories;
 
     output.load(out);
     return Status::Ok;

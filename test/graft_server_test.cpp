@@ -1,6 +1,12 @@
 #include <gtest/gtest.h>
+#include <deque>
+#include <jsonrpc.h>
+#include <boost/uuid/uuid_io.hpp>
+#include <misc_log_ex.h>
+
 #include "context.h"
 #include "connection.h"
+#include "inout.h"
 #include "mongoosex.h"
 #include "requests.h"
 #include "salerequest.h"
@@ -11,10 +17,7 @@
 #include "paystatusrequest.h"
 #include "rejectpayrequest.h"
 #include "requestdefines.h"
-#include "inout.h"
-#include <deque>
-#include <jsonrpc.h>
-#include <boost/uuid/uuid_io.hpp>
+#include "system_info.h"
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -511,6 +514,7 @@ public:
     public:
         graft::ConfigOpts copts;
         graft::Router router;
+        graft::supernode::SystemInfoProvider sip;
     public:
         MainServer()
         {
@@ -549,6 +553,10 @@ public:
             plooper = &looper;
             graft::HttpConnectionManager httpcm;
             phttpcm = &httpcm;
+
+            graft::Context ctx(looper.getGcm());
+            ctx.runtime_sys_info(sip);
+            ctx.config_opts(looper.getCopts());
 
             httpcm.addRouter(router);
             bool res = httpcm.enableRouting();
@@ -935,6 +943,42 @@ TEST_F(GraftServerTestBase, clientTimeout)
 
     Client client;
     client.serve("http://127.0.0.1:9084/timeout", "", "post data", 200);
+
+    server.stop_and_wait_for();
+}
+
+//This test requires comparing logging output, their categories with expected.
+TEST_F(GraftServerTestBase, logging)
+{
+    const std::string cat = "handler";
+
+    auto pre = [cat](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        EXPECT_EQ(mlog_current_log_category, cat);
+        LOG_PRINT_L0("This is pre");
+        return graft::Status::Ok;
+    };
+
+    auto worker = [cat](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        EXPECT_EQ(mlog_current_log_category, cat);
+        LOG_PRINT_L0("This is worker");
+        return graft::Status::Ok;
+    };
+
+    auto post = [cat](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        EXPECT_EQ(mlog_current_log_category, cat);
+        LOG_PRINT_L0("This is post");
+        return graft::Status::Ok;
+    };
+
+    MainServer server;
+    server.router.addRoute("/logging", METHOD_GET, {pre, worker, post, cat.c_str()});
+    server.run();
+
+    Client client;
+    client.serve("http://127.0.0.1:9084/logging");
 
     server.stop_and_wait_for();
 }

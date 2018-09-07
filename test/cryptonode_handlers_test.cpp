@@ -39,10 +39,8 @@
 #include <requests/authorizertatxrequest.h>
 //#include <requests/sendtxauthresponserequest.h>
 
-
 // cryptonode includes
 #include <wallet/wallet2.h>
-
 
 #include <string>
 #include <thread>
