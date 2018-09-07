@@ -33,6 +33,7 @@
 #include <jsonrpc.h>
 #include <connection.h>
 #include <router.h>
+#include "system_info.h"
 
 #include <string>
 #include <thread>
@@ -160,11 +161,17 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
+        supernode::SystemInfoProvider sip;
         ConfigOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
         Looper looper(sopts);
+
+        Context ctx(looper.getGcm());
+        ctx.runtime_sys_info(sip);
+        ctx.config_opts(sopts);
+
         httpcm.addRouter(router);
         httpcm.enableRouting();
         this->looper = &looper;

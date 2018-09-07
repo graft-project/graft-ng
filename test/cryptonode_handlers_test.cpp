@@ -38,15 +38,12 @@
 #include <requests/sendrawtxrequest.h>
 #include <requests/authorizertatxrequest.h>
 
-
 // cryptonode includes
 #include <wallet/wallet2.h>
-
 
 #include <string>
 #include <thread>
 #include <chrono>
-
 
 
 using namespace graft;

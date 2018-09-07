@@ -1,4 +1,8 @@
 #include "server.h"
+
+#include <iostream>
+#include <string>
+
 #include "backtrace.h"
 
 namespace graft
@@ -37,6 +41,7 @@ void terminate()
 }
 
 } //namespace graft
+
 
 int main(int argc, const char** argv)
 {

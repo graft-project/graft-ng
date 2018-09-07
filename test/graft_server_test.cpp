@@ -6,6 +6,7 @@
 
 #include "context.h"
 #include "connection.h"
+#include "inout.h"
 #include "mongoosex.h"
 #include "requests.h"
 #include "salerequest.h"
@@ -16,7 +17,7 @@
 #include "paystatusrequest.h"
 #include "rejectpayrequest.h"
 #include "requestdefines.h"
-#include "inout.h"
+#include "system_info.h"
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -513,6 +514,7 @@ public:
     public:
         graft::ConfigOpts copts;
         graft::Router router;
+        graft::supernode::SystemInfoProvider sip;
     public:
         MainServer()
         {
@@ -551,6 +553,10 @@ public:
             plooper = &looper;
             graft::HttpConnectionManager httpcm;
             phttpcm = &httpcm;
+
+            graft::Context ctx(looper.getGcm());
+            ctx.runtime_sys_info(sip);
+            ctx.config_opts(looper.getCopts());
 
             httpcm.addRouter(router);
             bool res = httpcm.enableRouting();

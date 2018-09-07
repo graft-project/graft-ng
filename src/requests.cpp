@@ -1,4 +1,5 @@
 #include "requests.h"
+
 #include "salerequest.h"
 #include "salestatusrequest.h"
 #include "rejectsalerequest.h"
@@ -15,6 +16,7 @@
 #include "authorizertatxrequest.h"
 #include "sendsupernodeannouncerequest.h"
 
+#include "requests/system_info.h"
 
 namespace graft {
 
@@ -40,6 +42,7 @@ void registerForwardRequests(graft::Router &router)
 void registerHealthcheckRequests(Router &router)
 {
     graft::registerHealthcheckRequest(router);
+    graft::supernode::request::system_info::register_request(router);
 }
 
 }
