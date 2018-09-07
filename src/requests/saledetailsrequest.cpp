@@ -212,7 +212,12 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
 
     uint64_t fee = 0;
     for (const auto & feeEntry : sdr.AuthSample) {
-        fee += std::stoll(feeEntry.Fee);
+        try {
+            MDEBUG("iterating supernode: " << feeEntry.Address << ", fee: " << feeEntry.Fee);
+            fee += std::stoll(feeEntry.Fee);
+        } catch (...) {
+            LOG_ERROR("stoll exception");
+        }
     }
 
     sdr.AuthSample.clear();
