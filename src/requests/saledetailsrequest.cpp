@@ -237,8 +237,11 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
     // remove callback reply
     ctx.global.remove(task_id + CONTEXT_SALE_DETAILS_RESULT);
 
+    SaleDetailsResponseJsonRpc out;
+    out.result = sdr;
+
     // send response to the client
-    output.load(sdr);
+    output.load(out);
     return Status::Ok;
 
 }
