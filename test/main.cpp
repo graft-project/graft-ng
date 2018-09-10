@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 
     // disabling following test cases by default, but these tests can be still run
     // with explictily passed --gtest_filter="GryptonodeHandlersTest.*"
-    testing::GTEST_FLAG(filter) = "-CryptonodeHandlersTest.*:SupernodeTest.*:FullSupernodeListTest.*:GraftServerCommonTest.test*";
+    testing::GTEST_FLAG(filter) = "-CryptonodeHandlersTest.*:SupernodeTest.*:FullSupernodeListTest.*";
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
