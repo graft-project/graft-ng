@@ -47,8 +47,6 @@ namespace {
 
 namespace graft {
 
-
-
 /**
  * @brief
  * @param vars
@@ -57,7 +55,7 @@ namespace graft {
  * @param output
  * @return
  */
-Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Input& input,
+Status handleSupernodeAnnounce(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
     LOG_PRINT_L1(PATH << " called with payload: " << input.data());
@@ -66,86 +64,86 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
     boost::shared_ptr<FullSupernodeList> fsl = ctx.global.get("fsl", boost::shared_ptr<FullSupernodeList>());
     SupernodePtr supernode = ctx.global.get("supernode", SupernodePtr());
 
-    JsonRpcError error;
-    error.code = 0;
-    SendSupernodeAnnounceJsonRpcRequest req;
 
-    do {
-        if (!fsl.get()) {
-            error.code = ERROR_INTERNAL_ERROR;
-            error.message = "Internal error. Supernode list object missing";
-            break;
-        }
-
-        if (!supernode.get()) {
-            error.code = ERROR_INTERNAL_ERROR;
-            error.message = "Internal error. Supernode object missing";
-            break;
-        }
-
-
-        if (!input.get(req) ) { // can't parse request
-            error.code = ERROR_INVALID_REQUEST;
-            error.message = "Failed to parse request";
-            break;
-        }
-
-        //  handle announce
-        const SupernodeAnnounce & announce = req.params;
-        MINFO("received announce for address: " << announce.address);
-
-        if (fsl->exists(announce.address)) {
-            if (!fsl->get(announce.address)->updateFromAnnounce(announce)) {
-                error.code = ERROR_INTERNAL_ERROR;
-                error.message = "Failed to update supernode with announce";
-                break;
-            }
-        } else {
-            // this can't be executed here as it takes too much time, we need to respond "ok" and run
-            // this task asynchronously
-
-            std::string watchonly_wallets_path = ctx.global["watchonly_wallets_path"];
-            assert(!watchonly_wallets_path.empty());
-            boost::filesystem::path p(watchonly_wallets_path);
-            p /= announce.address;
-            std::string wallet_path = p.string();
-            std::string cryptonode_rpc_address = ctx.global["cryptonode_rpc_address"];
-            bool testnet = ctx.global["testnet"];
-            MINFO("creating wallet in: " << p.string());
-
-            auto worker = [announce, wallet_path, cryptonode_rpc_address, testnet, fsl]() {
-                Supernode * s  = Supernode::createFromAnnounce(wallet_path, announce,
-                                                               cryptonode_rpc_address,
-                                                               testnet);
-                if (!s) {
-                    LOG_ERROR("Cant create watch-only supernode wallet for address: " << announce.address);
-                    return;
-                }
-                LOG_PRINT_L0("About to add supernode to list [" << s << "]: " << s->walletAddress());
-                if (!fsl->add(s)) {
-                    // DO NOT delete "s" here, it will be deleted internally by smart pointer;
-                    LOG_ERROR("Can't add new supernode to list [" << s << "]" << s->walletAddress());
-                }
-            };
-            // run and forget, just enough for prototype;
-            std::thread(worker).detach();
-        }
-    } while (false);
-
-
-    if (error.code != 0) {
-        JsonRpcErrorResponse errorResponse;
-        errorResponse.error = error;
-        output.load(errorResponse);
+    if (!fsl.get()) {
+        LOG_ERROR("Internal error. Supernode list object missing");
         return Status::Error;
     }
 
-    SendSupernodeAnnounceJsonRpcResponse response;
-    response.id = req.id;
-    response.result.Status = STATUS_OK;
-    output.load(response);
+    if (!supernode.get()) {
+       LOG_ERROR("Internal error. Supernode object missing");
+       return Status::Error;
+    }
+
+    SendSupernodeAnnounceJsonRpcRequest req;
+
+    if (!input.get(req) ) { // can't parse request
+        LOG_ERROR("Failed to parse request");
+        return Status::Error;
+    }
+
+    //  handle announce
+    const SupernodeAnnounce & announce = req.params;
+    MINFO("received announce for address: " << announce.address);
+
+    if (fsl->exists(announce.address)) {
+        if (!fsl->get(announce.address)->updateFromAnnounce(announce)) {
+            LOG_ERROR("Failed to update supernode with announce");
+            return Status::Error;
+        }
+    } else {
+        std::string watchonly_wallets_path = ctx.global["watchonly_wallets_path"];
+        assert(!watchonly_wallets_path.empty());
+        boost::filesystem::path p(watchonly_wallets_path);
+        p /= announce.address;
+        std::string wallet_path = p.string();
+        std::string cryptonode_rpc_address = ctx.global["cryptonode_rpc_address"];
+        bool testnet = ctx.global["testnet"];
+        MINFO("creating wallet in: " << p.string());
+
+        Supernode * s  = Supernode::createFromAnnounce(wallet_path, announce,
+                                                       cryptonode_rpc_address,
+                                                       testnet);
+        if (!s) {
+            LOG_ERROR("Cant create watch-only supernode wallet for address: " << announce.address);
+            return Status::Error;
+
+        }
+
+        MINFO("About to add supernode to list [" << s << "]: " << s->walletAddress());
+        if (!fsl->add(s)) {
+            // DO NOT delete "s" here, it will be deleted by smart pointer;
+            LOG_ERROR("Can't add new supernode to list [" << s << "]" << s->walletAddress());
+        }
+    }
     return Status::Ok;
+
 }
+
+Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Input& input,
+                                graft::Context& ctx, graft::Output& output)
+{
+
+    enum class State : int {
+        IncomingRequest = 0,
+        HandleAnnounce
+    };
+
+    State state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : State::IncomingRequest;
+    MINFO("begin, state: " << int(state));
+    switch (state) {
+    case State::IncomingRequest:
+        ctx.local[__FUNCTION__] = State::HandleAnnounce;
+        return storeRequestAndReplyOk<SendSupernodeAnnounceJsonRpcResponse>(vars, input, ctx, output);
+    case State::HandleAnnounce:
+        return handleSupernodeAnnounce(vars, input, ctx, output);
+    default:
+        LOG_ERROR("Unhandled state: " << (int)state);
+        abort();
+    }
+
+}
+
 
 void registerSendSupernodeAnnounceRequest(graft::Router &router)
 {
