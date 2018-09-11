@@ -33,6 +33,41 @@
 namespace graftlet
 {
 
+template <class BaseT>
+class GraftletExport
+{
+public:
+    using gl_name_t = std::string;
+
+    GraftletExport(const std::map<gl_name_t, std::any>& gl2any) : m_gl2any(gl2any) { }
+
+    template <typename...Ts, typename...Args>
+    bool invoke(const std::string& cls_method, Args&&...args)
+    {
+        gl_name_t cls;
+        std::string method;
+        {
+            int pos = cls_method.find('.');
+            if(pos != std::string::npos)
+            {
+                cls = cls_method.substr(0, pos);
+                method = cls_method.substr(pos+1);
+            }
+            else
+            {
+                cls = cls_method;
+            }
+        }
+        auto it = m_gl2any.find(cls);
+        if(it == m_gl2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
+        std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
+        concreteGraftlet->template invoke<Ts...>(method, std::forward<Args>(args)...);
+        return true;
+    }
+private:
+    const std::map<gl_name_t, std::any>& m_gl2any;
+};
+
 class GraftletLoader
 {
 private:
@@ -54,6 +89,35 @@ private:
     std::map< std::pair<dll_name_t, std::type_index>, std::map<gl_name_t, std::any> > m_name2gls;
 
 public:
+    template <class BaseT>
+    GraftletExport<BaseT> buildAndResolveGraftletX(const dll_name_t& dll_name)
+    {
+        auto it0 = m_name2gls.find(std::make_pair(dll_name,std::type_index(typeid(BaseT))));
+        if(it0 == m_name2gls.end())
+        {//find in dlls and insert it
+            auto it1 = m_name2registries.find(dll_name);
+            if(it1 == m_name2registries.end()) throw std::runtime_error("Cannot find dll_name:" + dll_name);
+            GraftletRegistry* gr = it1->second;
+            std::shared_ptr<BaseT> concreteGraftlet = gr->resolveGraftlet<BaseT>();
+            if(!concreteGraftlet.get()) throw std::runtime_error("Cannot resolve dll_name:" + dll_name + " type:" + typeid(BaseT).name());
+            concreteGraftlet->init();
+            gl_name_t name = concreteGraftlet->getName();
+            std::any any(concreteGraftlet);
+
+            std::map<gl_name_t, std::any> map;
+            map.insert(std::make_pair( std::move(name), std::move(any) ));
+
+            auto res = m_name2gls.emplace(std::make_pair( std::make_pair(dll_name,std::type_index(typeid(BaseT))), std::move(map) ));
+            assert(res.second);
+            it0 = res.first;
+        }
+
+        std::map<gl_name_t, std::any>& map = it0->second;
+
+        return GraftletExport<BaseT>(map);
+    }
+
+
     template <class BaseT>
     std::vector<std::shared_ptr<BaseT>> buildAndResolveGraftlet(const std::string& path)
     {
