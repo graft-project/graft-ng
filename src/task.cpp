@@ -436,6 +436,7 @@ void TaskManager::postponeTask(BaseTaskPtr bt)
                                     tpoint,
                                     uuid)
                                 );
+    LOG_PRINT_RQS_BT(2,bt,"task with uuid '" << uuid << "' postponed.");
 }
 
 void TaskManager::executePostponedTasks()
@@ -443,6 +444,8 @@ void TaskManager::executePostponedTasks()
     while(!m_readyToResume.empty())
     {
         BaseTaskPtr& bt = m_readyToResume.front();
+        Context::uuid_t uuid = bt->getCtx().getId();
+        LOG_PRINT_RQS_BT(2,bt,"task with uuid '" << uuid << "' resumed.");
         Execute(bt);
         m_readyToResume.pop_front();
     }
@@ -459,6 +462,8 @@ void TaskManager::executePostponedTasks()
         if(it != m_postponedTasks.end())
         {
             BaseTaskPtr& bt = it->second;
+            Context::uuid_t uuid = bt->getCtx().getId();
+            LOG_PRINT_RQS_BT(2,bt,"postponed task with uuid '" << uuid << "' expired.");
             std::string msg = "Postpone task response timeout";
             bt->setError(msg.c_str(), Status::Error);
             respondAndDie(bt, msg);
@@ -481,9 +486,16 @@ void TaskManager::processOk(BaseTaskPtr bt)
     if(!nextUuid.is_nil())
     {
         auto it = m_postponedTasks.find(nextUuid);
-        assert(it != m_postponedTasks.end());
-        m_readyToResume.push_back(it->second);
-        m_postponedTasks.erase(it);
+        if(it == m_postponedTasks.end())
+        {
+            LOG_PRINT_RQS_BT(2,bt,"attempt to resume task with uuid '" << nextUuid << "' failed, maybe it is not postponed yet.");
+        }
+        else
+        {
+            LOG_PRINT_RQS_BT(2,bt,"resuming task with uuid '" << nextUuid << "'.");
+            m_readyToResume.push_back(it->second);
+            m_postponedTasks.erase(it);
+        }
     }
     respondAndDie(bt, bt->getOutput().data());
 }
