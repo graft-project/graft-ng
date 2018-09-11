@@ -354,7 +354,7 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
             size_t seconds_since_last_update =  size_t(std::time(nullptr)) - it.second->lastUpdateTime();
             MDEBUG("checking supernode " << it.first << ", updated: " << seconds_since_last_update << " seconds ago"
                    << ", stake amount: " << it.second->stakeAmount());
-            if (/*seconds_since_last_update < ANNOUNCE_TTL_SECONDS*/ true
+            if (seconds_since_last_update < ANNOUNCE_TTL_SECONDS
                     && it.second->stakeAmount() >= tier_min_stake
                     && it.second->stakeAmount() < tier_max_stake
                     && find_if(selected_items.begin(), selected_items.end(), [&](const auto &sn) {

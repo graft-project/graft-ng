@@ -77,6 +77,7 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(AuthorizeRtaTxResponseJsonRpcResponse, Aut
 
 enum class RtaAuthRequestHandlerState : int {
     ClientRequest = 0, // incoming request from client
+    ClientRequestAgain,
     CryptonodeReply   // cryptonode replied to milticast
 };
 
@@ -181,6 +182,20 @@ bool validateAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr 
     return r1 && r2;
 }
 
+Status storeRequestAndReplyOk(const Router::vars_t& vars, const graft::Input& input,
+                            graft::Context& ctx, graft::Output& output) noexcept
+{
+    // store input in local ctx.
+    ctx.local["request"] = input.data();
+
+    // reply ok to the client
+    AuthorizeRtaTxRequestJsonRpcResponse out;
+    out.result.Result = STATUS_OK;
+    output.load(out);
+
+    return Status::Again;
+}
+
 /*!
  * \brief handleTxAuthRequest - handles RTA auth request multicasted over auth sample. Handler either approves or rejects transaction
  * \param vars
@@ -190,9 +205,21 @@ bool validateAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr 
  * \return
  */
 
-Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input,
+Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*input*/,
                             graft::Context& ctx, graft::Output& output) noexcept
 {
+
+
+    assert(ctx.local.getLastStatus() == Status::Again);
+
+    if (!ctx.local.hasKey("request")) {
+        LOG_ERROR("Internal error. no input for 'again' status");
+        return Status::Error;
+    }
+
+    graft::Input input;
+    string body = ctx.local["request"];
+    input.body = body;
 
     MulticastRequestJsonRpc req;
     if (!input.get(req)) { // can't parse request
@@ -200,7 +227,6 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
     }
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
-
 
     AuthorizeRtaTxRequest authReq;
     Input innerInput;
@@ -233,6 +259,10 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& input
         LOG_ERROR("tx already processed: " << tx_id_str);
         return errorCustomError("tx already processed", ERROR_INVALID_PARAMS, output);
     }
+
+    // store tx amount in global context
+    MDEBUG("storing amount for tx: " << tx_id_str << ", amount: " << authReq.amount);
+    ctx.global.set(tx_id_str + CONTEXT_KEY_AMOUNT_BY_TX_ID, authReq.amount, RTA_TX_TTL);
 
     // check if we have a fee assigned by sender wallet
     uint64 amount = 0;
@@ -388,8 +418,16 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         MDEBUG("rta result accepted from " << rtaAuthResp.signature.address);
         // store result in context
         ctx.global.set(ctx_tx_to_auth_resp, authResult, RTA_TX_TTL);
+        if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_AMOUNT_BY_TX_ID)) {
+            string msg = string("no amount found for tx id: ") + rtaAuthResp.tx_id;
+            LOG_ERROR(msg);
+            return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
+        }
+
+        uint64_t tx_amount = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_AMOUNT_BY_TX_ID, uint64_t(0));
+        size_t rta_votes_to_approve = tx_amount / COIN > 100 ? 4 : 2;
         MDEBUG("approved votes: " << authResult.approved.size()
-               << ", rejected votes: " << authResult.rejected.size());
+               << "/" << rta_votes_to_approve << ", rejected votes: " << authResult.rejected.size());
 
         MDEBUG(__FUNCTION__ << " end");
         if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
@@ -405,7 +443,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
             ctx.global.set(payment_id + CONTEXT_KEY_STATUS, static_cast<int> (RTAStatus::Fail), RTA_TX_TTL);
             buildBroadcastSaleStatusOutput(payment_id, static_cast<int> (RTAStatus::Fail), supernode, output);
             return Status::Forward;
-        } else if (authResult.approved.size() >= RTA_VOTES_TO_APPROVE) {
+        } else if (authResult.approved.size() >= rta_votes_to_approve) {
             MDEBUG("tx " << rtaAuthResp.tx_id << " approved by auth sample, pushing to tx pool");
             SendRawTxRequest req;
             // store tx_id in local context so we can use it when broadcasting status
@@ -484,7 +522,10 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
         return errorInvalidParams(output);
     }
 
-    if (status != RTAStatus::InProgress) {
+    if (status == RTAStatus::Success
+            || status == RTAStatus::Fail
+            || status == RTAStatus::RejectedByPOS
+            || status == RTAStatus::RejectedByWallet) {
         MWARNING("payment: " << payment_id << ", most likely already processed,  status: " << int(status));
         return sendOkResponseToCryptonode(output);
     }
@@ -552,6 +593,10 @@ Status authorizeRtaTxRequestHandler(const Router::vars_t& vars, const graft::Inp
         switch (state) {
         case RtaAuthRequestHandlerState::ClientRequest:
             MDEBUG("called by client, payload: " << input.data());
+            ctx.local[__FUNCTION__] = RtaAuthRequestHandlerState::ClientRequestAgain;
+            return storeRequestAndReplyOk(vars, input, ctx, output);
+        case RtaAuthRequestHandlerState::ClientRequestAgain:
+            MDEBUG("called with again status");
             ctx.local[__FUNCTION__] = RtaAuthRequestHandlerState::CryptonodeReply;
             return handleTxAuthRequest(vars, input, ctx, output);
         case RtaAuthRequestHandlerState::CryptonodeReply:

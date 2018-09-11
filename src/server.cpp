@@ -349,6 +349,11 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 
     const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
     configOpts.cryptonode_rpc_address = cryptonode_conf.get<std::string>("rpc-address");
+
+    const boost::property_tree::ptree& log_conf = config.get_child("logging");
+    boost::optional<int> log_trunc_to_size  = log_conf.get_optional<int>("trunc-to-size");
+    configOpts.log_trunc_to_size = (log_trunc_to_size)? log_trunc_to_size.get() : -1;
+
     const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
     graft::OutHttp::uri_substitutions.clear();
     std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf](auto it)
@@ -482,6 +487,8 @@ void GraftServer::startSupernodePeriodicTasks()
                 if (!supernode->refresh()) {
                     return graft::Status::Ok;
                 }
+
+                supernode->setLastUpdateTime(static_cast<uint64_t>(std::time(nullptr)));
 
                 LOG_PRINT_L0("supernode refresh done, stake amount: " << supernode->stakeAmount());
 
