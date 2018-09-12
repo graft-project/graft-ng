@@ -41,6 +41,38 @@ public:
 
     GraftletExport(const std::map<gl_name_t, std::any>& gl2any) : m_gl2any(gl2any) { }
 
+    template <typename Res, typename...Ts, typename Sign = Res(Ts...), typename...Args>
+    Res invokeX(const std::string& cls_method, Args&&...args)
+    {
+        gl_name_t cls;
+        std::string method;
+        {
+            int pos = cls_method.find('.');
+            if(pos != std::string::npos)
+            {
+                cls = cls_method.substr(0, pos);
+                method = cls_method.substr(pos+1);
+            }
+            else
+            {
+                cls = cls_method;
+            }
+        }
+        auto it = m_gl2any.find(cls);
+        if(it == m_gl2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
+        std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
+//        concreteGraftlet->template invoke<Ts...>(method, std::forward<Args>(args)...);
+        constexpr auto res_void = std::is_same<Res,void>::value;
+        if(res_void)
+        {
+            concreteGraftlet->template invokeX<Res,Ts...>(method, std::forward<Args>(args)...);
+        }
+        else
+        {
+//            return concreteGraftlet->template invokeX<Ts...>(method, std::forward<Args>(args)...);
+        }
+    }
+
     template <typename...Ts, typename...Args>
     bool invoke(const std::string& cls_method, Args&&...args)
     {
@@ -61,6 +93,7 @@ public:
         auto it = m_gl2any.find(cls);
         if(it == m_gl2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
         std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
+//        concreteGraftlet->template invoke<Ts...>(method, std::forward<Args>(args)...);
         concreteGraftlet->template invoke<Ts...>(method, std::forward<Args>(args)...);
         return true;
     }

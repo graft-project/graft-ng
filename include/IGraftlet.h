@@ -11,6 +11,10 @@
 #include <any>
 
 #include <iostream>
+#include <functional>
+
+#define REGISTER_ACTIONX(T, f) \
+    register_handler_memf(#f, this, &T::f)
 
 #define REGISTER_ACTION(T, f) \
     register_handler(#f, this, &T::f)
@@ -88,6 +92,101 @@ public:
         return true;
     }
 */
+public:
+    using method_name_t = std::string;
+    using ti2any_t = std::map<std::type_index, std::any>;
+    using map_t = std::map<method_name_t, ti2any_t>;
+    map_t map;
+
+    template<typename Obj, typename Res,  typename...Ts>
+    class memf_t
+    {
+        Obj* p;
+        Res (Obj::*f)(Ts...);
+    public:
+        memf_t(Obj* p, Res (Obj::*f)(Ts...)) : p(p), f(f) { }
+        template<typename...Args>
+        Res operator ()(Args&&...args)
+        {
+            return (p->*f)(std::forward<Args>(args)...);
+        }
+    };
+
+    template <typename Res, typename...Ts, typename Sign = Res(Ts...), typename...Args>
+    Res invokeX(const method_name_t& name, Args&&...args)
+    {
+//        using Callable = Res (Ts...);
+        using Callable = std::function<Res (Ts...)>;
+        std::type_index ti = std::type_index(typeid(Callable));
+
+        auto it = map.find(name);
+        if(it == map.end())  throw std::runtime_error("cannot find method " + name);
+        ti2any_t& ti2any = it->second;
+        auto it1 = ti2any.find(ti);
+        if(it1 == ti2any.end()) throw std::runtime_error("cannot find method " + name + " with typeid " + ti.name() );
+
+        std::any& any = it1->second;
+        Callable callable = std::any_cast<Callable>(any);
+
+        return callable(std::forward<Args>(args)...);
+    }
+/*
+    template<typename Obj, typename Res,  typename...Ts, typename...Args>
+    Res X(Obj* p, void (Obj::*f)(Ts...), Args&&...args)
+    {
+        return (p->*f)(std::forward<Args>(args)...);
+    }
+*/
+    template<typename Res,  typename...Ts, typename Callable = Res (Ts...)>
+    void register_handlerX(const method_name_t& name, Callable callable)
+    {
+        std::type_index ti = std::type_index(typeid(Callable));
+        ti2any_t& ti2any = map[name];
+        auto res = ti2any.emplace(ti, std::make_any<Callable>(callable));
+        if(!res.second) throw std::runtime_error("method " + name + " with typeid " + ti.name() + " already registered");
+    }
+
+    template<typename Obj, typename Res,  typename...Ts>
+    void register_handler_memf(const method_name_t& name, Obj* p, Res (Obj::*f)(Ts...))
+    {
+//        std::function<Res(Obj*,Ts...)> fun = f;
+        using std::placeholders::_1;
+        std::function<Res(Ts...)> fun = std::bind( f, p, _1 );
+        register_handlerX<Res, Ts...,decltype(fun)>(name, fun);
+/*
+        using memf_ty = memf_t<Obj,Res,Ts...>;
+        memf_ty memf{p,f};
+        register_handlerX<Res, Ts..., memf_ty>(name, memf);
+*/
+/*
+        auto fun = [this, p, f](Ts&& ts...)->Res
+        {
+            return (p->*f)(std::forward<Ts> ts...)
+            std::cout << "fun:" << params.type().name() << "\n";
+        };
+*/
+    }
+/*
+    template <typename Obj, typename Res, typename...Ts, typename Sign = Res(Ts...), typename...Args>
+    Res invoke_memf(const method_name_t& name, Args&&...args)
+    {
+        using memf_ty = memf_t<Obj,Res,Ts...>;
+//        using Callable = Res (Ts...);
+        std::type_index ti = std::type_index(typeid(memf_ty));
+
+        auto it = map.find(name);
+        if(it == map.end())  throw std::runtime_error("cannot find method " + name);
+        ti2any_t& ti2any = it->second;
+        auto it1 = ti2any.find(ti);
+        if(it1 == ti2any.end()) throw std::runtime_error("cannot find method " + name + " with typeid " + ti.name() );
+
+        std::any& any = it1->second;
+        memf_ty callable = std::any_cast<memf_ty>(any);
+
+        return callable(std::forward<Args>(args)...);
+    }
+*/
+
     template<typename Obj,  typename...Ts, typename... RArgs>
     void register_handler(const std::string& tag, Obj* p, void (Obj::*f)(Ts...), RArgs&&... real_args)
     {

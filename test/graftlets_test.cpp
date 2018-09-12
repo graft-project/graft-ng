@@ -30,8 +30,9 @@ TEST(Graftlets, commonX)
         std::string& r = s;
         try
         {
-//            bool ok = plugin.invoke<std::string&>("testGL.getString1", std::ref(r));
-            bool ok = plugin.invoke<std::string&>("testGL.getString1", r);
+//            bool ok = plugin.invoke<std::string&>("testGL.getString1", r);
+            plugin.invokeX<void, std::string&>("testGL.getString1", r);
+            bool ok = true;
             if(ok)
             {
                 std::cout << r << "\n";

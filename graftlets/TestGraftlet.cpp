@@ -52,6 +52,7 @@ public:
     virtual void init()
     {
 //        REGISTER_ACTION(TestGraftlet, getString0);
+        REGISTER_ACTIONX(TestGraftlet, getString1);
         REGISTER_ACTION(TestGraftlet, getString1);
         REGISTER_ACTION(TestGraftlet, getString2);
         REGISTER_ACTION(TestGraftlet, getString3);
