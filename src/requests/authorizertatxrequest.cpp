@@ -40,11 +40,16 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.authorizertatxrequest"
 
+
+#ifndef VOTES_TO_APPROVE
+#define VOTES_TO_APPROVE 1
+#endif
+
 namespace {
     static const char * PATH_REQUEST =  "/cryptonode/authorize_rta_tx_request";
     static const char * PATH_RESPONSE = "/cryptonode/authorize_rta_tx_response";
-    static const size_t RTA_VOTES_TO_REJECT =  1/*2*/; // TODO: 1 and 3 while testing
-    static const size_t RTA_VOTES_TO_APPROVE = 4/*7*/;
+    static const size_t RTA_VOTES_TO_REJECT =  1/*2*/;
+    static const size_t RTA_VOTES_TO_APPROVE = VOTES_TO_APPROVE;
 }
 
 namespace graft {
@@ -425,7 +430,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         }
 
         uint64_t tx_amount = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_AMOUNT_BY_TX_ID, uint64_t(0));
-        size_t rta_votes_to_approve = tx_amount / COIN > 100 ? 4 : 2;
+        size_t rta_votes_to_approve = static_cast<size_t>(std::min((tx_amount / COIN > 100 ? 4 : 2), VOTES_TO_APPROVE));
         MDEBUG("approved votes: " << authResult.approved.size()
                << "/" << rta_votes_to_approve << ", rejected votes: " << authResult.rejected.size());
 

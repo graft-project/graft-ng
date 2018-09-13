@@ -45,6 +45,7 @@ namespace {
 }
 
 
+
 namespace graft {
 
 /**
@@ -58,6 +59,11 @@ namespace graft {
 Status handleSupernodeAnnounce(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
 {
+
+#ifdef  DISABLE_INCOMING_ANNOUNCE
+    return Status::Ok;
+#endif
+
     LOG_PRINT_L1(PATH << " called with payload: " << input.data());
     // TODO: implement DOS protection, ignore too frequent requests
 
