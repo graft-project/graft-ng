@@ -230,8 +230,19 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
     if (vm.count("log-format")) log_format = vm["log-format"].as<std::string>();
 
-    mlog_configure(log_filename, log_console);
+    if(log_filename == "syslog")
+    {
+        INITIALIZE_SYSLOG("graft_server");
+        mlog_syslog = true;
+        mlog_configure("", false);
+    }
+    else
+    {
+        mlog_configure(log_filename, log_console);
+    }
+
     mlog_set_log(log_level.c_str());
+
     if(!log_format.empty())
     {
         mlog_set_format(log_format.c_str());
@@ -264,7 +275,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
                 ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
                 ("log-level", po::value<std::string>(), "log-level. (3 by default), e.g. --log-level=2,supernode.task:INFO,supernode.server:DEBUG")
                 ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
-                ("log-file", po::value<std::string>(), "log file")
+                ("log-file", po::value<std::string>(), "log file; set it to syslog if you want use the syslog instead")
                 ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level	%logger	%rfile	%msg");
 
         po::store(po::parse_command_line(argc, argv, desc), vm);

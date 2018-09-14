@@ -194,6 +194,9 @@ target_link_libraries(graft_server PRIVATE
     )
 
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
+if(UNIX)
+    target_compile_definitions(graft_server PRIVATE -DELPP_SYSLOG)
+endif()
 
 set_target_properties(graft_server PROPERTIES LINK_FLAGS "-rdynamic")
 
@@ -252,6 +255,10 @@ if (OPT_BUILD_TESTS)
 
 
         target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
+        if(UNIX)
+            target_compile_definitions(graft_server_test PRIVATE -DELPP_SYSLOG)
+        endif()
+
         add_dependencies(graft_server_test libr3 cryptonode googletest)
 
         if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
