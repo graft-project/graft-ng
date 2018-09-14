@@ -211,6 +211,7 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     std::string log_level = "3";
     bool log_console = true;
     std::string log_filename;
+    std::string log_format;
 
     //from config
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
@@ -220,14 +221,21 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     if(log_file) log_filename = log_file.get();
     boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
     if(log_to_console) log_console = log_to_console.get();
+    boost::optional<std::string> log_fmt  = log_conf.get_optional<std::string>("log-format");
+    if(log_fmt) log_format = log_fmt.get();
 
     //override from cmdline
     if (vm.count("log-level")) log_level = vm["log-level"].as<std::string>();
     if (vm.count("log-file")) log_filename = vm["log-file"].as<std::string>();
     if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
+    if (vm.count("log-format")) log_format = vm["log-format"].as<std::string>();
 
     mlog_configure(log_filename, log_console);
     mlog_set_log(log_level.c_str());
+    if(!log_format.empty())
+    {
+        mlog_set_format(log_format.c_str());
+    }
 }
 
 } //namespace details
@@ -256,7 +264,8 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
                 ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
                 ("log-level", po::value<std::string>(), "log-level. (3 by default), e.g. --log-level=2,supernode.task:INFO,supernode.server:DEBUG")
                 ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
-                ("log-file", po::value<std::string>(), "log file");
+                ("log-file", po::value<std::string>(), "log file")
+                ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level	%logger	%rfile	%msg");
 
         po::store(po::parse_command_line(argc, argv, desc), vm);
         po::notify(vm);
