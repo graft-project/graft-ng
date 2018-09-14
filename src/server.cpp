@@ -208,13 +208,13 @@ namespace po = boost::program_options;
 
 void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
 {
-    int log_level = 3;
+    std::string log_level = "3";
     bool log_console = true;
     std::string log_filename;
 
     //from config
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
-    boost::optional<int> level  = log_conf.get_optional<int>("loglevel");
+    boost::optional<std::string> level  = log_conf.get_optional<std::string>("loglevel");
     if(level) log_level = level.get();
     boost::optional<std::string> log_file  = log_conf.get_optional<std::string>("logfile");
     if(log_file) log_filename = log_file.get();
@@ -222,12 +222,12 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     if(log_to_console) log_console = log_to_console.get();
 
     //override from cmdline
-    if (vm.count("log-level")) log_level = vm["log-level"].as<int>();
+    if (vm.count("log-level")) log_level = vm["log-level"].as<std::string>();
     if (vm.count("log-file")) log_filename = vm["log-file"].as<std::string>();
     if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
 
     mlog_configure(log_filename, log_console);
-    mlog_set_log_level(log_level);
+    mlog_set_log(log_level.c_str());
 }
 
 } //namespace details
@@ -254,7 +254,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         desc.add_options()
                 ("help", "produce help message")
                 ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
-                ("log-level", po::value<int>(), "log-level. (3 by default)")
+                ("log-level", po::value<std::string>(), "log-level. (3 by default), e.g. --log-level=2,supernode.task:INFO,supernode.server:DEBUG")
                 ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
                 ("log-file", po::value<std::string>(), "log file");
 

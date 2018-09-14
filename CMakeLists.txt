@@ -188,7 +188,7 @@ target_link_libraries(graft_server PRIVATE
     ${COMMON_LIBS}
     )
 
-target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
+target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
 
 set_target_properties(graft_server PROPERTIES LINK_FLAGS "-rdynamic")
 
