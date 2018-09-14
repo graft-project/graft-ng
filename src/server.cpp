@@ -211,6 +211,8 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     int log_level = 3;
     bool log_console = true;
     std::string log_filename;
+    std::string log_categories;
+    std::string log_format;
 
     //from config
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
@@ -220,14 +222,44 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     if(log_file) log_filename = log_file.get();
     boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
     if(log_to_console) log_console = log_to_console.get();
+    boost::optional<std::string> log_cat  = log_conf.get_optional<std::string>("log-categories");
+    if(log_cat) log_categories = log_cat.get();
+    boost::optional<std::string> log_fmt  = log_conf.get_optional<std::string>("log-format");
+    if(log_fmt) log_format = log_fmt.get();
 
     //override from cmdline
     if (vm.count("log-level")) log_level = vm["log-level"].as<int>();
     if (vm.count("log-file")) log_filename = vm["log-file"].as<std::string>();
     if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
+    if (vm.count("log-categories")) log_categories = vm["log-categories"].as<std::string>();
+    if (vm.count("log-format")) log_format = vm["log-format"].as<std::string>();
 
-    mlog_configure(log_filename, log_console);
-    mlog_set_log_level(log_level);
+    if(log_filename == "syslog")
+    {
+        ELPP_INITIALIZE_SYSLOG("graft_server", LOG_PID, LOG_USER);
+        mlog_syslog = true;
+        mlog_configure("", false);
+    }
+    else
+    {
+        mlog_configure(log_filename, log_console);
+    }
+
+    if(!log_categories.empty())
+    {
+        std::ostringstream oss;
+        oss << log_level << ',' << log_categories;
+        mlog_set_log(oss.str().c_str());
+    }
+    else
+    {
+        mlog_set_log_level(log_level);
+    }
+
+    if(!log_format.empty())
+    {
+        mlog_set_format(log_format.c_str());
+    }
 }
 
 } //namespace details
@@ -256,7 +288,9 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
                 ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
                 ("log-level", po::value<int>(), "log-level. (3 by default)")
                 ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
-                ("log-file", po::value<std::string>(), "log file");
+                ("log-file", po::value<std::string>(), "log file; set it to syslog if you want use the syslog instead")
+                ("log-categories", po::value<std::string>(), "format: category:{TRACE | DEBUG | FATAL | ERROR | WARNING | INFO}[,next_category...], e.g. supernode.task:INFO,supernode.server:DEBUG")
+                ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level	%logger	%rfile	%msg");
 
         po::store(po::parse_command_line(argc, argv, desc), vm);
         po::notify(vm);
