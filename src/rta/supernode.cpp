@@ -56,6 +56,11 @@ uint64_t Supernode::stakeAmount() const
     return m_wallet->unspent_balance();
 }
 
+uint64_t Supernode::walletBalance() const
+{
+    return m_wallet->balance();
+}
+
 string Supernode::walletAddress() const
 {
     return m_wallet->get_account().get_public_address_str(m_wallet->testnet());

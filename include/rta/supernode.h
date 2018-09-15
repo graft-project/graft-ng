@@ -69,10 +69,17 @@ public:
 
 
     /*!
-     * \brief stakeAmount - returns stake amount
+     * \brief stakeAmount - returns stake amount, i.e. the wallet balance that only counts verified-unspent inputs.
      * \return            - stake amount in atomic units
      */
     uint64_t stakeAmount() const;
+    /*!
+     * \brief walletBalance - returns wallet balance as seen by the internal wallet; note that this
+     *                        can be wrong for a view-only wallet with unverified transactions: you
+     *                        typically want to use stakeAmount() instead.
+     * \return              - wallet balance in atomic units
+     */
+    uint64_t walletBalance() const;
     /*!
      * \brief walletAddress - returns wallet address as string
      * \return
