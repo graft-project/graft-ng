@@ -69,7 +69,8 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     }
 
     SaleDetailsRequest in = req.params;
-
+    MDEBUG(__FUNCTION__ << " begin");
+    MDEBUG("incoming request for payment: " << in.PaymentID << ", block: " << in.BlockNumber);
 
     if (in.PaymentID.empty())
     {
@@ -82,8 +83,11 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     {
         return Status::Error;
     }
+
+
     // check if we have cached response
     if (ctx.global.hasKey(in.PaymentID + CONTEXT_SALE_DETAILS_RESULT)) {
+        MDEBUG("found cached sale details for payment: " << in.PaymentID);
         SaleDetailsResponse sdr = ctx.global.get(in.PaymentID + CONTEXT_SALE_DETAILS_RESULT, SaleDetailsResponse());
         SaleDetailsResponseJsonRpc out;
         out.result = sdr;
@@ -102,7 +106,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     bool have_data_locally = ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_DETAILS);
 
     if (have_data_locally) {
-        LOG_PRINT_L0("we have sale details locally for payment id: " << in.PaymentID);
+        MDEBUG("found sale details locally for payment id: " << in.PaymentID << ", auth sample: " << fsl->printAuthSample(authSample));
         SaleDetailsResponse sdr;
         SaleDetailsResponseJsonRpc out;
         if (!prepareSaleDetailsResponse(in, ctx, sdr, error, authSample)) {
@@ -117,7 +121,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         }
     } else {
         // we don't have a sale details, request it from remote supernode
-        LOG_PRINT_L0("we DON'T have sale details locally for payment id: " << in.PaymentID);
+
         // store payment id so we can cache sale_details from remote supernode
         ctx.local["payment_id"] = in.PaymentID;
         Output innerOut;
@@ -129,18 +133,20 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         size_t maxIndex = authSample.size() - 1;
         size_t randomIndex = utils::random_number<size_t>(0, maxIndex);
         unicastReq.params.receiver_address = authSample.at(randomIndex)->walletAddress();
+        MDEBUG("requesting sale details from remote supernode: "
+               << unicastReq.params.receiver_address
+               << ", for payment: " << in.PaymentID);
+
         unicastReq.params.data = innerOut.data();
         unicastReq.params.callback_uri = "/cryptonode/sale_details/";
         unicastReq.method = "unicast";
 
         output.load(unicastReq);
         output.path = "/json_rpc/rta";
-        LOG_PRINT_L0(__FUNCTION__ << ", remote address: " << unicastReq.params.receiver_address);
-        LOG_PRINT_L0(__FUNCTION__ << ", callback uri: " << in.callback_uri);
-        LOG_PRINT_L0("calling cryptonode: " << output.path);
-        LOG_PRINT_L0("\t with data: " << output.data());
-    }
 
+        MDEBUG("unicasting: " << output.data());
+    }
+    MDEBUG(__FUNCTION__ << " end");
 
     return Status::Forward;
 }
@@ -151,6 +157,9 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
 Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input& input,
                            graft::Context& ctx, graft::Output& output)
 {
+
+    MDEBUG(__FUNCTION__ << " begin");
+
 
     if (ctx.local.getLastStatus() != Status::Postpone) {
         string msg = string("Expected postponed status but status is : " + to_string(int(ctx.local.getLastStatus())));
@@ -169,6 +178,7 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
     inputLocal.load(ctx.global.get(task_id + CONTEXT_SALE_DETAILS_RESULT, string()));
     UnicastRequestJsonRpc in;
 
+
     if (!inputLocal.get(in)) {
         LOG_ERROR("Failed to parse response: " << inputLocal.data());
         return errorInternalError("Failed to parse response", output);
@@ -176,6 +186,9 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
 
     UnicastRequest unicastReq = in.params;
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+    string payment_id = ctx.local["payment_id"];
+    MDEBUG("received sale details from remote supernode: " << unicastReq.sender_address
+           << ", payment: " << payment_id);
 
     if (unicastReq.receiver_address != supernode->walletAddress()) {
         string msg =  string("wrong receiver address: " + unicastReq.receiver_address + ", expected address: " + supernode->walletAddress());
@@ -193,8 +206,6 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
         return errorInvalidParams(output);
     }
 
-    string payment_id = ctx.local["payment_id"];
-
     // cache response;
     ctx.global.set(payment_id + CONTEXT_SALE_DETAILS_RESULT, sdr, RTA_TX_TTL);
 
@@ -203,8 +214,8 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
 
     // send response to the client
     output.load(sdr);
+    MDEBUG(__FUNCTION__ << " end");
     return Status::Ok;
-
 }
 
 // handles cryptonode's "ok"
@@ -230,7 +241,7 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
                                         graft::Context& ctx, graft::Output& output)
 {
     UnicastRequestJsonRpc in;
-
+    MDEBUG(__FUNCTION__ << " begin");
     if (!input.get(in)) {
         LOG_ERROR("Failed to parse response: " << input.data());
         return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
@@ -259,17 +270,25 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
     vector<SupernodePtr> authSample;
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
 
+    MDEBUG("sale_details request from remote supernode: " << unicastReq.sender_address
+           << ", payment: " << sdr.PaymentID
+           << ", block: " << sdr.BlockNumber);
+
     if (!fsl->buildAuthSample(sdr.BlockNumber, authSample)) {
+        LOG_ERROR("failed to build auth sample for block: " << sdr.BlockNumber
+                  << ", payment: " << sdr.PaymentID);
         return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
     }
 
     if (ctx.global.hasKey(sdr.PaymentID + CONTEXT_KEY_SALE_DETAILS)) {
-        LOG_PRINT_L0("we have sale details for payment id: " << sdr.PaymentID);
+        MDEBUG("sale details found for payment: " << sdr.PaymentID
+               << ", auth sample: "
+               << fsl->printAuthSample(authSample));
         SaleDetailsResponse resp;
 
         JsonRpcError error;
         if (!prepareSaleDetailsResponse(sdr, ctx, resp, error, authSample)) {
-            LOG_ERROR("Error preparing sale details response");
+            LOG_ERROR("Error preparing sale details response for payment: " << sdr.PaymentID);
             return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
         } else {
             UnicastRequestJsonRpc callbackReq;
@@ -283,7 +302,10 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
             callbackReq.method = "unicast";
             output.load(callbackReq);
             output.path = "/json_rpc/rta";
-            LOG_PRINT_L0(__FUNCTION__ << ", performing sale details callback, remote URI: " << sdr.callback_uri << ", remote addr: " << unicastReq.sender_address);
+            MDEBUG("unicasting sale details callback, remote URI: " << sdr.callback_uri
+                   << ", remote addr: " << unicastReq.sender_address
+                   << ", payment: " << sdr.PaymentID);
+            MDEBUG(__FUNCTION__ << " end");
             return Status::Forward;
         }
     }
@@ -313,7 +335,7 @@ Status saleDetailsClientHandler(const Router::vars_t& vars, const graft::Input& 
     };
 
     ClientHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : ClientHandlerState::ClientRequest;
-    LOG_PRINT_L0(__FUNCTION__ << " state: " << int(state) << ", task_id: " << boost::uuids::to_string(ctx.getId()));
+    MDEBUG(__FUNCTION__ << " state: " << int(state) << ", task_id: " << boost::uuids::to_string(ctx.getId()));
     switch (state) {
     case ClientHandlerState::ClientRequest:
         ctx.local[__FUNCTION__] = ClientHandlerState::UnicastAcknowledge;
@@ -359,8 +381,6 @@ Status saleDetailsUnicastHandler(const Router::vars_t& vars, const graft::Input&
     };
 
     State state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : State::ClientRequest;
-
-    LOG_PRINT_L0(__FUNCTION__ << " state: " << int(state));
 
     switch (state) {
     case State::ClientRequest:
