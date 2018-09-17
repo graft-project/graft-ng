@@ -83,6 +83,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
+    ${PROJECT_SOURCE_DIR}/src/log.cpp
     )
 
 set(GS_INCLUDE_DIRS
