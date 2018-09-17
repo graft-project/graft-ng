@@ -117,14 +117,17 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     for (const auto & sn : authSample) {
         cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
     }
-    MDEBUG(__FUNCTION__ << "processed client request, multicasting sale data for payment_id: " << payment_id);
+
+    MINFO("processed, payment_id: " << payment_id
+           << "block: " << data.BlockNumber
+           << ", auth sample: [" << fsl->printAuthSample(authSample) << "]");
+
     cryptonode_req.method = "multicast";
     cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side
     cryptonode_req.params.data = innerOut.data();
     output.load(cryptonode_req);
     output.path = "/json_rpc/rta";
-    LOG_PRINT_L0("calling cryptonode: " << output.path);
-    LOG_PRINT_L0("\t with data: " << output.data());
+    MDEBUG("multicasting: " << output.data());
     MDEBUG(__FUNCTION__ << " end");
 
     return Status::Forward;
@@ -149,9 +152,9 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
     int status = ctx.global.get(payment_id + CONTEXT_KEY_STATUS, static_cast<int>((RTAStatus::Waiting)));
 
     buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
-    MDEBUG(__FUNCTION__ << "processed sale multicast, broadcasting sale status for payment_id: " << payment_id);
-    LOG_PRINT_L0("calling cryptonode: " << output.path);
-    LOG_PRINT_L0("\t with data: " << output.data());
+    MINFO("sale multicast sent, broadcasting sale status: "
+           << status <<  ", payment_id: " << payment_id);
+    MDEBUG("broadcasting:  " << output.data());
     MDEBUG(__FUNCTION__ << " end");
 
     return Status::Forward;
@@ -176,7 +179,7 @@ Status handleSaleStatusBroadcastReply(const Router::vars_t& vars, const graft::I
     out.result.BlockNumber = data.BlockNumber;
     out.result.PaymentID = payment_id;
     output.load(out);
-    MDEBUG(__FUNCTION__ << "processed sale status broadcast, reply to client, payment_id: " << payment_id);
+    MINFO("processed sale status broadcast, sending reply to client, payment_id: " << payment_id);
     MDEBUG(__FUNCTION__ << " end");
     return Status::Ok;
 }
@@ -194,12 +197,11 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
 {
 
     SaleHandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : SaleHandlerState::ClientRequest;
-    MDEBUG(__FUNCTION__ << ", state: " << int(state));
+    // MDEBUG(__FUNCTION__ << ", state: " << int(state));
     // state machine to perform two calls to cryptonode and return result to the client
     switch (state) {
     // client requested "/sale"
     case SaleHandlerState::ClientRequest:
-        LOG_PRINT_L0("called by client, payload: " << input.data());
         ctx.local[__FUNCTION__] = SaleHandlerState::SaleMulticastReply;
         // call cryptonode's "/rta/multicast" to send sale data to auth sample
         // "handleClientSaleRequest" returns Forward;
@@ -247,20 +249,21 @@ Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& inp
     graft::Input innerInput;
     innerInput.load(req.params.data);
 
-    LOG_PRINT_L0("input loaded");
     if (!innerInput.getT<serializer::JSON_B64>(sdm)) {
         return errorInvalidParams(output);
     }
     const std::string &payment_id = sdm.paymentId;
-    LOG_PRINT_L0("sale details received from multicast: " << sdm.paymentId);
+    MDEBUG("sale details received from multicast for payment id: " << sdm.paymentId);
+
     // TODO: should be signed by sender??
+
     if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_SALE)) {
         // TODO: clenup after payment done;
         ctx.global[payment_id + CONTEXT_KEY_SALE] = sdm.sale_data;
         ctx.global[payment_id + CONTEXT_KEY_STATUS] = sdm.status;
         ctx.global[payment_id + CONTEXT_KEY_SALE_DETAILS] = sdm.details;
     } else {
-        LOG_PRINT_L0("payment " << payment_id << " already known");
+        MWARNING("payment " << payment_id << " already known");
     }
 
     MulticastResponseToCryptonodeJsonRpc resp;
