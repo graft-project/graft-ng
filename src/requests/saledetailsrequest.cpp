@@ -45,7 +45,7 @@ bool prepareSaleDetailsResponse(const SaleDetailsRequest &req, graft::Context &c
     for (const auto &member : authSample) {
         SupernodeFee snf;
         snf.Address = member->walletAddress();
-        snf.Fee = total_fee / authSample.size();
+        snf.Fee = std::to_string(total_fee / authSample.size());
         resp.AuthSample.push_back(snf);
     }
 
@@ -82,10 +82,12 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     {
         return Status::Error;
     }
-
+    // check if we have cached response
     if (ctx.global.hasKey(in.PaymentID + CONTEXT_SALE_DETAILS_RESULT)) {
         SaleDetailsResponse sdr = ctx.global.get(in.PaymentID + CONTEXT_SALE_DETAILS_RESULT, SaleDetailsResponse());
-        output.load(sdr);
+        SaleDetailsResponseJsonRpc out;
+        out.result = sdr;
+        output.load(out);
         return Status::Ok;
     }
 
@@ -99,20 +101,17 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     // we have sale details locally, easy way
     bool have_data_locally = ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_DETAILS);
 
-    // TODO: testing remote flow
-    // have_data_locally = false;
-
     if (have_data_locally) {
         LOG_PRINT_L0("we have sale details locally for payment id: " << in.PaymentID);
-        SaleDetailsResponse resp;
+        SaleDetailsResponse sdr;
         SaleDetailsResponseJsonRpc out;
-        if (!prepareSaleDetailsResponse(in, ctx, resp, error, authSample)) {
+        if (!prepareSaleDetailsResponse(in, ctx, sdr, error, authSample)) {
             JsonRpcErrorResponse er;
             er.error = error;
             output.load(error);
             return Status::Error;
         } else {
-            out.result = resp;
+            out.result = sdr;
             output.load(out);
             return Status::Ok;
         }

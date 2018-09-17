@@ -217,6 +217,12 @@ public:
      */
     uint64_t lastUpdateTime() const;
 
+    /*!
+     * \brief setLastUpdateTime - upda
+     * \param time
+     */
+    void setLastUpdateTime(uint64_t time);
+
 private:
     Supernode(bool testnet = false);
 

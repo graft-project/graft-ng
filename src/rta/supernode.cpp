@@ -160,6 +160,10 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
         return false;
     }
 
+    // update wallet's blockchain first
+    if (!this->refresh())
+        return false;
+
     vector<SignedKeyImage> signed_key_images;
 
     for (const SignedKeyImageStr &skis : announce.signed_key_images) {
@@ -191,9 +195,8 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
     // TODO: check self amount vs announced amount
     setNetworkAddress(announce.network_address);
     m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
-    MDEBUG(this->walletAddress() <<  ": last update time updated to :" << m_last_update_time);
+    MDEBUG("update from announce done for: " << this->walletAddress() <<  ": last update time updated to: " << m_last_update_time);
     return true;
-
 }
 
 Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnnounce &announce, const std::string &daemon_address,
@@ -214,7 +217,6 @@ Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnno
         // XXX before importing key images, wallet needs to be connected to daemon and syncrhonized
         if (result) {
             result->setDaemonAddress(daemon_address);
-            result->refresh();
             result->updateFromAnnounce(announce);
         }
 
@@ -357,6 +359,11 @@ bool Supernode::validateAddress(const string &address, bool testnet)
 uint64_t Supernode::lastUpdateTime() const
 {
     return m_last_update_time;
+}
+
+void Supernode::setLastUpdateTime(uint64_t time)
+{
+    m_last_update_time = time;
 }
 
 Supernode::Supernode(bool testnet)

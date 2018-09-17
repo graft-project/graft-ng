@@ -424,6 +424,10 @@ protected:
         std::string port = "1234";
         int connect_timeout_ms = 1000;
         int poll_timeout_ms = 1000;
+
+        using on_http_t = bool (const http_message *hm, int& status_code, std::string& headers, std::string& data);
+        std::function<on_http_t> on_http = nullptr;
+        static std::function<on_http_t> http_echo;
     public:
         void run()
         {
@@ -441,7 +445,11 @@ protected:
             th.join();
         }
     protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) = 0;
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data)
+        {
+            assert(on_http);
+            return on_http(hm, status_code, headers, data);
+        }
         virtual void onClose() { }
     private:
         std::thread th;
@@ -669,6 +677,15 @@ protected:
     virtual void TearDown() override
     { }
 
+};
+
+std::function<GraftServerTestBase::TempCryptoNodeServer::on_http_t> GraftServerTestBase::TempCryptoNodeServer::http_echo =
+        [] (const http_message *hm, int& status_code, std::string& headers, std::string& data) -> bool
+{
+    data = std::string(hm->body.p, hm->body.len);
+    std::string method(hm->method.p, hm->method.len);
+    headers = "Content-Type: application/json\r\nConnection: close";
+    return true;
 };
 
 /////////////////////////////////
@@ -977,6 +994,79 @@ TEST_F(GraftServerTestBase, logging)
     server.stop_and_wait_for();
 }
 
+TEST_F(GraftServerTestBase, Again)
+{//last status None(1)Forward(2){answer}Again(3)Forward(4)Again(5)->Ok
+    int step = 0;
+    const std::string client_query = "this is client query on None";
+    const std::string answer = "this is answer on Again";
+    auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        const std::string forward = "forward to cryptonode";
+        const std::string nowhere_answer = "this is answer on Again, but nobody will see";
+        ++step;
+        switch(ctx.local.getLastStatus())
+        {
+        case graft::Status::None :
+        {
+            EXPECT_EQ(step, 1);
+            EXPECT_EQ(input.body, client_query);
+            output.body = forward;
+            return graft::Status::Forward;
+        } break;
+        case graft::Status::Forward :
+        {
+            assert(step == 2 || step == 4);
+            EXPECT_EQ(input.body, forward);
+            if(step==2)
+            {
+                output.body = answer;
+                return graft::Status::Again;
+            }
+            else
+            {
+                output.body = nowhere_answer;
+                return graft::Status::Again;
+            }
+        } break;
+        case graft::Status::Again :
+        {
+            assert(step == 3 || step == 5);
+            if(step==3)
+            {
+                EXPECT_EQ(input.body, forward);
+                output.body = forward;
+                return graft::Status::Forward;
+            }
+            else
+            {
+                output.body = nowhere_answer;
+                return graft::Status::Ok;
+            }
+        } break;
+        default: assert(false);
+        }
+    };
+
+    TempCryptoNodeServer crypton;
+    crypton.on_http = crypton.http_echo;
+    crypton.run();
+    MainServer server;
+    server.router.addRoute("/again", METHOD_POST, {nullptr, action, nullptr});
+    server.run();
+
+    Client client;
+    client.serve("http://127.0.0.1:9084/again", "", client_query, 200);
+
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    EXPECT_EQ(client.get_body(), answer);
+
+    server.stop_and_wait_for();
+    crypton.stop_and_wait_for();
+
+    EXPECT_EQ(step,5);
+}
+
 TEST_F(GraftServerCommonTest, cryptonTimeout)
 {//GET -> threadPool -> CryptoNode -> timeout
     graft::Context ctx(mainServer.plooper.load()->getGcm());
@@ -1247,28 +1337,10 @@ TEST_F(GraftServerPostponeTest, common)
     crypton.stop_and_wait_for();
 }
 
-/////////////////////////////////
-// GraftServerForwardTest fixture
-
-class GraftServerForwardTest : public GraftServerTestBase
+TEST_F(GraftServerTestBase, forward)
 {
-public:
-    class TempCryptoN : public TempCryptoNodeServer
-    {
-    protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
-        {
-            data = std::string(hm->body.p, hm->body.len);
-            std::string method(hm->method.p, hm->method.len);
-            headers = "Content-Type: application/json\r\nConnection: close";
-            return true;
-        }
-    };
-};
-
-TEST_F(GraftServerForwardTest, inner)
-{
-    TempCryptoN crypton;
+    TempCryptoNodeServer crypton;
+    crypton.on_http = crypton.http_echo;
     crypton.run();
     MainServer mainServer;
     graft::registerForwardRequests(mainServer.router);
@@ -1296,7 +1368,7 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JRResponseResult, GetVersionResp);
 //you can run cryptonodes and enable this tests using
 //--gtest_also_run_disabled_tests
 //https://github.com/google/googletest/blob/master/googletest/docs/advanced.md
-TEST_F(GraftServerForwardTest, DISABLED_getVersion)
+TEST_F(GraftServerTestBase, DISABLED_getVersion)
 {
     MainServer mainServer;
     mainServer.copts.cryptonode_rpc_address = "localhost:38281";
