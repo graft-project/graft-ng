@@ -232,9 +232,17 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
 
     mlog_configure(log_filename, log_console);
     mlog_set_log(log_level.c_str());
+
+    // default log format (we need to explicitly apply it here, otherwise full path to a file will be logged  with monero default format)
+    static const char * DEFAULT_LOG_FORMAT = "%datetime{%Y-%M-%d %H:%m:%s.%g}\t%thread\t%level\t%logger\t%rfile:%line\t%msg";
+
+
     if(!log_format.empty())
     {
         mlog_set_format(log_format.c_str());
+    } else
+    {
+        mlog_set_format(DEFAULT_LOG_FORMAT);
     }
 }
 
