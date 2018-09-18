@@ -29,19 +29,38 @@
 
 #include "GraftletRegistry.h"
 
-
 namespace graftlet
 {
 
 template <class BaseT>
 class GraftletExport
 {
+    template<typename Sign> class helperS;
+
+    template <typename Res, typename...Ts>
+    class helperS<Res(Ts...)>
+    {
+    public:
+        using res_t = Res;
+        using sign_t = Res(Ts...);
+
+        helperS(GraftletExport* ge) : ge(ge) { }
+
+        template <typename...Args>
+        Res invoke(const std::string& cls_method, Args&&...args)
+        {
+            return (Res)ge->invokeX<Res,Ts...>(cls_method, std::forward<Args>(args)...);
+        }
+    private:
+        GraftletExport* ge;
+    };
+
 public:
     using gl_name_t = std::string;
 
     GraftletExport(const std::map<gl_name_t, std::any>& gl2any) : m_gl2any(gl2any) { }
 
-    template <typename Res, typename...Ts, typename Sign = Res(Ts...), typename...Args>
+    template <typename Res, typename...Ts, typename = Res(Ts...), typename...Args>
     Res invokeX(const std::string& cls_method, Args&&...args)
     {
         gl_name_t cls;
@@ -64,74 +83,11 @@ public:
         return (Res)concreteGraftlet->template invokeX<Res,Ts...>(method, std::forward<Args>(args)...);
     }
 
-    template<typename Sign> class help;
-
-    template <typename Res, typename...Ts>
-    struct help<Res(Ts...)>
+    template <typename Sign, typename...Args, typename Res = typename helperS<Sign>::res_t>
+    Res invokeS(const std::string& cls_method, Args&&...args)
     {
-        help(GraftletExport* ge) : ge(ge) { }
-        GraftletExport* ge;
-        using res_t = Res;
-        using sign_t = Res(Ts...);
-//        typedef Ts ts_t...;
-//        using ts_t = Ts;
-        template <typename...Args>
-        Res inv(const std::string& cls_method, Args&&...args)
-        {
-//            return (Res)ge->invokeX<Res,Ts...,Res(Ts...),Args...>(cls_method, std::forward<Args>(args)...);
-            return (Res)ge->invokeX<Res,Ts...>(cls_method, std::forward<Args>(args)...);
-        }
-    };
-/*
-    template <typename Sign, typename Res, typename...Args>
-    Res invokeS(const std::string& cls_method, Args&&...args);
-*/
-/*
-    template <typename Res, typename...Ts, typename...Args>
-    Res invokeS<Res(Ts...),Res,Args...>(const std::string& cls_method, Args&&...args)
-    {
-        return (Res)invokeX<Res,Ts...,Res(Ts...),Args...>(cls_method, std::forward<Args>(args)...);
-    }
-*/
-
-    //does not work yet
-//    template <typename Sign, int, typename Res, typename...Ts, typename Sign1 = Res(Ts...), typename...Args>
-//    template <typename Sign, int, typename Res, typename...Ts, typename...Args>
-//    template <typename Sign, typename Res, typename...Ts, typename...Args>
-//    template <typename Sign, typename Res, typename...Ts, typename...Args>
-    template <typename Sign, typename...Args, typename Res = typename help<Sign>::res_t> //, typename...Ts> //, typename help<Sign>::sign_t>
-//    typename std::enable_if_t<std::is_same<Sign, Res(Ts...)>::value, Res>
-    Res invokeS(const std::string& cls_method, Args&&...args) //, Sign s = static_cast<Res(Ts...)>(nullptr))
-    {
-//        struct help<Res(Ts...)> h(this);
-        struct help<Sign> h(this);
-        return h.inv(cls_method, std::forward<Args>(args)...);
-//        return (Res)invokeX<Res,Ts...,Sign,Args...>(cls_method, std::forward<Args>(args)...);
-    }
-
-    template <typename...Ts, typename...Args>
-    bool invoke(const std::string& cls_method, Args&&...args)
-    {
-        gl_name_t cls;
-        std::string method;
-        {
-            int pos = cls_method.find('.');
-            if(pos != std::string::npos)
-            {
-                cls = cls_method.substr(0, pos);
-                method = cls_method.substr(pos+1);
-            }
-            else
-            {
-                cls = cls_method;
-            }
-        }
-        auto it = m_gl2any.find(cls);
-        if(it == m_gl2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
-        std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
-//        concreteGraftlet->template invoke<Ts...>(method, std::forward<Args>(args)...);
-        concreteGraftlet->template invoke<Ts...>(method, std::forward<Args>(args)...);
-        return true;
+        struct helperS<Sign> h(this);
+        return h.invoke(cls_method, std::forward<Args>(args)...);
     }
 private:
     const std::map<gl_name_t, std::any>& m_gl2any;
