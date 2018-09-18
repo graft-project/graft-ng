@@ -230,29 +230,22 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
     if (vm.count("log-format")) log_format = vm["log-format"].as<std::string>();
 
+    // default log format (we need to explicitly apply it here, otherwise full path to a file will be logged  with monero default format)
+    static const char * DEFAULT_LOG_FORMAT = "%datetime{%Y-%M-%d %H:%m:%s.%g}\t%thread\t%level\t%logger\t%rfile:%line\t%msg";
+    if(log_format.empty()) log_format = DEFAULT_LOG_FORMAT;
+
     if(log_filename == "syslog")
     {
         INITIALIZE_SYSLOG("graft_server");
         mlog_syslog = true;
-        mlog_configure("", false);
+        mlog_configure("", false, log_format.empty()? nullptr : log_format.c_str());
     }
     else
     {
-        mlog_configure(log_filename, log_console);
+        mlog_configure(log_filename, log_console, log_format.empty()? nullptr : log_format.c_str());
     }
 
     mlog_set_log(log_level.c_str());
-
-    // default log format (we need to explicitly apply it here, otherwise full path to a file will be logged  with monero default format)
-    static const char * DEFAULT_LOG_FORMAT = "%datetime{%Y-%M-%d %H:%m:%s.%g}\t%thread\t%level\t%logger\t%rfile:%line\t%msg";
-
-    if(!log_format.empty())
-    {
-        mlog_set_format(log_format.c_str());
-    } else
-    {
-        mlog_set_format(DEFAULT_LOG_FORMAT);
-    }
 }
 
 } //namespace details
