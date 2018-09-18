@@ -61,16 +61,52 @@ public:
         auto it = m_gl2any.find(cls);
         if(it == m_gl2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
         std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
-//        concreteGraftlet->template invoke<Ts...>(method, std::forward<Args>(args)...);
-        constexpr auto res_void = std::is_same<Res,void>::value;
-        if(res_void)
+        return (Res)concreteGraftlet->template invokeX<Res,Ts...>(method, std::forward<Args>(args)...);
+    }
+
+    template<typename Sign> class help;
+
+    template <typename Res, typename...Ts>
+    struct help<Res(Ts...)>
+    {
+        help(GraftletExport* ge) : ge(ge) { }
+        GraftletExport* ge;
+        using res_t = Res;
+        using sign_t = Res(Ts...);
+//        typedef Ts ts_t...;
+//        using ts_t = Ts;
+        template <typename...Args>
+        Res inv(const std::string& cls_method, Args&&...args)
         {
-            concreteGraftlet->template invokeX<Res,Ts...>(method, std::forward<Args>(args)...);
+//            return (Res)ge->invokeX<Res,Ts...,Res(Ts...),Args...>(cls_method, std::forward<Args>(args)...);
+            return (Res)ge->invokeX<Res,Ts...>(cls_method, std::forward<Args>(args)...);
         }
-        else
-        {
-//            return concreteGraftlet->template invokeX<Ts...>(method, std::forward<Args>(args)...);
-        }
+    };
+/*
+    template <typename Sign, typename Res, typename...Args>
+    Res invokeS(const std::string& cls_method, Args&&...args);
+*/
+/*
+    template <typename Res, typename...Ts, typename...Args>
+    Res invokeS<Res(Ts...),Res,Args...>(const std::string& cls_method, Args&&...args)
+    {
+        return (Res)invokeX<Res,Ts...,Res(Ts...),Args...>(cls_method, std::forward<Args>(args)...);
+    }
+*/
+
+    //does not work yet
+//    template <typename Sign, int, typename Res, typename...Ts, typename Sign1 = Res(Ts...), typename...Args>
+//    template <typename Sign, int, typename Res, typename...Ts, typename...Args>
+//    template <typename Sign, typename Res, typename...Ts, typename...Args>
+//    template <typename Sign, typename Res, typename...Ts, typename...Args>
+    template <typename Sign, typename...Args, typename Res = typename help<Sign>::res_t> //, typename...Ts> //, typename help<Sign>::sign_t>
+//    typename std::enable_if_t<std::is_same<Sign, Res(Ts...)>::value, Res>
+    Res invokeS(const std::string& cls_method, Args&&...args) //, Sign s = static_cast<Res(Ts...)>(nullptr))
+    {
+//        struct help<Res(Ts...)> h(this);
+        struct help<Sign> h(this);
+        return h.inv(cls_method, std::forward<Args>(args)...);
+//        return (Res)invokeX<Res,Ts...,Sign,Args...>(cls_method, std::forward<Args>(args)...);
     }
 
     template <typename...Ts, typename...Args>

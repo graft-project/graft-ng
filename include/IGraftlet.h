@@ -13,6 +13,11 @@
 #include <iostream>
 #include <functional>
 
+#include <cassert>
+
+#define REGISTER_ACTIONX1(T, f) \
+    register_handler_memf1(#f, this, &T::f)
+
 #define REGISTER_ACTIONX(T, f) \
     register_handler_memf(#f, this, &T::f)
 
@@ -142,7 +147,12 @@ public:
     {
         std::type_index ti = std::type_index(typeid(Callable));
         ti2any_t& ti2any = map[name];
-        auto res = ti2any.emplace(ti, std::make_any<Callable>(callable));
+//        auto res = ti2any.emplace(ti, std::make_any<Callable>(callable));
+        std::any any = std::make_any<Callable>(callable);
+        assert(any.type().hash_code() == typeid(callable).hash_code());
+//        auto res = ti2any.emplace(ti, std::make_any<Callable>(callable));
+        std::cout << "register_handlerX " << name << " of " << typeid(callable).name() << "\n";
+        auto res = ti2any.emplace(ti, std::move(any));
         if(!res.second) throw std::runtime_error("method " + name + " with typeid " + ti.name() + " already registered");
     }
 
@@ -165,6 +175,23 @@ public:
             std::cout << "fun:" << params.type().name() << "\n";
         };
 */
+    }
+
+    template<typename Obj, typename Res,  typename...Ts>
+    void register_handler_memf1(const method_name_t& name, Obj* p, Res (Obj::*f)(Ts...))
+    {
+        std::function<Res(Obj*,Ts...)> memf = f;
+        std::function<Res(Ts...)> fun = [p,memf](Ts&&...ts)->Res { return memf(p,std::forward<Ts>(ts)...); };
+        register_handlerX<Res, Ts...,decltype(fun)>(name, fun);
+    }
+
+    template<typename Obj, typename Res, typename...Ts>
+    void register_handler_memf1(const method_name_t& name, Obj* p, std::function<Res(Obj*,Ts...)> f)
+    {
+//        std::function<Res(Obj*,Ts...)> fm = f;
+//        std::function<Res(Ts...)> fun = [p,f](Ts...ts)->Res { return (p->*f)(ts...); };
+        std::function<Res(Ts...)> fun = [p,f](Ts...ts)->Res { return f(p,ts...); };
+        register_handlerX<Res, Ts...,decltype(fun)>(name, fun);
     }
 /*
     template <typename Obj, typename Res, typename...Ts, typename Sign = Res(Ts...), typename...Args>

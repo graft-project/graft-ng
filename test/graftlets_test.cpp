@@ -30,6 +30,79 @@ TEST(Graftlets, commonX)
         std::string& r = s;
         try
         {
+            using Sign = std::string (std::string&);
+            std::string a = "aaa";
+//            std::string res = plugin.invokeX<Sign,0,std::string>("testGL.getString11", a);
+//            std::string res = plugin.invokeX<Sign>("testGL.getString11", a);
+            std::string res = plugin.invokeX<std::string,std::string&>("testGL.getString11", a);
+
+            constexpr bool x = std::is_same<Sign, std::string (std::string&)>::value;
+            static_assert(x);
+//            using Res = decltype(Sign(std::declval<std::string>()));
+//            constexpr bool y = std::is_same<decltype(Sign(std::declval<std::string>())), std::string>::value;
+
+            EXPECT_EQ(a,"getString11");
+            EXPECT_EQ(res,"res getString11");
+        }
+        catch(std::exception& ex)
+        {
+            std::cout << ex.what() << "\n";
+            EXPECT_EQ(true,false);
+        }
+
+        try
+        {
+            using Sign = int (int&);
+            int a = 5;
+//            int res = plugin.invokeX<Sign,0,int>("testGL.getInt11", a);
+            int res = plugin.invokeS<Sign>("testGL.getInt11", a);
+//            int res = plugin.invokeX<int,int&>("testGL.getInt11", a);
+
+            EXPECT_EQ(a,11);
+            EXPECT_EQ(res,21);
+        }
+        catch(std::exception& ex)
+        {
+            std::cout << ex.what() << "\n";
+            EXPECT_EQ(true,false);
+        }
+
+        try
+        {
+            using Sign = std::string (std::string&);
+            std::string a = "aaa";
+            std::string res = plugin.invokeS<Sign>("testGL.getString11", a);
+
+            EXPECT_EQ(a,"getString11");
+            EXPECT_EQ(res,"res getString11");
+        }
+        catch(std::exception& ex)
+        {
+            std::cout << ex.what() << "\n";
+            EXPECT_EQ(true,false);
+        }
+
+        try
+        {
+            using Sign = std::string (std::string&& srv, std::string slv, std::string& sr);
+            std::string a = "aaa";
+            std::string res = plugin.invokeX<std::string,std::string&&, std::string , std::string& >(
+                        "testGL.getString4", "a", "b", a);
+/*
+                sr = srv + slv;
+                return "res " + slv + srv + sr;
+*/
+            EXPECT_EQ(a,"ab");
+            EXPECT_EQ(res,"res baab");
+        }
+        catch(std::exception& ex)
+        {
+            std::cout << ex.what() << "\n";
+            EXPECT_EQ(true,false);
+        }
+
+        try
+        {
 //            bool ok = plugin.invoke<std::string&>("testGL.getString1", r);
             plugin.invokeX<void, std::string&>("testGL.getString1", r);
             bool ok = true;
@@ -49,7 +122,6 @@ TEST(Graftlets, commonX)
 
         try
         {
-
             bool ok = plugin.invoke<int,int>("testGL.getString2", 9, 8);
             if(!ok)
             {
