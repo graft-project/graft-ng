@@ -37,50 +37,64 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
 
         std::cout << "." + extension + " library found:'" << it->path().c_str() <<"'\n";
 
-        dll::shared_library lib(it->path(), dll::load_mode::append_decorations);
-
-        if(!lib.has("getBuildSignature"))
-        {
-            std::cout << "\t" "getBuildSignature" " not found\n";
-            continue;
-        }
-
-        auto getGraftletABI = dll::import<decltype(getBuildSignature)>(lib, "getBuildSignature");
-        std::string graftletABI = getGraftletABI();
-        if(graftletABI != getBuildSignature())
-        {
-            std::cout << "\tgraftlet ABI does not match '" << graftletABI << "' != '" << getBuildSignature() << "'\n";
-            continue;
-        }
-
-        if(!lib.has("getGraftletRegistry")) continue;
-
-        auto graftletRegistryAddr = dll::import<RegFunc>(lib, "getGraftletRegistry" );
-        std::cout << typeid(graftletRegistryAddr).name() << "\n";
-
-        GraftletRegistry* graftletRegistry = graftletRegistryAddr();
-
-        int graftletVersion = 0;
+        bool loaded = false;
         try
         {
-            auto graftletFileVersion = dll::import<VersionFunc>(lib, "getGraftletVersion");
-            graftletVersion = graftletFileVersion();
+            dll::shared_library lib(it->path(), dll::load_mode::append_decorations);
+            loaded = true;
+
+            if(!lib.has("getBuildSignature"))
+            {
+                std::cout << "\t" "getBuildSignature" " not found\n";
+                continue;
+            }
+
+            auto getGraftletABI = dll::import<decltype(getBuildSignature)>(lib, "getBuildSignature");
+            std::string graftletABI = getGraftletABI();
+            if(graftletABI != getBuildSignature())
+            {
+                std::cout << "\tgraftlet ABI does not match '" << graftletABI << "' != '" << getBuildSignature() << "'\n";
+                continue;
+            }
+
+            if(!lib.has("getGraftletRegistry")) continue;
+
+            auto graftletRegistryAddr = dll::import<RegFunc>(lib, "getGraftletRegistry" );
+            std::cout << typeid(graftletRegistryAddr).name() << "\n";
+
+            GraftletRegistry* graftletRegistry = graftletRegistryAddr();
+
+            int graftletVersion = 0;
+            try
+            {
+                auto graftletFileVersion = dll::import<VersionFunc>(lib, "getGraftletVersion");
+                graftletVersion = graftletFileVersion();
+            }
+            catch(std::exception& ex)
+            {
+
+            }
+
+            auto getGraftletNameFunc = dll::import<decltype(getGraftletName)>(lib, "getGraftletName");
+            dll_name_t dll_name = getGraftletNameFunc();
+            dll_path_t dll_path = it->path().c_str();
+            auto res = m_name2lib.emplace(
+                        std::make_pair(dll_name,
+                                       std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path) ))
+                        );
+            if(!res.second) throw std::runtime_error("A plugin with the name '" + dll_name + "' already exists");
+            auto res1 = m_name2registries.emplace( std::make_pair(dll_name, graftletRegistry) );
+            assert(res1.second);
         }
         catch(std::exception& ex)
         {
-
+            if(!loaded)
+            {
+                std::cout << "cannot load library: '" << it->path() << "' because '" << ex.what() << "'\n";
+                continue;
+            }
+            else throw;
         }
-
-        auto getGraftletNameFunc = dll::import<decltype(getGraftletName)>(lib, "getGraftletName");
-        dll_name_t dll_name = getGraftletNameFunc();
-        dll_path_t dll_path = it->path().c_str();
-        auto res = m_name2lib.emplace(
-                    std::make_pair(dll_name,
-                                   std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path) ))
-                    );
-        if(!res.second) throw std::runtime_error("A plugin with the name '" + dll_name + "' already exists");
-        auto res1 = m_name2registries.emplace( std::make_pair(dll_name, graftletRegistry) );
-        assert(res1.second);
     }
 
     return true;

@@ -26,6 +26,7 @@ add_library(graftlet_lib STATIC
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${PROJECT_SOURCE_DIR}/../modules/libr3/include
 )
 
 add_library(graftlet_plugin SHARED

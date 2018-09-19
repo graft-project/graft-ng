@@ -63,5 +63,23 @@ TEST(Graftlets, common)
         std::cout << ex.what() << "\n";
         EXPECT_EQ(true,false);
     }
+
+    try
+    {//testHandler
+        graft::Router::vars_t vars;
+        graft::Input input;
+        graft::GlobalContextMap m;
+        graft::Context ctx(m);
+        graft::Output output;
+        using Handler = graft::Status(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
+        graft::Status res = plugin.invokeS<Handler>("testGL.URI/{id:}", vars, input, ctx, output);
+        EXPECT_EQ(res,graft::Status::Ok);
+    }
+    catch(std::exception& ex)
+    {
+        std::cout << ex.what() << "\n";
+        EXPECT_EQ(true,false);
+    }
+
 }
 

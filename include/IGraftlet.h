@@ -3,17 +3,19 @@
 #include <map>
 #include <string>
 #include <functional>
-#include <tuple>
 #include <typeindex>
 #include <typeinfo>
 #include <type_traits>
-#include <utility>
 #include <any>
 
 #include <iostream>
 #include <functional>
 
 #include <cassert>
+#include "router.h"
+
+#define REGISTER_ENDPOINT(Endpoint,T, f) \
+    register_endpoint_memf(Endpoint, this, &T::f)
 
 #define REGISTER_ACTION(T, f) \
     register_handler_memf(#f, this, &T::f)
@@ -89,13 +91,24 @@ public:
         register_handler<Res, Ts...,decltype(fun)>(name, fun);
     }
 
-protected:
-public:
-    using handler_t = std::function<void (std::any const&)>;
-    using tagged_handlers_t = std::map<handler_tag_t, handler_t>;
-    using members_t = std::map<std::type_index, tagged_handlers_t>;
+    void register_endpoint(const std::string& endpoint, graft::Router::Handler worker_action)
+    {
+        register_handler<graft::Status>(endpoint, worker_action);
+    }
+
+    template<typename Obj>
+    void register_endpoint_memf(const std::string& endpoint, Obj* p,
+                                graft::Status (Obj::*f)(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output))
+    {
+        std::function<graft::Status (Obj*,const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)> memf = f;
+        std::function<graft::Status (const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)> fun =
+                [p,memf](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+        {
+            return memf(p,vars,input,ctx,output);
+        };
+        register_handler<graft::Status>(endpoint, fun);
+    }
 private:
-    members_t m_members;
     std::string m_name;
 };
 

@@ -9,6 +9,8 @@ class TestGraftlet: public IGraftlet
 public:
     TestGraftlet(const char* name) : IGraftlet(name) { }
 
+    void testUndefined();
+
     int testInt1(int a) { return a; }
     int testInt2(int&& a, int b, int& c)
     {
@@ -28,14 +30,20 @@ public:
         return "res " + slv + srv + sr;
     }
 
+    graft::Status testHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::Status::Ok;
+    }
+
     virtual void init()
     {
+//        REGISTER_ACTION(TestGraftlet, testUndefined);
         REGISTER_ACTION(TestGraftlet, testInt1);
         REGISTER_ACTION(TestGraftlet, testInt2);
         REGISTER_ACTION(TestGraftlet, testString1);
         REGISTER_ACTION(TestGraftlet, testString2);
-//////////////
-//        REGISTER_ENDPOINT("URI/{id:}", TestGraftlet, getString3)
+
+        REGISTER_ENDPOINT("URI/{id:}", TestGraftlet, testHandler);
     }
 };
 
