@@ -15,8 +15,8 @@
 
 #include <cassert>
 
-#define REGISTER_ACTIONX1(T, f) \
-    register_handler_memf1(#f, this, &T::f)
+#define REGISTER_ACTION(T, f) \
+    register_handler_memf(#f, this, &T::f)
 
 class IGraftlet
 {
@@ -70,23 +70,23 @@ public:
     }
 
     template<typename Res,  typename...Ts, typename Callable = Res (Ts...)>
-    void register_handlerX(const method_name_t& name, Callable callable)
+    void register_handler(const method_name_t& name, Callable callable)
     {
         std::type_index ti = std::type_index(typeid(Callable));
         ti2any_t& ti2any = map[name];
         std::any any = std::make_any<Callable>(callable);
         assert(any.type().hash_code() == typeid(callable).hash_code());
-        std::cout << "register_handlerX " << name << " of " << typeid(callable).name() << "\n";
+        std::cout << "register_handler " << name << " of " << typeid(callable).name() << "\n";
         auto res = ti2any.emplace(ti, std::move(any));
         if(!res.second) throw std::runtime_error("method " + name + " with typeid " + ti.name() + " already registered");
     }
 
     template<typename Obj, typename Res,  typename...Ts>
-    void register_handler_memf1(const method_name_t& name, Obj* p, Res (Obj::*f)(Ts...))
+    void register_handler_memf(const method_name_t& name, Obj* p, Res (Obj::*f)(Ts...))
     {
         std::function<Res(Obj*,Ts...)> memf = f;
         std::function<Res(Ts...)> fun = [p,memf](Ts&&...ts)->Res { return memf(p,std::forward<Ts>(ts)...); };
-        register_handlerX<Res, Ts...,decltype(fun)>(name, fun);
+        register_handler<Res, Ts...,decltype(fun)>(name, fun);
     }
 
 protected:

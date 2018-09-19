@@ -49,7 +49,7 @@ class GraftletExport
         template <typename...Args>
         Res invoke(const std::string& cls_method, Args&&...args)
         {
-            return (Res)ge->invokeX<Res,Ts...>(cls_method, std::forward<Args>(args)...);
+            return (Res)ge->invoke<Res,Ts...>(cls_method, std::forward<Args>(args)...);
         }
     private:
         GraftletExport* ge;
@@ -61,7 +61,7 @@ public:
     GraftletExport(const std::map<gl_name_t, std::any>& gl2any) : m_gl2any(gl2any) { }
 
     template <typename Res, typename...Ts, typename = Res(Ts...), typename...Args>
-    Res invokeX(const std::string& cls_method, Args&&...args)
+    Res invoke(const std::string& cls_method, Args&&...args)
     {
         gl_name_t cls;
         std::string method;
