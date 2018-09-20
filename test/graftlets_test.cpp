@@ -81,5 +81,7 @@ TEST(Graftlets, common)
         EXPECT_EQ(true,false);
     }
 
+    IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+    EXPECT_EQ(endpoints.size(), 1);
 }
 

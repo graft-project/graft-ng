@@ -7,6 +7,8 @@
 #include "requests/sendsupernodeannouncerequest.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+#include "GraftletLoader.h"
+#include "IGraftlet.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
@@ -70,6 +72,24 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     Router health_router;
     graft::registerHealthcheckRequests(health_router);
     httpcm.addRouter(health_router);
+
+    {//add graftlet routers
+        graftlet::GraftletLoader loader;
+
+        loader.findGraftletsAtDirectory("./", "so");
+//        loader.findGraftletsAtDirectory("./graftlets", "so");
+        loader.findGraftletsAtDirectory(getCopts().self_dir + "/graftlets", "so");
+
+        graftlet::GraftletExport<IGraftlet> plugin = loader.buildAndResolveGraftletX<IGraftlet>("myGraftlet");
+
+        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        Router graftlet_router;
+        for(auto& item : endpoints)
+        {
+            graftlet_router.addRoute(item.first, METHOD_GET | METHOD_POST, {nullptr, item.second , nullptr});
+        }
+        httpcm.addRouter(graftlet_router);
+    }
 }
 
 void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
@@ -92,6 +112,9 @@ void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
 void GraftServer::initGlobalContext()
 {
 //  TODO: why context intialized second time here?
+    //ANSWER: It is correct. The ctx is not initialized, ctx is attached to
+    //  the global part of the context to which we want to get access here, only
+    //  the local part of it has lifetime the same as the lifetime of ctx variable.
     graft::Context ctx(m_looper->getGcm());
     const ConfigOpts& copts = m_looper->getCopts();
 //  copts is empty here
@@ -345,6 +368,12 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         p /= ".graft/";
         p /= consts::DATA_PATH;
         configOpts.data_dir = p.string();
+    }
+
+    {//configOpts.self_dir
+        fs::path selfpath = argv[0];
+        selfpath = selfpath.remove_filename();
+        configOpts.self_dir = selfpath.string();
     }
 
     const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");

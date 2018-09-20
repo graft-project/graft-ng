@@ -28,6 +28,7 @@
 #include <boost/dll/import.hpp>
 
 #include "GraftletRegistry.h"
+#include "router.h"
 
 namespace graftlet
 {
@@ -80,7 +81,7 @@ public:
         auto it = m_gl2any.find(cls);
         if(it == m_gl2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
         std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
-        return (Res)concreteGraftlet->template invokeX<Res,Ts...>(method, std::forward<Args>(args)...);
+        return (Res)concreteGraftlet->template invoke<Res,Ts...>(method, std::forward<Args>(args)...);
     }
 
     template <typename Sign, typename...Args, typename Res = typename helperS<Sign>::res_t>
@@ -99,6 +100,7 @@ private:
     using dll_name_t = std::string;
     using gl_name_t = std::string;
     using dll_path_t = std::string;
+    using endpoint_t = std::string;
     using version_t = int;
 
     using RegFunc = GraftletRegistry* ();
@@ -112,8 +114,28 @@ private:
     //dll (name, type_index of BaseT) -> (graftlet name, any of BaseT)
     //it makes no sense to hold std::shared_ptr<IGraftlet> until the shared_ptr is returned from resolveGraftlet
     std::map< std::pair<dll_name_t, std::type_index>, std::map<gl_name_t, std::any> > m_name2gls;
-
 public:
+
+    template <class BaseT>
+    typename BaseT::endpoints_vec_t getEndpoints()
+    {
+        typename BaseT::endpoints_vec_t res;
+        for(auto& it0 : m_name2gls)
+        {
+            if(it0.first.second != std::type_index(typeid(BaseT))) continue;
+            std::map<gl_name_t, std::any>& map = it0.second;
+            for(auto& it1 : map)
+            {
+                //TODO: remove shared_ptr, it does not hold something now
+                std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it1.second);
+                typename BaseT::endpoints_vec_t vec = concreteGraftlet->getEndpoints();
+                res.insert(res.end(), vec.begin(), vec.end());
+            }
+        }
+        return res;
+    }
+
+
     template <class BaseT>
     GraftletExport<BaseT> buildAndResolveGraftletX(const dll_name_t& dll_name)
     {

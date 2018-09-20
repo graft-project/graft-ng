@@ -24,37 +24,46 @@ class IGraftlet
 {
 public:
     using handler_tag_t = std::string;
+    using method_name_t = std::string;
+    using ti2any_t = std::map<std::type_index, std::any>;
+    using map_t = std::map<method_name_t, ti2any_t>;
+    using endpoint_t = method_name_t;
+    using endpoints_vec_t = std::vector< std::pair<endpoint_t, graft::Router::Handler> >;
 
-    virtual void init() = 0;
+    void init()
+    {
+        if(inited) return;
+        inited = true;
+        initOnce();
+    }
 
-    IGraftlet(const std::string& name = std::string() ) : m_name(name) { }
+    IGraftlet() = delete;
     virtual ~IGraftlet() = default;
     IGraftlet(const IGraftlet&) = delete;
     IGraftlet& operator = (const IGraftlet&) = delete;
 
     const std::string& getName() const { return m_name; }
-public:
-    using method_name_t = std::string;
-    using ti2any_t = std::map<std::type_index, std::any>;
-    using map_t = std::map<method_name_t, ti2any_t>;
-    map_t map;
 
-    template<typename Obj, typename Res,  typename...Ts>
-    class memf_t
+    endpoints_vec_t getEndpoints()
     {
-        Obj* p;
-        Res (Obj::*f)(Ts...);
-    public:
-        memf_t(Obj* p, Res (Obj::*f)(Ts...)) : p(p), f(f) { }
-        template<typename...Args>
-        Res operator ()(Args&&...args)
+        endpoints_vec_t res;
+        std::type_index ti = std::type_index(typeid(graft::Router::Handler));
+        for(auto& it : map)
         {
-            return (p->*f)(std::forward<Args>(args)...);
-        }
-    };
+            ti2any_t& ti2any = it.second;
+            auto it1 = ti2any.find(ti);
+            if(it1 == ti2any.end()) continue;
 
-    template <typename Res, typename...Ts, typename Sign = Res(Ts...), typename...Args>
-    Res invokeX(const method_name_t& name, Args&&...args)
+            std::any& any = it1->second;
+            graft::Router::Handler handler = std::any_cast<graft::Router::Handler>(any);
+
+            res.emplace_back(std::make_pair(it.first, handler));
+        }
+        return res;
+    }
+
+    template <typename Res, typename...Ts, typename = Res(Ts...), typename...Args>
+    Res invoke(const method_name_t& name, Args&&...args)
     {
         using Callable = std::function<Res (Ts...)>;
         std::type_index ti = std::type_index(typeid(Callable));
@@ -101,14 +110,19 @@ public:
                                 graft::Status (Obj::*f)(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output))
     {
         std::function<graft::Status (Obj*,const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)> memf = f;
-        std::function<graft::Status (const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)> fun =
+        graft::Router::Handler fun =
                 [p,memf](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
         {
             return memf(p,vars,input,ctx,output);
         };
         register_handler<graft::Status>(endpoint, fun);
     }
+protected:
+    IGraftlet(const std::string& name = std::string() ) : m_name(name) { }
+    virtual void initOnce() = 0;
 private:
+    bool inited = false;
     std::string m_name;
+    map_t map;
 };
 

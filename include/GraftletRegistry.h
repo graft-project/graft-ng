@@ -46,7 +46,7 @@
     GRAFTLET_PLUGIN_NAME(name) \
     GRAFTLET_PLUGIN_VERSION(version) \
     extern "C" GRAFTLET_EXPORT const char* getBuildSignature() { return graftlet::getBuildSignature(); } \
-    graftlet::GraftletRegistry* pr = nullptr; extern "C" GRAFTLET_EXPORT graftlet::GraftletRegistry* getGraftletRegistry() { pr = new graftlet::GraftletRegistry()
+    extern "C" GRAFTLET_EXPORT graftlet::GraftletRegistry* getGraftletRegistry() { graftlet::GraftletRegistry* pr = &graftlet::GraftletRegistry::Instance();
 
 #define GRAFTLET_PLUGIN(concrete, base, ...) \
         GRAFTLET_CHECKS(concrete, base); pr->registerGraftlet<concrete, base>(__VA_ARGS__)
@@ -117,13 +117,18 @@ const char* getGraftletName()
 #endif //__GRAFTLET__
 
 
-class GraftletRegistry
+class GraftletRegistry final
 {
-private:
-    std::map<std::type_index, std::function<std::shared_ptr<void>()>> m_graftlets;
-
 public:
+    GraftletRegistry(const GraftletRegistry&) = delete;
+    GraftletRegistry operator = (const GraftletRegistry&) = delete;
 #ifdef __GRAFTLET__
+    static GraftletRegistry& Instance()
+    {
+        static GraftletRegistry instance;
+        return instance;
+    }
+
     template <class T, class BaseT, class ...Args>
     void registerGraftlet(Args...args)
     {
@@ -140,6 +145,11 @@ public:
         return std::shared_ptr<BaseT>(nullptr);
     }
 #endif //__GRAFTLET__
+private:
+    GraftletRegistry() { }
+    ~GraftletRegistry() { }
+
+    std::map<std::type_index, std::function<std::shared_ptr<void>()>> m_graftlets;
 };
 
 } //namespace graftlet

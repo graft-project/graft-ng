@@ -109,6 +109,7 @@ struct ConfigOpts
     int timer_poll_interval_ms;
     // data directory - base directory where supernode stake wallet and other supernodes wallets are located
     std::string data_dir;
+    std::string self_dir;
     int lru_timeout_ms;
     // testnet flag
     bool testnet;
