@@ -20,6 +20,10 @@
 
 #include <tuple>
 #include "GraftletLoader.h"
+#include <misc_log_ex.h>
+
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "graftlet.GraftletLoader"
 
 namespace graftlet
 {
@@ -35,7 +39,7 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
 
         if(it->path().extension() != "."+extension) continue;
 
-        std::cout << "." + extension + " library found:'" << it->path().c_str() <<"'\n";
+        LOG_PRINT_L2("." << extension << " library found:'" << it->path().c_str() << "'");
 
         bool loaded = false;
         try
@@ -45,7 +49,7 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
 
             if(!lib.has("getBuildSignature"))
             {
-                std::cout << "\t" "getBuildSignature" " not found\n";
+                LOG_PRINT_L2("\t" "getBuildSignature" " not found");
                 continue;
             }
 
@@ -53,14 +57,13 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             std::string graftletABI = getGraftletABI();
             if(graftletABI != getBuildSignature())
             {
-                std::cout << "\tgraftlet ABI does not match '" << graftletABI << "' != '" << getBuildSignature() << "'\n";
+                LOG_PRINT_L2("\tgraftlet ABI does not match '" << graftletABI << "' != '" << getBuildSignature() << "'");
                 continue;
             }
 
             if(!lib.has("getGraftletRegistry")) continue;
 
             auto graftletRegistryAddr = dll::import<RegFunc>(lib, "getGraftletRegistry" );
-            std::cout << typeid(graftletRegistryAddr).name() << "\n";
 
             GraftletRegistry* graftletRegistry = graftletRegistryAddr();
 
@@ -90,7 +93,7 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
         {
             if(!loaded)
             {
-                std::cout << "cannot load library: '" << it->path() << "' because '" << ex.what() << "'\n";
+                LOG_PRINT_L2("cannot load library: '" << it->path() << "' because '" << ex.what() << "'");
                 continue;
             }
             else throw;

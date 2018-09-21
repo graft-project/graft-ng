@@ -24,9 +24,7 @@
 #include <string>
 #include <any>
 #include <iostream>
-
 #include <boost/dll/import.hpp>
-
 #include "GraftletRegistry.h"
 #include "router.h"
 
@@ -164,7 +162,7 @@ public:
         return GraftletExport<BaseT>(map);
     }
 
-
+    //it is not used now
     template <class BaseT>
     std::vector<std::shared_ptr<BaseT>> buildAndResolveGraftlet(const std::string& path)
     {

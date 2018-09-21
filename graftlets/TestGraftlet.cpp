@@ -4,6 +4,9 @@
 
 #include<cassert>
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "graftlet.testGraftlet"
+
 class TestGraftlet: public IGraftlet
 {
 public:
@@ -76,11 +79,11 @@ struct Informer
 {
     Informer()
     {
-        std::cout << "graftlet " << getGraftletName() << " loading\n";
+        LOG_PRINT_L2("graftlet " << getGraftletName() << " loading");
     }
     ~Informer()
     {
-        std::cout << "graftlet " << getGraftletName() << " unloading\n";
+        LOG_PRINT_L2("graftlet " << getGraftletName() << " unloading");
     }
 };
 
