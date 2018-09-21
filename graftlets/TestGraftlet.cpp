@@ -41,6 +41,17 @@ public:
         return graft::Status::Ok;
     }
 
+    graft::Status testHandler1(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        std::string id;
+        {
+            auto it = vars.find("id");
+            if(it != vars.end()) id = it->second;
+        }
+        output.body = input.data() + id;
+        return graft::Status::Ok;
+    }
+
     virtual void initOnce()
     {
 //        REGISTER_ACTION(TestGraftlet, testUndefined);
@@ -49,7 +60,8 @@ public:
         REGISTER_ACTION(TestGraftlet, testString1);
         REGISTER_ACTION(TestGraftlet, testString2);
 
-        REGISTER_ENDPOINT("/URI/test/{id:[0-9]+}", TestGraftlet, testHandler);
+        REGISTER_ENDPOINT("/URI/test/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler);
+        REGISTER_GENERIC("/URI/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler1);
     }
 };
 

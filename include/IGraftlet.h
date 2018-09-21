@@ -14,21 +14,26 @@
 #include <cassert>
 #include "router.h"
 
-#define REGISTER_ENDPOINT(Endpoint,T, f) \
-    register_endpoint_memf(Endpoint, this, &T::f)
-
 #define REGISTER_ACTION(T, f) \
     register_handler_memf(#f, this, &T::f)
+
+#define REGISTER_ENDPOINT(Endpoint, Method, T, f) \
+    register_endpoint_memf(#f, this, &T::f, Endpoint, Method, false)
+
+#define REGISTER_GENERIC(Endpoint, Method, T, f) \
+    register_endpoint_memf(#f, this, &T::f, Endpoint, Method, true)
 
 class IGraftlet
 {
 public:
     using handler_tag_t = std::string;
-    using method_name_t = std::string;
-    using ti2any_t = std::map<std::type_index, std::any>;
-    using map_t = std::map<method_name_t, ti2any_t>;
-    using endpoint_t = method_name_t;
-    using endpoints_vec_t = std::vector< std::pair<endpoint_t, graft::Router::Handler> >;
+    using func_name_t = std::string;
+    using endpoint_t = std::string;
+    using method_t = int;
+    using is_call_t = bool; //is the function intended to be called directly (endpoint case)
+    using ti2any_t = std::map<std::type_index, std::tuple<std::any, endpoint_t, method_t, is_call_t> >;
+    using map_t = std::map<func_name_t, ti2any_t>;
+    using endpoints_vec_t = std::vector< std::tuple<endpoint_t, method_t, graft::Router::Handler> >;
 
     void init()
     {
@@ -54,16 +59,19 @@ public:
             auto it1 = ti2any.find(ti);
             if(it1 == ti2any.end()) continue;
 
-            std::any& any = it1->second;
+            std::any& any = std::get<0>(it1->second);
+            endpoint_t& endpoint = std::get<1>(it1->second);
+            method_t& method = std::get<2>(it1->second);
+
             graft::Router::Handler handler = std::any_cast<graft::Router::Handler>(any);
 
-            res.emplace_back(std::make_pair(it.first, handler));
+            res.emplace_back(std::make_tuple(endpoint, method, handler));
         }
         return res;
     }
 
     template <typename Res, typename...Ts, typename = Res(Ts...), typename...Args>
-    Res invoke(const method_name_t& name, Args&&...args)
+    Res invoke(const func_name_t& name, Args&&...args)
     {
         using Callable = std::function<Res (Ts...)>;
         std::type_index ti = std::type_index(typeid(Callable));
@@ -74,40 +82,44 @@ public:
         auto it1 = ti2any.find(ti);
         if(it1 == ti2any.end()) throw std::runtime_error("cannot find method " + name + " with typeid " + ti.name() );
 
-        std::any& any = it1->second;
+        std::any& any = std::get<0>(it1->second);
+        is_call_t& is_call = std::get<3>(it1->second);
+        if(!is_call) throw std::runtime_error("found method is no intended to be called, " + name + " with typeid " + ti.name() );
+
         Callable callable = std::any_cast<Callable>(any);
 
         return callable(std::forward<Args>(args)...);
     }
 
     template<typename Res,  typename...Ts, typename Callable = Res (Ts...)>
-    void register_handler(const method_name_t& name, Callable callable)
+    void register_handler(const func_name_t& name, Callable callable, const endpoint_t& endpoint = endpoint_t(), method_t method = 0, is_call_t is_call = true)
     {
         std::type_index ti = std::type_index(typeid(Callable));
         ti2any_t& ti2any = map[name];
         std::any any = std::make_any<Callable>(callable);
         assert(any.type().hash_code() == typeid(callable).hash_code());
         std::cout << "register_handler " << name << " of " << typeid(callable).name() << "\n";
-        auto res = ti2any.emplace(ti, std::move(any));
+        auto res = ti2any.emplace(ti, std::make_tuple(std::move(any), endpoint, method, is_call) );
         if(!res.second) throw std::runtime_error("method " + name + " with typeid " + ti.name() + " already registered");
     }
 
     template<typename Obj, typename Res,  typename...Ts>
-    void register_handler_memf(const method_name_t& name, Obj* p, Res (Obj::*f)(Ts...))
+    void register_handler_memf(const func_name_t& name, Obj* p, Res (Obj::*f)(Ts...))
     {
         std::function<Res(Obj*,Ts...)> memf = f;
         std::function<Res(Ts...)> fun = [p,memf](Ts&&...ts)->Res { return memf(p,std::forward<Ts>(ts)...); };
         register_handler<Res, Ts...,decltype(fun)>(name, fun);
     }
 
-    void register_endpoint(const std::string& endpoint, graft::Router::Handler worker_action)
+    void register_endpoint(const func_name_t& name, graft::Router::Handler worker_action, const endpoint_t& endpoint, method_t method, is_call_t is_call)
     {
-        register_handler<graft::Status>(endpoint, worker_action);
+        register_handler<graft::Status>(name, worker_action, endpoint, method, is_call);
     }
 
     template<typename Obj>
-    void register_endpoint_memf(const std::string& endpoint, Obj* p,
-                                graft::Status (Obj::*f)(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output))
+    void register_endpoint_memf(const func_name_t& name, Obj* p
+                                , graft::Status (Obj::*f)(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+                                , const endpoint_t& endpoint, method_t method, is_call_t is_call )
     {
         std::function<graft::Status (Obj*,const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)> memf = f;
         graft::Router::Handler fun =
@@ -115,7 +127,7 @@ public:
         {
             return memf(p,vars,input,ctx,output);
         };
-        register_handler<graft::Status>(endpoint, fun);
+        register_handler<graft::Status>(name, fun, endpoint, method, is_call);
     }
 protected:
     IGraftlet(const std::string& name = std::string() ) : m_name(name) { }

@@ -65,15 +65,17 @@ TEST(Graftlets, common)
     }
 
     try
-    {//testHandler
+    {//testHandler1, testHandler throw
         graft::Router::vars_t vars;
         graft::Input input;
         graft::GlobalContextMap m;
         graft::Context ctx(m);
         graft::Output output;
         using Handler = graft::Status(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
-        graft::Status res = plugin.invokeS<Handler>("testGL.URI/{id:}", vars, input, ctx, output);
+        graft::Status res = plugin.invokeS<Handler>("testGL.testHandler1", vars, input, ctx, output);
         EXPECT_EQ(res,graft::Status::Ok);
+
+        EXPECT_THROW(plugin.invokeS<Handler>("testGL.testHandler", vars, input, ctx, output), std::exception);
     }
     catch(std::exception& ex)
     {
@@ -82,6 +84,6 @@ TEST(Graftlets, common)
     }
 
     IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
-    EXPECT_EQ(endpoints.size(), 1);
+    EXPECT_EQ(endpoints.size(), 2);
 }
 

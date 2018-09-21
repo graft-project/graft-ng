@@ -89,7 +89,11 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
         Router graftlet_router;
         for(auto& item : endpoints)
         {
-            graftlet_router.addRoute(item.first, METHOD_GET | METHOD_POST, {nullptr, item.second , nullptr});
+            std::string& endpoint = std::get<0>(item);
+            int& method = std::get<1>(item);
+            Router::Handler& handler = std::get<2>(item);
+
+            graftlet_router.addRoute(endpoint, method, {nullptr, handler , nullptr});
         }
         httpcm.addRouter(graftlet_router);
     }
