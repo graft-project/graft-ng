@@ -70,6 +70,12 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     Router health_router;
     graft::registerHealthcheckRequests(health_router);
     httpcm.addRouter(health_router);
+
+    Router debug_router;
+    graft::registerDebugRequests(debug_router);
+    httpcm.addRouter(debug_router);
+
+
 }
 
 void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
