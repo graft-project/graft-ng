@@ -19,36 +19,42 @@
 
 namespace graft { namespace requests { namespace debug {
 
+GRAFT_DEFINE_IO_STRUCT(DbSupernode,
+    (std::string, Address),
+    (uint64, StakeAmount),
+    (uint64, LastUpdateAge)
+);
+
+GRAFT_DEFINE_IO_STRUCT(SupernodeListResponse,
+    (std::vector<DbSupernode>, items)
+);
+
+
+
+
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SupernodeListJsonRpcResult, SupernodeListResponse);
+
 Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
-    GRAFT_DEFINE_IO_STRUCT(DbSupernode,
-        (std::string, Address),
-        (uint64, Fee),
-        (uint64, LastUpdateAge)
-    );
 
-    GRAFT_DEFINE_IO_STRUCT(DbSupernodeList,
-        (std::vector<DbSupernode>, Supernodes)
-    );
+
 
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     auto supernodes = fsl->items();
 
-    DbSupernodeList dbSupernodeList;
+    SupernodeListJsonRpcResult resp;
     for (auto& sa : supernodes)
     {
         auto sPtr = fsl->get(sa);
-
         DbSupernode dbSupernode;
         dbSupernode.Address = sPtr->walletAddress();
-        dbSupernode.Fee = 0;
-        dbSupernode.LastUpdateAge = sPtr->lastUpdateTime();
-
-        dbSupernodeList.Supernodes.push_back(dbSupernode);
+        dbSupernode.StakeAmount = sPtr->stakeAmount();
+        dbSupernode.LastUpdateAge = static_cast<unsigned>(std::time(nullptr)) - sPtr->lastUpdateTime();
+        resp.result.items.push_back(dbSupernode);
     }
 
-    output.load(dbSupernodeList);
+    output.load(resp);
 
     return Status::Ok;
 }
@@ -56,14 +62,7 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
 Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
-    GRAFT_DEFINE_IO_STRUCT(AsSupernode,
-        (std::string, Address),
-        (uint64, Fee)
-    );
 
-    GRAFT_DEFINE_IO_STRUCT(AuthSample,
-        (std::vector<AsSupernode>, AuthSample)
-    );
 
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     std::vector<SupernodePtr> sample;
@@ -72,24 +71,24 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
     try {
         height = stoull(vars.find("height")->second);
     } catch (...) {
-        return Status::Error;
+        return errorInternalError("invalid input", output);
     }
 
     bool ok = fsl->buildAuthSample(height, sample);
-    if (!ok)
-        return Status::Error;
-
-    AuthSample authSample;
+    if (!ok) {
+        return errorInternalError("failed to build auth sample", output);
+    }
+    SupernodeListJsonRpcResult resp;
     for (auto& sPtr : sample)
     {
-        AsSupernode asSupernode;
-        asSupernode.Address = sPtr->walletAddress();
-        asSupernode.Fee = 0;
-
-        authSample.AuthSample.push_back(asSupernode);
+        DbSupernode sn;
+        sn.Address = sPtr->walletAddress();
+        sn.StakeAmount = sPtr->stakeAmount();
+        sn.LastUpdateAge = static_cast<unsigned>(std::time(nullptr)) - sPtr->lastUpdateTime();
+        resp.result.items.push_back(sn);
     }
 
-    output.load(authSample);
+    output.load(resp);
 
     return Status::Ok;
 }
