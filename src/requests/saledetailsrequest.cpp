@@ -97,9 +97,21 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
 
     vector<SupernodePtr> authSample;
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+
 
     if (!fsl->buildAuthSample(in.BlockNumber, authSample)) {
         return  errorBuildAuthSample(output);
+    }
+
+    if (std::find_if(authSample.begin(), authSample.end(),
+                    [&](const SupernodePtr &sn) {
+                        return sn->walletAddress() == supernode->walletAddress();
+                    }) != authSample.end()) {
+        std::string msg = "Internal error: our supernode is in auth sample but no sale details found for " + in.PaymentID
+               + ", auth_sample: " + fsl->printAuthSample(authSample);
+        LOG_ERROR(msg);
+        return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
     }
 
     // we have sale details locally, easy way
@@ -128,7 +140,6 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         in.callback_uri = "/cryptonode/callback/sale_details/" + boost::uuids::to_string(ctx.getId());
         innerOut.loadT<serializer::JSON_B64>(in);
         UnicastRequestJsonRpc unicastReq;
-        SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
         unicastReq.params.sender_address = supernode->walletAddress();
         size_t maxIndex = authSample.size() - 1;
         size_t randomIndex = utils::random_number<size_t>(0, maxIndex);
