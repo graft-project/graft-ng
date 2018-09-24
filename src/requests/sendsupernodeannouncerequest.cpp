@@ -153,5 +153,62 @@ void registerSendSupernodeAnnounceRequest(graft::Router &router)
     LOG_PRINT_L0("route " << PATH << " registered");
 }
 
+Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+        graft::Output& output)
+{
+
+    try {
+        switch (ctx.local.getLastStatus()) {
+        case graft::Status::Forward: // reply from cryptonode
+            return sendOkResponseToCryptonode(output);
+        case graft::Status::Error: // failed to send announce
+            return errorCustomError("Failed to send announce", ERROR_INTERNAL_ERROR, output);
+        case graft::Status::Ok:
+        case graft::Status::None:
+            graft::SupernodePtr supernode;
+
+            supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
+
+            if (!supernode.get()) {
+                LOG_ERROR("supernode is not set in global context");
+                return graft::Status::Error;
+            }
+
+            MDEBUG("about to refresh supernode: " << supernode->walletAddress());
+
+            if (!supernode->refresh()) {
+                return errorCustomError(string("failed to refresh supernode: ") + supernode->walletAddress(),
+                                        ERROR_INTERNAL_ERROR, output);
+            }
+
+            supernode->setLastUpdateTime(static_cast<uint64_t>(std::time(nullptr)));
+
+            graft::SendSupernodeAnnounceJsonRpcRequest req;
+            if (!supernode->prepareAnnounce(req.params)) {
+                return errorCustomError(string("failed to prepare announce: ") + supernode->walletAddress(),
+                                        ERROR_INTERNAL_ERROR, output);
+            }
+
+
+            req.method = "send_supernode_announce";
+            req.id = 0;
+            output.load(req);
+
+            output.path = "/json_rpc/rta";
+            // DBG: without cryptonode
+            // output.path = "/dapi/v2.0/send_supernode_announce";
+
+            MDEBUG("sending announce for address: " << supernode->walletAddress()
+                   << ", stake amount: " << supernode->stakeAmount());
+            return graft::Status::Forward;
+        }
+    } catch (std::exception &e) {
+        LOG_ERROR("Exception thrown: " << e.what());
+    } catch (...) {
+        LOG_ERROR("Unknown exception thrown");
+    }
+    return Status::Ok;
+};
+
 
 }

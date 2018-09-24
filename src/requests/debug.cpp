@@ -3,6 +3,7 @@
 #include "requesttools.h"
 #include "requests/broadcast.h"
 #include "requests/multicast.h"
+#include "requests/sendsupernodeannouncerequest.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "inout.h"
@@ -92,6 +93,14 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
 
     return Status::Ok;
 }
+
+Status doAnnounce(const Router::vars_t& vars, const graft::Input& input,
+                        graft::Context& ctx, graft::Output& output)
+{
+
+    return sendAnnounce(vars, input, ctx, output);
+}
+
 }}
 
 void __registerDebugRequests(Router &router)
@@ -100,6 +109,7 @@ void __registerDebugRequests(Router &router)
 
     router.addRoute("/debug/supernode_list", METHOD_GET, _HANDLER(getSupernodeList));
     router.addRoute("/debug/auth_sample/{height:[0-9]+}", METHOD_GET, _HANDLER(getAuthSample));
+    router.addRoute("/debug/announce", METHOD_POST, _HANDLER(doAnnounce));
 }
 
 }
