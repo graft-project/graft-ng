@@ -489,17 +489,20 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
             cryptonote::transaction tx = ctx.global.get(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID, cryptonote::transaction());
             putRtaSignaturesToTx(tx, authResult.approved, supernode->testnet());
             createSendRawTxRequest(tx, req);
-//            {
-//                MDEBUG("sending tx to cryptonode:  " << req.tx_as_hex);
-//                MDEBUG("  rta signatures: ");
-//                std::string buf;
-//                buf += "\n";
-//                for (const auto & rta_sign:  tx.rta_signatures) {
-//                    buf += string("      address: ") + cryptonote::get_account_address_as_str(true, rta_sign.address) + "\n";
-//                    buf += string("      signature: ") + epee::string_tools::pod_to_hex(rta_sign.signature) + "\n";
-//                }
-//                MDEBUG(buf);
-//            }
+#if 0
+            // kept for future debugging
+            {
+                MDEBUG("sending tx to cryptonode:  " << req.tx_as_hex);
+                MDEBUG("  rta signatures: ");
+                std::string buf;
+                buf += "\n";
+                for (const auto & rta_sign:  tx.rta_signatures) {
+                    buf += string("      address: ") + cryptonote::get_account_address_as_str(true, rta_sign.address) + "\n";
+                    buf += string("      signature: ") + epee::string_tools::pod_to_hex(rta_sign.signature) + "\n";
+                }
+                MDEBUG(buf);
+            }
+#endif
 
             // call cryptonode
             output.load(req);
