@@ -106,7 +106,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     bool have_data_locally = ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_DETAILS);
 
     if (have_data_locally) {
-        MDEBUG("found sale details locally for payment id: " << in.PaymentID << ", auth sample: " << fsl->printAuthSample(authSample));
+        MDEBUG("found sale details locally for payment id: " << in.PaymentID << ", auth sample: " << authSample);
         SaleDetailsResponse sdr;
         SaleDetailsResponseJsonRpc out;
         if (!prepareSaleDetailsResponse(in, ctx, sdr, error, authSample)) {
@@ -282,8 +282,8 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
 
     if (ctx.global.hasKey(sdr.PaymentID + CONTEXT_KEY_SALE_DETAILS)) {
         MDEBUG("sale details found for payment: " << sdr.PaymentID
-               << ", auth sample: "
-               << fsl->printAuthSample(authSample));
+               << ", auth sample: " << authSample);
+
         SaleDetailsResponse resp;
 
         JsonRpcError error;

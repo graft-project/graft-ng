@@ -126,9 +126,6 @@ public:
     size_t refreshedItems() const;
 
 
-    static std::string printAuthSample(const std::vector<SupernodePtr> &authSample);
-
-
 private:
     void selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
                               std::vector<SupernodePtr> &output, const std::vector<SupernodePtr> &selected_items,
@@ -148,6 +145,8 @@ private:
 };
 
 using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;
+
+std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes);
 
 
 } // namespace graft
