@@ -46,13 +46,14 @@
     GRAFTLET_PLUGIN_NAME(name) \
     GRAFTLET_PLUGIN_VERSION(version) \
     extern "C" GRAFTLET_EXPORT const char* getBuildSignature() { return graftlet::getBuildSignature(); } \
-    extern "C" GRAFTLET_EXPORT graftlet::GraftletRegistry* getGraftletRegistry() { graftlet::GraftletRegistry* pr = &graftlet::GraftletRegistry::Instance();
+    extern "C" GRAFTLET_EXPORT graftlet::GraftletRegistry* getGraftletRegistry() { graftlet::GraftletRegistry* pr = &graftlet::GraftletRegistry::Instance(); \
+        if(pr->empty()) {
 
 #define GRAFTLET_PLUGIN(concrete, base, ...) \
         GRAFTLET_CHECKS(concrete, base); pr->registerGraftlet<concrete, base>(__VA_ARGS__)
 
 #define GRAFTLET_EXPORTS_END \
-        return pr; } // extern "C" GRAFTLET_EXPORT void closeGraftletRegistry() { if (pr) delete pr; }
+        } return pr; } // extern "C" GRAFTLET_EXPORT void closeGraftletRegistry() { if (pr) delete pr; }
 
 #define GRAFTLET_PLUGIN_VERSION(version) \
     extern "C" GRAFTLET_EXPORT int getGraftletVersion() { return version; }
@@ -135,6 +136,8 @@ public:
         if (!m_graftlets.emplace(std::type_index(typeid(BaseT)), [this, args...]() { return std::make_shared<T>(args...); }).second)
             throw std::runtime_error("ERROR: Base type already defined in this plugin registry.");
     }
+
+    bool empty() const { return m_graftlets.empty(); }
 #else //__GRAFTLET__
     template <class BaseT>
     std::shared_ptr<BaseT> resolveGraftlet()

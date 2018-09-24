@@ -141,7 +141,7 @@ bool GraftServer::init(int argc, const char** argv)
     m_looper = std::make_unique<Looper>(configOpts);
     assert(m_looper);
 
-    intiConnectionManagers();
+    initConnectionManagers();
 
     prepareDataDirAndSupernodes();
 
@@ -176,34 +176,33 @@ bool GraftServer::run(int argc, const char** argv)
     for(bool run = true; run;)
     {
         run = false;
-        GraftServer gs;
 
-        if(!gs.init(argc, argv)) return false;
+        if(!init(argc, argv)) return false;
         argc = 1;
 
         //shutdown
-        int_handler = [&gs](int sig_num)
+        int_handler = [this](int sig_num)
         {
             LOG_PRINT_L0("Stopping server");
-            gs.stop();
+            stop();
         };
 
         //terminate
-        term_handler = [&gs](int sig_num)
+        term_handler = [this](int sig_num)
         {
             LOG_PRINT_L0("Force stopping server");
-            gs.stop(true);
+            stop(true);
         };
 
         //restart
-        hup_handler = [&gs,&run](int sig_num)
+        hup_handler = [this,&run](int sig_num)
         {
             LOG_PRINT_L0("Restarting server");
             run = true;
-            gs.stop();
+            stop();
         };
 
-        gs.serve();
+        serve();
     }
     return true;
 }
@@ -441,13 +440,6 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.stake_wallet_name = server_conf.get<string>("stake-wallet-name", "stake-wallet");
     configOpts.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
-    if (configOpts.data_dir.empty()) {
-        boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
-        p /= ".graft/";
-        p /= consts::DATA_PATH;
-        configOpts.data_dir = p.string();
-    }
-
     //configOpts.graftlet_dirs
     const boost::property_tree::ptree& graftlets_conf = config.get_child("graftlets");
     boost::optional<std::string> dirs_opt  = graftlets_conf.get_optional<std::string>("dirs");
@@ -469,6 +461,13 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 
 void GraftServer::prepareDataDirAndSupernodes()
 {
+    if (getCopts().data_dir.empty()) {
+        boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
+        p /= ".graft/";
+        p /= consts::DATA_PATH;
+        getCopts().data_dir = p.string();
+    }
+
     // create data directory if not exists
     boost::filesystem::path data_path(getCopts().data_dir);
     boost::filesystem::path stake_wallet_path = data_path / "stake-wallet";
@@ -531,7 +530,7 @@ void GraftServer::prepareDataDirAndSupernodes()
     ctx.global["cryptonode_rpc_address"] = getCopts().cryptonode_rpc_address;
 }
 
-void GraftServer::intiConnectionManagers()
+void GraftServer::initConnectionManagers()
 {
     auto httpcm = std::make_unique<graft::HttpConnectionManager>();
     setHttpRouters(*httpcm);

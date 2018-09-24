@@ -32,3 +32,7 @@ include_directories(
 add_library(graftlet_plugin SHARED
     TestGraftlet.cpp
 )
+
+add_library(graftlet_plugin1 SHARED
+    TestGraftlet1.cpp
+)
