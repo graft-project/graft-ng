@@ -120,7 +120,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
 
     MINFO("processed, payment_id: " << payment_id
            << ", block: " << data.BlockNumber
-           << ", auth sample: [" << fsl->printAuthSample(authSample) << "]");
+           << ", auth sample: [" << authSample << "]");
 
     cryptonode_req.method = "multicast";
     cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side

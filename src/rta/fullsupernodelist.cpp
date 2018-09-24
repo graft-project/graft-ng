@@ -318,17 +318,6 @@ size_t FullSupernodeList::refreshedItems() const
     return m_refresh_counter;
 }
 
-string FullSupernodeList::printAuthSample(const std::vector<SupernodePtr> &authSample)
-{
-    string result;
-    for (size_t i = 0; i  < authSample.size(); ++i) {
-        result += authSample[i]->walletAddress();
-        if (i < authSample.size() - 1)
-            result += ", ";
-    }
-    return result;
-}
-
 bool FullSupernodeList::bestSupernode(vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result)
 {
     if (arg.size() == 0) {
@@ -410,5 +399,15 @@ bool FullSupernodeList::loadWallet(const std::string &wallet_path)
     return result;
 }
 
+
+std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes)
+{
+    for (size_t i = 0; i  < supernodes.size(); ++i) {
+        os << supernodes[i]->walletAddress();
+        if (i < supernodes.size() - 1)
+            os << ", ";
+    }
+    return os;
+}
 
 }

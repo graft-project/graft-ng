@@ -80,7 +80,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
            << ", block: " << in.BlockNumber
            << ", to: " << in.Address
            << ", amount: " << in.Amount
-           << ", auth sample: " << fsl->printAuthSample(authSample));
+           << ", auth sample: " << authSample);
 
     // map tx_id -> payment id
     ctx.global.set(epee::string_tools::pod_to_hex(tx_hash) + CONTEXT_KEY_PAYMENT_ID_BY_TXID,
