@@ -108,8 +108,10 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
                     [&](const SupernodePtr &sn) {
                         return sn->walletAddress() == supernode->walletAddress();
                     }) != authSample.end()) {
+
+        ostringstream oss; oss << authSample;
         std::string msg = "Internal error: our supernode is in auth sample but no sale details found for " + in.PaymentID
-               + ", auth_sample: " + fsl->printAuthSample(authSample);
+               + ", auth_sample: " + oss.str();
         LOG_ERROR(msg);
         return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
     }
