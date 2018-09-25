@@ -67,6 +67,9 @@ extern "C" GRAFTLET_EXPORT const char* getGraftletName();
 
 namespace graftlet
 {
+#define GRAFTLET_MKVER(Mj,mi) ((Mj<<8)|mi)
+#define GRAFTLET_Major(Ver) ((Ver>>8)&0xFF)
+#define GRAFTLET_Minor(Ver) (Ver&0xFF)
 
 #define __GRAFT_STRINGIFY(x) __GRAFT_STRINGIFY_(x)
 #define __GRAFT_STRINGIFY_(x)  #x

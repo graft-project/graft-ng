@@ -121,7 +121,24 @@ private:
             buildAndResolveGraftletX<BaseT>(item.first);
         }
     }
+
+    //graftlets exception list
+    static bool is_in_GEL(dll_name_t name, int ver)
+    {
+        auto it = exception_list.find(name);
+        if(it == exception_list.end()) return false;
+        for(auto& rng : it->second)
+        {
+            int m = rng.first, M = rng.second;
+            if(m <= ver && ver <= M) return true;
+        }
+        return false;
+    }
+
 public:
+    using exception_list_vec_t = std::vector<std::pair<int,int>>;
+    using exception_list_t = std::map<dll_name_t, exception_list_vec_t>;
+    static exception_list_t exception_list;
 
     template <class BaseT>
     typename BaseT::endpoints_vec_t getEndpoints()

@@ -28,6 +28,8 @@
 namespace graftlet
 {
 
+GraftletLoader::exception_list_t GraftletLoader::exception_list;
+
 bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string extension)
 {
     namespace fs = boost::filesystem;
@@ -84,6 +86,13 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
 
             std::cout << "==> graftlet info:" << dll_name << " version " << graftletVersion << " path " << dll_path << "\n";
             std::cout << "==> graftletRegistry :" << graftletRegistry << "\n";
+
+            if(is_in_GEL(dll_name, graftletVersion))
+            {
+                LOG_PRINT_L2("The graftlet '") << dll_name << "', version " << graftletVersion << " is in the exception list";
+                std::cout << "\tThe graftlet '" << dll_name << "', version " << graftletVersion << " is in the exception list\n";
+                continue;
+            }
 
             auto res = m_name2lib.emplace(
                         std::make_pair(dll_name,

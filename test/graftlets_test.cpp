@@ -101,6 +101,47 @@ TEST(Graftlets, calls)
     EXPECT_EQ(endpoints.size(), 4);
 }
 
+TEST(Graftlets, exceptionList)
+{
+#define VER(a,b) GRAFTLET_MKVER(a,b)
+    using gel_vec_t = graftlet::GraftletLoader::exception_list_vec_t;
+    graftlet::GraftletLoader::exception_list_t& gel = graftlet::GraftletLoader::exception_list;
+    {
+        graftlet::GraftletLoader loader;
+        loader.findGraftletsAtDirectory("./graftlets", "so");
+        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        EXPECT_EQ(endpoints.size(), 4);
+        gel.clear();
+    }
+    {
+        gel.insert_or_assign("myGraftlet", gel_vec_t( { {VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)} } ));
+        graftlet::GraftletLoader loader;
+        loader.findGraftletsAtDirectory("./graftlets", "so");
+        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        EXPECT_EQ(endpoints.size(), 4);
+        gel.clear();
+    }
+    {
+        gel.insert_or_assign("myGraftlet1", gel_vec_t( { {VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)} } ));
+        graftlet::GraftletLoader loader;
+        loader.findGraftletsAtDirectory("./graftlets", "so");
+        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        EXPECT_EQ(endpoints.size(), 2);
+        gel.clear();
+    }
+    {
+        gel.insert_or_assign("myGraftlet", gel_vec_t( { {VER(4,2), VER(5,1)}, {VER(1,0), VER(1,1)} } ));
+        gel.insert_or_assign("myGraftlet1", gel_vec_t( { {VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)} } ));
+        graftlet::GraftletLoader loader;
+        loader.findGraftletsAtDirectory("./graftlets", "so");
+        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        EXPECT_EQ(endpoints.size(), 0);
+        gel.clear();
+    }
+
+#undef VER
+}
+
 /////////////////////////////////
 // GraftServerTest fixture
 
