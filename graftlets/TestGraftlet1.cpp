@@ -5,12 +5,12 @@
 #include<cassert>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "graftlet.testGraftlet"
+#define MONERO_DEFAULT_LOG_CATEGORY "graftlet.TestGraftlet1"
 
-class TestGraftlet: public IGraftlet
+class TestGraftlet1: public IGraftlet
 {
 public:
-    TestGraftlet(const char* name) : IGraftlet(name) { }
+    TestGraftlet1(const char* name) : IGraftlet(name) { }
 
     void testUndefined();
 
@@ -57,19 +57,19 @@ public:
 
     virtual void initOnce()
     {
-//        REGISTER_ACTION(TestGraftlet, testUndefined);
-        REGISTER_ACTION(TestGraftlet, testInt1);
-        REGISTER_ACTION(TestGraftlet, testInt2);
-        REGISTER_ACTION(TestGraftlet, testString1);
-        REGISTER_ACTION(TestGraftlet, testString2);
+//        REGISTER_ACTION(TestGraftlet1, testUndefined);
+        REGISTER_ACTION(TestGraftlet1, testInt1);
+        REGISTER_ACTION(TestGraftlet1, testInt2);
+        REGISTER_ACTION(TestGraftlet1, testString1);
+        REGISTER_ACTION(TestGraftlet1, testString2);
 
-        REGISTER_ENDPOINT("/URI/test/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler);
-        REGISTER_GENERIC("/URI/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler1);
+        REGISTER_ENDPOINT("/URI1/test/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet1, testHandler);
+        REGISTER_GENERIC("/URI1/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet1, testHandler1);
     }
 };
 
 GRAFTLET_EXPORTS_BEGIN("myGraftlet1", 0x10000);
-GRAFTLET_PLUGIN(TestGraftlet, IGraftlet, "testGL");
+GRAFTLET_PLUGIN(TestGraftlet1, IGraftlet, "testGL1");
 GRAFTLET_EXPORTS_END
 
 namespace
@@ -80,15 +80,17 @@ struct Informer
     Informer()
     {
         LOG_PRINT_L2("graftlet " << getGraftletName() << " loading");
+        std::cout << "graftlet " << getGraftletName() << " loading" << "\n";
     }
     ~Informer()
     {
         LOG_PRINT_L2("graftlet " << getGraftletName() << " unloading");
+        std::cout << "graftlet " << getGraftletName() << " unloading" << "\n";
     }
 };
 
 Informer informer;
 
-} //namespace graftlet
+} //namespace
 
 

@@ -2,7 +2,12 @@
 
 #include "connection.h"
 
+namespace graftlet {
+class GraftletLoader;
+} //namespace graftlet
+
 namespace graft {
+
 
 class GraftServer
 {
@@ -22,12 +27,14 @@ private:
     void serve();
     static void initSignals();
     void addGlobalCtxCleaner();
+    void initGraftlets();
     void setHttpRouters(HttpConnectionManager& httpcm);
     void setCoapRouters(CoapConnectionManager& coapcm);
     static void checkRoutes(graft::ConnectionManager& cm);
     ConfigOpts& getCopts() { assert(m_looper); return m_looper->getCopts(); }
 
     std::unique_ptr<graft::Looper> m_looper;
+    std::unique_ptr<graftlet::GraftletLoader> m_graftletLoader;
     std::vector<std::unique_ptr<graft::ConnectionManager>> m_conManagers;
 };
 

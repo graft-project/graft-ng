@@ -7,6 +7,17 @@
 
 TEST(Graftlets, calls)
 {
+    {
+        graftlet::GraftletLoader loader;
+        loader.findGraftletsAtDirectory("./", "so");
+        loader.findGraftletsAtDirectory("./graftlets", "so");
+    }
+    {
+        graftlet::GraftletLoader loader;
+        loader.findGraftletsAtDirectory("./", "so");
+        loader.findGraftletsAtDirectory("./graftlets", "so");
+    }
+
     graftlet::GraftletLoader loader;
 
     loader.findGraftletsAtDirectory("./", "so");
@@ -87,7 +98,7 @@ TEST(Graftlets, calls)
     }
 
     IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
-    EXPECT_EQ(endpoints.size(), 2);
+    EXPECT_EQ(endpoints.size(), 4);
 }
 
 /////////////////////////////////
@@ -161,15 +172,31 @@ protected:
 
 TEST_F(GraftServerTest, graftlets)
 {
-    //curl method
     std::string json_data = "something";
-    std::string res = GraftServerTestBase::send_request("http://127.0.0.1:28690/URI/test/123", json_data);
-    EXPECT_EQ(res, json_data+"123");
 
-    //mongoose method
-    GraftServerTestBase::Client client;
-    client.serve("http://127.0.0.1:28690/URI/test/123", "", json_data);
-    EXPECT_EQ(false, client.get_closed());
-    std::string res1 = client.get_body();
-    EXPECT_EQ(res1, json_data+"123");
+    {
+        //curl method
+        std::string res = GraftServerTestBase::send_request("http://127.0.0.1:28690/URI/test/123", json_data);
+        EXPECT_EQ(res, json_data+"123");
+
+        //mongoose method
+        GraftServerTestBase::Client client;
+        client.serve("http://127.0.0.1:28690/URI/test/123", "", json_data);
+        EXPECT_EQ(false, client.get_closed());
+        std::string res1 = client.get_body();
+        EXPECT_EQ(res1, json_data+"123");
+    }
+
+    {
+        //curl method
+        std::string res = GraftServerTestBase::send_request("http://127.0.0.1:28690/URI1/test1/123", json_data);
+        EXPECT_EQ(res, json_data+"123");
+
+        //mongoose method
+        GraftServerTestBase::Client client;
+        client.serve("http://127.0.0.1:28690/URI1/test/123", "", json_data);
+        EXPECT_EQ(false, client.get_closed());
+        std::string res1 = client.get_body();
+        EXPECT_EQ(res1, json_data+"123");
+    }
 }

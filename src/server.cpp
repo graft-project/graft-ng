@@ -48,6 +48,18 @@ static void signal_handler_restart(int sig_num)
     if(hup_handler) hup_handler(sig_num);
 }
 
+void GraftServer::initGraftlets()
+{
+    if(m_graftletLoader) return;
+    m_graftletLoader = std::make_unique<graftlet::GraftletLoader>();
+    LOG_PRINT_L1("Searching graftlets");
+    for(auto& it : getCopts().graftlet_dirs)
+    {
+        LOG_PRINT_L1("Searching graftlets in directory '") << it << "'";
+        m_graftletLoader->findGraftletsAtDirectory(it, "so");
+    }
+}
+
 void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
 {
     Router dapi_router("/dapi/v2.0");
@@ -74,18 +86,7 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     httpcm.addRouter(health_router);
 
     {//add graftlet routers
-        graftlet::GraftletLoader loader;
-
-        LOG_PRINT_L1("Searching graftlets");
-        for(auto& it : getCopts().graftlet_dirs)
-        {
-            LOG_PRINT_L1("Searching graftlets in directory '") << it << "'";
-            loader.findGraftletsAtDirectory(it, "so");
-        }
-
-        graftlet::GraftletExport<IGraftlet> plugin = loader.buildAndResolveGraftletX<IGraftlet>("myGraftlet");
-
-        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        IGraftlet::endpoints_vec_t endpoints = m_graftletLoader->getEndpoints<IGraftlet>();
         Router graftlet_router;
         for(auto& item : endpoints)
         {
@@ -532,6 +533,8 @@ void GraftServer::prepareDataDirAndSupernodes()
 
 void GraftServer::initConnectionManagers()
 {
+    initGraftlets();
+
     auto httpcm = std::make_unique<graft::HttpConnectionManager>();
     setHttpRouters(*httpcm);
     m_conManagers.emplace_back(std::move(httpcm));

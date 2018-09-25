@@ -5,7 +5,7 @@
 #include<cassert>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "graftlet.testGraftlet"
+#define MONERO_DEFAULT_LOG_CATEGORY "graftlet.TestGraftlet"
 
 class TestGraftlet: public IGraftlet
 {
@@ -80,15 +80,17 @@ struct Informer
     Informer()
     {
         LOG_PRINT_L2("graftlet " << getGraftletName() << " loading");
+        std::cout << "graftlet " << getGraftletName() << " loading" << "\n";
     }
     ~Informer()
     {
         LOG_PRINT_L2("graftlet " << getGraftletName() << " unloading");
+        std::cout << "graftlet " << getGraftletName() << " unloading" << "\n";
     }
 };
 
 Informer informer;
 
-} //namespace graftlet
+} //namespace
 
 

@@ -46,14 +46,15 @@
     GRAFTLET_PLUGIN_NAME(name) \
     GRAFTLET_PLUGIN_VERSION(version) \
     extern "C" GRAFTLET_EXPORT const char* getBuildSignature() { return graftlet::getBuildSignature(); } \
-    extern "C" GRAFTLET_EXPORT graftlet::GraftletRegistry* getGraftletRegistry() { graftlet::GraftletRegistry* pr = &graftlet::GraftletRegistry::Instance(); \
-        if(pr->empty()) {
+    static std::unique_ptr<graftlet::GraftletRegistry> pr_ptr; \
+    extern "C" GRAFTLET_EXPORT graftlet::GraftletRegistry* getGraftletRegistry() { \
+        if(!pr_ptr) { pr_ptr = std::make_unique<graftlet::GraftletRegistry>();
 
 #define GRAFTLET_PLUGIN(concrete, base, ...) \
-        GRAFTLET_CHECKS(concrete, base); pr->registerGraftlet<concrete, base>(__VA_ARGS__)
+        GRAFTLET_CHECKS(concrete, base); pr_ptr->registerGraftlet<concrete, base>(__VA_ARGS__);
 
 #define GRAFTLET_EXPORTS_END \
-        } return pr; } // extern "C" GRAFTLET_EXPORT void closeGraftletRegistry() { if (pr) delete pr; }
+        } return pr_ptr.get(); } // extern "C" GRAFTLET_EXPORT void closeGraftletRegistry() { if (pr) delete pr; }
 
 #define GRAFTLET_PLUGIN_VERSION(version) \
     extern "C" GRAFTLET_EXPORT int getGraftletVersion() { return version; }
@@ -121,15 +122,11 @@ const char* getGraftletName()
 class GraftletRegistry final
 {
 public:
+    GraftletRegistry() = default;
+    ~GraftletRegistry() = default;
     GraftletRegistry(const GraftletRegistry&) = delete;
     GraftletRegistry operator = (const GraftletRegistry&) = delete;
 #ifdef __GRAFTLET__
-    static GraftletRegistry& Instance()
-    {
-        static GraftletRegistry instance;
-        return instance;
-    }
-
     template <class T, class BaseT, class ...Args>
     void registerGraftlet(Args...args)
     {
@@ -149,9 +146,6 @@ public:
     }
 #endif //__GRAFTLET__
 private:
-    GraftletRegistry() { }
-    ~GraftletRegistry() { }
-
     std::map<std::type_index, std::function<std::shared_ptr<void>()>> m_graftlets;
 };
 

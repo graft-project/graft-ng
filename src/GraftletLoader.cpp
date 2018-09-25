@@ -81,6 +81,10 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             auto getGraftletNameFunc = dll::import<decltype(getGraftletName)>(lib, "getGraftletName");
             dll_name_t dll_name = getGraftletNameFunc();
             dll_path_t dll_path = it->path().c_str();
+
+            std::cout << "==> graftlet info:" << dll_name << " version " << graftletVersion << " path " << dll_path << "\n";
+            std::cout << "==> graftletRegistry :" << graftletRegistry << "\n";
+
             auto res = m_name2lib.emplace(
                         std::make_pair(dll_name,
                                        std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path) ))

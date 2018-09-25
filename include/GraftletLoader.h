@@ -112,11 +112,22 @@ private:
     //dll (name, type_index of BaseT) -> (graftlet name, any of BaseT)
     //it makes no sense to hold std::shared_ptr<IGraftlet> until the shared_ptr is returned from resolveGraftlet
     std::map< std::pair<dll_name_t, std::type_index>, std::map<gl_name_t, std::any> > m_name2gls;
+
+    template <class BaseT>
+    void prepareAllEndpoints()
+    {
+        for(auto& item : m_name2lib)
+        {
+            buildAndResolveGraftletX<BaseT>(item.first);
+        }
+    }
 public:
 
     template <class BaseT>
     typename BaseT::endpoints_vec_t getEndpoints()
     {
+        prepareAllEndpoints<BaseT>();
+
         typename BaseT::endpoints_vec_t res;
         for(auto& it0 : m_name2gls)
         {
