@@ -83,6 +83,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
+    ${PROJECT_SOURCE_DIR}/src/server.cpp
     )
 
 set(GS_INCLUDE_DIRS
@@ -170,7 +171,6 @@ link_directories(${CRYPTONODE_LIB_DIRS})
 
 add_executable(graft_server
     ${GS_SOURCES}
-    ${PROJECT_SOURCE_DIR}/src/server.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
 
@@ -230,6 +230,7 @@ if (OPT_BUILD_TESTS)
         add_executable(graft_server_test
                 ${GS_SOURCES}
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp

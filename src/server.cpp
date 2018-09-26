@@ -177,34 +177,33 @@ bool GraftServer::run(int argc, const char** argv)
     for(bool run = true; run;)
     {
         run = false;
-        GraftServer gs;
 
-        if(!gs.init(argc, argv)) return false;
+        if(!init(argc, argv)) return false;
         argc = 1;
 
         //shutdown
-        int_handler = [&gs](int sig_num)
+        int_handler = [this](int sig_num)
         {
             LOG_PRINT_L0("Stopping server");
-            gs.stop();
+            stop();
         };
 
         //terminate
-        term_handler = [&gs](int sig_num)
+        term_handler = [this](int sig_num)
         {
             LOG_PRINT_L0("Force stopping server");
-            gs.stop(true);
+            stop(true);
         };
 
         //restart
-        hup_handler = [&gs,&run](int sig_num)
+        hup_handler = [this,&run](int sig_num)
         {
             LOG_PRINT_L0("Restarting server");
             run = true;
-            gs.stop();
+            stop();
         };
 
-        gs.serve();
+        serve();
     }
     return true;
 }
