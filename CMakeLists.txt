@@ -97,9 +97,15 @@ set(GS_INCLUDE_DIRS
 set(GS_LIBS
     ${PROJECT_BINARY_DIR}/BUILD/lib/libr3.a
     ${PROJECT_BINARY_DIR}/BUILD/lib/liblib3rdparty.a
+    ${PROJECT_BINARY_DIR}/BUILD/graftlets/libgraftlet_lib.a
     pcre
-    dl
     )
+if(UNIX)
+    set(GS_LIBS
+        ${GS_LIBS}
+        dl
+    )
+endif(UNIX)
 
 
 set(CRYPTONODE_INCLUDE_DIRS
@@ -187,11 +193,15 @@ target_link_libraries(graft_server PRIVATE
     ${COMMON_LIBS}
     )
 
+set(GRAFTLETS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/graftlets)
+add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
+
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
 
-set_target_properties(graft_server PROPERTIES LINK_FLAGS "-rdynamic")
+set_target_properties(graft_server PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
 
-add_dependencies(graft_server libr3 cryptonode)
+add_dependencies(graft_server libr3 cryptonode graftlet_lib)
+
 
 ##################
 ### tests section
@@ -246,7 +256,8 @@ if (OPT_BUILD_TESTS)
 
 
         target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
-        add_dependencies(graft_server_test libr3 cryptonode googletest)
+        add_dependencies(graft_server_test libr3 cryptonode graftlet_lib googletest)
+        set_target_properties(graft_server_test PROPERTIES LINK_FLAGS "-Wl,-E")
 
         if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
             add_custom_command(
