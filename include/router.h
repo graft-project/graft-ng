@@ -97,8 +97,10 @@ public:
 
 public:
     std::string dbgDumpRouter(const std::string prefix = "") const;
+    static std::string methodsToString(int methods);
 
 private:
+
     struct Route
     {
         std::string endpoint;

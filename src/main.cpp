@@ -1,5 +1,6 @@
 #include "server.h"
 #include "backtrace.h"
+#include "GraftletLoader.h"
 
 namespace graft
 {
