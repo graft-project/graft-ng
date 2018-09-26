@@ -27,6 +27,7 @@
 #include <map>
 #include <memory>
 #include <typeindex>
+#include <sstream>
 
 #ifdef __GRAFTLET__
 
@@ -45,6 +46,7 @@
 #define GRAFTLET_EXPORTS_BEGIN(name, version) \
     GRAFTLET_PLUGIN_NAME(name) \
     GRAFTLET_PLUGIN_VERSION(version) \
+    GRAFTLET_PLUGIN_CHECKVERSION() \
     extern "C" GRAFTLET_EXPORT const char* getBuildSignature() { return graftlet::getBuildSignature(); } \
     static std::unique_ptr<graftlet::GraftletRegistry> pr_ptr; \
     extern "C" GRAFTLET_EXPORT graftlet::GraftletRegistry* getGraftletRegistry() { \
@@ -56,10 +58,15 @@
 #define GRAFTLET_EXPORTS_END \
         } return pr_ptr.get(); } // extern "C" GRAFTLET_EXPORT void closeGraftletRegistry() { if (pr) delete pr; }
 
-#define GRAFTLET_PLUGIN_VERSION(version) \
-    extern "C" GRAFTLET_EXPORT int getGraftletVersion() { return version; }
 #define GRAFTLET_PLUGIN_NAME(name) \
     extern "C" GRAFTLET_EXPORT const char* getGraftletName() { return name; }
+#define GRAFTLET_PLUGIN_VERSION(version) \
+    extern "C" GRAFTLET_EXPORT int getGraftletVersion() { return version; }
+#define GRAFTLET_PLUGIN_CHECKVERSION() \
+    extern "C" GRAFTLET_EXPORT bool checkVersion( int version );
+
+#define GRAFTLET_PLUGIN_DEFAULT_GHECKVERSION(minversion) \
+    extern "C" GRAFTLET_EXPORT bool checkVersion( int version ) { return minversion <= version; }
 
 extern "C" GRAFTLET_EXPORT const char* getGraftletName();
 
@@ -104,24 +111,6 @@ namespace graftlet
     #define GRAFT_BUILD_SIGNATURE __GRAFT_COMPILER
 #endif
 
-inline const char* getBuildSignature()
-{
-    static std::string abi = GRAFT_BUILD_SIGNATURE;
-    return abi.c_str();
-}
-
-const char* getGraftletName();
-
-#ifdef __GRAFTLET__
-
-const char* getGraftletName()
-{
-    return ::getGraftletName();
-}
-
-#endif //__GRAFTLET__
-
-
 class GraftletRegistry final
 {
 public:
@@ -151,6 +140,33 @@ public:
 private:
     std::map<std::type_index, std::function<std::shared_ptr<void>()>> m_graftlets;
 };
+
+static inline const char* getBuildSignature()
+{
+    static std::string abi = GRAFT_BUILD_SIGNATURE;
+    return abi.c_str();
+}
+
+static const char* getGraftletName();
+static int getGraftletVersion();
+static bool checkVersion( int version );
+static GraftletRegistry* getGraftletRegistry();
+
+inline std::string getVersionStr(int version)
+{
+    std::ostringstream oss;
+    oss << GRAFTLET_Major(version) << "." << GRAFTLET_Minor(version);
+    return oss.str();
+}
+
+#ifdef __GRAFTLET__
+
+static const char* getGraftletName()
+{
+    return ::getGraftletName();
+}
+
+#endif //__GRAFTLET__
 
 } //namespace graftlet
 

@@ -29,6 +29,7 @@ namespace graftlet
 {
 
 GraftletLoader::exception_list_t GraftletLoader::exception_list;
+int GraftletLoader::version = GRAFTLET_MKVER(1,0);
 
 bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string extension)
 {
@@ -59,20 +60,21 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             std::string graftletABI = getGraftletABI();
             if(graftletABI != getBuildSignature())
             {
-                LOG_PRINT_L2("\tgraftlet ABI does not match '" << graftletABI << "' != '" << getBuildSignature() << "'");
+                LOG_PRINT_L2("\tgraftlet ABI does not match '") << graftletABI << "' != '" << getBuildSignature() << "'";
+                std::cout << "\tgraftlet ABI does not match '" << graftletABI << "' != '" << getBuildSignature() << "'\n";
                 continue;
             }
 
             if(!lib.has("getGraftletRegistry")) continue;
 
-            auto graftletRegistryAddr = dll::import<RegFunc>(lib, "getGraftletRegistry" );
+            auto graftletRegistryAddr = dll::import<decltype(getGraftletRegistry)>(lib, "getGraftletRegistry" );
 
             GraftletRegistry* graftletRegistry = graftletRegistryAddr();
 
             int graftletVersion = 0;
             try
             {
-                auto graftletFileVersion = dll::import<VersionFunc>(lib, "getGraftletVersion");
+                auto graftletFileVersion = dll::import<decltype(getGraftletVersion)>(lib, "getGraftletVersion");
                 graftletVersion = graftletFileVersion();
             }
             catch(std::exception& ex)
@@ -89,10 +91,22 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
 
             if(is_in_GEL(dll_name, graftletVersion))
             {
-                LOG_PRINT_L2("The graftlet '") << dll_name << "', version " << graftletVersion << " is in the exception list";
-                std::cout << "\tThe graftlet '" << dll_name << "', version " << graftletVersion << " is in the exception list\n";
+                LOG_PRINT_L2("The graftlet '") << dll_name << "', version " << getVersionStr(graftletVersion) << " is in the exception list";
+                std::cout << "\tThe graftlet '" << dll_name << "', version " << getVersionStr(graftletVersion) << " is in the exception list\n";
                 continue;
             }
+
+            //check version in graftlet
+            auto checkVersionFunc = dll::import<decltype(checkVersion)>(lib, "checkVersion" );
+            if(!checkVersionFunc(version))
+            {
+                LOG_PRINT_L2("The graftlet '") << dll_name << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
+                                               << getVersionStr(version);
+                std::cout << "The graftlet '" << dll_name << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
+                                               << getVersionStr(version) << "\n";
+                continue;
+            }
+
 
             auto res = m_name2lib.emplace(
                         std::make_pair(dll_name,

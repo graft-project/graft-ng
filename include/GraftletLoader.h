@@ -101,9 +101,6 @@ private:
     using endpoint_t = std::string;
     using version_t = int;
 
-    using RegFunc = GraftletRegistry* ();
-    using VersionFunc = int ();
-
     //we can use functions in a dll until we release object of boost::dll::shared_library
     //dll name -> (lib, version, path)
     std::map<dll_name_t, std::tuple<boost::dll::shared_library, version_t, dll_path_t>> m_name2lib;
@@ -138,7 +135,9 @@ private:
 public:
     using exception_list_vec_t = std::vector<std::pair<int,int>>;
     using exception_list_t = std::map<dll_name_t, exception_list_vec_t>;
+
     static exception_list_t exception_list;
+    static int version;
 
     template <class BaseT>
     typename BaseT::endpoints_vec_t getEndpoints()

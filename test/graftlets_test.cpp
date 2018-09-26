@@ -7,17 +7,6 @@
 
 TEST(Graftlets, calls)
 {
-    {
-        graftlet::GraftletLoader loader;
-        loader.findGraftletsAtDirectory("./", "so");
-        loader.findGraftletsAtDirectory("./graftlets", "so");
-    }
-    {
-        graftlet::GraftletLoader loader;
-        loader.findGraftletsAtDirectory("./", "so");
-        loader.findGraftletsAtDirectory("./graftlets", "so");
-    }
-
     graftlet::GraftletLoader loader;
 
     loader.findGraftletsAtDirectory("./", "so");
@@ -142,6 +131,30 @@ TEST(Graftlets, exceptionList)
 #undef VER
 }
 
+TEST(Graftlets, checkVersion)
+{
+#define VER(a,b) GRAFTLET_MKVER(a,b)
+    int& version = graftlet::GraftletLoader::version;
+    int save_ver = version;
+
+    {
+        graftlet::GraftletLoader loader;
+        loader.findGraftletsAtDirectory("./graftlets", "so");
+        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        EXPECT_EQ(endpoints.size(), 4);
+    }
+
+    {
+        version = VER(0,5);
+        graftlet::GraftletLoader loader;
+        loader.findGraftletsAtDirectory("./graftlets", "so");
+        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        EXPECT_EQ(endpoints.size(), 2);
+    }
+
+    version = save_ver;
+#undef VER
+}
 /////////////////////////////////
 // GraftServerTest fixture
 
