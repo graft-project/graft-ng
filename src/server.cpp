@@ -208,39 +208,34 @@ namespace po = boost::program_options;
 
 void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
 {
-    int log_level = 3;
+    std::string log_level = "3";
     bool log_console = true;
     std::string log_filename;
-    std::string log_categories;
+    std::string log_format;
 
     //from config
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
-    boost::optional<int> level  = log_conf.get_optional<int>("loglevel");
+    boost::optional<std::string> level  = log_conf.get_optional<std::string>("loglevel");
     if(level) log_level = level.get();
     boost::optional<std::string> log_file  = log_conf.get_optional<std::string>("logfile");
     if(log_file) log_filename = log_file.get();
     boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
     if(log_to_console) log_console = log_to_console.get();
-    boost::optional<std::string> categories = log_conf.get_optional<std::string>("log-categories");
-    if(categories) log_categories = categories.get();
+    boost::optional<std::string> log_fmt  = log_conf.get_optional<std::string>("log-format");
+    if(log_fmt) log_format = log_fmt.get();
 
     //override from cmdline
-    if (vm.count("log-level")) log_level = vm["log-level"].as<int>();
+    if (vm.count("log-level")) log_level = vm["log-level"].as<std::string>();
     if (vm.count("log-file")) log_filename = vm["log-file"].as<std::string>();
     if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
-    if (vm.count("log-categories")) log_categories = vm["log-categories"].as<std::string>();
+    if (vm.count("log-format")) log_format = vm["log-format"].as<std::string>();
 
-    mlog_configure(log_filename, log_console);
-    if(!log_categories.empty())
-    {
-        std::ostringstream oss;
-        oss << log_level << ',' << log_categories;
-        mlog_set_log(oss.str().c_str());
-    }
-    else
-    {
-        mlog_set_log_level(log_level);
-    }
+    // default log format (we need to explicitly apply it here, otherwise full path to a file will be logged  with monero default format)
+    static const char * DEFAULT_LOG_FORMAT = "%datetime{%Y-%M-%d %H:%m:%s.%g}\t%thread\t%level\t%logger\t%rfile:%line\t%msg";
+    if(log_format.empty()) log_format = DEFAULT_LOG_FORMAT;
+
+    mlog_configure(log_filename, log_console, log_format.empty()? nullptr : log_format.c_str());
+    mlog_set_log(log_level.c_str());
 }
 
 } //namespace details
@@ -267,10 +262,10 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         desc.add_options()
                 ("help", "produce help message")
                 ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
-                ("log-level", po::value<int>(), "log-level. (3 by default)")
+                ("log-level", po::value<std::string>(), "log-level. (3 by default), e.g. --log-level=2,supernode.task:INFO,supernode.server:DEBUG")
                 ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
-                ("log-file", po::value<std::string>(), "log file");
-                ("log-categories", po::value<std::string>(), "log levels for different categories, e.g. supernode.task:INFO,supernode.server:DEBUG");
+                ("log-file", po::value<std::string>(), "log file; set it to syslog if you want use the syslog instead")
+                ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level	%logger	%rfile	%msg");
 
         po::store(po::parse_command_line(argc, argv, desc), vm);
         po::notify(vm);
