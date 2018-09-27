@@ -269,7 +269,6 @@ bool TaskManager::tryProcessReadyJob()
 
     LOG_PRINT_RQS_BT(2,bt,"worker_action completed with result " << bt->getStrStatus());
     m_stateMachine->dispatch(bt, StateMachine::State::WORKER_ACTION_DONE);
-
     return true;
 }
 
@@ -627,7 +626,7 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     //here you can send a job to the thread pool or send response to client
     //uss will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
-        LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered ");
+        LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered : '" << make_dump_output( bt->getInput().body, getCopts().log_trunc_to_size ) << "'");
         if(!bt->getSelf())
         {//it is possible that a client has closed connection already
             ++m_cntUpstreamSenderDone;

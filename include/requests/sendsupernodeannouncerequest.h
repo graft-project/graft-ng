@@ -33,6 +33,16 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SendSupernodeAnnounceJsonRpcResponse, Send
 
 
 void registerSendSupernodeAnnounceRequest(graft::Router &router);
+/*!
+ * \brief sendAnnounce - send supernode announce. code shared with periodic task and debug handler
+ * \param vars
+ * \param input
+ * \param ctx
+ * \param output
+ * \return
+ */
+Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+        graft::Output& output);
 
 }
 
