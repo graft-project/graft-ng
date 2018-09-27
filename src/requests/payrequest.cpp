@@ -31,6 +31,8 @@ enum class PayHandlerState : int
 Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
+
+    MDEBUG(__FUNCTION__ << " begin");
     PayRequestJsonRpc req;
 
     if (!input.get(req)) {
@@ -71,7 +73,15 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
     if (!fsl->buildAuthSample(in.BlockNumber, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
         return errorBuildAuthSample(output);
     }
-    LOG_PRINT_L0(__FUNCTION__ << " incoming pay, tx: " << epee::string_tools::pod_to_hex(tx_hash) << ", payment_id: " << in.PaymentID);
+
+    MDEBUG("processing pay, payment:  "
+           << in.PaymentID
+           << ", tx_id: " <<  epee::string_tools::pod_to_hex(tx_hash)
+           << ", block: " << in.BlockNumber
+           << ", to: " << in.Address
+           << ", amount: " << in.Amount
+           << ", auth sample: " << authSample);
+
     // map tx_id -> payment id
     ctx.global.set(epee::string_tools::pod_to_hex(tx_hash) + CONTEXT_KEY_PAYMENT_ID_BY_TXID,
                    in.PaymentID, RTA_TX_TTL);
@@ -103,8 +113,8 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     output.load(cryptonode_req);
     output.path = "/json_rpc/rta";
-    LOG_PRINT_L0(__FUNCTION__ << " calling cryptonode: " << output.path);
-    LOG_PRINT_L0(__FUNCTION__  << "\t with data: " << output.data());
+    MDEBUG("multicasting: " << output.data());
+    MDEBUG(__FUNCTION__ << " end");
     return Status::Forward;
 }
 
@@ -113,6 +123,7 @@ Status handleTxAuthReply(const Router::vars_t& vars, const graft::Input& input,
                                 graft::Context& ctx, graft::Output& output)
 {
     // check cryptonode reply
+    MDEBUG(__FUNCTION__ << " begin");
     MulticastResponseFromCryptonodeJsonRpc resp;
     std::string payment_id = ctx.local["payment_id"];
 
@@ -130,14 +141,12 @@ Status handleTxAuthReply(const Router::vars_t& vars, const graft::Input& input,
     }
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+    MDEBUG("pay multicasted for payment: " << payment_id);
 
     int status = ctx.global.get(payment_id + CONTEXT_KEY_STATUS, static_cast<int>((RTAStatus::InProgress)));
     buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
-
-
-    LOG_PRINT_L0("calling cryptonode: " << output.path);
-    LOG_PRINT_L0("\t with data: " << output.data());
-
+    MDEBUG("broadcasting status for payment:  " << payment_id);
+    MDEBUG(__FUNCTION__ << " end");
     return Status::Forward;
 }
 
@@ -146,6 +155,7 @@ Status handleStatusBroadcastReply(const Router::vars_t& vars, const graft::Input
                                 graft::Context& ctx, graft::Output& output)
 {
 
+    MDEBUG(__FUNCTION__ << " begin");
     // TODO: check if cryptonode broadcasted status
     BroadcastResponseFromCryptonodeJsonRpc resp;
     JsonRpcErrorResponse error;
@@ -158,10 +168,12 @@ Status handleStatusBroadcastReply(const Router::vars_t& vars, const graft::Input
 
     // prepare reply to the client
     string payment_id = ctx.local["payment_id"];
+    MDEBUG("status broadcast ask received for payment: " << payment_id);
     PayResponseJsonRpc out;
     out.result.Result = STATUS_OK;
     output.load(out);
-    LOG_PRINT_L0("pay: response to client: " << output.data());
+    MDEBUG("response to client: " << output.data());
+    MDEBUG(__FUNCTION__ << " end");
     return Status::Ok;
 }
 
@@ -183,7 +195,6 @@ Status payClientHandler(const Router::vars_t& vars, const graft::Input& input,
     switch (state) {
     // client requested "/pay"
     case PayHandlerState::ClientRequest:
-        LOG_PRINT_L0("called by client, payload: " << input.data());
         ctx.local[__FUNCTION__] = PayHandlerState::TxAuthReply;
         // call cryptonode's "/rta/multicast" to send sale data to auth sample
         // "handleClientPayRequest" returns Forward;
@@ -191,15 +202,11 @@ Status payClientHandler(const Router::vars_t& vars, const graft::Input& input,
     case PayHandlerState::TxAuthReply:
         // handle "multicast" response from cryptonode, check it's status, send
         // "sale status" with broadcast to cryptonode
-        LOG_PRINT_L0("authorize_rta_tx_request multicast response from cryptonode: " << input.data());
-        LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         ctx.local[__FUNCTION__] = PayHandlerState::StatusReply;
         // handleSameMulticast returns Forward, call performed according traffic capture but after that moment
         // this handler never called again, but it supposed to be "broadcast" reply from cryptonode
         return handleTxAuthReply(vars, input, ctx, output);
     case PayHandlerState::StatusReply:
-        LOG_PRINT_L0("sale status broadcast response from cryptonode: " << input.data());
-        LOG_PRINT_L0("status: " << (int)ctx.local.getLastStatus());
         return handleStatusBroadcastReply(vars, input, ctx, output);
      default:
         LOG_ERROR("Internal error: unhandled state");

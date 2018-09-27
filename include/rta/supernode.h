@@ -228,7 +228,6 @@ private:
 
 private:
     using wallet2_ptr = boost::scoped_ptr<tools::wallet2>;
-    // mutable tools::wallet2 m_wallet;
     mutable wallet2_ptr m_wallet;
     std::string    m_network_address;
     uint64_t       m_last_update_time;
@@ -236,6 +235,6 @@ private:
 
 using SupernodePtr = boost::shared_ptr<Supernode>;
 
-}
+} // namespace
 
 #endif // SUPERNODE_H

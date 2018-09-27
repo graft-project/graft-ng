@@ -400,4 +400,14 @@ bool FullSupernodeList::loadWallet(const std::string &wallet_path)
 }
 
 
+std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes)
+{
+    for (size_t i = 0; i  < supernodes.size(); ++i) {
+        os << supernodes[i]->walletAddress();
+        if (i < supernodes.size() - 1)
+            os << ", ";
+    }
+    return os;
+}
+
 }

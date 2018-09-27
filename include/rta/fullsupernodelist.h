@@ -146,6 +146,8 @@ private:
 
 using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;
 
+std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes);
+
 
 } // namespace graft
 
