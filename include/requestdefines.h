@@ -4,6 +4,7 @@
 #include "graft_constants.h"
 #include "inout.h"
 #include "rta/supernode.h"
+#include "router.h"
 
 #include <chrono>
 
@@ -63,6 +64,8 @@ static const std::string CONTEXT_KEY_PAYMENT_ID_BY_TXID(":tx_id_to_payment_id");
 static const std::string CONTEXT_KEY_TX_BY_TXID(":tx_id_to_tx");
 // key to store tx id in local context
 static const std::string CONTEXT_TX_ID("tx_id");
+// key to map tx_id -> amount
+static const std::string CONTEXT_KEY_AMOUNT_BY_TX_ID(":tx_id_to_amount");
 
 // key to store sale_details response coming from callback
 static const std::string CONTEXT_SALE_DETAILS_RESULT(":sale_details");
@@ -162,6 +165,21 @@ struct PayData
  * \return
  */
 void buildBroadcastSaleStatusOutput(const std::string &payment_id, int status, const SupernodePtr &supernode, Output &output);
+
+
+template<typename Response>
+Status storeRequestAndReplyOk(const Router::vars_t& vars, const graft::Input& input,
+                            graft::Context& ctx, graft::Output& output) noexcept
+{
+    // store input in local ctx.
+    ctx.local["request"] = input.data();
+
+    Response response;
+    response.result.Status = STATUS_OK;
+    output.load(response);
+    return Status::Again;
+}
+
 
 
 }
