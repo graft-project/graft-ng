@@ -31,7 +31,7 @@ public:
     using is_call_t = bool; //is the function intended to be called directly (endpoint case)
     using ti2any_t = std::map<std::type_index, std::tuple<std::any, endpoint_t, methods_t, is_call_t> >;
     using map_t = std::map<func_name_t, ti2any_t>;
-    using endpoints_vec_t = std::vector< std::tuple<endpoint_t, methods_t, graft::Router::Handler> >;
+    using EndpointsVec = std::vector< std::tuple<endpoint_t, methods_t, graft::Router::Handler> >;
 
     void init()
     {
@@ -47,9 +47,9 @@ public:
 
     const std::string& getName() const { return m_name; }
 
-    endpoints_vec_t getEndpoints()
+    EndpointsVec getEndpoints()
     {
-        endpoints_vec_t res;
+        EndpointsVec res;
         std::type_index ti = std::type_index(typeid(graft::Router::Handler));
         for(auto& it : map)
         {

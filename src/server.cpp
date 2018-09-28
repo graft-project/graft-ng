@@ -8,7 +8,6 @@
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "GraftletLoader.h"
-#include "IGraftlet.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
@@ -86,7 +85,7 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     httpcm.addRouter(health_router);
 
     {//add graftlet routers
-        IGraftlet::endpoints_vec_t endpoints = m_graftletLoader->getEndpoints<IGraftlet>();
+        IGraftlet::EndpointsVec endpoints = m_graftletLoader->getEndpoints();
         Router graftlet_router;
         for(auto& item : endpoints)
         {

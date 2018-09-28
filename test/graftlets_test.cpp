@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include "fixture.h"
 #include "GraftletLoader.h"
-#include "IGraftlet.h"
 #include "server.h"
 #include "test.h"
 
@@ -12,7 +11,7 @@ TEST(Graftlets, calls)
     loader.findGraftletsAtDirectory("./", "so");
     loader.findGraftletsAtDirectory("./graftlets", "so");
 
-    graftlet::GraftletExport<IGraftlet> plugin = loader.buildAndResolveGraftletX<IGraftlet>("myGraftlet");
+    graftlet::GraftletHandler plugin = loader.buildAndResolveGraftlet("myGraftlet");
 
     try
     {//testInt1, testInt2
@@ -86,47 +85,46 @@ TEST(Graftlets, calls)
         EXPECT_EQ(true,false);
     }
 
-    IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+    IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
     EXPECT_EQ(endpoints.size(), 4);
 }
 
 TEST(Graftlets, exceptionList)
 {
 #define VER(a,b) GRAFTLET_MKVER(a,b)
-    using gel_vec_t = graftlet::GraftletLoader::exception_list_vec_t;
-    graftlet::GraftletLoader::exception_list_t& gel = graftlet::GraftletLoader::exception_list;
+    using GL = graftlet::GraftletLoader;
     {
-        graftlet::GraftletLoader loader;
+        GL::setGraftletsExceptionList({});
+        GL loader;
         loader.findGraftletsAtDirectory("./graftlets", "so");
-        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 4);
-        gel.clear();
     }
     {
-        gel.insert_or_assign("myGraftlet", gel_vec_t( { {VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)} } ));
-        graftlet::GraftletLoader loader;
+        GL::setGraftletsExceptionList({ {"myGraftlet", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)}} } });
+        GL loader;
         loader.findGraftletsAtDirectory("./graftlets", "so");
-        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 4);
-        gel.clear();
     }
     {
-        gel.insert_or_assign("myGraftlet1", gel_vec_t( { {VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)} } ));
-        graftlet::GraftletLoader loader;
+        GL::setGraftletsExceptionList({ {"myGraftlet1", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)}} } });
+        GL loader;
         loader.findGraftletsAtDirectory("./graftlets", "so");
-        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 2);
-        gel.clear();
     }
     {
-        gel.insert_or_assign("myGraftlet", gel_vec_t( { {VER(4,2), VER(5,1)}, {VER(1,0), VER(1,1)} } ));
-        gel.insert_or_assign("myGraftlet1", gel_vec_t( { {VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)} } ));
-        graftlet::GraftletLoader loader;
+        GL::setGraftletsExceptionList({ {"myGraftlet", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,1)}} },
+                                        {"myGraftlet1", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)}} }
+                                      });
+        GL loader;
         loader.findGraftletsAtDirectory("./graftlets", "so");
-        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 0);
-        gel.clear();
     }
+
+    GL::setGraftletsExceptionList({});
 
 #undef VER
 }
@@ -134,25 +132,26 @@ TEST(Graftlets, exceptionList)
 TEST(Graftlets, checkFwVersion)
 {
 #define VER(a,b) GRAFTLET_MKVER(a,b)
-    int& version = graftlet::GraftletLoader::version;
-    int save_ver = version;
+    using Version = graftlet::GraftletLoader::Version;
+    Version fwVersion = graftlet::GraftletLoader::getFwVersion();
+    Version save_ver = fwVersion;
 
     {
         graftlet::GraftletLoader loader;
         loader.findGraftletsAtDirectory("./graftlets", "so");
-        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 4);
     }
 
     {
-        version = VER(0,5);
+        graftlet::GraftletLoader::setFwVersion( VER(0,5) );
         graftlet::GraftletLoader loader;
         loader.findGraftletsAtDirectory("./graftlets", "so");
-        IGraftlet::endpoints_vec_t endpoints = loader.getEndpoints<IGraftlet>();
+        IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 2);
     }
 
-    version = save_ver;
+    graftlet::GraftletLoader::setFwVersion(save_ver);
 #undef VER
 }
 /////////////////////////////////

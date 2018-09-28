@@ -28,8 +28,22 @@
 namespace graftlet
 {
 
-GraftletLoader::exception_list_t GraftletLoader::exception_list;
-int GraftletLoader::version = GRAFTLET_MKVER(1,0);
+GraftletLoader::ExceptionMap GraftletLoader::m_exceptionMap;
+GraftletLoader::Version GraftletLoader::m_fwVersion = GRAFTLET_MKVER(1,0);
+
+void GraftletLoader::setGraftletsExceptionList(const GraftletExceptionList& gel)
+{
+    m_exceptionMap.clear();
+    for(auto& row : gel)
+    {
+        const DllName& dllName = row.first;
+        const ExceptionRngVec& vec = row.second;
+
+        auto res = m_exceptionMap.try_emplace(dllName, vec);
+        if(!res.second)
+            throw std::runtime_error("In the graftlet exception list, dll name '" + dllName + "' is duplicated.");
+    }
+}
 
 bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string extension)
 {
@@ -83,37 +97,36 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             }
 
             auto getGraftletNameFunc = dll::import<decltype(getGraftletName)>(lib, "getGraftletName");
-            dll_name_t dll_name = getGraftletNameFunc();
-            dll_path_t dll_path = it->path().c_str();
+            DllName dllName = getGraftletNameFunc();
+            DllPath dll_path = it->path().c_str();
 
-            std::cout << "==> graftlet info:" << dll_name << " version " << graftletVersion << " path " << dll_path << "\n";
+            std::cout << "==> graftlet info:" << dllName << " version " << graftletVersion << " path " << dll_path << "\n";
             std::cout << "==> graftletRegistry :" << graftletRegistry << "\n";
 
-            if(is_in_GEL(dll_name, graftletVersion))
+            if(is_in_GEL(dllName, graftletVersion))
             {
-                LOG_PRINT_L2("The graftlet '") << dll_name << "', version " << getVersionStr(graftletVersion) << " is in the exception list";
-                std::cout << "\tThe graftlet '" << dll_name << "', version " << getVersionStr(graftletVersion) << " is in the exception list\n";
+                LOG_PRINT_L2("The graftlet '") << dllName << "', version " << getVersionStr(graftletVersion) << " is in the exception list";
+                std::cout << "\tThe graftlet '" << dllName << "', version " << getVersionStr(graftletVersion) << " is in the exception list\n";
                 continue;
             }
 
             //check version in graftlet
             auto checkFwVersionFunc = dll::import<decltype(checkFwVersion)>(lib, "checkFwVersion" );
-            if(!checkFwVersionFunc(version))
+            if(!checkFwVersionFunc(m_fwVersion))
             {
-                LOG_PRINT_L2("The graftlet '") << dll_name << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
-                                               << getVersionStr(version);
-                std::cout << "The graftlet '" << dll_name << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
-                                               << getVersionStr(version) << "\n";
+                LOG_PRINT_L2("The graftlet '") << dllName << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
+                                               << getVersionStr(m_fwVersion);
+                std::cout << "The graftlet '" << dllName << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
+                                               << getVersionStr(m_fwVersion) << "\n";
                 continue;
             }
 
-
             auto res = m_name2lib.emplace(
-                        std::make_pair(dll_name,
+                        std::make_pair(dllName,
                                        std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path) ))
                         );
-            if(!res.second) throw std::runtime_error("A plugin with the name '" + dll_name + "' already exists");
-            auto res1 = m_name2registries.emplace( std::make_pair(dll_name, graftletRegistry) );
+            if(!res.second) throw std::runtime_error("A plugin with the name '" + dllName + "' already exists");
+            auto res1 = m_name2registries.emplace( std::make_pair(dllName, graftletRegistry) );
             assert(res1.second);
         }
         catch(std::exception& ex)
