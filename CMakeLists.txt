@@ -169,11 +169,24 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 include_directories(${CRYPTONODE_INCLUDE_DIRS})
 link_directories(${CRYPTONODE_LIB_DIRS})
 
+### graftlet_lib
+add_library(graftlet_lib STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/GraftletLoader.cpp
+)
+
+target_include_directories(graftlet_lib PRIVATE
+    ${GS_INCLUDE_DIRS}
+    )
+
+set_target_properties(graftlet_lib PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/graftlets
+    )
+
+### graft_server
 add_executable(graft_server
     ${GS_SOURCES}
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
-
 
 target_include_directories(graft_server PRIVATE
     ${GS_INCLUDE_DIRS}

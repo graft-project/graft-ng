@@ -18,10 +18,6 @@ endif()
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
-add_library(graftlet_lib STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/GraftletLoader.cpp
-)
-
 ######## Graftlets
 
 include_directories(
@@ -29,10 +25,15 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/../modules/libr3/include
 )
 
-add_library(graftlet_plugin SHARED
-    TestGraftlet.cpp
-)
+if (OPT_BUILD_TESTS)
+    message("==> Test graftlets included")
 
-add_library(graftlet_plugin1 SHARED
-    TestGraftlet1.cpp
-)
+    add_library(graftlet_plugin SHARED
+        TestGraftlet.cpp
+    )
+
+    add_library(graftlet_plugin1 SHARED
+        TestGraftlet1.cpp
+    )
+endif()
+
