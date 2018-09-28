@@ -131,7 +131,7 @@ TEST(Graftlets, exceptionList)
 #undef VER
 }
 
-TEST(Graftlets, checkVersion)
+TEST(Graftlets, checkFwVersion)
 {
 #define VER(a,b) GRAFTLET_MKVER(a,b)
     int& version = graftlet::GraftletLoader::version;

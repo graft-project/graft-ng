@@ -46,7 +46,7 @@
 #define GRAFTLET_EXPORTS_BEGIN(name, version) \
     GRAFTLET_PLUGIN_NAME(name) \
     GRAFTLET_PLUGIN_VERSION(version) \
-    GRAFTLET_PLUGIN_CHECKVERSION() \
+    GRAFTLET_PLUGIN_CHECK_FW_VERSION() \
     extern "C" GRAFTLET_EXPORT const char* getBuildSignature() { return graftlet::getBuildSignature(); } \
     static std::unique_ptr<graftlet::GraftletRegistry> pr_ptr; \
     extern "C" GRAFTLET_EXPORT graftlet::GraftletRegistry* getGraftletRegistry() { \
@@ -62,11 +62,11 @@
     extern "C" GRAFTLET_EXPORT const char* getGraftletName() { return name; }
 #define GRAFTLET_PLUGIN_VERSION(version) \
     extern "C" GRAFTLET_EXPORT int getGraftletVersion() { return version; }
-#define GRAFTLET_PLUGIN_CHECKVERSION() \
-    extern "C" GRAFTLET_EXPORT bool checkVersion( int version );
+#define GRAFTLET_PLUGIN_CHECK_FW_VERSION() \
+    extern "C" GRAFTLET_EXPORT bool checkFwVersion( int fwVersion );
 
-#define GRAFTLET_PLUGIN_DEFAULT_GHECKVERSION(minversion) \
-    extern "C" GRAFTLET_EXPORT bool checkVersion( int version ) { return minversion <= version; }
+#define GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(minversion) \
+    extern "C" GRAFTLET_EXPORT bool checkFwVersion( int fwVersion ) { return minversion <= fwVersion; }
 
 extern "C" GRAFTLET_EXPORT const char* getGraftletName();
 
@@ -149,7 +149,7 @@ static inline const char* getBuildSignature()
 
 static const char* getGraftletName();
 static int getGraftletVersion();
-static bool checkVersion( int version );
+static bool checkFwVersion( int fwVersion );
 static GraftletRegistry* getGraftletRegistry();
 
 inline std::string getVersionStr(int version)

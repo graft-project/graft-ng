@@ -97,8 +97,8 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             }
 
             //check version in graftlet
-            auto checkVersionFunc = dll::import<decltype(checkVersion)>(lib, "checkVersion" );
-            if(!checkVersionFunc(version))
+            auto checkFwVersionFunc = dll::import<decltype(checkFwVersion)>(lib, "checkFwVersion" );
+            if(!checkFwVersionFunc(version))
             {
                 LOG_PRINT_L2("The graftlet '") << dll_name << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
                                                << getVersionStr(version);
