@@ -35,35 +35,34 @@ namespace graftlet
 template <class BaseT>
 class GraftletHandlerT
 {
-    template<typename Sign> class helperS;
+private:
+    //Helper class to resolve signature of a function
+    template<typename Sign> class helperSign;
 
     template <typename Res, typename...Ts>
-    class helperS<Res(Ts...)>
+    class helperSign<Res(Ts...)>
     {
     public:
         using res_t = Res;
         using sign_t = Res(Ts...);
 
-        helperS(GraftletHandlerT* ge) : ge(ge) { }
+        helperSign(GraftletHandlerT* gh) : gh(gh) { }
 
         template <typename...Args>
         Res invoke(const std::string& cls_method, Args&&...args)
         {
-            return (Res)ge->invoke<Res,Ts...>(cls_method, std::forward<Args>(args)...);
+            return (Res)gh->invokeRA<Res,Ts...>(cls_method, std::forward<Args>(args)...);
         }
     private:
-        GraftletHandlerT* ge;
+        GraftletHandlerT* gh;
     };
 
-    using ClsName = std::string;
-public:
-
-    GraftletHandlerT(const std::map<ClsName, std::any>& gl2any) : m_gl2any(gl2any) { }
+    using ClsName_ = std::string; // the same as ClsName
 
     template <typename Res, typename...Ts, typename = Res(Ts...), typename...Args>
-    Res invoke(const std::string& cls_method, Args&&...args)
+    Res invokeRA(const std::string& cls_method, Args&&...args)
     {
-        ClsName cls;
+        ClsName_ cls;
         std::string method;
         {
             int pos = cls_method.find('.');
@@ -77,20 +76,25 @@ public:
                 cls = cls_method;
             }
         }
-        auto it = m_gl2any.find(cls);
-        if(it == m_gl2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
+        auto it = m_cls2any.find(cls);
+        if(it == m_cls2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
         std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
         return (Res)concreteGraftlet->template invoke<Res,Ts...>(method, std::forward<Args>(args)...);
     }
 
-    template <typename Sign, typename...Args, typename Res = typename helperS<Sign>::res_t>
-    Res invokeS(const std::string& cls_method, Args&&...args)
+    const std::map<ClsName_, std::any>& m_cls2any;
+
+public:
+    using ClsName = std::string;
+
+    GraftletHandlerT(const std::map<ClsName, std::any>& cls2any) : m_cls2any(cls2any) { }
+
+    template <typename Sign, typename...Args, typename Res = typename helperSign<Sign>::res_t>
+    Res invoke(const std::string& cls_method, Args&&...args)
     {
-        struct helperS<Sign> h(this);
+        struct helperSign<Sign> h(this);
         return h.invoke(cls_method, std::forward<Args>(args)...);
     }
-private:
-    const std::map<ClsName, std::any>& m_gl2any;
 };
 
 class GraftletLoader
