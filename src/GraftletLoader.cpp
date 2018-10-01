@@ -75,7 +75,6 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             if(graftletABI != getBuildSignature())
             {
                 LOG_PRINT_L2("\tgraftlet ABI does not match '") << graftletABI << "' != '" << getBuildSignature() << "'";
-                std::cout << "\tgraftlet ABI does not match '" << graftletABI << "' != '" << getBuildSignature() << "'\n";
                 continue;
             }
 
@@ -100,13 +99,9 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             DllName dllName = getGraftletNameFunc();
             DllPath dll_path = it->path().c_str();
 
-            std::cout << "==> graftlet info:" << dllName << " version " << graftletVersion << " path " << dll_path << "\n";
-            std::cout << "==> graftletRegistry :" << graftletRegistry << "\n";
-
             if(is_in_GEL(dllName, graftletVersion))
             {
                 LOG_PRINT_L2("The graftlet '") << dllName << "', version " << getVersionStr(graftletVersion) << " is in the exception list";
-                std::cout << "\tThe graftlet '" << dllName << "', version " << getVersionStr(graftletVersion) << " is in the exception list\n";
                 continue;
             }
 
@@ -116,10 +111,10 @@ bool GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             {
                 LOG_PRINT_L2("The graftlet '") << dllName << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
                                                << getVersionStr(m_fwVersion);
-                std::cout << "The graftlet '" << dllName << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
-                                               << getVersionStr(m_fwVersion) << "\n";
                 continue;
             }
+
+            LOG_PRINT_L2("The graftlet accepted '") << dllName << " version " << graftletVersion << " path " << dll_path;
 
             auto res = m_name2lib.emplace(
                         std::make_pair(dllName,

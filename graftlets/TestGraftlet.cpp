@@ -82,12 +82,10 @@ struct Informer
     Informer()
     {
         LOG_PRINT_L2("graftlet " << getGraftletName() << " loading");
-        std::cout << "graftlet " << getGraftletName() << " loading" << "\n";
     }
     ~Informer()
     {
         LOG_PRINT_L2("graftlet " << getGraftletName() << " unloading");
-        std::cout << "graftlet " << getGraftletName() << " unloading" << "\n";
     }
 };
 
