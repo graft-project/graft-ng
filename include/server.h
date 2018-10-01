@@ -28,6 +28,7 @@ private:
     static void initSignals();
     void addGlobalCtxCleaner();
     void initGraftlets();
+    void addGraftletEndpoints(HttpConnectionManager& httpcm);
     void setHttpRouters(HttpConnectionManager& httpcm);
     void setCoapRouters(CoapConnectionManager& coapcm);
     static void checkRoutes(graft::ConnectionManager& cm);

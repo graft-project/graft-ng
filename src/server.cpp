@@ -59,6 +59,22 @@ void GraftServer::initGraftlets()
     }
 }
 
+void GraftServer::addGraftletEndpoints(HttpConnectionManager& httpcm)
+{
+    assert(m_graftletLoader);
+    IGraftlet::EndpointsVec endpoints = m_graftletLoader->getEndpoints();
+    Router graftlet_router;
+    for(auto& item : endpoints)
+    {
+        std::string& endpoint = std::get<0>(item);
+        int& method = std::get<1>(item);
+        Router::Handler& handler = std::get<2>(item);
+
+        graftlet_router.addRoute(endpoint, method, {nullptr, handler , nullptr});
+    }
+    httpcm.addRouter(graftlet_router);
+}
+
 void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
 {
     Router dapi_router("/dapi/v2.0");
@@ -84,19 +100,7 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     graft::registerHealthcheckRequests(health_router);
     httpcm.addRouter(health_router);
 
-    {//add graftlet routers
-        IGraftlet::EndpointsVec endpoints = m_graftletLoader->getEndpoints();
-        Router graftlet_router;
-        for(auto& item : endpoints)
-        {
-            std::string& endpoint = std::get<0>(item);
-            int& method = std::get<1>(item);
-            Router::Handler& handler = std::get<2>(item);
-
-            graftlet_router.addRoute(endpoint, method, {nullptr, handler , nullptr});
-        }
-        httpcm.addRouter(graftlet_router);
-    }
+    addGraftletEndpoints(httpcm);
 }
 
 void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
@@ -141,6 +145,7 @@ bool GraftServer::init(int argc, const char** argv)
     m_looper = std::make_unique<Looper>(configOpts);
     assert(m_looper);
 
+    initGraftlets();
     initConnectionManagers();
 
     prepareDataDirAndSupernodes();
@@ -532,8 +537,6 @@ void GraftServer::prepareDataDirAndSupernodes()
 
 void GraftServer::initConnectionManagers()
 {
-    initGraftlets();
-
     auto httpcm = std::make_unique<graft::HttpConnectionManager>();
     setHttpRouters(*httpcm);
     m_conManagers.emplace_back(std::move(httpcm));
