@@ -21,41 +21,39 @@
 class IGraftlet
 {
 public:
-    using handler_tag_t = std::string;
-    using func_name_t = std::string;
-    using endpoint_t = std::string;
-    using methods_t = int;
-    using ti2any_t = std::map<std::type_index, std::tuple<std::any, endpoint_t, methods_t> >;
-    using map_t = std::map<func_name_t, ti2any_t>;
-    using EndpointsVec = std::vector< std::tuple<endpoint_t, methods_t, graft::Router::Handler> >;
-
-    void init()
-    {
-        if(inited) return;
-        inited = true;
-        initOnce();
-    }
+    using ClsName = std::string;
+    using FuncName = std::string;
+    using EndpointPath = std::string;
+    using Methods = int;
+    using EndpointsVec = std::vector< std::tuple<EndpointPath, Methods, graft::Router::Handler> >;
 
     IGraftlet() = delete;
     virtual ~IGraftlet() = default;
     IGraftlet(const IGraftlet&) = delete;
     IGraftlet& operator = (const IGraftlet&) = delete;
 
-    const std::string& getName() const { return m_name; }
+    void init()
+    {
+        if(m_inited) return;
+        m_inited = true;
+        initOnce();
+    }
+
+    const ClsName& getClsName() const { return m_clsName; }
 
     EndpointsVec getEndpoints()
     {
         EndpointsVec res;
         std::type_index ti = std::type_index(typeid(graft::Router::Handler));
-        for(auto& it : map)
+        for(auto& it : m_map)
         {
-            ti2any_t& ti2any = it.second;
+            TypeIndex2any& ti2any = it.second;
             auto it1 = ti2any.find(ti);
             if(it1 == ti2any.end()) continue;
 
             std::any& any = std::get<0>(it1->second);
-            endpoint_t& endpoint = std::get<1>(it1->second);
-            methods_t& methods = std::get<2>(it1->second);
+            EndpointPath& endpoint = std::get<1>(it1->second);
+            Methods& methods = std::get<2>(it1->second);
 
             graft::Router::Handler handler = std::any_cast<graft::Router::Handler>(any);
 
@@ -65,14 +63,14 @@ public:
     }
 
     template <typename Res, typename...Ts, typename = Res(Ts...), typename...Args>
-    Res invoke(const func_name_t& name, Args&&...args)
+    Res invoke(const FuncName& name, Args&&...args)
     {
         using Callable = std::function<Res (Ts...)>;
         std::type_index ti = std::type_index(typeid(Callable));
 
-        auto it = map.find(name);
-        if(it == map.end())  throw std::runtime_error("cannot find function " + name);
-        ti2any_t& ti2any = it->second;
+        auto it = m_map.find(name);
+        if(it == m_map.end())  throw std::runtime_error("cannot find function " + name);
+        TypeIndex2any& ti2any = it->second;
         auto it1 = ti2any.find(ti);
         if(it1 == ti2any.end()) throw std::runtime_error("cannot find function " + name + " with typeid " + ti.name() );
 
@@ -83,11 +81,12 @@ public:
         return callable(std::forward<Args>(args)...);
     }
 
+    //It can be used to register any callable object like a function, to register member function use register_handler_memf
     template<typename Res,  typename...Ts, typename Callable = Res (Ts...)>
-    void register_handler(const func_name_t& name, Callable callable, const endpoint_t& endpoint = endpoint_t(), methods_t methods = 0)
+    void register_handler(const FuncName& name, Callable callable, const EndpointPath& endpoint = EndpointPath(), Methods methods = 0)
     {
         std::type_index ti = std::type_index(typeid(Callable));
-        ti2any_t& ti2any = map[name];
+        TypeIndex2any& ti2any = m_map[name];
         std::any any = std::make_any<Callable>(callable);
         assert(any.type().hash_code() == typeid(callable).hash_code());
 
@@ -102,22 +101,23 @@ public:
     }
 
     template<typename Obj, typename Res,  typename...Ts>
-    void register_handler_memf(const func_name_t& name, Obj* p, Res (Obj::*f)(Ts...))
+    void register_handler_memf(const FuncName& name, Obj* p, Res (Obj::*f)(Ts...))
     {
         std::function<Res(Obj*,Ts...)> memf = f;
         std::function<Res(Ts...)> fun = [p,memf](Ts&&...ts)->Res { return memf(p,std::forward<Ts>(ts)...); };
         register_handler<Res, Ts...,decltype(fun)>(name, fun);
     }
 
-    void register_endpoint(const func_name_t& name, graft::Router::Handler worker_action, const endpoint_t& endpoint, methods_t methods)
+    //It can be used to register any Handler like a function, to register member function use register_endpoint_memf
+    void register_endpoint(const FuncName& name, graft::Router::Handler worker_action, const EndpointPath& endpoint, Methods methods)
     {
         register_handler<graft::Status>(name, worker_action, endpoint, methods);
     }
 
     template<typename Obj>
-    void register_endpoint_memf(const func_name_t& name, Obj* p
+    void register_endpoint_memf(const FuncName& name, Obj* p
                                 , graft::Status (Obj::*f)(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
-                                , const endpoint_t& endpoint, methods_t methods )
+                                , const EndpointPath& endpoint, Methods methods )
     {
         std::function<graft::Status (Obj*,const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)> memf = f;
         graft::Router::Handler fun =
@@ -125,14 +125,17 @@ public:
         {
             return memf(p,vars,input,ctx,output);
         };
-        register_handler<graft::Status>(name, fun, endpoint, methods);
+        register_endpoint(name, fun, endpoint, methods);
     }
 protected:
-    IGraftlet(const std::string& name = std::string() ) : m_name(name) { }
+    IGraftlet(const ClsName& name = ClsName() ) : m_clsName(name) { }
     virtual void initOnce() = 0;
 private:
-    bool inited = false;
-    std::string m_name;
-    map_t map;
+    using TypeIndex2any = std::map<std::type_index, std::tuple<std::any, EndpointPath, Methods> >;
+    using Map = std::map<FuncName, TypeIndex2any>;
+
+    bool m_inited = false;
+    ClsName m_clsName;
+    Map m_map;
 };
 

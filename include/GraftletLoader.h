@@ -183,7 +183,7 @@ private:
             std::shared_ptr<BaseT> concreteGraftlet = gr->resolveGraftlet<BaseT>();
             if(!concreteGraftlet.get()) throw std::runtime_error("Cannot resolve dll name:" + dllName + " type:" + typeid(BaseT).name());
             concreteGraftlet->init();
-            ClsName name = concreteGraftlet->getName();
+            ClsName name = concreteGraftlet->getClsName();
             std::any any(concreteGraftlet);
 
             std::map<ClsName, std::any> map;
@@ -228,7 +228,7 @@ private:
             std::shared_ptr<BaseT> concreteGraftlet = gr->resolveGraftlet<BaseT>();
             if(!concreteGraftlet.get()) throw std::runtime_error("Cannot resolve dll name:" + dllName + " type:" + typeid(BaseT).name());
             concreteGraftlet->init();
-            ClsName name = concreteGraftlet->getName();
+            ClsName name = concreteGraftlet->getClsName();
             std::any any(concreteGraftlet);
 
             std::map<ClsName, std::any> map;
