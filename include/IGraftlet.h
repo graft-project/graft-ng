@@ -16,10 +16,7 @@
     register_handler_memf(#f, this, &T::f)
 
 #define REGISTER_ENDPOINT(Endpoint, Methods, T, f) \
-    register_endpoint_memf(#f, this, &T::f, Endpoint, Methods, false)
-
-#define REGISTER_GENERIC(Endpoint, Methods, T, f) \
-    register_endpoint_memf(#f, this, &T::f, Endpoint, Methods, true)
+    register_endpoint_memf(#f, this, &T::f, Endpoint, Methods)
 
 class IGraftlet
 {
@@ -28,8 +25,7 @@ public:
     using func_name_t = std::string;
     using endpoint_t = std::string;
     using methods_t = int;
-    using is_call_t = bool; //is the function intended to be called directly (endpoint case)
-    using ti2any_t = std::map<std::type_index, std::tuple<std::any, endpoint_t, methods_t, is_call_t> >;
+    using ti2any_t = std::map<std::type_index, std::tuple<std::any, endpoint_t, methods_t> >;
     using map_t = std::map<func_name_t, ti2any_t>;
     using EndpointsVec = std::vector< std::tuple<endpoint_t, methods_t, graft::Router::Handler> >;
 
@@ -81,8 +77,6 @@ public:
         if(it1 == ti2any.end()) throw std::runtime_error("cannot find function " + name + " with typeid " + ti.name() );
 
         std::any& any = std::get<0>(it1->second);
-        is_call_t& is_call = std::get<3>(it1->second);
-        if(!is_call) throw std::runtime_error("found function is no intended to be called, " + name + " with typeid " + ti.name() );
 
         Callable callable = std::any_cast<Callable>(any);
 
@@ -90,7 +84,7 @@ public:
     }
 
     template<typename Res,  typename...Ts, typename Callable = Res (Ts...)>
-    void register_handler(const func_name_t& name, Callable callable, const endpoint_t& endpoint = endpoint_t(), methods_t methods = 0, is_call_t is_call = true)
+    void register_handler(const func_name_t& name, Callable callable, const endpoint_t& endpoint = endpoint_t(), methods_t methods = 0)
     {
         std::type_index ti = std::type_index(typeid(Callable));
         ti2any_t& ti2any = map[name];
@@ -100,10 +94,10 @@ public:
         std::ostringstream oss;
         if(!endpoint.empty())
         {
-            oss << " '" << endpoint << "' " << graft::Router::methodsToString(methods) << " " << ((is_call)? "callable" : "non-callable") << " directly";
+            oss << " '" << endpoint << "' " << graft::Router::methodsToString(methods);
         }
         LOG_PRINT_L2("register_handler " << name << oss.str() << " of " << typeid(callable).name());
-        auto res = ti2any.emplace(ti, std::make_tuple(std::move(any), endpoint, methods, is_call) );
+        auto res = ti2any.emplace(ti, std::make_tuple(std::move(any), endpoint, methods) );
         if(!res.second) throw std::runtime_error("function " + name + " with typeid " + ti.name() + " already registered");
     }
 
@@ -115,15 +109,15 @@ public:
         register_handler<Res, Ts...,decltype(fun)>(name, fun);
     }
 
-    void register_endpoint(const func_name_t& name, graft::Router::Handler worker_action, const endpoint_t& endpoint, methods_t methods, is_call_t is_call)
+    void register_endpoint(const func_name_t& name, graft::Router::Handler worker_action, const endpoint_t& endpoint, methods_t methods)
     {
-        register_handler<graft::Status>(name, worker_action, endpoint, methods, is_call);
+        register_handler<graft::Status>(name, worker_action, endpoint, methods);
     }
 
     template<typename Obj>
     void register_endpoint_memf(const func_name_t& name, Obj* p
                                 , graft::Status (Obj::*f)(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
-                                , const endpoint_t& endpoint, methods_t methods, is_call_t is_call )
+                                , const endpoint_t& endpoint, methods_t methods )
     {
         std::function<graft::Status (Obj*,const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)> memf = f;
         graft::Router::Handler fun =
@@ -131,7 +125,7 @@ public:
         {
             return memf(p,vars,input,ctx,output);
         };
-        register_handler<graft::Status>(name, fun, endpoint, methods, is_call);
+        register_handler<graft::Status>(name, fun, endpoint, methods);
     }
 protected:
     IGraftlet(const std::string& name = std::string() ) : m_name(name) { }

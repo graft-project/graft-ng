@@ -67,17 +67,15 @@ TEST(Graftlets, calls)
     }
 
     try
-    {//testHandler1, testHandler throw
+    {//testHandler
         graft::Router::vars_t vars;
         graft::Input input;
         graft::GlobalContextMap m;
         graft::Context ctx(m);
         graft::Output output;
         using Handler = graft::Status(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
-        graft::Status res = plugin.invoke<Handler>("testGL.testHandler1", vars, input, ctx, output);
+        graft::Status res = plugin.invoke<Handler>("testGL.testHandler", vars, input, ctx, output);
         EXPECT_EQ(res,graft::Status::Ok);
-
-        EXPECT_THROW(plugin.invoke<Handler>("testGL.testHandler", vars, input, ctx, output), std::exception);
     }
     catch(std::exception& ex)
     {

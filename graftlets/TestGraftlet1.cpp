@@ -64,7 +64,7 @@ public:
         REGISTER_ACTION(TestGraftlet1, testString2);
 
         REGISTER_ENDPOINT("/URI1/test/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet1, testHandler);
-        REGISTER_GENERIC("/URI1/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet1, testHandler1);
+        REGISTER_ENDPOINT("/URI1/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet1, testHandler1);
     }
 };
 
