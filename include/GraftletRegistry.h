@@ -43,9 +43,10 @@
 #define GRAFTLET_CHECKS(concrete, base) \
     GRAFTLET_DERRIVED(concrete, base); GRAFTLET_DEFAULT_CTOR(concrete)
 
-#define GRAFTLET_EXPORTS_BEGIN(name, version) \
+#define GRAFTLET_EXPORTS_BEGIN(name, version, dependencies) \
     GRAFTLET_PLUGIN_NAME(name) \
     GRAFTLET_PLUGIN_VERSION(version) \
+    GRAFTLET_PLUGIN_DEPENDENCIES(dependencies) \
     GRAFTLET_PLUGIN_CHECK_FW_VERSION() \
     extern "C" GRAFTLET_EXPORT const char* getBuildSignature() { return graftlet::getBuildSignature(); } \
     static std::unique_ptr<graftlet::GraftletRegistry> pr_ptr; \
@@ -62,6 +63,8 @@
     extern "C" GRAFTLET_EXPORT const char* getGraftletName() { return name; }
 #define GRAFTLET_PLUGIN_VERSION(version) \
     extern "C" GRAFTLET_EXPORT int getGraftletVersion() { return version; }
+#define GRAFTLET_PLUGIN_DEPENDENCIES(dependencies) \
+    extern "C" GRAFTLET_EXPORT const char* getGraftletDependencies() { return dependencies; }
 #define GRAFTLET_PLUGIN_CHECK_FW_VERSION() \
     extern "C" GRAFTLET_EXPORT bool checkFwVersion( int fwVersion );
 
@@ -149,6 +152,7 @@ static inline const char* getBuildSignature()
 
 static const char* getGraftletName();
 static int getGraftletVersion();
+static const char* getGraftletDependencies();
 static bool checkFwVersion( int fwVersion );
 static GraftletRegistry* getGraftletRegistry();
 

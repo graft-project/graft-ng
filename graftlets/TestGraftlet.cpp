@@ -68,7 +68,7 @@ public:
     }
 };
 
-GRAFTLET_EXPORTS_BEGIN("myGraftlet", GRAFTLET_MKVER(1,1));
+GRAFTLET_EXPORTS_BEGIN("myGraftlet", GRAFTLET_MKVER(1,1), "");
 GRAFTLET_PLUGIN(TestGraftlet, IGraftlet, "testGL");
 GRAFTLET_EXPORTS_END
 

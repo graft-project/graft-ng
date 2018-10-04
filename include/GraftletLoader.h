@@ -110,7 +110,8 @@ public:
 
     static void setGraftletsExceptionList(const GraftletExceptionList& gel);
 
-    bool findGraftletsAtDirectory(std::string additionalDir, std::string extension);
+    void findGraftletsAtDirectory(std::string additionalDir, std::string extension);
+    void checkDependencies();
 
     GraftletHandlerT<IGraftlet> buildAndResolveGraftlet(const DllName& dllName)
     {
@@ -125,6 +126,7 @@ public:
 private:
     using ClsName = std::string;
     using DllPath = std::string;
+    using Dependencies = std::string; // format: dllName:minVersion,dllName1:minVersion1, ...
 
     using ExceptionRngVec = std::vector<std::pair<Version,Version>>;
     using ExceptionMap = std::map<DllName, ExceptionRngVec>;
@@ -256,7 +258,7 @@ private:
 
     //we can use functions in a dll until we release object of boost::dll::shared_library
     //dll name -> (lib, version, path)
-    std::map<DllName, std::tuple<boost::dll::shared_library, Version, DllPath>> m_name2lib;
+    std::map<DllName, std::tuple<boost::dll::shared_library, Version, DllPath, Dependencies>> m_name2lib;
     //dll name -> registry
     std::map<DllName, GraftletRegistry*> m_name2registries;
     //dll (name, type_index of BaseT) -> (class name, any of BaseT)
