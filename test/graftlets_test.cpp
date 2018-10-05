@@ -1,8 +1,179 @@
 #include <gtest/gtest.h>
 #include "fixture.h"
-#include "GraftletLoader.h"
 #include "server.h"
 #include "test.h"
+#define INCLUDE_GRAPH
+#include "GraftletLoader.h"
+
+TEST(Graph, dependencies)
+{
+    using Graph = graftlet::GraftletLoader::Graph;
+    Graph graph;
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {};
+
+        graph.initialize(vec);
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.empty(), true);
+        graph.findCycles();
+    }
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {
+            {"A",GRAFTLET_MKVER(1,0), "B:1.0"},
+            {"B",GRAFTLET_MKVER(1,0), "C:1.0"},
+            {"C",GRAFTLET_MKVER(1,0), ""},
+        };
+
+        graph.initialize(vec);
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.empty(), true);
+        graph.findCycles();
+    }
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {
+            {"A",GRAFTLET_MKVER(1,0), " B : 1 . 2 , C: 3, D "},
+            {"B",GRAFTLET_MKVER(1,0), "C:4.5, D: 7"},
+            {"C",GRAFTLET_MKVER(1,0), "E : 3.3"},
+            {"D",GRAFTLET_MKVER(1,0), ""},
+        };
+
+        graph.initialize(vec);
+        {
+            Graph::list_t* list = &graph.m_graph["A"];
+            EXPECT_EQ(list->size(), 3);
+            auto it = list->begin();
+            EXPECT_EQ(it->first,"B");
+            EXPECT_EQ(it->second,GRAFTLET_MKVER(1,2));
+            ++it;
+            EXPECT_EQ(it->first,"C");
+            EXPECT_EQ(it->second,GRAFTLET_MKVER(3,0));
+            ++it;
+            EXPECT_EQ(it->first,"D");
+            EXPECT_EQ(it->second,GRAFTLET_MKVER(0,0));
+
+            list = &graph.m_graph["B"];
+            EXPECT_EQ(list->size(), 2);
+            it = list->begin();
+            EXPECT_EQ(it->first,"C");
+            EXPECT_EQ(it->second,GRAFTLET_MKVER(4,5));
+            ++it;
+            EXPECT_EQ(it->first,"D");
+            EXPECT_EQ(it->second,GRAFTLET_MKVER(7,0));
+
+            list = &graph.m_graph["C"];
+            EXPECT_EQ(list->size(), 1);
+            it = list->begin();
+            EXPECT_EQ(it->first,"E");
+            EXPECT_EQ(it->second,GRAFTLET_MKVER(3,3));
+
+            list = &graph.m_graph["D"];
+            EXPECT_EQ(list->size(), 0);
+        }
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.size(), 3);
+        graph.findCycles();
+    }
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {
+            {"A",GRAFTLET_MKVER(1,0), "B:1.2, C:3, D"},
+            {"B",GRAFTLET_MKVER(1,2), "C:0.5, D:7"},
+            {"C",GRAFTLET_MKVER(3,1), "D:3.3"},
+            {"D",GRAFTLET_MKVER(7,0), ""},
+        };
+
+        graph.initialize(vec);
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.size(), 0);
+        graph.findCycles();
+    }
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {
+            {"A",GRAFTLET_MKVER(1,0), "B:1.2, C:3, D"},
+            {"B",GRAFTLET_MKVER(1,2), "C:0.5, D:7"},
+            {"C",GRAFTLET_MKVER(3,1), "D:3.3"},
+            {"D",GRAFTLET_MKVER(3,3), ""},
+        };
+
+        graph.initialize(vec);
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.size(), 2);
+        graph.findCycles();
+    }
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {
+            {"A",GRAFTLET_MKVER(1,0), "B, C, D"},
+            {"B",GRAFTLET_MKVER(1,0), "C, D"},
+            {"C",GRAFTLET_MKVER(1,0), "D:, B"}, //invalid format
+            {"D",GRAFTLET_MKVER(1,0), ""},
+        };
+
+        graph.initialize(vec);
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.size(), 3);
+        std::string s = graph.findCycles(true);
+        EXPECT_TRUE(s.empty());
+    }
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {
+            {"A",GRAFTLET_MKVER(1,0), "B, C, D"},
+            {"B",GRAFTLET_MKVER(1,0), "C, D"},
+            {"C",GRAFTLET_MKVER(1,0), "D, B"},
+            {"D",GRAFTLET_MKVER(1,0), ""},
+        };
+
+        graph.initialize(vec);
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.size(), 0);
+        std::string s = graph.findCycles(true);
+        EXPECT_FALSE(s.empty());
+        std::cout << s << "\n";
+    }
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {
+            {"A",GRAFTLET_MKVER(1,0), "B, C, D"},
+            {"B",GRAFTLET_MKVER(1,0), "C, D"},
+            {"C",GRAFTLET_MKVER(1,0), "D"},
+            {"D",GRAFTLET_MKVER(1,0), "A"},
+        };
+
+        graph.initialize(vec);
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.size(), 0);
+        std::string s = graph.findCycles(true);
+        EXPECT_FALSE(s.empty());
+        std::cout << s << "\n";
+    }
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {
+            {"A",GRAFTLET_MKVER(1,0), "D"},
+            {"B",GRAFTLET_MKVER(1,0), "B"},
+            {"C",GRAFTLET_MKVER(1,0), "B"},
+            {"D",GRAFTLET_MKVER(1,0), "C"},
+        };
+
+        graph.initialize(vec);
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.size(), 0);
+        std::string s = graph.findCycles(true);
+        EXPECT_FALSE(s.empty());
+        std::cout << s << "\n";
+    }
+    {
+        std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {
+            {"A",GRAFTLET_MKVER(1,0), "C, D"},
+            {"B",GRAFTLET_MKVER(1,0), ""},
+            {"C",GRAFTLET_MKVER(1,0), "B"},
+            {"D",GRAFTLET_MKVER(1,0), "B, C, A"},
+        };
+
+        graph.initialize(vec);
+        std::vector<Graph::DllName> res = graph.removeFailedDependants();
+        EXPECT_EQ(res.size(), 0);
+        std::string s = graph.findCycles(true);
+        EXPECT_FALSE(s.empty());
+        std::cout << s << "\n";
+    }
+}
 
 TEST(Graftlets, calls)
 {

@@ -123,6 +123,8 @@ public:
         return getEndpointsT<IGraftlet>();
     }
 
+    class Graph;
+    friend class GraftletLoader::Graph;
 private:
     using ClsName = std::string;
     using DllPath = std::string;
@@ -252,7 +254,6 @@ private:
     }
 #endif
 
-
     static Version m_fwVersion;
     static ExceptionMap m_exceptionMap;
 
@@ -264,8 +265,44 @@ private:
     //dll (name, type_index of BaseT) -> (class name, any of BaseT)
     //it makes no sense to hold std::shared_ptr<IGraftlet> until the shared_ptr is returned from resolveGraftlet
     std::map< std::pair<DllName, std::type_index>, std::map<ClsName, std::any> > m_name2gls;
-
 };
+
+#ifdef INCLUDE_GRAPH
+class GraftletLoader::Graph
+{
+public:
+    using DllName = GraftletLoader::DllName;
+    using Version = GraftletLoader::Version;
+    using Dependencies = GraftletLoader::Dependencies;
+
+    void initialize(GraftletLoader& gl);
+    void removeFailedDependants(GraftletLoader& gl);
+    //returns error if dont_throw == true
+    std::string findCycles(bool dont_throw = false);
+
+    std::function<bool(Version,Version)> m_RemoveIfCmpMinverVer = std::less<Version>();
+
+    //following are for tests
+    void initialize(const std::vector<std::tuple<DllName,Version,Dependencies>>& vec);
+    //returns list to remove
+    std::vector<DllName> removeFailedDependants();
+
+//private:
+    enum class Color: int
+    {
+        white = 0,
+        gray = 1,
+        black = 2
+    };
+
+    using list_t = std::list<std::pair<DllName,Version>>;
+    //vertex -> edges
+    using graph_t = std::map<DllName, list_t>;
+
+    graph_t m_graph;
+    std::map<DllName,Version> m_dll2ver;
+};
+#endif
 
 using GraftletHandler = GraftletHandlerT<IGraftlet>;
 
