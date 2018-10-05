@@ -223,6 +223,7 @@ void TaskManager::sendUpstream(BaseTaskPtr bt)
 void TaskManager::onTimer(BaseTaskPtr bt)
 {
     assert(dynamic_cast<PeriodicTask*>(bt.get()));
+    bt->setLastStatus(Status::None);
     Execute(bt);
 }
 
