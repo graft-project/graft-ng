@@ -179,6 +179,16 @@ TaskManager::~TaskManager()
 
 }
 
+inline size_t TaskManager::next_pow2(size_t val)
+{
+    --val;
+    for(size_t i = 1; i<sizeof(val)*8; i<<=1)
+    {
+        val |= val >> i;
+    }
+    return ++val;
+}
+
 //pay attension, input is output and vice versa
 void TaskManager::sendUpstreamBlocking(Output& output, Input& input, std::string& err)
 {
@@ -542,21 +552,14 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     th_op.setQueueSize(workersQueueSize);
     graft::ThreadPoolX thread_pool(th_op);
 
-    size_t resQueueSize;
-    {//nearest ceiling power of 2
-        size_t val = th_op.threadCount()*th_op.queueSize();
-        size_t bit = 1;
-        for(; bit<val; bit <<= 1);
-        resQueueSize = bit;
-    }
-
     const size_t maxinputSize = th_op.threadCount()*th_op.queueSize();
+    size_t resQueueSize = next_pow2( maxinputSize );
     graft::TPResQueue resQueue(resQueueSize);
 
     m_threadPool = std::make_unique<ThreadPoolX>(std::move(thread_pool));
     m_resQueue = std::make_unique<TPResQueue>(std::move(resQueue));
     m_threadPoolInputSize = maxinputSize;
-    m_promiseQueue = std::make_unique<PromiseQueue>(threadCount);
+    m_promiseQueue = std::make_unique<PromiseQueue>( next_pow2(threadCount) );
 
     LOG_PRINT_L1("Thread pool created with " << threadCount
                  << " workers with " << workersQueueSize

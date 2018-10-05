@@ -262,6 +262,8 @@ private:
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
     bool tryProcessReadyJob();
 
+    static inline size_t next_pow2(size_t val);
+
     GlobalContextMap m_gcm;
 
     uint64_t m_cntBaseTask = 0;
