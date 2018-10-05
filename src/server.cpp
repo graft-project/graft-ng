@@ -57,6 +57,7 @@ void GraftServer::initGraftlets()
         LOG_PRINT_L1("Searching graftlets in directory '") << it << "'";
         m_graftletLoader->findGraftletsAtDirectory(it, "so");
     }
+    m_graftletLoader->checkDependencies();
 }
 
 void GraftServer::addGraftletEndpoints(HttpConnectionManager& httpcm)
