@@ -1,7 +1,7 @@
 #include "paystatusrequest.h"
 #include "requestdefines.h"
 #include "jsonrpc.h"
-
+#include <misc_log_ex.h>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.paystatusrequest"
@@ -24,12 +24,17 @@ Status payStatusHandler(const Router::vars_t& vars, const graft::Input& input,
     }
 
     const PayStatusRequest &in = req.params;
+
+    MDEBUG("requested status for payment: " << in.PaymentID);
+
     int current_status = ctx.global.get(in.PaymentID + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::None));
     if (in.PaymentID.empty() || current_status == 0)
     {
+        MWARNING("no status for payment: " << in.PaymentID);
         return errorInvalidPaymentID(output);
     }
-
+    MDEBUG("payment: " << in.PaymentID
+           << ", status found: " << current_status);
     PayStatusResponseJsonRpc out;
     out.result.Status = current_status;
     output.load(out);

@@ -70,6 +70,12 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     Router health_router;
     graft::registerHealthcheckRequests(health_router);
     httpcm.addRouter(health_router);
+
+    Router debug_router;
+    graft::registerDebugRequests(debug_router);
+    httpcm.addRouter(debug_router);
+
+
 }
 
 void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
@@ -276,7 +282,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
                 ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
                 ("log-level", po::value<std::string>(), "log-level. (3 by default), e.g. --log-level=2,supernode.task:INFO,supernode.server:DEBUG")
                 ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
-                ("log-file", po::value<std::string>(), "log file; set it to syslog if you want use the syslog instead")
+                ("log-file", po::value<std::string>(), "log file")
                 ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level	%logger	%rfile	%msg");
 
         po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -356,6 +362,11 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 
     const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
     configOpts.cryptonode_rpc_address = cryptonode_conf.get<std::string>("rpc-address");
+
+    const boost::property_tree::ptree& log_conf = config.get_child("logging");
+    boost::optional<int> log_trunc_to_size  = log_conf.get_optional<int>("trunc-to-size");
+    configOpts.log_trunc_to_size = (log_trunc_to_size)? log_trunc_to_size.get() : -1;
+
     const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
     graft::OutHttp::uri_substitutions.clear();
     std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf](auto it)
@@ -459,71 +470,16 @@ void GraftServer::addGlobalCtxCleaner()
 void GraftServer::startSupernodePeriodicTasks()
 {
     // update supernode every interval_ms
-    auto supernodeRefreshWorker = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
-            graft::Output& output)->graft::Status
-    {
 
-        try {
-            switch (ctx.local.getLastStatus()) {
-            case graft::Status::Forward: // reply from cryptonode
-                return graft::Status::Ok;
-            case graft::Status::Ok:
-            case graft::Status::None:
-                graft::SupernodePtr supernode;
-
-                LOG_PRINT_L1("supernodeRefreshWorker");
-                LOG_PRINT_L1("input: " << input.data());
-                LOG_PRINT_L1("output: " << output.data());
-                LOG_PRINT_L1("last status: " << (int)ctx.local.getLastStatus());
-
-                supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
-
-
-                if (!supernode.get()) {
-                    LOG_ERROR("supernode is not set in global context");
-                    return graft::Status::Error;
-                }
-
-                LOG_PRINT_L0("about to refresh supernode: " << supernode->walletAddress());
-
-                if (!supernode->refresh()) {
-                    return graft::Status::Ok;
-                }
-
-                LOG_PRINT_L0("supernode refresh done, stake amount: " << supernode->stakeAmount());
-
-                graft::SendSupernodeAnnounceJsonRpcRequest req;
-                if (!supernode->prepareAnnounce(req.params)) {
-                    LOG_ERROR("Can't prepare announce");
-                    return graft::Status::Ok;
-                }
-
-                req.method = "send_supernode_announce";
-                req.id = 0;
-                output.load(req);
-
-                output.path = "/json_rpc/rta";
-                // DBG: without cryptonode
-                // output.path = "/dapi/v2.0/send_supernode_announce";
-
-                LOG_PRINT_L0("Calling cryptonode: sending announce");
-                return graft::Status::Forward;
-            }
-        } catch (std::exception &e) {
-            LOG_ERROR("Exception thrown: " << e.what());
-        } catch (...) {
-            LOG_ERROR("Unknown exception thrown");
-        }
-        return Status::Ok;
-    };
-
-    size_t initial_interval_ms = 1000;
-    assert(m_looper);
-    m_looper->addPeriodicTask(
-                graft::Router::Handler3(nullptr, supernodeRefreshWorker, nullptr),
-                std::chrono::milliseconds(getCopts().stake_wallet_refresh_interval_ms),
-                std::chrono::milliseconds(initial_interval_ms)
-                );
+    if (getCopts().stake_wallet_refresh_interval_ms > 0) {
+        size_t initial_interval_ms = 1000;
+        assert(m_looper);
+        m_looper->addPeriodicTask(
+                    graft::Router::Handler3(nullptr, sendAnnounce, nullptr),
+                    std::chrono::milliseconds(getCopts().stake_wallet_refresh_interval_ms),
+                    std::chrono::milliseconds(initial_interval_ms)
+                    );
+    }
 }
 
 void GraftServer::checkRoutes(graft::ConnectionManager& cm)

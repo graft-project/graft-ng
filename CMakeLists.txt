@@ -81,6 +81,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
@@ -88,6 +89,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
+    ${PROJECT_SOURCE_DIR}/src/log.cpp
     )
 
 set(GS_INCLUDE_DIRS
