@@ -169,12 +169,8 @@ void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev
     {
     case MG_EV_CLOSE:
     {
-        assert(ct->getSelf());
-        if(!ct->getSelf()) break;
-        ct->getManager().onClientDone(ct->getSelf());
         ct->m_client->handler = static_empty_ev_handler;
         ct->m_client = nullptr;
-        ct->finalize();
     } break;
     default:
         break;
@@ -360,10 +356,16 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
 
 void ConnectionManager::respond(ClientTask* ct, const std::string& s)
 {
-    if(!ct->getSelf()) return; //it is possible that a client has closed connection already
+    if(ct->m_client == nullptr)
+    {//it is possible that a client has closed connection already
+        if(ct->getLastStatus() != Status::Again)
+            ct->getManager().onClientDone(ct->getSelf());
+        return;
+    }
     int code;
     switch(ct->getCtx().local.getLastStatus())
     {
+    case Status::Again:
     case Status::Ok: code = 200; break;
     case Status::InternalError:
     case Status::Error: code = 500; break;
@@ -386,7 +388,8 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
     }
     LOG_PRINT_CLN(2,ct->m_client,"Client request finished with result " << ct->getStrStatus());
     client->flags |= MG_F_SEND_AND_CLOSE;
-    ct->getManager().onClientDone(ct->getSelf());
+    if(ct->getLastStatus() != Status::Again)
+        ct->getManager().onClientDone(ct->getSelf());
     client->handler = static_empty_ev_handler;
     client = nullptr;
 }
