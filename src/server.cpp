@@ -210,6 +210,18 @@ void GraftServer::initSignals()
 namespace details
 {
 
+std::string trim_comments(std::string s)
+{
+    //remove ;; tail
+    std::size_t pos = s.find(";;");
+    if(pos != std::string::npos)
+    {
+      s = s.substr(0,pos);
+    }
+    boost::trim_right(s);
+    return s;
+}
+
 namespace po = boost::program_options;
 
 void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
@@ -222,13 +234,13 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     //from config
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
     boost::optional<std::string> level  = log_conf.get_optional<std::string>("loglevel");
-    if(level) log_level = level.get();
+    if(level) log_level = trim_comments( level.get() );
     boost::optional<std::string> log_file  = log_conf.get_optional<std::string>("logfile");
-    if(log_file) log_filename = log_file.get();
+    if(log_file) log_filename = trim_comments( log_file.get() );
     boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
     if(log_to_console) log_console = log_to_console.get();
     boost::optional<std::string> log_fmt  = log_conf.get_optional<std::string>("log-format");
-    if(log_fmt) log_format = log_fmt.get();
+    if(log_fmt) log_format = trim_comments( log_fmt.get() );
 
     //override from cmdline
     if (vm.count("log-level")) log_level = vm["log-level"].as<std::string>();
@@ -236,19 +248,12 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
     if (vm.count("log-format")) log_format = vm["log-format"].as<std::string>();
 
-    mlog_configure(log_filename, log_console);
-    mlog_set_log(log_level.c_str());
-
     // default log format (we need to explicitly apply it here, otherwise full path to a file will be logged  with monero default format)
     static const char * DEFAULT_LOG_FORMAT = "%datetime{%Y-%M-%d %H:%m:%s.%g}\t%thread\t%level\t%logger\t%rfile:%line\t%msg";
+    if(log_format.empty()) log_format = DEFAULT_LOG_FORMAT;
 
-    if(!log_format.empty())
-    {
-        mlog_set_format(log_format.c_str());
-    } else
-    {
-        mlog_set_format(DEFAULT_LOG_FORMAT);
-    }
+    mlog_configure(log_filename, log_console, log_format.empty()? nullptr : log_format.c_str());
+    mlog_set_log(log_level.c_str());
 }
 
 } //namespace details
