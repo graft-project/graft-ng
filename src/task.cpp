@@ -51,7 +51,14 @@ void StateMachine::process(BaseTaskPtr bt)
 
         return;
     }
-    throw std::runtime_error("State machine table is not complete");
+    {
+        bool is_periodic = (dynamic_cast<PeriodicTask*>(bt.get()) != nullptr);
+        std::ostringstream oss;
+        oss << (is_periodic? "periodic;" : "") << " state " << state_strs[int(m_state)] << " status " << bt->getStrStatus();
+        const Router::Handler3& h3 = bt->getHandler3();
+        oss << "{" << !!h3.pre_action << "," << !!h3.worker_action << "," << !!h3.post_action << "}";
+        throw std::runtime_error("State machine table is not complete." + oss.str());
+    }
 }
 
 const StateMachine::Guard StateMachine::has(Router::Handler H3::* act)

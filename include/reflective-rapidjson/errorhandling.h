@@ -21,7 +21,7 @@ namespace ReflectiveRapidJSON {
 /*!
  * \brief The JsonDeserializationErrorKind enum specifies which kind of error happend when populating variables from parsing results.
  */
-enum class JsonDeserializationErrorKind : byte {
+enum class JsonDeserializationErrorKind : uint8_t {
     TypeMismatch, /**< The expected type does not match the type actually present in the JSON document. */
     ArraySizeMismatch, /**< The expected array size does not match the actual size of the JSON array. A fixed size is expected when deserializing an std::tuple. */
     ConversionError, /**< The expected type matches the type present in the JSON document, but further conversion of the value failed. */
@@ -32,7 +32,7 @@ enum class JsonDeserializationErrorKind : byte {
  * \brief The JsonType enum specifies the JSON data type.
  * \remarks This is currently only used for error handling to propagate expected and actual types in case of a mismatch.
  */
-enum class JsonType : byte {
+enum class JsonType : uint8_t {
     Null,
     Number,
     Bool,
@@ -164,7 +164,7 @@ struct JsonDeserializationErrors : public std::vector<JsonDeserializationError> 
     /// \brief The index in the array which is currently processed.
     std::size_t currentIndex;
     /// \brief The list of fatal error types in form of flags.
-    enum class ThrowOn : byte { None = 0, TypeMismatch = 0x1, ArraySizeMismatch = 0x2, ConversionError = 0x4, UnexpectedDuplicate = 0x8 } throwOn;
+    enum class ThrowOn : uint8_t { None = 0, TypeMismatch = 0x1, ArraySizeMismatch = 0x2, ConversionError = 0x4, UnexpectedDuplicate = 0x8 } throwOn;
 
 private:
     void throwMaybe(ThrowOn on) const;
@@ -186,7 +186,7 @@ inline JsonDeserializationErrors::JsonDeserializationErrors()
  */
 constexpr JsonDeserializationErrors::ThrowOn operator|(JsonDeserializationErrors::ThrowOn lhs, JsonDeserializationErrors::ThrowOn rhs)
 {
-    return static_cast<JsonDeserializationErrors::ThrowOn>(static_cast<byte>(lhs) | static_cast<byte>(rhs));
+    return static_cast<JsonDeserializationErrors::ThrowOn>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 
 /*!
@@ -196,7 +196,7 @@ constexpr JsonDeserializationErrors::ThrowOn operator|(JsonDeserializationErrors
  */
 inline void JsonDeserializationErrors::throwMaybe(ThrowOn on) const
 {
-    if (static_cast<byte>(throwOn) & static_cast<byte>(on)) {
+    if (static_cast<uint8_t>(throwOn) & static_cast<uint8_t>(on)) {
         throw back();
     }
 }

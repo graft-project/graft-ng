@@ -97,18 +97,10 @@ std::string RouterT<In,Out>::Root::dbgCheckConflictRoutes() const
 template<typename In, typename Out>
 std::string RouterT<In,Out>::dbgDumpRouter(const std::string prefix) const
 {
-    constexpr const char* methpow[] = {"", "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"};
     std::ostringstream ss;
     for(const Route& r : m_routes)
     {
-        assert((r.methods&0xFE)==r.methods);
-        std::string sm;
-        for(unsigned int b=1, idx=0; idx<8; b<<=1, ++idx)
-        {
-            if(!(r.methods&b)) continue;
-            if(!sm.empty()) sm += '|';
-            sm += methpow[idx];
-        }
+        std::string sm = methodsToString(r.methods);
         auto ptrs = [](auto& ptr)->std::string
         {
             if(ptr == nullptr) return "nullptr";
@@ -125,5 +117,20 @@ std::string RouterT<In,Out>::dbgDumpRouter(const std::string prefix) const
 }
 
 template class RouterT<Input, Output>;
+
+template<typename In, typename Out>
+std::string RouterT<In, Out>::methodsToString(int methods)
+{
+    constexpr const char* methpow[] = {"", "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"};
+    assert((methods&0xFE)==methods);
+    std::string sm;
+    for(unsigned int b=1, idx=0; idx<8; b<<=1, ++idx)
+    {
+        if(!(methods&b)) continue;
+        if(!sm.empty()) sm += '|';
+        sm += methpow[idx];
+    }
+    return sm;
+}
 
 }//namespace graft

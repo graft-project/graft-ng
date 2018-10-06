@@ -28,9 +28,14 @@
 
 #include <gtest/gtest.h>
 #include <misc_log_ex.h>
+#include "test.h"
+
+start_args_tag start_args;
 
 int main(int argc, char **argv)
 {
+    start_args = {argc, (const char**)argv};
+
     mlog_configure("test.log", false);
     mlog_set_log_level(2);
 

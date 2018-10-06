@@ -7,6 +7,7 @@
 #include "requests/sendsupernodeannouncerequest.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+#include "GraftletLoader.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
@@ -46,6 +47,34 @@ static void signal_handler_restart(int sig_num)
     if(hup_handler) hup_handler(sig_num);
 }
 
+void GraftServer::initGraftlets()
+{
+    if(m_graftletLoader) return;
+    m_graftletLoader = std::make_unique<graftlet::GraftletLoader>();
+    LOG_PRINT_L1("Searching graftlets");
+    for(auto& it : getCopts().graftlet_dirs)
+    {
+        LOG_PRINT_L1("Searching graftlets in directory '") << it << "'";
+        m_graftletLoader->findGraftletsAtDirectory(it, "so");
+    }
+}
+
+void GraftServer::addGraftletEndpoints(HttpConnectionManager& httpcm)
+{
+    assert(m_graftletLoader);
+    IGraftlet::EndpointsVec endpoints = m_graftletLoader->getEndpoints();
+    Router graftlet_router;
+    for(auto& item : endpoints)
+    {
+        std::string& endpoint = std::get<0>(item);
+        int& method = std::get<1>(item);
+        Router::Handler& handler = std::get<2>(item);
+
+        graftlet_router.addRoute(endpoint, method, {nullptr, handler , nullptr});
+    }
+    httpcm.addRouter(graftlet_router);
+}
+
 void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
 {
     Router dapi_router("/dapi/v2.0");
@@ -75,7 +104,7 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     graft::registerDebugRequests(debug_router);
     httpcm.addRouter(debug_router);
 
-
+    addGraftletEndpoints(httpcm);
 }
 
 void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
@@ -98,6 +127,9 @@ void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
 void GraftServer::initGlobalContext()
 {
 //  TODO: why context intialized second time here?
+    //ANSWER: It is correct. The ctx is not initialized, ctx is attached to
+    //  the global part of the context to which we want to get access here, only
+    //  the local part of it has lifetime the same as the lifetime of ctx variable.
     graft::Context ctx(m_looper->getGcm());
     const ConfigOpts& copts = m_looper->getCopts();
 //  copts is empty here
@@ -117,7 +149,8 @@ bool GraftServer::init(int argc, const char** argv)
     m_looper = std::make_unique<Looper>(configOpts);
     assert(m_looper);
 
-    intiConnectionManagers();
+    initGraftlets();
+    initConnectionManagers();
 
     prepareDataDirAndSupernodes();
 
@@ -152,34 +185,33 @@ bool GraftServer::run(int argc, const char** argv)
     for(bool run = true; run;)
     {
         run = false;
-        GraftServer gs;
 
-        if(!gs.init(argc, argv)) return false;
+        if(!init(argc, argv)) return false;
         argc = 1;
 
         //shutdown
-        int_handler = [&gs](int sig_num)
+        int_handler = [this](int sig_num)
         {
             LOG_PRINT_L0("Stopping server");
-            gs.stop();
+            stop();
         };
 
         //terminate
-        term_handler = [&gs](int sig_num)
+        term_handler = [this](int sig_num)
         {
             LOG_PRINT_L0("Force stopping server");
-            gs.stop(true);
+            stop(true);
         };
 
         //restart
-        hup_handler = [&gs,&run](int sig_num)
+        hup_handler = [this,&run](int sig_num)
         {
             LOG_PRINT_L0("Restarting server");
             run = true;
-            gs.stop();
+            stop();
         };
 
-        gs.serve();
+        serve();
     }
     return true;
 }
@@ -254,6 +286,75 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
 
     mlog_configure(log_filename, log_console, log_format.empty()? nullptr : log_format.c_str());
     mlog_set_log(log_level.c_str());
+}
+
+void initGraftletDirs(int argc, const char** argv, const std::string& dirs_opt, bool dirs_opt_exists, std::vector<std::string>& graftlet_dirs)
+{//configOpts.graftlet_dirs
+    namespace fs = boost::filesystem;
+
+    graftlet_dirs.clear();
+
+    fs::path self_dir = argv[0];
+    self_dir = self_dir.remove_filename();
+
+    if(!dirs_opt_exists)
+    {
+        graftlet_dirs.push_back(fs::complete("graftlets", self_dir).string());
+        return;
+    }
+
+    fs::path cur_dir( fs::current_path() );
+
+    //if list empty then load none graftlet
+    if(dirs_opt.empty()) return;
+
+    //split and fill set
+    std::set<fs::path> set;
+    for(std::string::size_type s = 0;;)
+    {
+        std::string::size_type e = dirs_opt.find(':',s);
+        if(e == std::string::npos)
+        {
+            set.insert(dirs_opt.substr(s));
+            break;
+        }
+        set.insert(dirs_opt.substr(s,e-s));
+        s = e + 1;
+    }
+    for(auto& it : set)
+    {
+        if(it.is_relative())
+        {
+            bool found = false;
+            fs::path path1 = fs::complete(it, self_dir);
+            if(fs::is_directory(path1))
+            {
+                graftlet_dirs.push_back(path1.string());
+                found = true;
+            }
+            fs::path path2 = fs::complete(it, cur_dir);
+            if(fs::is_directory(path2))
+            {
+                graftlet_dirs.push_back(path2.string());
+                found = true;
+            }
+            if(!found)
+            {
+                LOG_PRINT_L1("Graftlet path '" << it.string() << "' is not a directory");
+            }
+        }
+        else
+        {
+            if(fs::is_directory(it))
+            {
+                graftlet_dirs.push_back(it.string());
+            }
+            else
+            {
+                LOG_PRINT_L1("Graftlet path '" << it.string() << "' is not a directory");
+            }
+        }
+    }
 }
 
 } //namespace details
@@ -335,6 +436,8 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     //            ├── supernode_tier1_2
     //            ├── supernode_tier1_2.address.txt
     //            └── supernode_tier1_2.keys
+    // [graftlets]
+    // dirs <string:string:...>
 
     details::init_log(config, vm);
 
@@ -353,12 +456,10 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.stake_wallet_name = server_conf.get<string>("stake-wallet-name", "stake-wallet");
     configOpts.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
-    if (configOpts.data_dir.empty()) {
-        boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
-        p /= ".graft/";
-        p /= consts::DATA_PATH;
-        configOpts.data_dir = p.string();
-    }
+    //configOpts.graftlet_dirs
+    const boost::property_tree::ptree& graftlets_conf = config.get_child("graftlets");
+    boost::optional<std::string> dirs_opt  = graftlets_conf.get_optional<std::string>("dirs");
+    details::initGraftletDirs(argc, argv, (dirs_opt)? dirs_opt.get() : "", bool(dirs_opt), configOpts.graftlet_dirs);
 
     const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
     configOpts.cryptonode_rpc_address = cryptonode_conf.get<std::string>("rpc-address");
@@ -381,6 +482,13 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 
 void GraftServer::prepareDataDirAndSupernodes()
 {
+    if (getCopts().data_dir.empty()) {
+        boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
+        p /= ".graft/";
+        p /= consts::DATA_PATH;
+        getCopts().data_dir = p.string();
+    }
+
     // create data directory if not exists
     boost::filesystem::path data_path(getCopts().data_dir);
     boost::filesystem::path stake_wallet_path = data_path / "stake-wallet";
@@ -443,7 +551,7 @@ void GraftServer::prepareDataDirAndSupernodes()
     ctx.global["cryptonode_rpc_address"] = getCopts().cryptonode_rpc_address;
 }
 
-void GraftServer::intiConnectionManagers()
+void GraftServer::initConnectionManagers()
 {
     auto httpcm = std::make_unique<graft::HttpConnectionManager>();
     setHttpRouters(*httpcm);
