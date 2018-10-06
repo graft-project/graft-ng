@@ -18,6 +18,8 @@
 
 namespace graft {
 
+void __registerDebugRequests(Router& router);
+
 void registerRTARequests(graft::Router &router)
 {
     graft::registerSaleRequest(router);
@@ -40,6 +42,11 @@ void registerForwardRequests(graft::Router &router)
 void registerHealthcheckRequests(Router &router)
 {
     graft::registerHealthcheckRequest(router);
+}
+
+void registerDebugRequests(Router &router)
+{
+    graft::__registerDebugRequests(router);
 }
 
 }

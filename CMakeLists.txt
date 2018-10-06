@@ -9,6 +9,11 @@ configure_file(
     "${PROJECT_BINARY_DIR}/CMakeConfig.h"
     )
 
+if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
+    # CMAKE_ROOT_SOURCE_DIR variable is required, because CMAKE_SOURCE_DIR works well for include like commands and does not for external projects
+    set(CMAKE_ROOT_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+endif()
+
 find_package(Threads REQUIRED)
 
 include(ExternalProject)
@@ -48,7 +53,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DHAVE_EVP_MD_CTX_NEW=YES
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DHAVE_EVP_MD_CTX_NEW=YES -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
     )
 
 set(CMAKE_CXX_STANDARD 17)
@@ -76,6 +81,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
@@ -84,6 +90,7 @@ set(GS_SOURCES
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
     ${PROJECT_SOURCE_DIR}/src/server.cpp
+    ${PROJECT_SOURCE_DIR}/src/log.cpp
     )
 
 set(GS_INCLUDE_DIRS
@@ -209,7 +216,7 @@ target_link_libraries(graft_server PRIVATE
 set(GRAFTLETS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/graftlets)
 add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
 
-target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1)
+target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
 
 set_target_properties(graft_server PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
 

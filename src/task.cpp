@@ -186,6 +186,16 @@ TaskManager::~TaskManager()
 
 }
 
+inline size_t TaskManager::next_pow2(size_t val)
+{
+    --val;
+    for(size_t i = 1; i<sizeof(val)*8; i<<=1)
+    {
+        val |= val >> i;
+    }
+    return ++val;
+}
+
 //pay attension, input is output and vice versa
 void TaskManager::sendUpstreamBlocking(Output& output, Input& input, std::string& err)
 {
@@ -230,6 +240,7 @@ void TaskManager::sendUpstream(BaseTaskPtr bt)
 void TaskManager::onTimer(BaseTaskPtr bt)
 {
     assert(dynamic_cast<PeriodicTask*>(bt.get()));
+    bt->setLastStatus(Status::None);
     Execute(bt);
 }
 
@@ -276,7 +287,6 @@ bool TaskManager::tryProcessReadyJob()
 
     LOG_PRINT_RQS_BT(2,bt,"worker_action completed with result " << bt->getStrStatus());
     m_stateMachine->dispatch(bt, StateMachine::State::WORKER_ACTION_DONE);
-
     return true;
 }
 
@@ -549,21 +559,14 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     th_op.setQueueSize(workersQueueSize);
     graft::ThreadPoolX thread_pool(th_op);
 
-    size_t resQueueSize;
-    {//nearest ceiling power of 2
-        size_t val = th_op.threadCount()*th_op.queueSize();
-        size_t bit = 1;
-        for(; bit<val; bit <<= 1);
-        resQueueSize = bit;
-    }
-
     const size_t maxinputSize = th_op.threadCount()*th_op.queueSize();
+    size_t resQueueSize = next_pow2( maxinputSize );
     graft::TPResQueue resQueue(resQueueSize);
 
     m_threadPool = std::make_unique<ThreadPoolX>(std::move(thread_pool));
     m_resQueue = std::make_unique<TPResQueue>(std::move(resQueue));
     m_threadPoolInputSize = maxinputSize;
-    m_promiseQueue = std::make_unique<PromiseQueue>(threadCount);
+    m_promiseQueue = std::make_unique<PromiseQueue>( next_pow2(threadCount) );
 
     LOG_PRINT_L1("Thread pool created with " << threadCount
                  << " workers with " << workersQueueSize
@@ -634,7 +637,7 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
     //here you can send a job to the thread pool or send response to client
     //uss will be destroyed on exit, save its result
     {//now always create a job and put it to the thread pool after CryptoNode
-        LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered ");
+        LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered : '" << make_dump_output( bt->getInput().body, getCopts().log_trunc_to_size ) << "'");
         if(!bt->getSelf())
         {//it is possible that a client has closed connection already
             ++m_cntUpstreamSenderDone;

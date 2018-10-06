@@ -27,12 +27,18 @@ Status saleStatusHandler(const Router::vars_t& vars, const graft::Input& input,
         return errorInvalidParams(output);
     }
 
+
     const SaleStatusRequest &in = req.params;
+    MDEBUG("requested status for payment: " << in.PaymentID);
     int current_status = ctx.global.get(in.PaymentID + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::None));
     if (in.PaymentID.empty() || current_status == 0)
     {
+        MWARNING("no status for payment: " << in.PaymentID);
         return errorInvalidPaymentID(output);
     }
+
+    MDEBUG("payment: " << in.PaymentID
+           << ", status found: " << current_status);
 
     SaleStatusResponseJsonRpc out;
     out.result.Status = current_status;
@@ -58,7 +64,6 @@ Status updateSaleStatusHandler(const Router::vars_t& vars, const graft::Input& i
     graft::Input innerInput;
     innerInput.load(req.params.data);
 
-    LOG_PRINT_L0("input loaded");
     if (!innerInput.getT<serializer::JSON_B64>(ussb)) {
         return errorInvalidParams(output);
     }
@@ -66,11 +71,11 @@ Status updateSaleStatusHandler(const Router::vars_t& vars, const graft::Input& i
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
 
-    LOG_PRINT_L0("sale status update received from broadcast: " << ussb.PaymentID);
+    MDEBUG("sale status update received for payment: " << ussb.PaymentID);
 
     if (!checkSaleStatusUpdateSignature(ussb.PaymentID, ussb.Status, ussb.address, ussb.signature, supernode)) {
         error.code = ERROR_RTA_SIGNATURE_FAILED;
-        error.message = "failed to validate signature for status update";
+        error.message = "status update: failed to validate signature for payment: " + ussb.PaymentID;
         LOG_ERROR(error.message);
         JsonRpcErrorResponse resp;
         resp.error = error;
@@ -81,9 +86,10 @@ Status updateSaleStatusHandler(const Router::vars_t& vars, const graft::Input& i
         RTAStatus currentStatus = static_cast<RTAStatus>(ctx.global.get(ussb.PaymentID + CONTEXT_KEY_STATUS, int(RTAStatus::None)));
         if (!isFiniteRtaStatus(currentStatus)) {
             ctx.global.set(ussb.PaymentID + CONTEXT_KEY_STATUS, ussb.Status, RTA_TX_TTL);
-            LOG_PRINT_L0("sale status updated for payment id: " << ussb.PaymentID << " to: " << ussb.Status);
+            MDEBUG("sale status updated for payment: " << ussb.PaymentID << " to: " << ussb.Status);
         } else {
-            MWARNING("Current status already in finite state: " << int(currentStatus)
+            MWARNING("status already in finite state for payment: " << ussb.PaymentID
+                     << ", current status: " << int(currentStatus)
                      << ", wont update to: " << ussb.Status);
         }
     }

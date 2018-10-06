@@ -100,6 +100,10 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     graft::registerHealthcheckRequests(health_router);
     httpcm.addRouter(health_router);
 
+    Router debug_router;
+    graft::registerDebugRequests(debug_router);
+    httpcm.addRouter(debug_router);
+
     addGraftletEndpoints(httpcm);
 }
 
@@ -238,43 +242,50 @@ void GraftServer::initSignals()
 namespace details
 {
 
+std::string trim_comments(std::string s)
+{
+    //remove ;; tail
+    std::size_t pos = s.find(";;");
+    if(pos != std::string::npos)
+    {
+      s = s.substr(0,pos);
+    }
+    boost::trim_right(s);
+    return s;
+}
+
 namespace po = boost::program_options;
 
 void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
 {
-    int log_level = 3;
+    std::string log_level = "3";
     bool log_console = true;
     std::string log_filename;
-    std::string log_categories;
+    std::string log_format;
 
     //from config
     const boost::property_tree::ptree& log_conf = config.get_child("logging");
-    boost::optional<int> level  = log_conf.get_optional<int>("loglevel");
-    if(level) log_level = level.get();
+    boost::optional<std::string> level  = log_conf.get_optional<std::string>("loglevel");
+    if(level) log_level = trim_comments( level.get() );
     boost::optional<std::string> log_file  = log_conf.get_optional<std::string>("logfile");
-    if(log_file) log_filename = log_file.get();
+    if(log_file) log_filename = trim_comments( log_file.get() );
     boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
     if(log_to_console) log_console = log_to_console.get();
-    boost::optional<std::string> categories = log_conf.get_optional<std::string>("log-categories");
-    if(categories) log_categories = categories.get();
+    boost::optional<std::string> log_fmt  = log_conf.get_optional<std::string>("log-format");
+    if(log_fmt) log_format = trim_comments( log_fmt.get() );
 
     //override from cmdline
-    if (vm.count("log-level")) log_level = vm["log-level"].as<int>();
+    if (vm.count("log-level")) log_level = vm["log-level"].as<std::string>();
     if (vm.count("log-file")) log_filename = vm["log-file"].as<std::string>();
     if (vm.count("log-console")) log_console = vm["log-console"].as<bool>();
-    if (vm.count("log-categories")) log_categories = vm["log-categories"].as<std::string>();
+    if (vm.count("log-format")) log_format = vm["log-format"].as<std::string>();
 
-    mlog_configure(log_filename, log_console);
-    if(!log_categories.empty())
-    {
-        std::ostringstream oss;
-        oss << log_level << ',' << log_categories;
-        mlog_set_log(oss.str().c_str());
-    }
-    else
-    {
-        mlog_set_log_level(log_level);
-    }
+    // default log format (we need to explicitly apply it here, otherwise full path to a file will be logged  with monero default format)
+    static const char * DEFAULT_LOG_FORMAT = "%datetime{%Y-%M-%d %H:%m:%s.%g}\t%thread\t%level\t%logger\t%rfile:%line\t%msg";
+    if(log_format.empty()) log_format = DEFAULT_LOG_FORMAT;
+
+    mlog_configure(log_filename, log_console, log_format.empty()? nullptr : log_format.c_str());
+    mlog_set_log(log_level.c_str());
 }
 
 void initGraftletDirs(int argc, const char** argv, const std::string& dirs_opt, bool dirs_opt_exists, std::vector<std::string>& graftlet_dirs)
@@ -370,10 +381,10 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         desc.add_options()
                 ("help", "produce help message")
                 ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
-                ("log-level", po::value<int>(), "log-level. (3 by default)")
+                ("log-level", po::value<std::string>(), "log-level. (3 by default), e.g. --log-level=2,supernode.task:INFO,supernode.server:DEBUG")
                 ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
-                ("log-file", po::value<std::string>(), "log file");
-                ("log-categories", po::value<std::string>(), "log levels for different categories, e.g. supernode.task:INFO,supernode.server:DEBUG");
+                ("log-file", po::value<std::string>(), "log file")
+                ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level	%logger	%rfile	%msg");
 
         po::store(po::parse_command_line(argc, argv, desc), vm);
         po::notify(vm);
@@ -452,6 +463,11 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 
     const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
     configOpts.cryptonode_rpc_address = cryptonode_conf.get<std::string>("rpc-address");
+
+    const boost::property_tree::ptree& log_conf = config.get_child("logging");
+    boost::optional<int> log_trunc_to_size  = log_conf.get_optional<int>("trunc-to-size");
+    configOpts.log_trunc_to_size = (log_trunc_to_size)? log_trunc_to_size.get() : -1;
+
     const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
     graft::OutHttp::uri_substitutions.clear();
     std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf](auto it)
@@ -562,71 +578,16 @@ void GraftServer::addGlobalCtxCleaner()
 void GraftServer::startSupernodePeriodicTasks()
 {
     // update supernode every interval_ms
-    auto supernodeRefreshWorker = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
-            graft::Output& output)->graft::Status
-    {
 
-        try {
-            switch (ctx.local.getLastStatus()) {
-            case graft::Status::Forward: // reply from cryptonode
-                return graft::Status::Ok;
-            case graft::Status::Ok:
-            case graft::Status::None:
-                graft::SupernodePtr supernode;
-
-                LOG_PRINT_L1("supernodeRefreshWorker");
-                LOG_PRINT_L1("input: " << input.data());
-                LOG_PRINT_L1("output: " << output.data());
-                LOG_PRINT_L1("last status: " << (int)ctx.local.getLastStatus());
-
-                supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
-
-
-                if (!supernode.get()) {
-                    LOG_ERROR("supernode is not set in global context");
-                    return graft::Status::Error;
-                }
-
-                LOG_PRINT_L0("about to refresh supernode: " << supernode->walletAddress());
-
-                if (!supernode->refresh()) {
-                    return graft::Status::Ok;
-                }
-
-                LOG_PRINT_L0("supernode refresh done, stake amount: " << supernode->stakeAmount());
-
-                graft::SendSupernodeAnnounceJsonRpcRequest req;
-                if (!supernode->prepareAnnounce(req.params)) {
-                    LOG_ERROR("Can't prepare announce");
-                    return graft::Status::Ok;
-                }
-
-                req.method = "send_supernode_announce";
-                req.id = 0;
-                output.load(req);
-
-                output.path = "/json_rpc/rta";
-                // DBG: without cryptonode
-                // output.path = "/dapi/v2.0/send_supernode_announce";
-
-                LOG_PRINT_L0("Calling cryptonode: sending announce");
-                return graft::Status::Forward;
-            }
-        } catch (std::exception &e) {
-            LOG_ERROR("Exception thrown: " << e.what());
-        } catch (...) {
-            LOG_ERROR("Unknown exception thrown");
-        }
-        return Status::Ok;
-    };
-
-    size_t initial_interval_ms = 1000;
-    assert(m_looper);
-    m_looper->addPeriodicTask(
-                graft::Router::Handler3(nullptr, supernodeRefreshWorker, nullptr),
-                std::chrono::milliseconds(getCopts().stake_wallet_refresh_interval_ms),
-                std::chrono::milliseconds(initial_interval_ms)
-                );
+    if (getCopts().stake_wallet_refresh_interval_ms > 0) {
+        size_t initial_interval_ms = 1000;
+        assert(m_looper);
+        m_looper->addPeriodicTask(
+                    graft::Router::Handler3(nullptr, sendAnnounce, nullptr),
+                    std::chrono::milliseconds(getCopts().stake_wallet_refresh_interval_ms),
+                    std::chrono::milliseconds(initial_interval_ms)
+                    );
+    }
 }
 
 void GraftServer::checkRoutes(graft::ConnectionManager& cm)

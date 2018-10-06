@@ -19,6 +19,10 @@ protected:
         std::string port = "1234";
         int connect_timeout_ms = 1000;
         int poll_timeout_ms = 1000;
+
+        using on_http_t = bool (const http_message *hm, int& status_code, std::string& headers, std::string& data);
+        std::function<on_http_t> on_http = nullptr;
+        static std::function<on_http_t> http_echo;
     public:
         void run()
         {
@@ -36,7 +40,11 @@ protected:
             th.join();
         }
     protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) = 0;
+        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data)
+        {
+            assert(on_http);
+            return on_http(hm, status_code, headers, data);
+        }
         virtual void onClose() { }
     private:
         std::thread th;
