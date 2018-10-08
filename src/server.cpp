@@ -47,6 +47,16 @@ static void signal_handler_restart(int sig_num)
     if(hup_handler) hup_handler(sig_num);
 }
 
+GraftServer::GraftServer()
+{
+
+}
+
+GraftServer::~GraftServer()
+{
+
+}
+
 void GraftServer::initGraftlets()
 {
     if(m_graftletLoader) return;
