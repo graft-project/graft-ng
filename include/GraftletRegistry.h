@@ -43,10 +43,9 @@
 #define GRAFTLET_CHECKS(concrete, base) \
     GRAFTLET_DERRIVED(concrete, base); GRAFTLET_DEFAULT_CTOR(concrete)
 
-#define GRAFTLET_EXPORTS_BEGIN(name, version, dependencies) \
+#define GRAFTLET_EXPORTS_BEGIN(name, version) \
     GRAFTLET_PLUGIN_NAME(name) \
     GRAFTLET_PLUGIN_VERSION(version) \
-    GRAFTLET_PLUGIN_DEPENDENCIES(dependencies) \
     GRAFTLET_PLUGIN_CHECK_FW_VERSION() \
     extern "C" GRAFTLET_EXPORT const char* getBuildSignature() { return graftlet::getBuildSignature(); } \
     static std::unique_ptr<graftlet::GraftletRegistry> pr_ptr; \

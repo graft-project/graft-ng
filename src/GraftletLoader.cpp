@@ -76,16 +76,8 @@ void GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             CHECK("getBuildSignature");
             CHECK("getGraftletName");
             CHECK("getGraftletVersion");
-            CHECK("getGraftletDependencies");
             CHECK("getGraftletRegistry");
 #undef CHECK
-/*
-            if(!lib.has("getBuildSignature"))
-            {
-                LOG_PRINT_L2("getBuildSignature") "not found '" << it->path().c_str() << "'";
-                continue;
-            }
-*/
             auto getGraftletABI = dll::import<decltype(getBuildSignature)>(lib, "getBuildSignature");
             std::string graftletABI = getGraftletABI();
             if(graftletABI != getBuildSignature())
@@ -93,8 +85,6 @@ void GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
                 LOG_PRINT_L2("\tgraftlet ABI does not match '") << graftletABI << "' != '" << getBuildSignature() << "'";
                 continue;
             }
-
-//            if(!lib.has("getGraftletRegistry")) continue;
 
             auto graftletRegistryAddr = dll::import<decltype(getGraftletRegistry)>(lib, "getGraftletRegistry" );
             GraftletRegistry* graftletRegistry = graftletRegistryAddr();
@@ -105,8 +95,12 @@ void GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string
             auto getGraftletNameFunc = dll::import<decltype(getGraftletName)>(lib, "getGraftletName");
             DllName dllName = getGraftletNameFunc();
 
-            auto getGraftletDependenciesFunc = dll::import<decltype(getGraftletDependencies)>(lib, "getGraftletDependencies");
-            Dependencies dependencies = getGraftletDependenciesFunc();
+            Dependencies dependencies = "";
+            if(lib.has("getGraftletDependencies"))
+            {
+                auto getGraftletDependenciesFunc = dll::import<decltype(getGraftletDependencies)>(lib, "getGraftletDependencies");
+                dependencies = getGraftletDependenciesFunc();
+            }
 
             called = true;
 
