@@ -99,23 +99,9 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
-
     if (!fsl->buildAuthSample(in.BlockNumber, authSample)) {
         return  errorBuildAuthSample(output);
     }
-
-    if (std::find_if(authSample.begin(), authSample.end(),
-                    [&](const SupernodePtr &sn) {
-                        return sn->walletAddress() == supernode->walletAddress();
-                    }) != authSample.end()) {
-
-        ostringstream oss; oss << authSample;
-        std::string msg = "Internal error: our supernode is in auth sample but no sale details found for " + in.PaymentID
-               + ", auth_sample: " + oss.str();
-        LOG_ERROR(msg);
-        return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
-    }
-
     // we have sale details locally, easy way
     bool have_data_locally = ctx.global.hasKey(in.PaymentID + CONTEXT_KEY_SALE_DETAILS);
 
@@ -134,7 +120,21 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
             return Status::Ok;
         }
     } else {
-        // we don't have a sale details, request it from remote supernode
+        // we don't have a sale details, request it from remote supernode,
+        // but first we need to check if we are member of auth sample.
+        // in this case, we MUST have sale details received from multicast
+        if (std::find_if(authSample.begin(), authSample.end(),
+                        [&](const SupernodePtr &sn) {
+                            return sn->walletAddress() == supernode->walletAddress();
+                        }) != authSample.end()) {
+
+            ostringstream oss; oss << authSample;
+            std::string msg = "Internal error: our supernode is in auth sample but no sale details found for " + in.PaymentID
+                   + ", auth_sample: " + oss.str();
+            LOG_ERROR(msg);
+            return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
+        }
+
 
         // store payment id so we can cache sale_details from remote supernode
         ctx.local["payment_id"] = in.PaymentID;
