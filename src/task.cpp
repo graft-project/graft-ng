@@ -179,6 +179,7 @@ TaskManager::TaskManager(const ConfigOpts& copts) : m_copts(copts)
     // TODO: validate options, throw exception if any mandatory options missing
     initThreadPool(copts.workers_count, copts.worker_queue_len);
     m_stateMachine = std::make_unique<StateMachine>();
+    m_wsManager = std::make_unique<WsManager>(this, nullptr);
 }
 
 TaskManager::~TaskManager()
@@ -243,6 +244,14 @@ void TaskManager::onTimer(BaseTaskPtr bt)
     bt->setLastStatus(Status::None);
     Execute(bt);
 }
+
+void TaskManager::executeWsTask(WsTaskPtr wst)
+{
+    wst->busy(true);
+    BaseTaskPtr bt = std::static_pointer_cast<BaseTask>(wst);
+    Execute(bt);
+}
+
 
 void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s, bool die)
 {
@@ -691,7 +700,7 @@ std::chrono::milliseconds PeriodicTask::getTimeout()
     return ret;
 }
 
-ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
+ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, const Router::JobParams& prms)
     : BaseTask(*TaskManager::from( getMgr(client) ), prms)
     , m_connectionManager(connectionManager)
     , m_client(client)
@@ -701,6 +710,156 @@ ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *clie
 void ClientTask::finalize()
 {
     releaseItself();
+}
+
+
+WsTask::WsTask(TaskManager& manager, const Router::JobParams& prms)
+    : BaseTask(manager, prms)
+{
+
+}
+
+void WsTask::finalize()
+{
+    busy(false);
+}
+
+//returns nullptr if not found
+mg_connection* WsTask::getConn(const Addr& addr)
+{
+    auto it = m_addr2conn.find(addr);
+    return (it != m_addr2conn.end())? it->second : nullptr;
+}
+
+void WsTask::eraseConn(const Addr& addr)
+{
+    m_addr2conn.erase(addr);
+}
+
+WsManager::WsManager(TaskManager* taskManager, WsConnectionManager* wsConnMgr)
+    : m_taskManager(taskManager)
+    , m_wsConnMgr(wsConnMgr)
+{
+
+}
+
+void WsManager::onNewConnection(Route uri, Addr addr, mg_connection* client, Router::JobParams& prms)
+{
+    auto it = m_route2wst.find(uri);
+    if(it == m_route2wst.end())
+    {//Create new WsTask
+        BaseTaskPtr ptr = BaseTask::Create<WsTask>(*TaskManager::from( getMgr(client) ), prms );
+        WsTaskPtr wsp = std::static_pointer_cast<WsTask>(ptr);
+        auto res = m_route2wst.emplace(uri, wsp);
+        assert(res.second);
+        it = res.first;
+        auto res2 = m_conn2wst.emplace(client, wsp);
+        assert(res2.second);
+    }
+    WsTaskPtr& wsp = it->second;
+    auto res3 = wsp->m_addr2conn.emplace(addr, client);
+    assert(res3.second);
+    wsp->m_inDeque.emplace_back(std::make_tuple(WsEvent::EV_NewInConn, addr, std::string()));
+//    return wsp.get();
+}
+
+void WsManager::onFrame(mg_connection* client, Addr addr, WsFrame frame)
+{
+    auto it = m_conn2wst.find(client);
+    assert(it != m_conn2wst.end());
+    WsTaskPtr& wsp = it->second;
+    wsp->m_inDeque.emplace_back(std::make_tuple(WsEvent::EV_Frame, addr, frame));
+}
+
+void WsManager::onClose(mg_connection* client, Addr addr)
+{
+    auto it = m_conn2wst.find(client);
+    assert(it != m_conn2wst.end());
+    WsTaskPtr& wsp = it->second;
+    wsp->m_inDeque.emplace_back(std::make_tuple(WsEvent::EV_ConnClosed, addr, std::string()));
+}
+
+void WsManager::poll()
+{
+    for(auto& it : m_route2wst)
+    {
+        WsTaskPtr& task = it.second;
+
+        //process out deque
+        for(auto& item : task->m_outDeque)
+        {
+            WsCommand& cmd = std::get<0>(item);
+            Addr& addr = std::get<1>(item);
+            WsFrame& frame = std::get<2>(item);
+            mg_connection* nc = task->getConn(addr);
+            switch(cmd)
+            {
+            case WsCommand::CMD_Connect:
+            {
+                if(nc)
+                {
+                    task->pushEv(WsEvent::EV_OutConnFail, addr, "Already exists");
+                    break;
+                }
+                nc = m_wsConnMgr->connect(m_taskManager, addr);
+                if(nc)
+                {
+                    task->pushEv(WsEvent::EV_OutConnOk, addr);
+                }
+                else
+                {
+                    task->pushEv(WsEvent::EV_OutConnFail, addr, "Error");
+                }
+/*
+                mg_connection* nc = mg_connect_ws(&mgr, graft::static_ev_handler<Client>, ws_addr, "my_protocol", nullptr); // client_coap_handler);
+                WsConnectionManager
+*/
+            } break;
+            case WsCommand::CMD_Send:
+            {
+                if(!nc)
+                {
+                    task->pushEv(WsEvent::EV_FrameSentError, addr, "No connection");
+                    break;
+                }
+                m_wsConnMgr->sendFrame(nc, frame);
+            } break;
+            case WsCommand::CMD_CloseConn:
+            {
+                if(!nc)
+                {
+                    task->pushEv(WsEvent::EV_ConnClosedError, addr, "No connection");
+                    break;
+                }
+                m_wsConnMgr->close(nc);
+                task->eraseConn(addr);
+                this->m_conn2wst.erase(nc);
+                task->pushEv(WsEvent::EV_ConnClosedOk, addr);
+            } break;
+            default: assert(false);
+            }
+        }
+        task->m_outDeque.clear();
+
+        //append input to task and run
+        if(!task->busy() && (!task->m_inDeque.empty() || !task->getParams().input.wsInDeque.empty()))
+        {
+            if(task->getParams().input.wsInDeque.empty())
+            {
+                task->getParams().input.wsInDeque.swap(task->m_inDeque);
+            }
+            else
+            {
+                task->getParams().input.wsInDeque.insert(
+                            task->getParams().input.wsInDeque.end(),
+                            task->m_inDeque.begin(),
+                            task->m_inDeque.end()
+                            );
+                task->m_inDeque.clear();
+            }
+            m_taskManager->executeWsTask(task);
+        }
+    }
 }
 
 }//namespace graft

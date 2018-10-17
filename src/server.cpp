@@ -107,6 +107,18 @@ void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
     addGraftletEndpoints(httpcm);
 }
 
+void GraftServer::setWsRouters(WsConnectionManager& wscm)
+{
+    auto ws_test = [](const Router::vars_t&, const Input&, Context&, Output&)->Status
+    {
+        std::cout << "blah-blah" << std::endl;
+        return Status::Ok;
+    };
+    Router test_ws_router;
+    test_ws_router.addRoute("/ws",0,{nullptr, ws_test, nullptr});
+    wscm.addRouter(test_ws_router);
+}
+
 void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
 {
     Router coap_router("/coap");
@@ -173,7 +185,7 @@ bool GraftServer::init(int argc, const char** argv)
 
 void GraftServer::serve()
 {
-    LOG_PRINT_L0("Starting server on: [http] " << getCopts().http_address << ", [coap] " << getCopts().coap_address);
+    LOG_PRINT_L0("Starting server on: [http] ") << getCopts().http_address << ", [ws] " << getCopts().ws_address << ", [coap] " << getCopts().coap_address;
 
     m_looper->serve();
 }
@@ -444,6 +456,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
     configOpts.http_address = server_conf.get<std::string>("http-address");
+    configOpts.ws_address = server_conf.get<std::string>("ws-address");
     configOpts.coap_address = server_conf.get<std::string>("coap-address");
     configOpts.timer_poll_interval_ms = server_conf.get<int>("timer-poll-interval-ms");
     configOpts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
@@ -556,6 +569,10 @@ void GraftServer::initConnectionManagers()
     auto httpcm = std::make_unique<graft::HttpConnectionManager>();
     setHttpRouters(*httpcm);
     m_conManagers.emplace_back(std::move(httpcm));
+
+    auto wscm = std::make_unique<graft::WsConnectionManager>();
+    setWsRouters(*wscm);
+    m_conManagers.emplace_back(std::move(wscm));
 
     auto coapcm = std::make_unique<graft::CoapConnectionManager>();
     setCoapRouters(*coapcm);

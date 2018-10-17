@@ -145,10 +145,25 @@ public:
 
     void bind(Looper& looper) override;
 
+    static int translateMethod(const char *method, std::size_t len);
 private:
     static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
-    static int translateMethod(const char *method, std::size_t len);
     static HttpConnectionManager* from_accepted(mg_connection* cn);
+};
+
+class WsConnectionManager final : public ConnectionManager
+{
+public:
+    WsConnectionManager() : ConnectionManager("WS") { }
+
+    void bind(Looper& looper) override;
+
+    mg_connection* connect(TaskManager* manager, const Addr& addr);
+    void sendFrame(mg_connection* nc, const WsFrame& frame);
+    void close(mg_connection* nc);
+private:
+    static void ev_handler_ws(mg_connection *client, int ev, void *ev_data);
+    static WsConnectionManager* from_accepted(mg_connection* cn);
 };
 
 class CoapConnectionManager final : public ConnectionManager

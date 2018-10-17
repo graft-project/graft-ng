@@ -69,7 +69,7 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L1("L1");
         LOG_PRINT_L2("L2");
 
-        ConfigOpts copts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
+        ConfigOpts copts {"localhost:8855", "", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
         looper = std::make_unique<Looper>(copts);
 
         Router router;

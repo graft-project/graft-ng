@@ -30,6 +30,7 @@ private:
     void initGraftlets();
     void addGraftletEndpoints(HttpConnectionManager& httpcm);
     void setHttpRouters(HttpConnectionManager& httpcm);
+    void setWsRouters(WsConnectionManager& wscm);
     void setCoapRouters(CoapConnectionManager& coapcm);
     static void checkRoutes(graft::ConnectionManager& cm);
     ConfigOpts& getCopts() { assert(m_looper); return m_looper->getCopts(); }

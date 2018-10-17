@@ -14,6 +14,7 @@
 #include "reflective-rapidjson/types.h"
 
 #include "graft_macros.h"
+#include "graft_constants.h"
 
 struct http_message; //from mongoose.h
 struct mg_str; //from mongoose.h
@@ -133,10 +134,10 @@ namespace graft
         InOutHttpBase& operator = (const http_message& hm);
     public:
         InOutHttpBase& operator = (const InOutHttpBase& ) = default;
-    public:
+
         void reset() { *this = InOutHttpBase(); }
         std::string combine_headers();
-    public:
+
         //These fields are from mongoose http_message
         std::string body;
         std::string method;
@@ -211,6 +212,8 @@ namespace graft
         std::string port;
         std::string path;
         static std::unordered_map<std::string, std::string> uri_substitutions;
+
+        WsOutDeque wsOutDeque;
     };
 
     class InHttp final : public InOutHttpBase
@@ -312,6 +315,8 @@ namespace graft
         {
             return body;
         }
+
+        WsInDeque wsInDeque;
     };
 
     using Input = InHttp;

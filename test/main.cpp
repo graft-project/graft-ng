@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 {
     start_args = {argc, (const char**)argv};
 
-    mlog_configure("test.log", false);
+    mlog_configure("test.log", true, "%datetime{%m:%s.%g}	%level	%logger	%rfile	%msg");
     mlog_set_log_level(2);
 
     // disabling following test cases by default, but these tests can be still run

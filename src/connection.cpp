@@ -5,7 +5,7 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.connection"
 
 namespace graft {
-
+/*
 std::string client_addr(mg_connection* client)
 {
     if(!client) return "disconnected";
@@ -13,6 +13,17 @@ std::string client_addr(mg_connection* client)
     oss << inet_ntoa(client->sa.sin.sin_addr) << ':' << ntohs(client->sa.sin.sin_port);
     return oss.str();
 }
+*/
+
+std::string client_addr(mg_connection* client)
+{
+    if(!client) return "disconnected";
+    char buf[0x100];
+    mg_sock_addr_to_str(&client->sa, buf, 0x100, MG_SOCK_STRINGIFY_IP | MG_SOCK_STRINGIFY_PORT);
+    return buf;
+}
+
+
 
 void* getUserData(mg_mgr* mgr) { return mgr->user_data; }
 void* getUserData(mg_connection* nc) { return nc->user_data; }
@@ -126,6 +137,7 @@ void Looper::serve()
         getTimerList().eval();
         checkUpstreamBlockingIO();
         executePostponedTasks();
+        getWsManager()->poll();
         if( stopped() && (m_forceStop || canStop()) ) break;
     }
 
@@ -191,6 +203,19 @@ void HttpConnectionManager::bind(Looper& looper)
     mg_set_protocol_http_websocket(nc_http);
 }
 
+void WsConnectionManager::bind(Looper& looper)
+{
+    assert(!looper.ready());
+    mg_mgr* mgr = looper.getMgMgr();
+
+    const ConfigOpts& opts = looper.getCopts();
+
+    mg_connection *nc_ws = mg_bind(mgr, opts.ws_address.c_str(), ev_handler_ws);
+    if(!nc_ws) throw std::runtime_error("Cannot bind to " + opts.ws_address);
+    nc_ws->user_data = this;
+    mg_set_protocol_http_websocket(nc_ws);
+}
+
 void CoapConnectionManager::bind(Looper& looper)
 {
     assert(!looper.ready());
@@ -226,6 +251,13 @@ HttpConnectionManager* HttpConnectionManager::from_accepted(mg_connection* cn)
     ConnectionManager* cm = ConnectionManager::from_accepted(cn);
     assert(dynamic_cast<HttpConnectionManager*>(cm));
     return static_cast<HttpConnectionManager*>(cm);
+}
+
+WsConnectionManager* WsConnectionManager::from_accepted(mg_connection* cn)
+{
+    ConnectionManager* cm = ConnectionManager::from_accepted(cn);
+    assert(dynamic_cast<WsConnectionManager*>(cm));
+    return static_cast<WsConnectionManager*>(cm);
 }
 
 CoapConnectionManager* CoapConnectionManager::from_accepted(mg_connection* cn)
@@ -278,6 +310,131 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         }
         break;
     }
+    case MG_EV_ACCEPT:
+    {
+        const ConfigOpts& opts = manager->getCopts();
+
+        mg_set_timer(client, mg_time() + opts.http_connection_timeout);
+        break;
+    }
+    case MG_EV_TIMER:
+    {
+        LOG_PRINT_CLN(1,client,"Client timeout; closing connection");
+        mg_set_timer(client, 0);
+        client->handler = ev_handler_empty; //without this we will get MG_EV_HTTP_REQUEST
+        client->flags |= MG_F_CLOSE_IMMEDIATELY;
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+mg_connection* WsConnectionManager::connect(TaskManager* manager, const Addr& addr)
+{
+    mg_connect_ws(manager->getMgMgr(), ev_handler_ws, addr.c_str(), "my protocol", nullptr);
+}
+
+void WsConnectionManager::sendFrame(mg_connection *nc, const WsFrame& frame)
+{
+    mg_send_websocket_frame(nc, WEBSOCKET_OP_BINARY, frame.c_str(), frame.size());
+}
+
+void WsConnectionManager::close(mg_connection *nc)
+{
+    mg_send_websocket_frame(nc, WEBSOCKET_OP_CLOSE, "", 0);
+}
+
+void WsConnectionManager::ev_handler_ws(mg_connection *client, int ev, void *ev_data)
+{
+    static mg_str* last_uri = nullptr;
+    TaskManager* manager = TaskManager::from(client->mgr);
+
+    switch (ev)
+    {
+    case MG_EV_WEBSOCKET_HANDSHAKE_REQUEST:
+    {
+        http_message* hm = (http_message*) ev_data;
+        last_uri = &hm->uri;
+/*
+        mg_str& uri = hm->uri;
+        LOG_PRINT_L0("MG_EV_WEBSOCKET_HANDSHAKE_REQUEST server uri = ") << std::string(uri.p, uri.len);
+*/
+    } break;
+    case MG_EV_WEBSOCKET_HANDSHAKE_DONE:
+    {
+        //it is expected that MG_EV_WEBSOCKET_HANDSHAKE_DONE follows MG_EV_WEBSOCKET_HANDSHAKE_REQUEST immediately, and the last one knows request uri
+        assert(last_uri);
+        LOG_PRINT_CLN(1,client,"New WS client. uri:") << std::string(last_uri->p, last_uri->len);
+//        LOG_PRINT_CLN(1,client,"MG_EV_WEBSOCKET_HANDSHAKE_DONE server uri = ") << std::string(uri.p, uri.len);
+      /* New websocket connection. Tell everybody. */
+     // broadcast(nc, mg_mk_str("++ joined"));
+//        mg_set_timer(nc, mg_time() + 7);
+        WsConnectionManager* wscm = WsConnectionManager::from_accepted(client);
+        Router::JobParams prms;
+        std::string uri(last_uri->p, last_uri->len);
+        if (wscm->matchRoute(uri, 0, prms))
+        {
+//            TaskManager* taskMan = TaskManager::from(client->mgr);
+/*
+            char buf[0x100];
+            mg_sock_addr_to_str(&client->sa, buf, 0x100, MG_SOCK_STRINGIFY_IP | MG_SOCK_STRINGIFY_PORT);
+            std::string addr = buf;
+*/
+            std::string addr = client_addr(client);
+            LOG_PRINT_CLN(2,client,"New WS connection uri:'") << uri << "'";
+/*
+            WsTask* wsTask = manager->getWsManager()->onNewConnection(uri, addr, client);
+            client->user_data = wsTask;
+*/
+            manager->getWsManager()->setWsConnMgr(wscm);
+            manager->getWsManager()->onNewConnection(uri, addr, client, prms);
+            client->user_data = manager->getWsManager(); //is it required?
+        }
+        else
+        {
+            LOG_PRINT_CLN(2,client,"Matching Route not found; closing connection");
+            mg_http_send_error(client, 500, "invalid parameter");
+            client->flags |= MG_F_SEND_AND_CLOSE;
+        }
+    } break;
+    case MG_EV_WEBSOCKET_FRAME:
+    {
+/*
+      LOG_PRINT_L0("MG_EV_WEBSOCKET_FRAME client");
+      printf("%.*s\n", (int) wm->size, wm->data);
+      struct websocket_message *wm = (struct websocket_message *) ev_data;
+*/
+        struct websocket_message *wm = (struct websocket_message *) ev_data;
+        std::string msg((char *) wm->data, wm->size);
+        LOG_PRINT_CLN(2,client,"New WS frame '") << msg << "'";
+        std::string addr = client_addr(client);
+        manager->getWsManager()->onFrame(client, addr, msg);
+//              broadcast(nc, d);
+        LOG_PRINT_L0("MG_EV_WEBSOCKET_FRAME client : ") << msg;
+    } break;
+    case MG_EV_CLOSE:
+    {
+        LOG_PRINT_CLN(2,client,"Connection closed");
+        std::string addr = client_addr(client);
+        manager->getWsManager()->onClose(client, addr);
+//              broadcast(nc, d);
+    } break;
+    case MG_EV_HTTP_REQUEST:
+    {
+        mg_set_timer(client, 0);
+
+        struct http_message *hm = (struct http_message *) ev_data;
+        std::string uri(hm->uri.p, hm->uri.len);
+
+        int method = HttpConnectionManager::translateMethod(hm->method.p, hm->method.len);
+        if (method < 0) return;
+
+        std::string s_method(hm->method.p, hm->method.len);
+        LOG_PRINT_CLN(1,client,"Attempt to connect to WS as HTTP. uri:" << std::string(hm->uri.p, hm->uri.len) << " method:" << s_method);
+        mg_http_send_error(client, 500, "it is WS, not HTTP");
+        client->flags |= MG_F_SEND_AND_CLOSE;
+    } break;
     case MG_EV_ACCEPT:
     {
         const ConfigOpts& opts = manager->getCopts();

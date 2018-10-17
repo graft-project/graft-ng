@@ -120,6 +120,7 @@ public:
         MainServer()
         {
             copts.http_address = "127.0.0.1:9084";
+            copts.ws_address = "127.0.0.1:9088";
             copts.coap_address = "127.0.0.1:9086";
             copts.http_connection_timeout = 1;
             copts.upstream_request_timeout = 1;

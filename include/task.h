@@ -101,6 +101,7 @@ using ThreadPoolX = tp::ThreadPoolImpl<tp::FixedFunction<void(), sizeof(GJPtr)>,
 struct ConfigOpts
 {
     std::string http_address;
+    std::string ws_address;
     std::string coap_address;
     double http_connection_timeout;
     double upstream_request_timeout;
@@ -197,12 +198,78 @@ public:
 class ClientTask : public BaseTask
 {
     friend class SelfHolder<BaseTask>;
-    ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms);
+    ClientTask(ConnectionManager* connectionManager, mg_connection *client, const Router::JobParams& prms);
 public:
     virtual void finalize() override;
 
     mg_connection *m_client;
     ConnectionManager* m_connectionManager;
+};
+
+class WsTask final : public BaseTask
+{
+    friend class SelfHolder<BaseTask>;
+//    WsTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms);
+    WsTask(TaskManager& manager, const Router::JobParams& prms);
+public:
+    virtual void finalize() override;
+
+    bool busy() const { return m_busy; }
+    void busy(bool is_busy) { m_busy = is_busy; }
+private:
+//    using Command = int;
+
+    std::unordered_map<Addr,mg_connection*> m_addr2conn;
+    //returns nullptr if not found
+    mg_connection* getConn(const Addr& addr);
+    void eraseConn(const Addr& addr);
+    void pushEv(const WsEvent& ev,const Addr& addr, const WsFrame& frame = WsFrame())
+    {
+        m_inDeque.emplace_back(std::make_tuple(ev, addr, frame));
+    }
+/*
+    std::unordered_map<Addr,mg_connection*> m_addr2conn;
+    std::deque<std::pair<Addr,WsFrame>> m_frames;
+    //used by a handler
+    std::deque<std::pair<Addr,WsFrame>> m_inFrames;
+    std::deque<std::tuple<Command,Addr,WsFrame>> m_outFrames;
+*/
+    WsInDeque m_inDeque;
+    WsOutDeque m_outDeque;
+
+    bool m_busy = false;
+
+    friend class WsManager;
+};
+
+using WsTaskPtr = std::shared_ptr<WsTask>;
+
+class WsConnectionManager;
+
+class WsManager final
+{
+public:
+    using Route = std::string;
+
+    WsManager(TaskManager* taskManager, WsConnectionManager* wsConnMgr);
+//    WsTask* onNewConnection(Route uri, Addr addr, mg_connection* client);
+    void onNewConnection(Route uri, Addr addr, mg_connection* client, Router::JobParams& prms);
+    void onFrame(mg_connection* client, Addr addr, WsFrame frame);
+    void onClose(mg_connection* client, Addr addr);
+
+    void poll();
+
+    void setWsConnMgr(WsConnectionManager* wsConnMgr)
+    {
+        assert(m_wsConnMgr == nullptr || m_wsConnMgr == wsConnMgr);
+        m_wsConnMgr = wsConnMgr;
+    }
+private:
+    TaskManager* m_taskManager;
+    WsConnectionManager* m_wsConnMgr;
+
+    std::unordered_map<Route,WsTaskPtr> m_route2wst;
+    std::unordered_map<mg_connection*,WsTaskPtr> m_conn2wst;
 };
 
 class StateMachine;
@@ -223,6 +290,7 @@ public:
     GlobalContextMap& getGcm() { return m_gcm; }
     ConfigOpts& getCopts() { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
+    WsManager* getWsManager() { return m_wsManager.get(); }
 
     static TaskManager* from(mg_mgr* mgr);
 
@@ -231,6 +299,7 @@ public:
     void onClientDone(BaseTaskPtr bt);
 
     void schedule(PeriodicTask* pt);
+    void executeWsTask(WsTaskPtr wst);
     void onTimer(BaseTaskPtr bt);
     void onUpstreamDone(UpstreamSender& uss);
 
@@ -292,6 +361,8 @@ private:
 
     friend class StateMachine;
     std::unique_ptr<StateMachine> m_stateMachine;
+
+    std::unique_ptr<WsManager> m_wsManager;
 };
 
 }//namespace graft

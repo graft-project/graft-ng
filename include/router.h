@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
+#include <deque>
 
 #include "r3.h"
 #include "inout.h"
@@ -20,18 +21,20 @@ class RouterT
 {
 public:
     using vars_t = std::multimap<std::string, std::string>;
-    using Handler = std::function<Status (const vars_t&, const In&, Context&, Out& ) >;
+//    using Handler = std::function<Status (const vars_t&, const In&, Context&, Out& ) >;
+    using Handler = std::function<Status (const vars_t&, In&, Context&, Out& ) >;
 
     struct Handler3
     {
         Handler3() = default;
 
+/*
         Handler3(const Handler3&) = default;
         Handler3(Handler3&&) = default;
         Handler3& operator = (const Handler3&) = default;
         Handler3& operator = (Handler3&&) = default;
         ~Handler3() = default;
-
+*/
         Handler3(const Handler& pre_action, const Handler& action, const Handler& post_action, const std::string& name = std::string())
             : pre_action(pre_action), worker_action(action), post_action(post_action), name(name)
         { }
@@ -114,6 +117,13 @@ private:
     friend bool Root::arm();
 };
 
+//using Router = RouterT<Input, Output>;
 using Router = RouterT<Input, Output>;
+
+/*
+using InputWS = std::deque<std::string, std::string>;
+using OutputWS = std::deque<std::string, std::string>;
+using RouterWS = RouterT<InputWS, OutputWS>;
+*/
 
 }//namespace graft
