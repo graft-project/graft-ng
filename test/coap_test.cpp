@@ -3,6 +3,114 @@
 #include <misc_log_ex.h>
 #include "mongoosex.h"
 #include "connection.h"
+#include "fixture.h"
+
+class ServerWS : public LooperTestBase
+{
+public:
+    class Client
+    {
+        struct mg_mgr mgr;
+        struct mg_connection *nc = nullptr;
+        const char *ws_addr = "ws://127.0.0.1:9090/ws";
+        bool client_done;
+        bool s_is_connected = false;
+    public:
+        void serve()
+        {
+            client_done = false;
+
+            mg_mgr_init(&mgr, 0, 0);
+
+            nc = mg_connect_ws(&mgr, graft::static_ev_handler<Client>, ws_addr, "my_protocol", nullptr); // client_coap_handler);
+            nc->user_data = this;
+//            mg_set_protocol_coap(nc);
+
+            while (!client_done) {
+              mg_mgr_poll(&mgr, 1000000);
+            }
+
+            mg_mgr_free(&mgr);
+        }
+
+        void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
+        {
+            struct websocket_message *wm = (struct websocket_message *) ev_data;
+            switch (ev) {
+              case MG_EV_CONNECT: {
+                LOG_PRINT_L0("MG_EV_CONNECT client");
+                int status = *((int *) ev_data);
+                if (status != 0) {
+                  printf("-- Connection error: %d\n", status);
+                }
+                break;
+              }
+              case MG_EV_WEBSOCKET_HANDSHAKE_DONE: {
+                LOG_PRINT_L0("MG_EV_WEBSOCKET_HANDSHAKE_DONE client");
+                printf("-- Connected\n");
+                s_is_connected = 1;
+                mg_set_timer(nc, mg_time() + 5);
+                break;
+              }
+            case MG_EV_TIMER:
+            {
+                LOG_PRINT_L0("MG_EV_TIMER client");
+                std::string s = "client send something";
+                mg_send_websocket_frame(nc, WEBSOCKET_OP_TEXT, s.c_str(), s.size());
+                static int cnt = 10;
+                if(0 < --cnt)  mg_set_timer(nc, mg_time() + 5);
+                else
+                {
+                    nc->flags |= MG_F_SEND_AND_CLOSE;
+                }
+            } break;
+              case MG_EV_POLL: {
+                LOG_PRINT_L0("MG_EV_POLL client");
+//                mg_send_websocket_frame(nc, WEBSOCKET_OP_TEXT, msg, n);
+                std::string s = "client send something";
+//                mg_send_websocket_frame(nc, WEBSOCKET_OP_TEXT, s.c_str(), s.size());
+                break;
+              }
+              case MG_EV_WEBSOCKET_FRAME: {
+/*
+                LOG_PRINT_L0("MG_EV_WEBSOCKET_FRAME client");
+                printf("%.*s\n", (int) wm->size, wm->data);
+                struct websocket_message *wm = (struct websocket_message *) ev_data;
+*/
+                std::string msg((char *) wm->data, wm->size);
+  //              broadcast(nc, d);
+                LOG_PRINT_L0("MG_EV_WEBSOCKET_FRAME client : ") << msg;
+                break;
+              }
+              case MG_EV_CLOSE: {
+                LOG_PRINT_L0("MG_EV_CLOSE client");
+                if (s_is_connected) printf("-- Disconnected\n");
+                client_done = 1;
+                break;
+              }
+            }
+        }
+
+        bool ready = false;
+        bool stop = false;
+    };
+public:
+    ServerWS() {}
+private:
+//    Server server;
+//    std::thread th;
+};
+
+TEST_F(ServerWS, Common)
+{
+    MainServer server;
+    server.run();
+
+    Client client;
+    client.serve();
+
+    server.stop_and_wait_for();
+}
 
 extern "C"
 {

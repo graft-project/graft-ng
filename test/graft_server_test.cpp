@@ -412,7 +412,7 @@ TEST(Context, multithreaded)
 
 /////////////////////////////////
 
-std::function<GraftServerTestBase::TempCryptoNodeServer::on_http_t> GraftServerTestBase::TempCryptoNodeServer::http_echo =
+std::function<LooperTestBase::TempCryptoNodeServer::on_http_t> LooperTestBase::TempCryptoNodeServer::http_echo =
         [] (const http_message *hm, int& status_code, std::string& headers, std::string& data) -> bool
 {
     data = std::string(hm->body.p, hm->body.len);
@@ -422,9 +422,9 @@ std::function<GraftServerTestBase::TempCryptoNodeServer::on_http_t> GraftServerT
 };
 
 /////////////////////////////////
-// GraftServerCommonTest fixture
+// LooperCommonTest fixture
 
-class GraftServerCommonTest : public GraftServerTestBase
+class LooperCommonTest : public LooperTestBase
 {
 private:
     class TempCryptoN : public TempCryptoNodeServer
@@ -494,6 +494,7 @@ private:
 
         graft::ConfigOpts copts;
         copts.http_address = "127.0.0.1:9084";
+        copts.ws_address = "127.0.0.1:9090";
         copts.coap_address = "127.0.0.1:9086";
         copts.http_connection_timeout = .001;
         copts.upstream_request_timeout = .005;
@@ -616,15 +617,15 @@ protected:
     }
 };
 
-bool GraftServerCommonTest::skip_ctx_check = false;
-std::string GraftServerCommonTest::iocheck;
-std::deque<graft::Status> GraftServerCommonTest::res_que_action;
-GraftServerCommonTest::TempCryptoN GraftServerCommonTest::tempCryptoN;
-GraftServerCommonTest::MainServer GraftServerCommonTest::mainServer;
-bool GraftServerCommonTest::crypton_ready = false;
+bool LooperCommonTest::skip_ctx_check = false;
+std::string LooperCommonTest::iocheck;
+std::deque<graft::Status> LooperCommonTest::res_que_action;
+LooperCommonTest::TempCryptoN LooperCommonTest::tempCryptoN;
+LooperCommonTest::MainServer LooperCommonTest::mainServer;
+bool LooperCommonTest::crypton_ready = false;
 
 
-TEST_F(GraftServerCommonTest, GETtp)
+TEST_F(LooperCommonTest, GETtp)
 {//GET -> threadPool
     graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
@@ -637,7 +638,7 @@ TEST_F(GraftServerCommonTest, GETtp)
     EXPECT_EQ("0123", iocheck);
 }
 
-TEST_F(GraftServerCommonTest, clientAcceptTimeout)
+TEST_F(LooperCommonTest, clientAcceptTimeout)
 {//GET -> timout
     iocheck = ""; skip_ctx_check = true;
     Client client;
@@ -651,7 +652,7 @@ TEST_F(GraftServerCommonTest, clientAcceptTimeout)
     EXPECT_EQ("", res);
 }
 
-TEST_F(GraftServerTestBase, clientTimeout)
+TEST_F(LooperTestBase, clientTimeout)
 {//it checks that there is no crash
     auto action = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
@@ -670,7 +671,7 @@ TEST_F(GraftServerTestBase, clientTimeout)
 }
 
 //This test requires comparing logging output, their categories with expected.
-TEST_F(GraftServerTestBase, logging)
+TEST_F(LooperTestBase, logging)
 {
     const std::string cat = "handler";
 
@@ -705,7 +706,7 @@ TEST_F(GraftServerTestBase, logging)
     server.stop_and_wait_for();
 }
 
-TEST_F(GraftServerTestBase, Again)
+TEST_F(LooperTestBase, Again)
 {//last status None(1)Forward(2){answer}Again(3)Forward(4)Again(5)->Ok
     int step = 0;
     const std::string client_query = "this is client query on None";
@@ -778,7 +779,7 @@ TEST_F(GraftServerTestBase, Again)
     EXPECT_EQ(step,5);
 }
 
-TEST_F(GraftServerCommonTest, cryptonTimeout)
+TEST_F(LooperCommonTest, cryptonTimeout)
 {//GET -> threadPool -> CryptoNode -> timeout
     graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
@@ -803,7 +804,7 @@ TEST_F(GraftServerCommonTest, cryptonTimeout)
     }
 }
 
-TEST_F(GraftServerCommonTest, timerEvents)
+TEST_F(LooperCommonTest, timerEvents)
 {
     constexpr int ms_all = 5000, ms_step = 100, N = 5;
     int cntrs_all[N]; for(int& v:cntrs_all){ v = 0; }
@@ -848,7 +849,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
     }
 }
 
-TEST_F(GraftServerCommonTest, GETtpCNtp)
+TEST_F(LooperCommonTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
     graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_GET;
@@ -864,7 +865,7 @@ TEST_F(GraftServerCommonTest, GETtpCNtp)
     EXPECT_EQ("01234123", iocheck);
 }
 
-TEST_F(GraftServerCommonTest, POSTtp)
+TEST_F(LooperCommonTest, POSTtp)
 {//POST -> threadPool
     graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
@@ -880,7 +881,7 @@ TEST_F(GraftServerCommonTest, POSTtp)
     EXPECT_EQ("0123", iocheck);
 }
 
-TEST_F(GraftServerCommonTest, POSTtpCNtp)
+TEST_F(LooperCommonTest, POSTtpCNtp)
 {//POST -> threadPool -> CryptoNode -> threadPool
     graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
@@ -899,7 +900,7 @@ TEST_F(GraftServerCommonTest, POSTtpCNtp)
     EXPECT_EQ("01234123", iocheck);
 }
 
-TEST_F(GraftServerCommonTest, clPOSTtp)
+TEST_F(LooperCommonTest, clPOSTtp)
 {//POST cmdline -> threadPool
     graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
@@ -916,7 +917,7 @@ TEST_F(GraftServerCommonTest, clPOSTtp)
     }
 }
 
-TEST_F(GraftServerCommonTest, clPOSTtpCNtp)
+TEST_F(LooperCommonTest, clPOSTtpCNtp)
 {//POST cmdline -> threadPool -> CryptoNode -> threadPool
     graft::Context ctx(mainServer.plooper.load()->getGcm());
     ctx.global["method"] = METHOD_POST;
@@ -939,7 +940,7 @@ TEST_F(GraftServerCommonTest, clPOSTtpCNtp)
 /////////////////////////////////
 // GraftServerPostponeTest fixture
 
-class GraftServerPostponeTest : public GraftServerTestBase
+class GraftServerPostponeTest : public LooperTestBase
 {
 public:
     class TempCryptoN : public TempCryptoNodeServer
@@ -1048,7 +1049,7 @@ TEST_F(GraftServerPostponeTest, common)
     crypton.stop_and_wait_for();
 }
 
-TEST_F(GraftServerTestBase, forward)
+TEST_F(LooperTestBase, forward)
 {
     TempCryptoNodeServer crypton;
     crypton.on_http = crypton.http_echo;
@@ -1079,7 +1080,7 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JRResponseResult, GetVersionResp);
 //you can run cryptonodes and enable this tests using
 //--gtest_also_run_disabled_tests
 //https://github.com/google/googletest/blob/master/googletest/docs/advanced.md
-TEST_F(GraftServerTestBase, DISABLED_getVersion)
+TEST_F(LooperTestBase, DISABLED_getVersion)
 {
     MainServer mainServer;
     mainServer.copts.cryptonode_rpc_address = "localhost:38281";
@@ -1105,7 +1106,7 @@ TEST_F(GraftServerTestBase, DISABLED_getVersion)
 /////////////////////////////////
 // GraftServerBlockingTest fixture
 
-class GraftServerBlockingTest : public GraftServerTestBase
+class GraftServerBlockingTest : public LooperTestBase
 {
 public:
     class TempCryptoN : public TempCryptoNodeServer

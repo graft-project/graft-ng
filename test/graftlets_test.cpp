@@ -79,6 +79,7 @@ TEST(Graftlets, calls)
     }
     catch(std::exception& ex)
     {
+        std::string s = ex.what();
         std::cout << ex.what() << "\n";
         EXPECT_EQ(true,false);
     }
@@ -166,6 +167,7 @@ class GraftServerTest : public ::testing::Test
         virtual bool initConfigOption(int argc, const char** argv, graft::ConfigOpts& copts) override
         {
             copts.http_address = "0.0.0.0:28690";
+            copts.ws_address = "0.0.0.0:38690";
             copts.coap_address = "udp://0.0.0.0:18991";
             copts.workers_count = 0;
             copts.worker_queue_len = 0;
@@ -227,11 +229,11 @@ TEST_F(GraftServerTest, graftlets)
 
     {
         //curl method
-        std::string res = GraftServerTestBase::send_request("http://127.0.0.1:28690/URI/test/123", json_data);
+        std::string res = LooperTestBase::send_request("http://127.0.0.1:28690/URI/test/123", json_data);
         EXPECT_EQ(res, json_data+"123");
 
         //mongoose method
-        GraftServerTestBase::Client client;
+        LooperTestBase::Client client;
         client.serve("http://127.0.0.1:28690/URI/test/123", "", json_data);
         EXPECT_EQ(false, client.get_closed());
         std::string res1 = client.get_body();
@@ -240,11 +242,11 @@ TEST_F(GraftServerTest, graftlets)
 
     {
         //curl method
-        std::string res = GraftServerTestBase::send_request("http://127.0.0.1:28690/URI1/test1/123", json_data);
+        std::string res = LooperTestBase::send_request("http://127.0.0.1:28690/URI1/test1/123", json_data);
         EXPECT_EQ(res, json_data+"123");
 
         //mongoose method
-        GraftServerTestBase::Client client;
+        LooperTestBase::Client client;
         client.serve("http://127.0.0.1:28690/URI1/test/123", "", json_data);
         EXPECT_EQ(false, client.get_closed());
         std::string res1 = client.get_body();

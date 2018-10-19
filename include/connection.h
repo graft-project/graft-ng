@@ -155,6 +155,9 @@ class WsConnectionManager final : public ConnectionManager
 {
 public:
     WsConnectionManager() : ConnectionManager("WS") { }
+    WsConnectionManager(const WsConnectionManager&) = delete;
+    WsConnectionManager* operator = (const WsConnectionManager&) = delete;
+    ~WsConnectionManager();
 
     void bind(Looper& looper) override;
 
@@ -164,6 +167,7 @@ public:
 private:
     static void ev_handler_ws(mg_connection *client, int ev, void *ev_data);
     static WsConnectionManager* from_accepted(mg_connection* cn);
+    mg_connection* m_wsListener = nullptr;
 };
 
 class CoapConnectionManager final : public ConnectionManager

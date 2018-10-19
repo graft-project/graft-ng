@@ -210,10 +210,11 @@ void WsConnectionManager::bind(Looper& looper)
 
     const ConfigOpts& opts = looper.getCopts();
 
-    mg_connection *nc_ws = mg_bind(mgr, opts.ws_address.c_str(), ev_handler_ws);
-    if(!nc_ws) throw std::runtime_error("Cannot bind to " + opts.ws_address);
-    nc_ws->user_data = this;
-    mg_set_protocol_http_websocket(nc_ws);
+    assert(!m_wsListener);
+    m_wsListener = mg_bind(mgr, opts.ws_address.c_str(), ev_handler_ws);
+    if(!m_wsListener) throw std::runtime_error("Cannot bind to " + opts.ws_address);
+    m_wsListener->user_data = this;
+    mg_set_protocol_http_websocket(m_wsListener);
 }
 
 void CoapConnectionManager::bind(Looper& looper)
@@ -330,6 +331,15 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     }
 }
 
+WsConnectionManager::~WsConnectionManager()
+{
+    assert(m_wsListener);
+    if(m_wsListener)
+    {
+        m_wsListener->handler = static_empty_ev_handler;
+    }
+}
+
 mg_connection* WsConnectionManager::connect(TaskManager* manager, const Addr& addr)
 {
     mg_connect_ws(manager->getMgMgr(), ev_handler_ws, addr.c_str(), "my protocol", nullptr);
@@ -415,6 +425,14 @@ void WsConnectionManager::ev_handler_ws(mg_connection *client, int ev, void *ev_
     } break;
     case MG_EV_CLOSE:
     {
+/*
+        WsConnectionManager* wscm = WsConnectionManager::from_accepted(client);
+        if(client == wscm->m_wsListener)
+        {
+            LOG_PRINT_CLN(1,client,"Ws listener closing");
+            break;
+        }
+*/
         LOG_PRINT_CLN(2,client,"Connection closed");
         std::string addr = client_addr(client);
         manager->getWsManager()->onClose(client, addr);

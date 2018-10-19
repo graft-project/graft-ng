@@ -249,11 +249,11 @@ if (OPT_BUILD_TESTS)
 
         add_executable(graft_server_test
                 ${GS_SOURCES}
-#                ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
-#                ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/coap_test.cpp
-#                ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
-#                ${PROJECT_SOURCE_DIR}/test/json_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
+                ${PROJECT_SOURCE_DIR}/test/json_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/main.cpp

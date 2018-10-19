@@ -7,9 +7,9 @@
 #include "mongoosex.h"
 
 /////////////////////////////////
-// GraftServerTestBase fixture
+// LooperTestBase fixture
 
-class GraftServerTestBase : public ::testing::Test
+class LooperTestBase : public ::testing::Test
 {
 protected:
     //Server to simulate CryptoNode (its object is created in non-main thread)
@@ -116,11 +116,12 @@ public:
     public:
         graft::ConfigOpts copts;
         graft::Router router;
+        graft::Router routerWs;
     public:
         MainServer()
         {
             copts.http_address = "127.0.0.1:9084";
-            copts.ws_address = "127.0.0.1:9088";
+            copts.ws_address = "127.0.0.1:9090";
             copts.coap_address = "127.0.0.1:9086";
             copts.http_connection_timeout = 1;
             copts.upstream_request_timeout = 1;
@@ -160,7 +161,13 @@ public:
             bool res = httpcm.enableRouting();
             EXPECT_EQ(res, true);
 
+            graft::WsConnectionManager wscm;
+            wscm.addRouter(routerWs);
+            bool res1 = wscm.enableRouting();
+            EXPECT_EQ(res1, true);
+
             httpcm.bind(looper);
+            wscm.bind(looper);
             looper.serve();
         }
     };
