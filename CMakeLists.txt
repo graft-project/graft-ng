@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 project(graft_server)
 
 option(OPT_BUILD_TESTS "Build tests." OFF)
+option(OPT_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
@@ -53,7 +54,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DHAVE_EVP_MD_CTX_NEW=YES -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DHAVE_EVP_MD_CTX_NEW=YES -DOPT_SYSLOG=${OPT_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
     )
 
 set(CMAKE_CXX_STANDARD 14)
@@ -195,7 +196,7 @@ target_link_libraries(graft_server PRIVATE
     )
 
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
-if(UNIX)
+if(OPT_SYSLOG)
     target_compile_definitions(graft_server PRIVATE -DELPP_SYSLOG)
 endif()
 
@@ -256,7 +257,7 @@ if (OPT_BUILD_TESTS)
 
 
         target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
-        if(UNIX)
+        if(OPT_SYSLOG)
             target_compile_definitions(graft_server_test PRIVATE -DELPP_SYSLOG)
         endif()
 
