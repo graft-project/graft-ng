@@ -21,7 +21,7 @@
 #include <tuple>
 #include <regex>
 #include <misc_log_ex.h>
-#define INCLUDE_GRAPH
+#define INCLUDE_DEPENDENCY_GRAPH
 #include "GraftletLoader.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -149,7 +149,7 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
     }
 }
 
-void GraftletLoader::Graph::initialize(const std::vector<std::tuple<DllName,Version,Dependencies>>& vec)
+void GraftletLoader::DependencyGraph::initialize(const std::vector<std::tuple<DllName,Version,Dependencies>>& vec)
 {
     m_graph.clear();
     m_dll2ver.clear();
@@ -213,7 +213,7 @@ void GraftletLoader::Graph::initialize(const std::vector<std::tuple<DllName,Vers
     }
 }
 
-void GraftletLoader::Graph::initialize(GraftletLoader& gl)
+void GraftletLoader::DependencyGraph::initialize(GraftletLoader& gl)
 {
     std::vector<std::tuple<DllName,Version,Dependencies>> vec;
     vec.reserve(gl.m_name2lib.size());
@@ -227,7 +227,7 @@ void GraftletLoader::Graph::initialize(GraftletLoader& gl)
 }
 
 //returns list to remove
-std::vector<GraftletLoader::Graph::DllName> GraftletLoader::Graph::removeFailedDependants()
+std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::DependencyGraph::removeFailedDependants()
 {
     std::vector<DllName> res;
 
@@ -286,7 +286,7 @@ std::vector<GraftletLoader::Graph::DllName> GraftletLoader::Graph::removeFailedD
     return res;
 }
 
-void GraftletLoader::Graph::removeFailedDependants(GraftletLoader& gl)
+void GraftletLoader::DependencyGraph::removeFailedDependants(GraftletLoader& gl)
 {
     std::vector<DllName> list = removeFailedDependants();
     for(auto& dllName : list)
@@ -297,7 +297,7 @@ void GraftletLoader::Graph::removeFailedDependants(GraftletLoader& gl)
     assert(gl.m_name2lib.size() == gl.m_name2registries.size());
 }
 
-std::string GraftletLoader::Graph::findCycles(bool dont_throw)
+std::string GraftletLoader::DependencyGraph::findCycles(bool dont_throw)
 {
     //find graph cycles
     // (graph_t::iterator is a map::iterator, the iterators are not bidirectional and have no compare method)
@@ -378,7 +378,7 @@ std::string GraftletLoader::Graph::findCycles(bool dont_throw)
 
 void GraftletLoader::checkDependencies()
 {
-    Graph graph;
+    DependencyGraph graph;
     graph.initialize(*this);
     graph.removeFailedDependants(*this);
     graph.findCycles();

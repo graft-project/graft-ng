@@ -2,12 +2,12 @@
 #include "fixture.h"
 #include "server.h"
 #include "test.h"
-#define INCLUDE_GRAPH
+#define INCLUDE_DEPENDENCY_GRAPH
 #include "GraftletLoader.h"
 
-TEST(Graph, dependencies)
+TEST(DependencyGraph, dependencies)
 {
-    using Graph = graftlet::GraftletLoader::Graph;
+    using Graph = graftlet::GraftletLoader::DependencyGraph;
     Graph graph;
     {
         std::vector<std::tuple<Graph::DllName,Graph::Version,Graph::Dependencies>> vec {};

@@ -123,8 +123,8 @@ public:
         return getEndpointsT<IGraftlet>();
     }
 
-    class Graph;
-    friend class GraftletLoader::Graph;
+    class DependencyGraph;
+    friend class GraftletLoader::DependencyGraph;
 private:
     using ClsName = std::string;
     using DllPath = std::string;
@@ -267,8 +267,8 @@ private:
     std::map< std::pair<DllName, std::type_index>, std::map<ClsName, std::any> > m_name2gls;
 };
 
-#ifdef INCLUDE_GRAPH
-class GraftletLoader::Graph
+#ifdef INCLUDE_DEPENDENCY_GRAPH
+class GraftletLoader::DependencyGraph
 {
 public:
     using DllName = GraftletLoader::DllName;
