@@ -110,7 +110,7 @@ public:
 
     static void setGraftletsExceptionList(const GraftletExceptionList& gel);
 
-    void findGraftletsAtDirectory(std::string additionalDir, std::string extension);
+    void findGraftletsInDirectory(std::string additionalDir, std::string extension);
     void checkDependencies();
 
     GraftletHandlerT<IGraftlet> buildAndResolveGraftlet(const DllName& dllName)

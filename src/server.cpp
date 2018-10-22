@@ -65,7 +65,7 @@ void GraftServer::initGraftlets()
     for(auto& it : getCopts().graftlet_dirs)
     {
         LOG_PRINT_L1("Searching graftlets in directory '") << it << "'";
-        m_graftletLoader->findGraftletsAtDirectory(it, "so");
+        m_graftletLoader->findGraftletsInDirectory(it, "so");
     }
     m_graftletLoader->checkDependencies();
 }

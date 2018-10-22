@@ -47,7 +47,7 @@ void GraftletLoader::setGraftletsExceptionList(const GraftletExceptionList& gel)
     }
 }
 
-void GraftletLoader::findGraftletsAtDirectory(std::string directory, std::string extension)
+void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string extension)
 {
     namespace fs = boost::filesystem;
     namespace dll = boost::dll;
