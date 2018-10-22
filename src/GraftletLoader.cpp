@@ -135,12 +135,13 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
         {
             if(!loaded)
             {
-                LOG_PRINT_L2("cannot load library: '" << it->path() << "' because '" << ex.what() << "'");
+                LOG_PRINT_L2("Cannot load library: '" << it->path() << "' because '" << ex.what() << "'");
                 continue;
             }
-            else if(!called)
+            else if(called)
             {
-                LOG_PRINT_L2("exception on calls of mandatory functions '" << it->path() << "' because '" << ex.what() << "'");
+                LOG_PRINT_L2("An exception occurred, most probably during call of one of mandatory functions of graftlet,"
+                             " such as getGraftletVersion, the graftlet: '" << it->path() << "' because '" << ex.what() << "'");
                 continue;
             }
             else throw;
