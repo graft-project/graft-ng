@@ -938,9 +938,9 @@ TEST_F(LooperCommonTest, clPOSTtpCNtp)
 }
 
 /////////////////////////////////
-// GraftServerPostponeTest fixture
+// LooperPostponeTest fixture
 
-class GraftServerPostponeTest : public LooperTestBase
+class LooperPostponeTest : public LooperTestBase
 {
 public:
     class TempCryptoN : public TempCryptoNodeServer
@@ -980,7 +980,7 @@ public:
     };
 };
 
-TEST_F(GraftServerPostponeTest, common)
+TEST_F(LooperPostponeTest, common)
 {
     auto callback_action = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
@@ -1104,9 +1104,9 @@ TEST_F(LooperTestBase, DISABLED_getVersion)
 }
 
 /////////////////////////////////
-// GraftServerBlockingTest fixture
+// LooperBlockingTest fixture
 
-class GraftServerBlockingTest : public LooperTestBase
+class LooperBlockingTest : public LooperTestBase
 {
 public:
     class TempCryptoN : public TempCryptoNodeServer
@@ -1128,7 +1128,7 @@ public:
     };
 };
 
-TEST_F(GraftServerBlockingTest, common)
+TEST_F(LooperBlockingTest, common)
 {
     TempCryptoN crypton;
     crypton.run();

@@ -8,7 +8,6 @@ class GraftletLoader;
 
 namespace graft {
 
-
 class GraftServer
 {
 public:
@@ -16,6 +15,8 @@ public:
 protected:
     virtual bool initConfigOption(int argc, const char** argv, ConfigOpts& configOpts);
     virtual void initConnectionManagers();
+    virtual void setWsRouters(WsConnectionManager& wscm);
+
     bool ready() const { return m_looper && m_looper->ready(); }
     void stop(bool force = false) { m_looper->stop(force); }
 private:
@@ -30,7 +31,7 @@ private:
     void initGraftlets();
     void addGraftletEndpoints(HttpConnectionManager& httpcm);
     void setHttpRouters(HttpConnectionManager& httpcm);
-    void setWsRouters(WsConnectionManager& wscm);
+//    void setWsRouters(WsConnectionManager& wscm);
     void setCoapRouters(CoapConnectionManager& coapcm);
     static void checkRoutes(graft::ConnectionManager& cm);
     ConfigOpts& getCopts() { assert(m_looper); return m_looper->getCopts(); }
