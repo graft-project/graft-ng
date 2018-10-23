@@ -284,8 +284,20 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     static const char * DEFAULT_LOG_FORMAT = "%datetime{%Y-%M-%d %H:%m:%s.%g}\t%thread\t%level\t%logger\t%rfile:%line\t%msg";
     if(log_format.empty()) log_format = DEFAULT_LOG_FORMAT;
 
-    mlog_configure(log_filename, log_console, log_format.empty()? nullptr : log_format.c_str());
-    mlog_set_log(log_level.c_str());
+#ifdef ELPP_SYSLOG
+        if(log_filename == "syslog")
+        {
+            INITIALIZE_SYSLOG("graft_server");
+            mlog_syslog = true;
+            mlog_configure("", false, log_format.empty()? nullptr : log_format.c_str());
+        }
+        else
+#endif
+        {
+            mlog_configure(log_filename, log_console, log_format.empty()? nullptr : log_format.c_str());
+        }
+
+        mlog_set_log(log_level.c_str());
 }
 
 void initGraftletDirs(int argc, const char** argv, const std::string& dirs_opt, bool dirs_opt_exists, std::vector<std::string>& graftlet_dirs)
@@ -383,7 +395,11 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
                 ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
                 ("log-level", po::value<std::string>(), "log-level. (3 by default), e.g. --log-level=2,supernode.task:INFO,supernode.server:DEBUG")
                 ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
+#ifdef ELPP_SYSLOG
+                ("log-file", po::value<std::string>(), "log file; set it to syslog if you want use the syslog instead")
+#else
                 ("log-file", po::value<std::string>(), "log file")
+#endif
                 ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level	%logger	%rfile	%msg");
 
         po::store(po::parse_command_line(argc, argv, desc), vm);

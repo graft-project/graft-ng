@@ -162,7 +162,8 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
         case graft::Status::Forward: // reply from cryptonode
             return sendOkResponseToCryptonode(output);
         case graft::Status::Error: // failed to send announce
-            return errorCustomError("Failed to send announce", ERROR_INTERNAL_ERROR, output);
+            LOG_ERROR("Failed to send announce");
+            return graft::Status::Ok;
         case graft::Status::Ok:
         case graft::Status::None:
             graft::SupernodePtr supernode;
