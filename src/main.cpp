@@ -1,5 +1,6 @@
 #include "server.h"
 #include "backtrace.h"
+#include "graft_exception.h"
 
 namespace graft
 {
@@ -47,6 +48,9 @@ int main(int argc, const char** argv)
         graft::GraftServer gserver;
         bool res = gserver.run(argc, argv);
         if(!res) return -2;
+    } catch (const graft::exit_error& e) {
+        std::cerr << "The program is terminated because of error: " << e.what() << std::endl;
+        return -1;
     } catch (const std::exception & e) {
         std::cerr << "Exception thrown: " << e.what() << std::endl;
         throw;

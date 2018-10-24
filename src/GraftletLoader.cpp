@@ -21,6 +21,7 @@
 #include <tuple>
 #include <regex>
 #include <misc_log_ex.h>
+#include "graft_exception.h"
 #define INCLUDE_DEPENDENCY_GRAPH
 #include "GraftletLoader.h"
 
@@ -352,7 +353,7 @@ std::string GraftletLoader::DependencyGraph::findCycles(bool dont_throw)
                     std::for_each(start, path.end(), [&oss](auto it){ oss << it->first->first << " -> "; } );
                     oss << cur_it->first->first << " -> " << child;
                     if(dont_throw) return oss.str();
-                    throw std::runtime_error(oss.str());
+                    throw graft::exit_error(oss.str());
                 }
                 if(color(child_iter) == Color::white)
                 {
@@ -384,4 +385,4 @@ void GraftletLoader::checkDependencies()
     graph.findCycles();
 }
 
-}
+} //namespace graftlet
