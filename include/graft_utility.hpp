@@ -22,12 +22,12 @@ namespace graft
 
             mutable std::mutex m;
             std::shared_ptr<T> data;
-            std::unique_ptr<node>  next;
+            std::shared_ptr<node> next;
             ch::seconds ttl;
             ch::seconds expires;
             OnExpired onExpired = nullptr;
 
-            node() : next(), expires(ch::seconds::max()), ttl(ch::seconds(0)) {}
+            node() : expires(ch::seconds::max()), ttl(ch::seconds(0)) {}
 
             node(T const& value)
                 : expires(ch::seconds::max())
@@ -56,7 +56,7 @@ namespace graft
             }
         };
 
-        node head;
+        std::shared_ptr<node> head = std::make_shared<node>();
 
     public:
         using func = std::function<bool(T&)>;
@@ -74,17 +74,17 @@ namespace graft
 
         void pushFront(T const& value, ch::seconds ttl = ch::seconds(0), OnExpired onExpired = nullptr)
         {
-            std::unique_ptr<node> new_node = std::make_unique<node>(value, ttl, onExpired);
+            std::shared_ptr<node> new_node = std::make_shared<node>(value, ttl, onExpired);
 
-            std::lock_guard<std::mutex> lk(head.m);
-            new_node->next = std::move(head.next);
-            head.next = std::move(new_node);
+            std::lock_guard<std::mutex> lk(head->m);
+            new_node->next = std::move(head->next);
+            head->next = std::move(new_node);
         }
 
         void forEach(func f, bool timeUpdate = false)
         {
-            node* current = &head;
-            std::unique_lock<std::mutex> lk(head.m);
+            node* current = head.get();
+            std::unique_lock<std::mutex> lk(head->m);
 
             while (node* const next = current->next.get())
             {
@@ -102,8 +102,8 @@ namespace graft
 
         std::shared_ptr<T> findFirstOf(func p)
         {
-            node const *current = &head;
-            std::unique_lock<std::mutex> lk(head.m);
+            node const *current = head.get();
+            std::unique_lock<std::mutex> lk(head->m);
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
@@ -121,8 +121,8 @@ namespace graft
 
         bool findAndApplyFirstOf(func p, func f)
         {
-            node const *current = &head;
-            std::unique_lock<std::mutex> lk(head.m);
+            node const *current = head.get();
+            std::unique_lock<std::mutex> lk(head->m);
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
@@ -140,14 +140,14 @@ namespace graft
 
         void removeIf(func p)
         {
-            node *current = &head;
-            std::unique_lock<std::mutex> lk(head.m);
+            node *current = head.get();
+            std::unique_lock<std::mutex> lk(head->m);
             while (node* const next = current->next.get())
             {
                 std::unique_lock<std::mutex> next_lk(next->m);
                 if (p(*next->data))
                 {
-                    std::unique_ptr<node> old_next = std::move(current->next);
+                    std::shared_ptr<node> old_next = std::move(current->next);
                     current->next = std::move(next->next);
                     next_lk.unlock();
                 }
@@ -160,12 +160,44 @@ namespace graft
             }
         }
 
+        void  safe_cleanup(std::vector<std::function<void()>>& res)
+        {
+            ch::seconds now_sec = ch::time_point_cast<ch::seconds>(
+                            ch::steady_clock::now()
+                        ).time_since_epoch();
+            node *current = head.get();
+            std::unique_lock<std::mutex> lk(head->m);
+            while (node* const next = current->next.get())
+            {
+                std::unique_lock<std::mutex> next_lk(next->m);
+                if (next->expired(now_sec))
+                {
+                    if(next->onExpired)
+                    {
+                        auto makeCall = [](std::shared_ptr<T>&& ptr, OnExpired&& onExp )->std::function<void()>
+                        {
+                            return [ptr,onExp]()->void { onExp(*ptr); };
+                        };
+                        res.push_back(makeCall(std::move(next->data), std::move(next->onExpired)));
+                    }
+
+                    std::shared_ptr<node> old_next = std::move(current->next);
+                    current->next = std::move(next->next);
+                }
+                else
+                {
+                    current = next;
+                    lk = std::move(next_lk);
+                }
+            }
+        }
+
         void  unsafe_cleanup(std::vector<std::function<void()>>& res)
         {
             ch::seconds now_sec = ch::time_point_cast<ch::seconds>(
                             ch::steady_clock::now()
                         ).time_since_epoch();
-            node *current = &head;
+            node *current = head.get();
             while (node* const next = current->next.get())
             {
                 if (next->expired(now_sec))
@@ -179,7 +211,7 @@ namespace graft
                         res.push_back(makeCall(std::move(next->data), std::move(next->onExpired)));
                     }
 
-                    std::unique_ptr<node> old_next = std::move(current->next);
+                    std::shared_ptr<node> old_next = std::move(current->next);
                     current->next = std::move(next->next);
                 }
                 else
@@ -257,7 +289,8 @@ namespace graft
 
             void cleanup(std::vector<std::function<void()>>& res)
             {
-                m_data.unsafe_cleanup(res);
+//                m_data.unsafe_cleanup(res);
+                m_data.safe_cleanup(res);
             }
         };
 
