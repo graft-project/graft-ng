@@ -343,11 +343,14 @@ void initGraftletDirs(int argc, const char** argv, const std::string& dirs_opt, 
                 graftlet_dirs.push_back(path1.string());
                 found = true;
             }
-            fs::path path2 = fs::complete(it, cur_dir);
-            if(fs::is_directory(path2))
+            if(self_dir != cur_dir)
             {
-                graftlet_dirs.push_back(path2.string());
-                found = true;
+                fs::path path2 = fs::complete(it, cur_dir);
+                if(fs::is_directory(path2))
+                {
+                    graftlet_dirs.push_back(path2.string());
+                    found = true;
+                }
             }
             if(!found)
             {
@@ -365,6 +368,13 @@ void initGraftletDirs(int argc, const char** argv, const std::string& dirs_opt, 
                 LOG_PRINT_L1("Graftlet path '" << it.string() << "' is not a directory");
             }
         }
+    }
+    {//remove duplicated dirs
+        std::set<fs::path> set;
+        auto end = std::remove_if(graftlet_dirs.begin(), graftlet_dirs.end(),
+                                  [&set](auto& s)->bool{ return !set.emplace(s).second; }
+        );
+        graftlet_dirs.erase(end, graftlet_dirs.end());
     }
 }
 
