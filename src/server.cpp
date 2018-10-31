@@ -47,6 +47,16 @@ static void signal_handler_restart(int sig_num)
     if(hup_handler) hup_handler(sig_num);
 }
 
+GraftServer::GraftServer()
+{
+
+}
+
+GraftServer::~GraftServer()
+{
+
+}
+
 void GraftServer::initGraftlets()
 {
     if(m_graftletLoader) return;
@@ -55,8 +65,9 @@ void GraftServer::initGraftlets()
     for(auto& it : getCopts().graftlet_dirs)
     {
         LOG_PRINT_L1("Searching graftlets in directory '") << it << "'";
-        m_graftletLoader->findGraftletsAtDirectory(it, "so");
+        m_graftletLoader->findGraftletsInDirectory(it, "so");
     }
+    m_graftletLoader->checkDependencies();
 }
 
 void GraftServer::addGraftletEndpoints(HttpConnectionManager& httpcm)

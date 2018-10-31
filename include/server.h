@@ -12,6 +12,11 @@ namespace graft {
 class GraftServer
 {
 public:
+    GraftServer();
+    ~GraftServer();
+    GraftServer(const GraftServer&) = delete;
+    GraftServer& operator = (const GraftServer&) = delete;
+
     bool run(int argc, const char** argv);
 protected:
     virtual bool initConfigOption(int argc, const char** argv, ConfigOpts& configOpts);

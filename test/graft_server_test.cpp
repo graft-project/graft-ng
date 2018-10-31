@@ -816,7 +816,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
             ++cntrs_all[i];
             if(ctx.local.getLastStatus() == graft::Status::Forward)
                 return graft::Status::Ok;
-            EXPECT_TRUE(cntrs[i]==0 && ctx.local.getLastStatus() == graft::Status::None
+            EXPECT_TRUE(ctx.local.getLastStatus() == graft::Status::None
                         || ctx.local.getLastStatus() == graft::Status::Ok);
             if(finish < std::chrono::steady_clock::now()) return graft::Status::Stop;
             ++cntrs[i];
