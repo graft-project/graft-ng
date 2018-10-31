@@ -185,12 +185,12 @@ public:
         }
 
         template<typename T>
-        void set(const std::string& key, T&& val, std::chrono::seconds ttl)
+        void set(const std::string& key, T&& val, std::chrono::seconds ttl, GlobalContextMap::OnExpired onExpired = nullptr)
         {
             static_assert(std::is_nothrow_move_constructible<T>::value,
                           "not move constructible");
             boost::any tmp(std::forward<T>(val));
-            m_map.addOrUpdate(key, std::move(tmp), ttl);
+            m_map.addOrUpdate(key, std::move(tmp), ttl, onExpired);
         }
 
         template<typename T>
@@ -221,10 +221,10 @@ public:
     {
     public:
         GlobalFriend() = delete;
-        static void cleanup(Global& global)
+        static void cleanup(Global& global, bool all = false)
         {
             GlobalFriend& gf = static_cast<GlobalFriend&>(global);
-            gf.m_map.cleanup();
+            gf.m_map.cleanup(all);
         }
     };
 

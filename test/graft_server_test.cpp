@@ -410,6 +410,32 @@ TEST(Context, multithreaded)
     EXPECT_EQ(sum, g_count-main_count);
 }
 
+TEST(Context, expiration)
+{
+    graft::GlobalContextMap m;
+    graft::Context ctx(m);
+
+    int res = 0;
+    auto onExpired = [&res](std::pair<std::string, boost::any>& v)->void
+    {
+        int i = boost::any_cast<int>(v.second);
+        res += i;
+    };
+
+    int cmp_res = 0;
+    for(int i = 1; i<100; ++i)
+    {
+        std::string key = std::to_string(i);
+        int v = (i*7)%17;
+        cmp_res += v;
+        ctx.global.set(key, v, std::chrono::seconds(1), onExpired);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+    graft::Context::GlobalFriend::cleanup(ctx.global, true);
+    EXPECT_EQ(res, cmp_res);
+}
+
 /////////////////////////////////
 
 std::function<GraftServerTestBase::TempCryptoNodeServer::on_http_t> GraftServerTestBase::TempCryptoNodeServer::http_echo =

@@ -20,11 +20,14 @@ namespace graft
     {
         struct node
         {
+            using OnExpired = std::function<void(T&)>;
+
             mutable std::mutex m;
             std::shared_ptr<T> data;
             std::unique_ptr<node>  next;
             ch::seconds ttl;
             ch::seconds expires;
+            OnExpired onExpired = nullptr;
 
             node() : next(), expires(ch::seconds::max()), ttl(ch::seconds(0)) {}
 
@@ -33,8 +36,8 @@ namespace graft
                 , ttl(ch::seconds(0))
                 , data(std::make_shared<T>(value)) {}
 
-            node(T const& value, std::chrono::seconds ttl)
-                : ttl(ttl), data(std::make_shared<T>(value)) { update_time(); }
+            node(T const& value, std::chrono::seconds ttl, const OnExpired& onExpired = nullptr)
+                : ttl(ttl), data(std::make_shared<T>(value)), onExpired(onExpired) { update_time(); }
 
             void update_time()
             {
@@ -59,6 +62,7 @@ namespace graft
 
     public:
         using func = std::function<bool(T&)>;
+        using OnExpired = typename node::OnExpired;
 
         TSList() {}
         ~TSList()
@@ -70,9 +74,9 @@ namespace graft
         TSList(TSList&& other) = delete;
         TSList& operator=(TSList const& other) = delete;
 
-        void pushFront(T const& value, ch::seconds ttl = ch::seconds(0))
+        void pushFront(T const& value, ch::seconds ttl = ch::seconds(0), OnExpired onExpired = nullptr)
         {
-            std::unique_ptr<node> new_node(new node(value, ttl));
+            std::unique_ptr<node> new_node = std::make_unique<node>(value, ttl, onExpired);
 
             std::lock_guard<std::mutex> lk(head.m);
             new_node->next = std::move(head.next);
@@ -158,7 +162,7 @@ namespace graft
             }
         }
 
-        void unsafe_cleanup()
+        void  unsafe_cleanup(std::vector<std::function<void()>>& res)
         {
             ch::seconds now_sec = ch::time_point_cast<ch::seconds>(
                             ch::steady_clock::now()
@@ -168,6 +172,15 @@ namespace graft
             {
                 if (next->expired(now_sec))
                 {
+                    if(next->onExpired)
+                    {
+                        auto makeCall = [](std::shared_ptr<T>&& ptr, OnExpired&& onExp )->std::function<void()>
+                        {
+                            return [ptr,onExp]()->void { onExp(*ptr); };
+                        };
+                        res.push_back(makeCall(std::move(next->data), std::move(next->onExpired)));
+                    }
+
                     std::unique_ptr<node> old_next = std::move(current->next);
                     current->next = std::move(next->next);
                 }
@@ -189,6 +202,7 @@ namespace graft
             using BucketValue = std::pair<Key, Value>;
             using BucketData = TSList<BucketValue>;
             using BucketPtr = std::shared_ptr<BucketValue>;
+            using OnExpired = typename BucketData::OnExpired;
 
             BucketData m_data;
 
@@ -210,11 +224,11 @@ namespace graft
                     default_value : found_entry->second;
             }
 
-            void addOrUpdate(Key const& key, Value const& value, ch::seconds ttl = ch::seconds(0))
+            void addOrUpdate(Key const& key, Value const& value, ch::seconds ttl = ch::seconds(0), OnExpired onExpired = nullptr)
             {
                 BucketPtr const found_entry = findEntryFor(key);
                 if (found_entry == nullptr)
-                    m_data.pushFront(BucketValue(key,value), ttl);
+                    m_data.pushFront(BucketValue(key,value), ttl, onExpired);
                 else
                     found_entry->second = value;
             }
@@ -243,9 +257,9 @@ namespace graft
                 );
             }
 
-            void cleanup()
+            void cleanup(std::vector<std::function<void()>>& res)
             {
-                m_data.unsafe_cleanup();
+                m_data.unsafe_cleanup(res);
             }
         };
 
@@ -266,7 +280,21 @@ namespace graft
             return b;
         }
 
+        void cleanup(BucketType& b)
+        {
+            std::vector<std::function<void()>> res;
+            {
+                boost::unique_lock<boost::shared_mutex> lock(b.blk);
+                b.cleanup(res);
+            }
+            for(auto& f : res)
+            {
+                f();
+            }
+        }
     public:
+        using OnExpired = typename BucketType::OnExpired;
+
         TSHashtable(unsigned num_buckets = 64, const Hash& h = Hash())
             : m_buckets(num_buckets), m_hasher(h)
         {
@@ -286,9 +314,9 @@ namespace graft
             return b.valueFor(key, default_value);
         }
 
-        void addOrUpdate(const Key& key, const Value& value, ch::seconds ttl = ch::seconds(0))
+        void addOrUpdate(const Key& key, const Value& value, ch::seconds ttl = ch::seconds(0), OnExpired onExpired = nullptr)
         {
-            getBucket(key).addOrUpdate(key, value, ttl);
+            getBucket(key).addOrUpdate(key, value, ttl, onExpired);
         }
 
         void remove(const Key& key)
@@ -312,11 +340,16 @@ namespace graft
             return b.applyFor(key, f);
         }
 
-        void cleanup()
+        void cleanup(bool all = false)
         {
-            BucketType& b = getNextBucket();
-            boost::unique_lock<boost::shared_mutex> lock(b.blk);
-            b.cleanup();
+            BucketType* b = &getNextBucket();
+            for(BucketType* n = b;;)
+            {
+                cleanup(*n);
+                if(!all) break;
+                n = &getNextBucket();
+                if(n == b) break;
+            }
         }
     };
 }
