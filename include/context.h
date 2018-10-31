@@ -1,6 +1,5 @@
 #pragma once
 
-#include <boost/any.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 
@@ -13,13 +12,14 @@
 #include <map>
 #include <vector>
 #include <chrono>
+#include <any>
 
 #include "graft_utility.hpp"
 #include "graft_constants.h"
 
 namespace graft
 {
-using GlobalContextMap = graft::TSHashtable<std::string, boost::any>;
+using GlobalContextMap = graft::TSHashtable<std::string, std::any>;
 
 class Context
 {
@@ -27,7 +27,7 @@ public:
     class Local
     {
     private:
-        using ContextMap = std::map<std::string, boost::any>;
+        using ContextMap = std::map<std::string, std::any>;
         ContextMap m_map;
 
         class Proxy
@@ -42,7 +42,7 @@ public:
                 static_assert(std::is_nothrow_move_constructible<T>::value,
                               "not move constructible");
 
-                boost::any tmp(std::forward<T>(v));
+                std::any tmp(std::forward<T>(v));
                 auto it = m_map.find(m_key);
                 if(it == m_map.end())
                 {
@@ -58,7 +58,7 @@ public:
             template<typename T>
             operator T& () const
             {
-                return boost::any_cast<T&>(m_map[m_key]);
+                return std::any_cast<T&>(m_map[m_key]);
             }
 
         private:
@@ -76,14 +76,14 @@ public:
         T const& operator[](const std::string& key) const
         {
             auto it = m_map.find(key);
-            return boost::any_cast<T&>(it->second);
+            return std::any_cast<T&>(it->second);
         }
 
         template<typename T>
         T operator[](const std::string& key) const
         {
             auto it = m_map.find(key);
-            return boost::any_cast<T>(it->second);
+            return std::any_cast<T>(it->second);
         }
 
         Proxy operator[](const std::string& key)
@@ -144,7 +144,7 @@ public:
             {
                 static_assert(std::is_nothrow_move_constructible<T>::value,
                               "not move constructible");
-                boost::any tmp(std::forward<T>(v));
+                std::any tmp(std::forward<T>(v));
                 m_map.addOrUpdate(m_key, std::move(tmp));
                 return *this;
             }
@@ -152,8 +152,8 @@ public:
             template<typename T>
             operator T () const
             {
-                return boost::any_cast<T>(
-                            m_map.valueFor(m_key, boost::any()));
+                return std::any_cast<T>(
+                            m_map.valueFor(m_key, std::any()));
             }
 
         private:
@@ -170,8 +170,8 @@ public:
         template<typename T>
         T operator[](const std::string& key) const
         {
-            return boost::any_cast<T>(
-                        m_map.valueFor(key, boost::any()));
+            return std::any_cast<T>(
+                        m_map.valueFor(key, std::any()));
         }
 
         Proxy operator[](const std::string& key)
@@ -189,16 +189,16 @@ public:
         {
             static_assert(std::is_nothrow_move_constructible<T>::value,
                           "not move constructible");
-            boost::any tmp(std::forward<T>(val));
+            std::any tmp(std::forward<T>(val));
             m_map.addOrUpdate(key, std::move(tmp), ttl, onExpired);
         }
 
         template<typename T>
         T get(const std::string& key, T defval)
         {
-            return boost::any_cast<T>(
+            return std::any_cast<T>(
                 m_map.valueFor(
-                    key, boost::any(std::forward<T>(defval))
+                    key, std::any(std::forward<T>(defval))
                 )
             );
         }
@@ -206,8 +206,8 @@ public:
         template<typename T>
         bool apply(const std::string& key, std::function<bool(T&)> f)
         {
-            return m_map.apply(key, [f](boost::any& a)
-            { return f(boost::any_cast<T&>(a)); }
+            return m_map.apply(key, [f](std::any& a)
+            { return f(std::any_cast<T&>(a)); }
             );
         }
 

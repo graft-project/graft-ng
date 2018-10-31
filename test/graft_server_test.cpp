@@ -416,9 +416,9 @@ TEST(Context, expiration)
     graft::Context ctx(m);
 
     int res = 0;
-    auto onExpired = [&res](std::pair<std::string, boost::any>& v)->void
+    auto onExpired = [&res](std::pair<std::string, std::any>& v)->void
     {
-        int i = boost::any_cast<int>(v.second);
+        int i = std::any_cast<int>(v.second);
         res += i;
     };
 
