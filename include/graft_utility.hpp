@@ -7,9 +7,7 @@
 #include <functional>
 #include <chrono>
 #include <mutex>
-//#include <shared_mutex>
-#include <boost/thread/locks.hpp>
-#include <boost/thread/shared_mutex.hpp>
+#include <shared_mutex>
 
 namespace graft
 {
@@ -215,7 +213,7 @@ namespace graft
             }
 
         public:
-            mutable boost::shared_mutex blk;
+            mutable std::shared_mutex blk;
 
             Value valueFor(Key const& key, Value const& default_value)
             {
@@ -284,7 +282,7 @@ namespace graft
         {
             std::vector<std::function<void()>> res;
             {
-                boost::unique_lock<boost::shared_mutex> lock(b.blk);
+                std::unique_lock<std::shared_mutex> lock(b.blk);
                 b.cleanup(res);
             }
             for(auto& f : res)
@@ -310,7 +308,7 @@ namespace graft
         Value valueFor(Key const& key, Value const& default_value = Value()) const
         {
             BucketType& b = getBucket(key);
-            boost::shared_lock<boost::shared_mutex> lock(b.blk);
+            std::shared_lock<std::shared_mutex> lock(b.blk);
             return b.valueFor(key, default_value);
         }
 
@@ -322,21 +320,21 @@ namespace graft
         void remove(const Key& key)
         {
             BucketType& b = getBucket(key);
-            boost::shared_lock<boost::shared_mutex> lock(b.blk);
+            std::shared_lock<std::shared_mutex> lock(b.blk);
             b.remove(key);
         }
 
         bool hasKey(Key const& key) const
         {
             BucketType& b = getBucket(key);
-            boost::shared_lock<boost::shared_mutex> lock(b.blk);
+            std::shared_lock<std::shared_mutex> lock(b.blk);
             return b.hasKey(key);
         }
 
         bool apply(Key const& key, std::function<bool(Value&)> f)
         {
             BucketType& b = getBucket(key);
-            boost::shared_lock<boost::shared_mutex> lock(b.blk);
+            std::shared_lock<std::shared_mutex> lock(b.blk);
             return b.applyFor(key, f);
         }
 
