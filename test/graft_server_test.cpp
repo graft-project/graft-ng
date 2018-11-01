@@ -436,6 +436,63 @@ TEST(Context, expiration)
     EXPECT_EQ(res, cmp_res);
 }
 
+TEST(Context, groupSimple)
+{
+    graft::GlobalContextMap m;
+    graft::Context ctx(m);
+
+    ctx.global["a"] = 1;
+    ctx.global["b"] = 2;
+    ctx.global["c"] = 3;
+
+    EXPECT_EQ(ctx.global.createGroup("A"), true);
+    EXPECT_EQ(ctx.global.createGroup("A"), false);
+
+    EXPECT_EQ(ctx.global.groupAddKey("A","a"), true);
+    EXPECT_EQ(ctx.global.groupAddKey("A","b"), true);
+    EXPECT_EQ(ctx.global.groupAddKey("A","c"), true);
+    EXPECT_EQ(ctx.global.groupAddKey("A","d"), false);
+
+    EXPECT_EQ(ctx.global.groupHasKey("A","a"), true);
+    EXPECT_EQ(ctx.global.groupHasKey("A","d"), false);
+    EXPECT_EQ(ctx.global.groupRemoveKey("A","a"), true);
+    EXPECT_EQ(ctx.global.groupHasKey("A","a"), false);
+
+    EXPECT_EQ(ctx.global.groupGet<int>("A","a",0), 0);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 2);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","c",0), 3);
+
+    EXPECT_EQ(ctx.global.groupSet<int>("A","a",10), false);
+    EXPECT_EQ(ctx.global.groupSet<int>("A","b",20), true);
+    EXPECT_EQ(ctx.global.groupSet<int>("A","c",30), true);
+
+    EXPECT_EQ(ctx.global.groupGet<int>("A","a",0), 0);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 20);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","c",0), 30);
+
+    std::map<std::string,int> map;
+    auto f = [&map](const std::string& key, std::any& val)->bool
+    {
+        int v = std::any_cast<int>(val);
+        map.emplace(key, v);
+        return true;
+    };
+
+    ctx.global.groupForEach("A", f);
+    EXPECT_EQ(map.size(), 2);
+    EXPECT_EQ(map["b"], 20);
+    EXPECT_EQ(map["c"], 30);
+
+    ctx.global.remove("b");
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 0);
+    EXPECT_EQ(ctx.global.groupSet<int>("A","b",21), false);
+    ctx.global["b"] = 22;
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 0);
+    EXPECT_EQ(ctx.global.groupHasKey("A","b"), false);
+    EXPECT_EQ(ctx.global.groupAddKey("A","b"), true);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 22);
+}
+
 /////////////////////////////////
 
 std::function<GraftServerTestBase::TempCryptoNodeServer::on_http_t> GraftServerTestBase::TempCryptoNodeServer::http_echo =
