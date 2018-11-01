@@ -297,7 +297,7 @@ public:
         {
             GroupPtr gptr = getGroup(gname);
             if(!gptr) return false;
-            gptr->forEachShared(f);
+            gptr->forEach(f);
             return true;
         }
     };

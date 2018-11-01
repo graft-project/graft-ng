@@ -360,8 +360,9 @@ namespace graft
             using NodeWPtr = std::weak_ptr<node>;
             using ForEachFuncPrivate = std::function<bool(const Key& key, Value& val)>;
 
-            void forEachUnsafe(ForEachFuncPrivate f)
+            std::vector<Key> forEachUnsafe(ForEachFuncPrivate f)
             {
+                std::vector<Key> invalid_keys;
                 for(auto it = m_map.begin(), eit = m_map.end(); it != eit; ++it)
                 {
                     const Key& key = it->first;
@@ -369,13 +370,15 @@ namespace graft
                     NodePtrPrivate ptr = wptr.lock();
                     if(!ptr)
                     {
-                        continue; //TODO: remove such keys?
+                        invalid_keys.push_back(key);
+                        continue;
                     }
 
                     std::unique_lock<std::mutex> lk(ptr->m);
                     bool res = f(key, ptr->data->second);
-                    if(!res) return;
+                    if(!res) break;
                 }
+                return invalid_keys;
             }
 
             TSHashtable& m_table;
@@ -440,16 +443,21 @@ namespace graft
                 return m_map.erase(key) != 0;
             }
 
-            void forEachUnique(ForEachFunc f)
+            void forEach(ForEachFunc f)
             {
-                std::unique_lock<std::shared_mutex> lk(m_map_mutex);
-                forEachUnsafe(f);
-            }
-
-            void forEachShared(ForEachFunc f)
-            {
-                std::shared_lock<std::shared_mutex> lk(m_map_mutex);
-                forEachUnsafe(f);
+                std::vector<Key> invalid_keys;
+                {
+                    std::shared_lock<std::shared_mutex> lk(m_map_mutex);
+                    invalid_keys = forEachUnsafe(f);
+                }
+                if(!invalid_keys.empty())
+                {
+                    std::unique_lock<std::shared_mutex> lk(m_map_mutex);
+                    for(auto& it : invalid_keys)
+                    {
+                        m_map.erase(it);
+                    }
+                }
             }
         };
 
