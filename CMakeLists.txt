@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 project(graft_server)
 
 option(OPT_BUILD_TESTS "Build tests." OFF)
+option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
@@ -53,7 +54,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DHAVE_EVP_MD_CTX_NEW=YES -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
     )
 
 set(CMAKE_CXX_STANDARD 17)
@@ -217,6 +218,9 @@ set(GRAFTLETS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/graftlets)
 add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
 
 target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
+if(ENABLE_SYSLOG)
+    target_compile_definitions(graft_server PRIVATE -DELPP_SYSLOG)
+endif()
 
 set_target_properties(graft_server PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
 
@@ -279,6 +283,9 @@ if (OPT_BUILD_TESTS)
         target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
         add_dependencies(graft_server_test libr3 cryptonode graftlet_lib googletest)
         set_target_properties(graft_server_test PROPERTIES LINK_FLAGS "-Wl,-E")
+        if(ENABLE_SYSLOG)
+            target_compile_definitions(graft_server_test PRIVATE -DELPP_SYSLOG)
+        endif()
 
         if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
             add_custom_command(
