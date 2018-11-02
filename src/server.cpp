@@ -150,9 +150,9 @@ void GraftServer::initGlobalContext()
 //    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
 }
 
-bool GraftServer::init(int argc, const char** argv)
+bool GraftServer::init(int argc, const char** argv, ConfigOpts* config)
 {
-    ConfigOpts configOpts;
+    ConfigOpts& configOpts = *config;
     bool res = initConfigOption(argc, argv, configOpts);
     if(!res) return false;
 
@@ -161,23 +161,28 @@ bool GraftServer::init(int argc, const char** argv)
     assert(m_looper);
 
     initGraftlets();
-    initConnectionManagers();
-
-    prepareDataDirAndSupernodes();
-
-
     addGlobalCtxCleaner();
 
-    startSupernodePeriodicTasks();
+    initGlobalContext();
 
+//    virtual initMisc(ConfigOpt*); //+startSupernodePeriodicTasks();
+    initConnectionManagers();
+
+/*
+//    prepareDataDirAndSupernodes();
+
+//    addGlobalCtxCleaner();
+
+//    startSupernodePeriodicTasks();
+
+//    + initSignals();
+*/
     for(auto& cm : m_conManagers)
     {
         cm->enableRouting();
         checkRoutes(*cm);
         cm->bind(*m_looper);
     }
-
-    initGlobalContext();
 
     return true;
 }
@@ -189,42 +194,39 @@ void GraftServer::serve()
     m_looper->serve();
 }
 
-bool GraftServer::run(int argc, const char** argv)
+GraftServer::RunRes GraftServer::run()
 {
     initSignals();
 
-    for(bool run = true; run;)
+    RunRes res = RunRes::UnexpectedOk;
+
+    //shutdown
+    int_handler = [this, &res](int sig_num)
     {
-        run = false;
+        LOG_PRINT_L0("Stopping server");
+        stop();
+        res = RunRes::SignalShutdown;
+    };
 
-        if(!init(argc, argv)) return false;
-        argc = 1;
+    //terminate
+    term_handler = [this, &res](int sig_num)
+    {
+        LOG_PRINT_L0("Force stopping server");
+        stop(true);
+        res = RunRes::SignalTerminate;
+    };
 
-        //shutdown
-        int_handler = [this](int sig_num)
-        {
-            LOG_PRINT_L0("Stopping server");
-            stop();
-        };
+    //restart
+    hup_handler = [this, &res](int sig_num)
+    {
+        LOG_PRINT_L0("Restarting server");
+        stop();
+        res = RunRes::SignalRestart;
+    };
 
-        //terminate
-        term_handler = [this](int sig_num)
-        {
-            LOG_PRINT_L0("Force stopping server");
-            stop(true);
-        };
+    serve();
 
-        //restart
-        hup_handler = [this,&run](int sig_num)
-        {
-            LOG_PRINT_L0("Restarting server");
-            run = true;
-            stop();
-        };
-
-        serve();
-    }
-    return true;
+    return res;
 }
 
 void GraftServer::initSignals()

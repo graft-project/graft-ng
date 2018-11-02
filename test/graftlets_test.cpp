@@ -361,7 +361,12 @@ class GraftServerTest : public ::testing::Test
 private:
     void run()
     {
-        th = std::thread([this]{ gserver.run(start_args.argc, start_args.argv); });
+        th = std::thread([this]
+        {
+            graft::ConfigOpts copts;
+            gserver.init(start_args.argc, start_args.argv, &copts);
+            gserver.run();
+        });
         while(!gserver.ready())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));

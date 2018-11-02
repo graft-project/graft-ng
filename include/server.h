@@ -1,5 +1,6 @@
 #pragma once
 
+#include "serveropts.h"
 #include "connection.h"
 
 namespace graftlet {
@@ -17,7 +18,16 @@ public:
     GraftServer(const GraftServer&) = delete;
     GraftServer& operator = (const GraftServer&) = delete;
 
-    bool run(int argc, const char** argv);
+    enum RunRes : int
+    {
+        SignalShutdown,
+        SignalTerminate,
+        SignalRestart,
+        UnexpectedOk,
+    };
+
+    bool init(int argc, const char** argv, ConfigOpts* config);
+    RunRes run();
 protected:
     virtual bool initConfigOption(int argc, const char** argv, ConfigOpts& configOpts);
     virtual void initConnectionManagers();
@@ -28,7 +38,6 @@ private:
     void initGlobalContext();
     void prepareDataDirAndSupernodes();
     void startSupernodePeriodicTasks();
-    bool init(int argc, const char** argv);
     void serve();
     static void initSignals();
     void addGlobalCtxCleaner();
