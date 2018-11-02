@@ -190,17 +190,16 @@ set_target_properties(graftlet_lib PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/graftlets
     )
 
-### graft_server
-add_executable(graft_server
+### graft library
+add_library(graft STATIC
     ${GS_SOURCES}
-    ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
 
-target_include_directories(graft_server PRIVATE
+target_include_directories(graft PRIVATE
     ${GS_INCLUDE_DIRS}
     )
 
-target_link_libraries(graft_server PRIVATE
+target_link_libraries(graft PRIVATE
     ${CRYPTONODE_LIBS}
     ${GS_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
@@ -214,18 +213,42 @@ target_link_libraries(graft_server PRIVATE
     ${COMMON_LIBS}
     )
 
+### supernode
+add_executable(supernode
+    ${PROJECT_SOURCE_DIR}/src/main.cpp
+    )
+
+target_include_directories(supernode PRIVATE
+    ${GS_INCLUDE_DIRS}
+    )
+
+target_link_libraries(supernode PRIVATE
+    ${CRYPTONODE_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_CHRONO_LIBRARY}
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+    ${COMMON_LIBS}
+    graft
+    )
+
 set(GRAFTLETS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/graftlets)
 add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
 
-target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
+target_compile_definitions(graft PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
 if(ENABLE_SYSLOG)
-    target_compile_definitions(graft_server PRIVATE -DELPP_SYSLOG)
+    target_compile_definitions(graft PRIVATE -DELPP_SYSLOG)
 endif()
 
-set_target_properties(graft_server PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
+set_target_properties(graft PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
 
-add_dependencies(graft_server libr3 cryptonode graftlet_lib)
+add_dependencies(graft libr3 cryptonode graftlet_lib)
 
+add_dependencies(supernode graft libr3 cryptonode graftlet_lib)
 
 ##################
 ### tests section
@@ -251,8 +274,7 @@ if (OPT_BUILD_TESTS)
             ${BINARY_DIR}/googlemock/gtest/${CMAKE_FIND_LIBRARY_PREFIXES}gtest.a
             )
 
-        add_executable(graft_server_test
-                ${GS_SOURCES}
+        add_executable(supernode_test
                 ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
                 ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
@@ -262,29 +284,27 @@ if (OPT_BUILD_TESTS)
                 ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
-        target_include_directories(graft_server_test PRIVATE
+        target_include_directories(supernode_test PRIVATE
                 ${GS_INCLUDE_DIRS}
                 ${GT_INCLUDE_DIRS}
                 ${CRYPTONODE_INCLUDES}
-
         )
 
-        target_link_libraries(graft_server_test
-            PRIVATE
+        target_link_libraries(supernode_test PRIVATE
             ${CRYPTONODE_LIBS}
             ${GT_LIBS}
-            ${GS_LIBS}
             ${Boost_LIBRARIES}
             ${CMAKE_THREAD_LIBS_INIT}
             ${COMMON_LIBS}
+            graft
             )
 
 
-        target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
-        add_dependencies(graft_server_test libr3 cryptonode graftlet_lib googletest)
-        set_target_properties(graft_server_test PROPERTIES LINK_FLAGS "-Wl,-E")
+        target_compile_definitions(supernode_test PRIVATE MG_ENABLE_COAP=1)
+        add_dependencies(supernode_test graft libr3 cryptonode graftlet_lib googletest)
+        set_target_properties(supernode_test PROPERTIES LINK_FLAGS "-Wl,-E")
         if(ENABLE_SYSLOG)
-            target_compile_definitions(graft_server_test PRIVATE -DELPP_SYSLOG)
+            target_compile_definitions(supernode_test PRIVATE -DELPP_SYSLOG)
         endif()
 
         if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
