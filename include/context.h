@@ -133,6 +133,9 @@ public:
     protected:
         GlobalContextMap& m_map;
     private:
+        using GroupPtr = GlobalContextMap::GroupPtr;
+        using NodePtr = GlobalContextMap::Group::NodePtr;
+
         class Proxy
         {
         public:
@@ -161,19 +164,27 @@ public:
             const std::string& m_key;
         };
 
+        GroupPtr getGroup(const std::string& gname)
+        {
+            return m_map.getGroup(gname);
+        }
+
     public:
+
         Global(GlobalContextMap& map) : m_map(map) {}
         ~Global() = default;
         Global(const Global&) = delete;
         Global(Global&&) = delete;
 
+#if 0
+        //currently broken; needs to be fixed
         template<typename T>
         T operator[](const std::string& key) const
         {
             return std::any_cast<T>(
                         m_map.valueFor(key, std::any()));
         }
-
+#endif
         Proxy operator[](const std::string& key)
         {
             return Proxy(m_map, key);
@@ -214,6 +225,80 @@ public:
         void remove(const std::string& key)
         {
             return m_map.remove(key);
+        }
+
+        bool createGroup(const std::string& gname)
+        {
+            return m_map.createGroup(gname);
+        }
+
+        bool hasGroup(const std::string& gname)
+        {
+            return getGroup(gname) != nullptr;
+        }
+
+        bool deleteGroup(const std::string& gname)
+        {
+            return m_map.deleteGroup(gname);
+        }
+
+        bool groupAddKey(const std::string& gname, const std::string& key)
+        {
+            GroupPtr gptr = getGroup(gname);
+            if(!gptr) return false;
+            return gptr->add(key);
+        }
+
+        bool groupHasKey(const std::string& gname, const std::string& key)
+        {
+            GroupPtr gptr = getGroup(gname);
+            if(!gptr) return false;
+            return gptr->has(key);
+        }
+
+        bool groupRemoveKey(const std::string& gname, const std::string& key)
+        {
+            GroupPtr gptr = getGroup(gname);
+            if(!gptr) return false;
+            return gptr->remove(key);
+        }
+
+        //This method has exactly the same functionality as set<T> method, in some cases the repformance might be better (?)
+        template<typename T>
+        bool groupSet(const std::string& gname, const std::string& key, T&& val, std::chrono::seconds ttl = std::chrono::seconds(0), GlobalContextMap::OnExpired onExpired = nullptr)
+        {
+            GroupPtr gptr = getGroup(gname);
+            if(!gptr) return false;
+            NodePtr nptr = gptr->get(key);
+            if(!nptr) return false;
+
+            std::lock_guard<decltype(nptr->m)> lk(nptr->m);
+            std::any& any = nptr->data->second;
+            any = std::any(std::forward<T>(val));
+            nptr->ttl = ttl;
+            nptr->onExpired = onExpired;
+            return true;
+        }
+
+        //This method has exactly the same functionality as get<T> method, in some cases the repformance might be better (?)
+        template<typename T>
+        T groupGet(const std::string& gname, const std::string& key, T&& defval)
+        {
+            GroupPtr gptr = getGroup(gname);
+            if(!gptr) return std::forward<T>(defval);
+            NodePtr nptr = gptr->get(key);
+            if(!nptr) return std::forward<T>(defval);
+
+            std::lock_guard<decltype(nptr->m)> lk(nptr->m);
+            return std::any_cast<T>(nptr->data->second);
+        }
+
+        bool groupForEach(const std::string& gname, std::function<bool(const std::string& key, std::any& any)> f)
+        {
+            GroupPtr gptr = getGroup(gname);
+            if(!gptr) return false;
+            gptr->forEach(f);
+            return true;
         }
     };
 
