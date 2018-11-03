@@ -97,8 +97,6 @@ set(GS_SOURCES
 set(GS_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/mongoose
     ${PROJECT_SOURCE_DIR}/modules/libr3/include
-    ${PROJECT_SOURCE_DIR}/include/requests
-    ${PROJECT_SOURCE_DIR}/include/rta
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_BINARY_DIR}
     )

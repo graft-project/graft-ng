@@ -1,4 +1,4 @@
-#include "rejectpayrequest.h"
+#include "requests/rejectpayrequest.h"
 #include "requestdefines.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY

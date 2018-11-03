@@ -1,4 +1,4 @@
-#include "paystatusrequest.h"
+#include "requests/paystatusrequest.h"
 #include "requestdefines.h"
 #include "jsonrpc.h"
 #include <misc_log_ex.h>

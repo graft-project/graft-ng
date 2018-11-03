@@ -1,4 +1,4 @@
-#include "healthcheckrequest.h"
+#include "requests/healthcheckrequest.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.healthcheckrequest"
