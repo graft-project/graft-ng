@@ -1,4 +1,5 @@
 #include "server.h"
+#include "supernode.h"
 #include "backtrace.h"
 #include "graft_exception.h"
 
@@ -39,38 +40,6 @@ void terminate()
 
 } //namespace graft
 
-namespace graft
-{
-namespace snd
-{
-
-class Supernode : public GraftServer
-{
-    class ConfigOptEx : public ConfigOpts
-    {
-
-    };
-
-public:
-    bool run(int argc, const char** argv)
-    {
-        ConfigOptEx configEx;
-        for(bool run = true; run;)
-        {
-            run = false;
-            if(!init(argc, argv, &configEx)) return false;
-            argc = 1;
-            RunRes res = GraftServer::run();
-            if(res == RunRes::SignalRestart) run = true;
-        }
-        return true;
-    }
-
-};
-
-} //namespace snd
-} //namespace graft
-
 
 int main(int argc, const char** argv)
 {
@@ -78,8 +47,8 @@ int main(int argc, const char** argv)
 
     try
     {
-        graft::snd::Supernode gserver;
-        bool res = gserver.run(argc, argv);
+        graft::snd::Supernode supernode;
+        bool res = supernode.run(argc, argv);
         if(!res) return -2;
     } catch (const graft::exit_error& e) {
         std::cerr << "The program is terminated because of error: " << e.what() << std::endl;

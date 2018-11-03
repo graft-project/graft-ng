@@ -2,31 +2,10 @@
 #include "backtrace.h"
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-#include "requests.h"
-#include "requestdefines.h"
-#include "requests/sendsupernodeannouncerequest.h"
-#include "rta/supernode.h"
-#include "rta/fullsupernodelist.h"
 #include "GraftletLoader.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
-
-
-namespace consts {
-   static const char * DATA_PATH = "supernode/data";
-   static const char * STAKE_WALLET_PATH = "stake-wallet";
-   static const char * WATCHONLY_WALLET_PATH = "stake-wallet";
-   static const size_t DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS = 5 * 1000;
-}
-
-namespace tools {
-    // TODO: make it crossplatform
-    std::string getHomeDir()
-    {
-        return std::string(getenv("HOME"));
-    }
-}
 
 namespace graft {
 
@@ -70,7 +49,7 @@ void GraftServer::initGraftlets()
     m_graftletLoader->checkDependencies();
 }
 
-void GraftServer::addGraftletEndpoints(HttpConnectionManager& httpcm)
+void GraftServer::addGraftletEndpoints()
 {
     assert(m_graftletLoader);
     IGraftlet::EndpointsVec endpoints = m_graftletLoader->getEndpoints();
@@ -83,56 +62,7 @@ void GraftServer::addGraftletEndpoints(HttpConnectionManager& httpcm)
 
         graftlet_router.addRoute(endpoint, method, {nullptr, handler , nullptr});
     }
-    httpcm.addRouter(graftlet_router);
-}
-
-void GraftServer::setHttpRouters(HttpConnectionManager& httpcm)
-{
-    Router dapi_router("/dapi/v2.0");
-    auto http_test = [](const Router::vars_t&, const Input&, Context&, Output&)->Status
-    {
-        std::cout << "blah-blah" << std::endl;
-        return Status::Ok;
-    };
-    // Router::Handler3 h3_test1(http_test, nullptr, nullptr);
-
-    // dapi_router.addRoute("/test", METHOD_GET, h3_test1);
-    // httpcm.addRouter(dapi_router);
-
-    // Router http_router;
-    graft::registerRTARequests(dapi_router);
-    httpcm.addRouter(dapi_router);
-
-    Router forward_router;
-    graft::registerForwardRequests(forward_router);
-    httpcm.addRouter(forward_router);
-
-    Router health_router;
-    graft::registerHealthcheckRequests(health_router);
-    httpcm.addRouter(health_router);
-
-    Router debug_router;
-    graft::registerDebugRequests(debug_router);
-    httpcm.addRouter(debug_router);
-
-    addGraftletEndpoints(httpcm);
-}
-
-void GraftServer::setCoapRouters(CoapConnectionManager& coapcm)
-{
-    Router coap_router("/coap");
-    auto coap_test = [](const Router::vars_t&, const Input&, Context&, Output&)->Status
-    {
-        std::cout << "blah" << std::endl;
-        return Status::Ok;
-    };
-    Router::Handler3 h3_test(coap_test, nullptr, nullptr);
-
-    coap_router.addRoute("/test", METHOD_GET, h3_test);
-    coap_router.addRoute("/test1", METHOD_GET, h3_test);
-    coap_router.addRoute("/test2", METHOD_GET, h3_test);
-
-    coapcm.addRouter(coap_router);
+    httpcm->addRouter(graftlet_router);
 }
 
 void GraftServer::initGlobalContext()
@@ -150,6 +80,11 @@ void GraftServer::initGlobalContext()
 //    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
 }
 
+void GraftServer::initMisc(ConfigOpts& configOpts)
+{
+
+}
+
 bool GraftServer::init(int argc, const char** argv, ConfigOpts* config)
 {
     ConfigOpts& configOpts = *config;
@@ -165,18 +100,9 @@ bool GraftServer::init(int argc, const char** argv, ConfigOpts* config)
 
     initGlobalContext();
 
-//    virtual initMisc(ConfigOpt*); //+startSupernodePeriodicTasks();
+    initMisc(configOpts);
     initConnectionManagers();
 
-/*
-//    prepareDataDirAndSupernodes();
-
-//    addGlobalCtxCleaner();
-
-//    startSupernodePeriodicTasks();
-
-//    + initSignals();
-*/
     for(auto& cm : m_conManagers)
     {
         cm->enableRouting();
@@ -439,7 +365,6 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     }
 
     // load config
-    boost::property_tree::ptree config;
     namespace fs = boost::filesystem;
 
     if (config_filename.empty()) {
@@ -448,6 +373,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         config_filename  = (selfpath / "config.ini").string();
     }
 
+    boost::property_tree::ptree config;
     boost::property_tree::ini_parser::read_ini(config_filename, config);
     // now we have only following parameters
     // [server]
@@ -480,6 +406,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 
     details::init_log(config, vm);
 
+    configOpts.config_filename = config_filename;
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
     configOpts.http_address = server_conf.get<std::string>("http-address");
@@ -492,9 +419,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.data_dir = server_conf.get<std::string>("data-dir");
     configOpts.lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
     configOpts.testnet = server_conf.get<bool>("testnet", false);
-    configOpts.stake_wallet_name = server_conf.get<string>("stake-wallet-name", "stake-wallet");
-    configOpts.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
-                                                                      consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
+
     //configOpts.graftlet_dirs
     const boost::property_tree::ptree& graftlets_conf = config.get_child("graftlets");
     boost::optional<std::string> dirs_opt  = graftlets_conf.get_optional<std::string>("dirs");
@@ -519,86 +444,12 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     return true;
 }
 
-void GraftServer::prepareDataDirAndSupernodes()
-{
-    if (getCopts().data_dir.empty()) {
-        boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
-        p /= ".graft/";
-        p /= consts::DATA_PATH;
-        getCopts().data_dir = p.string();
-    }
-
-    // create data directory if not exists
-    boost::filesystem::path data_path(getCopts().data_dir);
-    boost::filesystem::path stake_wallet_path = data_path / "stake-wallet";
-    boost::filesystem::path watchonly_wallets_path = data_path / "watch-only-wallets";
-
-    if (!boost::filesystem::exists(data_path)) {
-        boost::system::error_code ec;
-        if (!boost::filesystem::create_directories(data_path, ec)) {
-            throw std::runtime_error(ec.message());
-        }
-
-        if (!boost::filesystem::create_directories(stake_wallet_path, ec)) {
-            throw std::runtime_error(ec.message());
-        }
-
-        if (!boost::filesystem::create_directories(watchonly_wallets_path, ec)) {
-            throw std::runtime_error(ec.message());
-        }
-    }
-
-
-
-    getCopts().watchonly_wallets_path = watchonly_wallets_path.string();
-
-    MINFO("data path: " << data_path.string());
-    MINFO("stake wallet path: " << stake_wallet_path.string());
-
-    // create supernode instance and put it into global context
-    graft::SupernodePtr supernode = boost::make_shared<graft::Supernode>(
-                    (stake_wallet_path / getCopts().stake_wallet_name).string(),
-                    "", // TODO
-                    getCopts().cryptonode_rpc_address,
-                    getCopts().testnet
-                    );
-
-    supernode->setNetworkAddress(getCopts().http_address + "/dapi/v2.0");
-
-    // create fullsupernode list instance and put it into global context
-    graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
-                getCopts().cryptonode_rpc_address, getCopts().testnet);
-    size_t found_wallets = 0;
-    MINFO("loading supernodes wallets from: " << watchonly_wallets_path.string());
-    size_t loaded_wallets = fsl->loadFromDirThreaded(watchonly_wallets_path.string(), found_wallets);
-
-    if (found_wallets != loaded_wallets) {
-        LOG_ERROR("found wallets: " << found_wallets << ", loaded wallets: " << loaded_wallets);
-    }
-    LOG_PRINT_L0("supernode list loaded");
-
-    // add our supernode as well, it wont be added from announce;
-    fsl->add(supernode);
-
-    //put fsl into global context
-    assert(m_looper);
-    graft::Context ctx(m_looper->getGcm());
-    ctx.global["supernode"] = supernode;
-    ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
-    ctx.global["testnet"] = getCopts().testnet;
-    ctx.global["watchonly_wallets_path"] = getCopts().watchonly_wallets_path;
-    ctx.global["cryptonode_rpc_address"] = getCopts().cryptonode_rpc_address;
-}
-
 void GraftServer::initConnectionManagers()
 {
-    auto httpcm = std::make_unique<graft::HttpConnectionManager>();
-    setHttpRouters(*httpcm);
-    m_conManagers.emplace_back(std::move(httpcm));
+    addGraftletEndpoints();
 
-    auto coapcm = std::make_unique<graft::CoapConnectionManager>();
-    setCoapRouters(*coapcm);
-    m_conManagers.emplace_back(std::move(coapcm));
+    m_conManagers.emplace_back(httpcm.get());
+    m_conManagers.emplace_back(coapcm.get());
 }
 
 void GraftServer::addGlobalCtxCleaner()
@@ -612,21 +463,6 @@ void GraftServer::addGlobalCtxCleaner()
                 graft::Router::Handler3(nullptr, cleaner, nullptr),
                 std::chrono::milliseconds(m_looper->getCopts().lru_timeout_ms)
                 );
-}
-
-void GraftServer::startSupernodePeriodicTasks()
-{
-    // update supernode every interval_ms
-
-    if (getCopts().stake_wallet_refresh_interval_ms > 0) {
-        size_t initial_interval_ms = 1000;
-        assert(m_looper);
-        m_looper->addPeriodicTask(
-                    graft::Router::Handler3(nullptr, sendAnnounce, nullptr),
-                    std::chrono::milliseconds(getCopts().stake_wallet_refresh_interval_ms),
-                    std::chrono::milliseconds(initial_interval_ms)
-                    );
-    }
 }
 
 void GraftServer::checkRoutes(graft::ConnectionManager& cm)

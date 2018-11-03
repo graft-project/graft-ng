@@ -213,6 +213,7 @@ target_link_libraries(graft PRIVATE
 
 ### supernode
 add_executable(supernode
+    ${PROJECT_SOURCE_DIR}/src/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     )
 

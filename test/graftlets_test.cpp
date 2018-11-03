@@ -348,10 +348,6 @@ class GraftServerTest : public ::testing::Test
             copts.graftlet_dirs.emplace_back("graftlets");
             copts.lru_timeout_ms = 60000;
             copts.testnet = true;
-            copts.stake_wallet_name = "stake-wallet";
-            copts.stake_wallet_refresh_interval_ms = 50000;
-            copts.watchonly_wallets_path = "";
-
             return true;
         }
     };
