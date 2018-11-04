@@ -61,32 +61,12 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 
-set(GS_SOURCES
+set(LIBGRAFT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/task.cpp
     ${PROJECT_SOURCE_DIR}/src/connection.cpp
     ${PROJECT_SOURCE_DIR}/src/inout.cpp
     ${PROJECT_SOURCE_DIR}/src/router.cpp
-    ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
-    ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/saledetailsrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/payrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/paystatusrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/authorizertatxrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
-    ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
-    ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
-    ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
@@ -190,7 +170,7 @@ set_target_properties(graftlet_lib PROPERTIES
 
 ### graft library
 add_library(graft STATIC
-    ${GS_SOURCES}
+    ${LIBGRAFT_SOURCES}
     )
 
 target_include_directories(graft PRIVATE
@@ -211,10 +191,35 @@ target_link_libraries(graft PRIVATE
     ${COMMON_LIBS}
     )
 
+set(SUPERNODE_SOURCES
+    ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests.cpp
+    ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/authorizertatxrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/debug.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/payrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/paystatusrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/saledetailsrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
+    )
+
+
 ### supernode
 add_executable(supernode
-    ${PROJECT_SOURCE_DIR}/src/supernode.cpp
+    ${SUPERNODE_SOURCES}
     ${PROJECT_SOURCE_DIR}/src/main.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode.cpp
     )
 
 target_include_directories(supernode PRIVATE
@@ -274,19 +279,20 @@ if (OPT_BUILD_TESTS)
             )
 
         add_executable(supernode_test
-                ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/json_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/main.cpp
+            ${SUPERNODE_SOURCES}
+            ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/json_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
         target_include_directories(supernode_test PRIVATE
-                ${GS_INCLUDE_DIRS}
-                ${GT_INCLUDE_DIRS}
-                ${CRYPTONODE_INCLUDES}
+            ${GS_INCLUDE_DIRS}
+            ${GT_INCLUDE_DIRS}
+            ${CRYPTONODE_INCLUDES}
         )
 
         target_link_libraries(supernode_test PRIVATE
