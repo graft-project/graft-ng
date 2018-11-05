@@ -34,7 +34,7 @@ public:
         for(bool run = true; run;)
         {
             run = false;
-            if(!init(argc, argv, &m_configEx)) return false;
+            if(!init(argc, argv, m_configEx)) return false;
             argc = 1;
             RunRes res = GraftServer::run();
             if(res == RunRes::SignalRestart) run = true;

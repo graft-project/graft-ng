@@ -85,9 +85,8 @@ void GraftServer::initMisc(ConfigOpts& configOpts)
 
 }
 
-bool GraftServer::init(int argc, const char** argv, ConfigOpts* config)
+bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
 {
-    ConfigOpts& configOpts = *config;
     bool res = initConfigOption(argc, argv, configOpts);
     if(!res) return false;
 

@@ -360,7 +360,7 @@ private:
         th = std::thread([this]
         {
             graft::ConfigOpts copts;
-            gserver.init(start_args.argc, start_args.argv, &copts);
+            gserver.init(start_args.argc, start_args.argv, copts);
             gserver.run();
         });
         while(!gserver.ready())

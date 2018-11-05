@@ -26,7 +26,7 @@ public:
         UnexpectedOk,
     };
 
-    bool init(int argc, const char** argv, ConfigOpts* config);
+    bool init(int argc, const char** argv, ConfigOpts& configOpts);
     RunRes run();
 protected:
     virtual bool initConfigOption(int argc, const char** argv, ConfigOpts& configOpts);
