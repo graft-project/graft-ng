@@ -424,9 +424,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.workers_count = server_conf.get<int>("workers-count");
     configOpts.worker_queue_len = server_conf.get<int>("worker-queue-len");
     configOpts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
-    configOpts.data_dir = server_conf.get<std::string>("data-dir");
     configOpts.lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
-    configOpts.testnet = server_conf.get<bool>("testnet", false);
 
     //configOpts.graftlet_dirs
     const boost::property_tree::ptree& graftlets_conf = config.get_child("graftlets");

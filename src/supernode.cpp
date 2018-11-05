@@ -41,9 +41,11 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     boost::property_tree::ini_parser::read_ini(m_configEx.config_filename, config);
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
+    m_configEx.data_dir = server_conf.get<std::string>("data-dir");
     m_configEx.stake_wallet_name = server_conf.get<std::string>("stake-wallet-name", "stake-wallet");
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
+    m_configEx.testnet = server_conf.get<bool>("testnet", false);
     return res;
 }
 

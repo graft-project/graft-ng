@@ -17,12 +17,8 @@ struct ConfigOpts
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
     int log_trunc_to_size;
-    // data directory - base directory where supernode stake wallet and other supernodes wallets are located
-    std::string data_dir;
     std::vector<std::string> graftlet_dirs;
     int lru_timeout_ms;
-    // testnet flag
-    bool testnet;
 };
 
 }

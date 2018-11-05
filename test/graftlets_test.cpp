@@ -344,10 +344,8 @@ class GraftServerTest : public ::testing::Test
             copts.timer_poll_interval_ms = 1000;
             copts.upstream_request_timeout = 360;
             copts.cryptonode_rpc_address = "127.0.0.1:28681";
-            copts.data_dir = "";
             copts.graftlet_dirs.emplace_back("graftlets");
             copts.lru_timeout_ms = 60000;
-            copts.testnet = true;
             return true;
         }
     };
