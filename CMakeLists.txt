@@ -5,11 +5,6 @@ project(graft_server)
 option(OPT_BUILD_TESTS "Build tests." OFF)
 option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
 
-configure_file(
-    "${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
-    "${PROJECT_BINARY_DIR}/CMakeConfig.h"
-    )
-
 if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
     # CMAKE_ROOT_SOURCE_DIR variable is required, because CMAKE_SOURCE_DIR works well for include like commands and does not for external projects
     set(CMAKE_ROOT_SOURCE_DIR "${CMAKE_SOURCE_DIR}")

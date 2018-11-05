@@ -8,7 +8,6 @@
 #include "self_holder.h"
 #include "log.h"
 #include "serveropts.h"
-#include "CMakeConfig.h"
 #include <misc_log_ex.h>
 #include <future>
 #include <deque>
