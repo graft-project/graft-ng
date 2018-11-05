@@ -110,7 +110,7 @@ void Supernode::prepareDataDirAndSupernodes()
 
     //put fsl into global context
     assert(m_looper);
-    graft::Context ctx(m_looper->getGcm());
+    Context ctx(m_looper->getGcm());
     ctx.global["supernode"] = supernode;
     ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
     ctx.global["testnet"] = m_configEx.testnet;
@@ -141,7 +141,7 @@ void Supernode::startSupernodePeriodicTasks()
     }
 }
 
-void Supernode::setHttpRouters(HttpConnectionManager& httpcm)
+void Supernode::setHttpRouters(ConnectionManager& httpcm)
 {
     Router dapi_router("/dapi/v2.0");
     auto http_test = [](const Router::vars_t&, const Input&, Context&, Output&)->Status
@@ -171,7 +171,7 @@ void Supernode::setHttpRouters(HttpConnectionManager& httpcm)
     httpcm.addRouter(debug_router);
 }
 
-void Supernode::setCoapRouters(CoapConnectionManager& coapcm)
+void Supernode::setCoapRouters(ConnectionManager& coapcm)
 {
     Router coap_router("/coap");
     auto coap_test = [](const Router::vars_t&, const Input&, Context&, Output&)->Status
@@ -188,10 +188,11 @@ void Supernode::setCoapRouters(CoapConnectionManager& coapcm)
     coapcm.addRouter(coap_router);
 }
 
-void Supernode::initConnectionManagers()
+void Supernode::initRouters()
 {
-    GraftServer::initConnectionManagers();
+    ConnectionManager* httpcm = getConMgr("HTTP");
     setHttpRouters(*httpcm);
+    ConnectionManager* coapcm = getConMgr("COAP");
     setCoapRouters(*coapcm);
 }
 

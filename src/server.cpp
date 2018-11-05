@@ -49,20 +49,25 @@ void GraftServer::initGraftlets()
     m_graftletLoader->checkDependencies();
 }
 
-void GraftServer::addGraftletEndpoints()
+void GraftServer::initGraftletRouters()
 {
+    ConnectionManager* cm = getConMgr("HTTP");
+    assert(cm);
     assert(m_graftletLoader);
     IGraftlet::EndpointsVec endpoints = m_graftletLoader->getEndpoints();
-    Router graftlet_router;
-    for(auto& item : endpoints)
+    if(!endpoints.empty())
     {
-        std::string& endpoint = std::get<0>(item);
-        int& method = std::get<1>(item);
-        Router::Handler& handler = std::get<2>(item);
+        Router graftlet_router;
+        for(auto& item : endpoints)
+        {
+            std::string& endpoint = std::get<0>(item);
+            int& method = std::get<1>(item);
+            Router::Handler& handler = std::get<2>(item);
 
-        graftlet_router.addRoute(endpoint, method, {nullptr, handler , nullptr});
+            graftlet_router.addRoute(endpoint, method, {nullptr, handler , nullptr});
+        }
+        cm->addRouter(graftlet_router);
     }
-    httpcm->addRouter(graftlet_router);
 }
 
 void GraftServer::initGlobalContext()
@@ -71,7 +76,7 @@ void GraftServer::initGlobalContext()
     //ANSWER: It is correct. The ctx is not initialized, ctx is attached to
     //  the global part of the context to which we want to get access here, only
     //  the local part of it has lifetime the same as the lifetime of ctx variable.
-    graft::Context ctx(m_looper->getGcm());
+    Context ctx(m_looper->getGcm());
     const ConfigOpts& copts = m_looper->getCopts();
 //  copts is empty here
 
@@ -100,10 +105,14 @@ bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
     initGlobalContext();
 
     initMisc(configOpts);
-    initConnectionManagers();
 
-    for(auto& cm : m_conManagers)
+    initConnectionManagers();
+    initRouters();
+    initGraftletRouters();
+
+    for(auto& it : m_conManagers)
     {
+        ConnectionManager* cm = it.second.get();
         cm->enableRouting();
         checkRoutes(*cm);
         cm->bind(*m_looper);
@@ -443,12 +452,26 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     return true;
 }
 
+ConnectionManager* GraftServer::getConMgr(const ConnectionManager::Proto& proto)
+{
+    auto it = m_conManagers.find(proto);
+    assert(it != m_conManagers.end());
+    return it->second.get();
+}
+
 void GraftServer::initConnectionManagers()
 {
-    addGraftletEndpoints();
+    std::unique_ptr<HttpConnectionManager> httpcm = std::make_unique<HttpConnectionManager>();
+    auto res1 = m_conManagers.emplace(httpcm->getProto(), std::move(httpcm));
+    assert(res1.second);
+    std::unique_ptr<CoapConnectionManager> coapcm = std::make_unique<CoapConnectionManager>();
+    auto res2 = m_conManagers.emplace(coapcm->getProto(), std::move(coapcm));
+    assert(res2.second);
+}
 
-    m_conManagers.emplace_back(httpcm.get());
-    m_conManagers.emplace_back(coapcm.get());
+void GraftServer::initRouters()
+{
+
 }
 
 void GraftServer::addGlobalCtxCleaner()
@@ -469,7 +492,7 @@ void GraftServer::checkRoutes(graft::ConnectionManager& cm)
     std::string s = cm.dbgCheckConflictRoutes();
     if(!s.empty())
     {
-        std::cout << std::endl << "==> " << cm.getName() << " manager.dbgDumpRouters()" << std::endl;
+        std::cout << std::endl << "==> " << cm.getProto() << " manager.dbgDumpRouters()" << std::endl;
         std::cout << cm.dbgDumpRouters();
 
         //if you really need dump of r3tree uncomment two following lines

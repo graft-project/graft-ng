@@ -20,14 +20,14 @@ class Supernode : public GraftServer
 
     void prepareDataDirAndSupernodes();
     void startSupernodePeriodicTasks();
-    void setHttpRouters(HttpConnectionManager& httpcm);
-    void setCoapRouters(CoapConnectionManager& coapcm);
+    void setHttpRouters(ConnectionManager& httpcm);
+    void setCoapRouters(ConnectionManager& coapcm);
 
     ConfigOptsEx m_configEx;
 protected:
     virtual void initMisc(ConfigOpts& configOpts) override;
     virtual bool initConfigOption(int argc, const char** argv, ConfigOpts& configOpts) override;
-    virtual void initConnectionManagers() override;
+    virtual void initRouters() override;
 public:
     bool run(int argc, const char** argv)
     {
