@@ -299,7 +299,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 #else
                 ("log-file", po::value<std::string>(), "log file")
 #endif
-                ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level	%logger	%rfile	%msg");
+                ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level %logger %rfile %msg");
 
         po::store(po::parse_command_line(argc, argv, desc), vm);
         po::notify(vm);
