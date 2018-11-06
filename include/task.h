@@ -199,6 +199,7 @@ public:
     GlobalContextMap& getGcm() { return m_gcm; }
     ConfigOpts& getCopts() { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
+    ThreadPoolX& getThreadPool() { return *m_threadPool; }
 
     static TaskManager* from(mg_mgr* mgr);
 

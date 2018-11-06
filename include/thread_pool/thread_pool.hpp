@@ -6,6 +6,7 @@
 #include <thread_pool/worker.hpp>
 
 #include <atomic>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <vector>

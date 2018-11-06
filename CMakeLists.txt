@@ -82,9 +82,12 @@ set(SUPERNODE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/walletrequests.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
+    ${PROJECT_SOURCE_DIR}/src/wallet_manager.cpp
+    ${PROJECT_SOURCE_DIR}/src/wallet_server.cpp
     )
 
 set(CRYPTONODE_INCLUDE_DIRS
@@ -242,6 +245,32 @@ add_dependencies(graft libr3 cryptonode graftlet_lib)
 
 add_dependencies(supernode graft libr3 cryptonode)
 
+### wallet_server
+add_executable(wallet_server
+    ${SUPERNODE_SOURCES}
+    ${PROJECT_SOURCE_DIR}/src/wallet_server_main.cpp
+    )
+
+target_include_directories(wallet_server PRIVATE
+    ${GRAFT_INCLUDE_DIRS}
+    )
+
+target_link_libraries(wallet_server PRIVATE
+    ${CRYPTONODE_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_CHRONO_LIBRARY}
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+    ${COMMON_LIBS}
+    graft
+    )
+
+add_dependencies(wallet_server graft libr3 cryptonode)
+
 ##################
 ### tests section
 if (OPT_BUILD_TESTS)
@@ -275,6 +304,7 @@ if (OPT_BUILD_TESTS)
             ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
             ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
             ${PROJECT_SOURCE_DIR}/test/sys_info.cpp
+            ${PROJECT_SOURCE_DIR}/test/strand_test.cpp
             ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 

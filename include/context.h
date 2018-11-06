@@ -49,6 +49,7 @@ public:
     }
 };
 
+//using GlobalContextMap = graft::TSHashtable<std::string, std::any>;
 using SysInfoCounter = supernode::system_info::Counter;
 
 class Context
@@ -212,6 +213,8 @@ public:
         ~Global() = default;
         Global(const Global&) = delete;
         Global(Global&&) = delete;
+
+        GlobalContextMap& getGcm() { return m_map; }
 
 #if 0
         //currently broken; needs to be fixed
