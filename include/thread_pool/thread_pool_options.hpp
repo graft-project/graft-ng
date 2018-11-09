@@ -62,6 +62,7 @@ private:
 inline ThreadPoolOptions::ThreadPoolOptions()
     : m_thread_count(std::max<size_t>(1u, std::thread::hardware_concurrency()))
     , m_queue_size(1024u)
+    , m_workers_expelling_interval_ms(1000u)
 {
 }
 
