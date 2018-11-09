@@ -87,9 +87,9 @@ public:
     }
 
 private:
-    Worker<Task, Queue>& getWorker();
+    WorkerT<Task, Queue>& getWorker();
 
-    std::vector<std::unique_ptr<Worker<Task, Queue>>> m_workers;
+    std::vector<std::unique_ptr<WorkerT<Task, Queue>>> m_workers;
     std::atomic<size_t> m_next_worker;
 };
 
@@ -104,12 +104,12 @@ inline ThreadPoolImpl<Task, Queue>::ThreadPoolImpl(
 {
     for(auto& worker_ptr : m_workers)
     {
-        worker_ptr.reset(new Worker<Task, Queue>(options.queueSize()));
+        worker_ptr.reset(new WorkerT<Task, Queue>(options.queueSize()));
     }
 
     for(size_t i = 0; i < m_workers.size(); ++i)
     {
-        Worker<Task, Queue>* steal_donor =
+        WorkerT<Task, Queue>* steal_donor =
                                 m_workers[(i + 1) % m_workers.size()].get();
         m_workers[i]->start(i, steal_donor);
     }
@@ -163,9 +163,9 @@ inline void ThreadPoolImpl<Task, Queue>::post(Handler&& handler, bool to_any_que
 }
 
 template <typename Task, template<typename> class Queue>
-inline Worker<Task, Queue>& ThreadPoolImpl<Task, Queue>::getWorker()
+inline WorkerT<Task, Queue>& ThreadPoolImpl<Task, Queue>::getWorker()
 {
-    auto id = Worker<Task, Queue>::getWorkerIdForCurrentThread();
+    auto id = WorkerT<Task, Queue>::getWorkerIdForCurrentThread();
 
     if (id > m_workers.size())
     {
