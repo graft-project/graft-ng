@@ -36,6 +36,12 @@ GraftServer::~GraftServer()
 
 }
 
+void GraftServer::getThreadPoolInfo(int& activeWorkers, int& expelledWorkers) const
+{
+    assert(m_looper);
+    this->m_looper->getThreadPoolInfo(activeWorkers, expelledWorkers);
+}
+
 void GraftServer::initGraftlets()
 {
     if(m_graftletLoader) return;
@@ -423,6 +429,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.http_connection_timeout = server_conf.get<double>("http-connection-timeout");
     configOpts.workers_count = server_conf.get<int>("workers-count");
     configOpts.worker_queue_len = server_conf.get<int>("worker-queue-len");
+    configOpts.workers_expelling_interval_ms = server_conf.get<int>("workers-expelling-interval-ms", 0);
     configOpts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
     configOpts.lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
 

@@ -126,6 +126,7 @@ void Looper::serve()
         getTimerList().eval();
         checkUpstreamBlockingIO();
         executePostponedTasks();
+        expelWorkers();
         if( stopped() && (m_forceStop || canStop()) ) break;
     }
 

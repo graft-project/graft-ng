@@ -177,7 +177,7 @@ void StateMachine::init_table()
 TaskManager::TaskManager(const ConfigOpts& copts) : m_copts(copts)
 {
     // TODO: validate options, throw exception if any mandatory options missing
-    initThreadPool(copts.workers_count, copts.worker_queue_len);
+    initThreadPool(copts.workers_count, copts.worker_queue_len, copts.workers_expelling_interval_ms);
     m_stateMachine = std::make_unique<StateMachine>();
 }
 
@@ -490,6 +490,19 @@ void TaskManager::executePostponedTasks()
     }
 }
 
+void TaskManager::expelWorkers()
+{
+    if(getCopts().workers_expelling_interval_ms == 0) return;
+    m_threadPool->expelWorkers();
+}
+
+void TaskManager::getThreadPoolInfo(int& activeWorkers, int& expelledWorkers) const
+{
+    activeWorkers = m_threadPool->getActiveWorkersCount();
+    expelledWorkers = m_threadPool->getExpelledWorkersCount();
+}
+
+
 void TaskManager::processForward(BaseTaskPtr bt)
 {
     assert(Status::Forward == bt->getLastStatus());
@@ -549,7 +562,7 @@ void TaskManager::onClientDone(BaseTaskPtr bt)
     ++m_cntBaseTaskDone;
 }
 
-void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
+void TaskManager::initThreadPool(int threadCount, int workersQueueSize, int expellingIntervalMs)
 {
     if(threadCount <= 0) threadCount = std::thread::hardware_concurrency();
     if(workersQueueSize <= 0) workersQueueSize = 32;
@@ -557,6 +570,7 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     tp::ThreadPoolOptions th_op;
     th_op.setThreadCount(threadCount);
     th_op.setQueueSize(workersQueueSize);
+    th_op.setExpellingIntervalMs(expellingIntervalMs);
     graft::ThreadPoolX thread_pool(th_op);
 
     const size_t maxinputSize = th_op.threadCount()*th_op.queueSize();

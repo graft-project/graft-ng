@@ -28,6 +28,8 @@ public:
 
     bool init(int argc, const char** argv, ConfigOpts& configOpts);
     RunRes run();
+
+    void getThreadPoolInfo(int& activeWorkers, int& expelledWorkers) const;
 protected:
     virtual bool initConfigOption(int argc, const char** argv, ConfigOpts& configOpts);
     virtual void initMisc(ConfigOpts& configOpts);

@@ -113,6 +113,8 @@ template <typename Task, template<typename> class Queue>
 inline ThreadPoolImpl<Task, Queue>::ThreadPoolImpl(
                                             const ThreadPoolOptions& options)
 {
+    using Milliseconds = typename Worker::Milliseconds;
+    Worker::defaultPeriodMs = Milliseconds(options.expellingIntervalMs());
 
     m_queues = std::make_unique<QueuesVec>();
     m_queues->reserve(options.threadCount());
