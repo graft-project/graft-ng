@@ -75,8 +75,9 @@ public:
 
     void threadFunc(size_t id, Queue<Task>& queue, Queue<Task>& steal_queue, std::shared_ptr<WorkerT>&& rwptr);
 
-    static std::atomic<int> activeCount;
-    static std::atomic<int> expelledCount;
+    static_assert(std::atomic<uint64_t>::is_always_lock_free);
+    static std::atomic<uint64_t> activeCount;
+    static std::atomic<uint64_t> expelledCount;
     static std::chrono::milliseconds defaultPeriodMs;
 
     std::atomic<TimePoint> m_timePoint = maxTimePoint();
@@ -98,10 +99,10 @@ namespace detail
 }
 
 template <typename Task, template<typename> class Queue>
-std::atomic<int> WorkerT<Task, Queue>::activeCount = 0;
+std::atomic<uint64_t> WorkerT<Task, Queue>::activeCount = 0;
 
 template <typename Task, template<typename> class Queue>
-std::atomic<int> WorkerT<Task, Queue>::expelledCount = 0;
+std::atomic<uint64_t> WorkerT<Task, Queue>::expelledCount = 0;
 
 template <typename Task, template<typename> class Queue>
 std::chrono::milliseconds WorkerT<Task, Queue>::defaultPeriodMs(200);

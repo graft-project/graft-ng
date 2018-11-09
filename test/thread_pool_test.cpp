@@ -81,8 +81,8 @@ TEST(ThreadPool, expelling)
     worker_checker.join();
 
     {
-        int active = thPool->getActiveWorkersCount();
-        int expelled = thPool->getExpelledWorkersCount();
+        uint64_t active = thPool->getActiveWorkersCount();
+        uint64_t expelled = thPool->getExpelledWorkersCount();
 
         EXPECT_EQ(expelled != 0, true);
         EXPECT_EQ(active, th_op.threadCount());
@@ -90,8 +90,8 @@ TEST(ThreadPool, expelling)
     thPool.reset();
 
     {
-        int active = thPool->getActiveWorkersCount();
-        int expelled = thPool->getExpelledWorkersCount();
+        uint64_t active = thPool->getActiveWorkersCount();
+        uint64_t expelled = thPool->getExpelledWorkersCount();
 
         EXPECT_EQ(expelled != 0, true);
         int expect = slow_cnt/2;

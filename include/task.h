@@ -218,7 +218,7 @@ public:
 
     void cb_event(uint64_t cnt);
 
-    void getThreadPoolInfo(int& activeWorkers, int& expelledWorkers) const;
+    void getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledWorkers) const;
 protected:
     bool canStop();
     void executePostponedTasks();

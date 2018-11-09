@@ -89,8 +89,8 @@ public:
     //it is for a single thread
     void expelWorkers();
 
-    static int getActiveWorkersCount();
-    static int getExpelledWorkersCount();
+    static uint64_t getActiveWorkersCount();
+    static uint64_t getExpelledWorkersCount();
 
 private:
     size_t getWorkerIdx();
@@ -164,13 +164,13 @@ inline void ThreadPoolImpl<Task, Queue>::expelWorkers()
 }
 
 template <typename Task, template<typename> class Queue>
-inline int ThreadPoolImpl<Task, Queue>::getActiveWorkersCount()
+inline uint64_t ThreadPoolImpl<Task, Queue>::getActiveWorkersCount()
 {
     return Worker::activeCount;
 }
 
 template <typename Task, template<typename> class Queue>
-inline int ThreadPoolImpl<Task, Queue>::getExpelledWorkersCount()
+inline uint64_t ThreadPoolImpl<Task, Queue>::getExpelledWorkersCount()
 {
     return Worker::expelledCount;
 }

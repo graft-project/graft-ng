@@ -496,7 +496,7 @@ void TaskManager::expelWorkers()
     m_threadPool->expelWorkers();
 }
 
-void TaskManager::getThreadPoolInfo(int& activeWorkers, int& expelledWorkers) const
+void TaskManager::getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledWorkers) const
 {
     activeWorkers = m_threadPool->getActiveWorkersCount();
     expelledWorkers = m_threadPool->getExpelledWorkersCount();
