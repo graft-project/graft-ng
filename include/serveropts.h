@@ -1,12 +1,13 @@
-#ifndef SERVEROPTS_H
-#define SERVEROPTS_H
+#pragma once
 
 #include <string>
+#include <vector>
 
 namespace graft {
 
-struct ServerOpts
+struct ConfigOpts
 {
+    std::string config_filename;
     std::string http_address;
     std::string coap_address;
     double http_connection_timeout;
@@ -15,18 +16,9 @@ struct ServerOpts
     int worker_queue_len;
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
-    // data directory - base directory where supernode stake wallet and other supernodes wallets are located
-    std::string data_dir;
-    // testnet flag
-    bool testnet;
-    // runtime parameters.
-    // path to watch-only wallets (supernodes)
-    std::string watchonly_wallets_path;
+    int log_trunc_to_size;
+    std::vector<std::string> graftlet_dirs;
+    int lru_timeout_ms;
 };
 
 }
-
-
-
-
-#endif // SERVEROPTS_H

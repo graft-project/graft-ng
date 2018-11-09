@@ -344,14 +344,8 @@ class GraftServerTest : public ::testing::Test
             copts.timer_poll_interval_ms = 1000;
             copts.upstream_request_timeout = 360;
             copts.cryptonode_rpc_address = "127.0.0.1:28681";
-            copts.data_dir = "";
             copts.graftlet_dirs.emplace_back("graftlets");
             copts.lru_timeout_ms = 60000;
-            copts.testnet = true;
-            copts.stake_wallet_name = "stake-wallet";
-            copts.stake_wallet_refresh_interval_ms = 50000;
-            copts.watchonly_wallets_path = "";
-
             return true;
         }
     };
@@ -361,7 +355,12 @@ class GraftServerTest : public ::testing::Test
 private:
     void run()
     {
-        th = std::thread([this]{ gserver.run(start_args.argc, start_args.argv); });
+        th = std::thread([this]
+        {
+            graft::ConfigOpts copts;
+            gserver.init(start_args.argc, start_args.argv, copts);
+            gserver.run();
+        });
         while(!gserver.ready())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));

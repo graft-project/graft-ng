@@ -91,10 +91,12 @@ private:
 class ConnectionManager
 {
 public:
+    using Proto = std::string;
+
     virtual void bind(Looper& looper) = 0;
     virtual void respond(ClientTask* ct, const std::string& s);
 
-    ConnectionManager(const std::string& name) : m_name(name) { }
+    ConnectionManager(const Proto& proto) : m_proto(proto) { }
     ConnectionManager(const ConnectionManager&) = delete;
     ConnectionManager& operator = (const ConnectionManager&) = delete;
     virtual ~ConnectionManager() = default;
@@ -107,7 +109,7 @@ public:
     void dbgDumpR3Tree(int level = 0) const { return m_root.dbgDumpR3Tree(level); }
     //returns conflicting endpoint
     std::string dbgCheckConflictRoutes() const { return m_root.dbgCheckConflictRoutes(); }
-    std::string getName() const { return m_name; }
+    Proto getProto() const { return m_proto; }
 
     static void ev_handler(ClientTask* ct, mg_connection *client, int ev, void *ev_data);
 protected:
@@ -120,7 +122,7 @@ protected:
 
     Router::Root m_root;
 private:
-    std::string m_name;
+    Proto m_proto;
 };
 
 namespace details

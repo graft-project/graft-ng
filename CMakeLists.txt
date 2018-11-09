@@ -5,11 +5,6 @@ project(graft_server)
 option(OPT_BUILD_TESTS "Build tests." OFF)
 option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
 
-configure_file(
-    "${PROJECT_SOURCE_DIR}/CMakeConfig.h.in"
-    "${PROJECT_BINARY_DIR}/CMakeConfig.h"
-    )
-
 if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
     # CMAKE_ROOT_SOURCE_DIR variable is required, because CMAKE_SOURCE_DIR works well for include like commands and does not for external projects
     set(CMAKE_ROOT_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
@@ -61,61 +56,33 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 
-set(GS_SOURCES
-    ${PROJECT_SOURCE_DIR}/src/task.cpp
-    ${PROJECT_SOURCE_DIR}/src/connection.cpp
-    ${PROJECT_SOURCE_DIR}/src/inout.cpp
-    ${PROJECT_SOURCE_DIR}/src/router.cpp
-    ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
+set(GRAFT_INCLUDE_DIRS
+    ${PROJECT_SOURCE_DIR}/modules/libr3/include
+    ${PROJECT_SOURCE_DIR}/include
+    )
+
+set(SUPERNODE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/requests.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/saledetailsrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/authorizertatxrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/debug.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/payrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/paystatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/saledetailsrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/authorizertatxrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/debug.cpp
-    ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
-    ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
-    ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
-    ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
-    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
-    ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
-    ${PROJECT_SOURCE_DIR}/src/server.cpp
-    ${PROJECT_SOURCE_DIR}/src/log.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
     )
-
-set(GS_INCLUDE_DIRS
-    ${PROJECT_SOURCE_DIR}/modules/mongoose
-    ${PROJECT_SOURCE_DIR}/modules/libr3/include
-    ${PROJECT_SOURCE_DIR}/include/requests
-    ${PROJECT_SOURCE_DIR}/include/rta
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_BINARY_DIR}
-    )
-
-set(GS_LIBS
-    ${PROJECT_BINARY_DIR}/BUILD/lib/libr3.a
-    ${PROJECT_BINARY_DIR}/BUILD/lib/liblib3rdparty.a
-    ${PROJECT_BINARY_DIR}/BUILD/graftlets/libgraftlet_lib.a
-    pcre
-    )
-if(UNIX)
-    set(GS_LIBS
-        ${GS_LIBS}
-        dl
-    )
-endif(UNIX)
-
 
 set(CRYPTONODE_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include
@@ -180,29 +147,69 @@ link_directories(${CRYPTONODE_LIB_DIRS})
 ### graftlet_lib
 add_library(graftlet_lib STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/GraftletLoader.cpp
-)
+    )
 
 target_include_directories(graftlet_lib PRIVATE
-    ${GS_INCLUDE_DIRS}
+    ${GRAFT_INCLUDE_DIRS}
     )
+
+if(UNIX)
+    target_link_libraries(graftlet_lib PRIVATE
+        dl
+        )
+endif(UNIX)
 
 set_target_properties(graftlet_lib PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/graftlets
     )
 
-### graft_server
-add_executable(graft_server
-    ${GS_SOURCES}
+### graft library
+add_library(graft STATIC
+    ${PROJECT_SOURCE_DIR}/src/task.cpp
+    ${PROJECT_SOURCE_DIR}/src/connection.cpp
+    ${PROJECT_SOURCE_DIR}/src/inout.cpp
+    ${PROJECT_SOURCE_DIR}/src/router.cpp
+    ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
+    ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
+    ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
+    ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
+    ${PROJECT_SOURCE_DIR}/src/server.cpp
+    ${PROJECT_SOURCE_DIR}/src/log.cpp
+    )
+
+target_include_directories(graft PRIVATE
+    ${PROJECT_SOURCE_DIR}/modules/mongoose
+    ${GRAFT_INCLUDE_DIRS}
+    )
+
+target_link_libraries(graft PRIVATE
+    ${PROJECT_BINARY_DIR}/BUILD/lib/libr3.a
+    ${PROJECT_BINARY_DIR}/BUILD/lib/liblib3rdparty.a
+    graftlet_lib
+    easylogging
+    pcre
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_FILESYSTEM_LIBRARY}
+    )
+
+set_target_properties(graft PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/libgraft
+    )
+
+### supernode
+add_executable(supernode
+    ${SUPERNODE_SOURCES}
     ${PROJECT_SOURCE_DIR}/src/main.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode.cpp
     )
 
-target_include_directories(graft_server PRIVATE
-    ${GS_INCLUDE_DIRS}
+target_include_directories(supernode PRIVATE
+    ${GRAFT_INCLUDE_DIRS}
     )
 
-target_link_libraries(graft_server PRIVATE
+target_link_libraries(supernode PRIVATE
     ${CRYPTONODE_LIBS}
-    ${GS_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
     ${Boost_CHRONO_LIBRARY}
@@ -212,20 +219,22 @@ target_link_libraries(graft_server PRIVATE
     ${Boost_THREAD_LIBRARY}
     ${Boost_REGEX_LIBRARY}
     ${COMMON_LIBS}
+    graft
     )
 
 set(GRAFTLETS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/graftlets)
 add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
 
-target_compile_definitions(graft_server PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
+target_compile_definitions(graft PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
 if(ENABLE_SYSLOG)
-    target_compile_definitions(graft_server PRIVATE -DELPP_SYSLOG)
+    target_compile_definitions(graft PRIVATE -DELPP_SYSLOG)
 endif()
 
-set_target_properties(graft_server PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
+set_target_properties(graft PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
 
-add_dependencies(graft_server libr3 cryptonode graftlet_lib)
+add_dependencies(graft libr3 cryptonode graftlet_lib)
 
+add_dependencies(supernode graft libr3 cryptonode)
 
 ##################
 ### tests section
@@ -251,45 +260,44 @@ if (OPT_BUILD_TESTS)
             ${BINARY_DIR}/googlemock/gtest/${CMAKE_FIND_LIBRARY_PREFIXES}gtest.a
             )
 
-        add_executable(graft_server_test
-                ${GS_SOURCES}
-                ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/json_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
-                ${PROJECT_SOURCE_DIR}/test/main.cpp
+        add_executable(supernode_test
+            ${SUPERNODE_SOURCES}
+            ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/json_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
-        target_include_directories(graft_server_test PRIVATE
-                ${GS_INCLUDE_DIRS}
-                ${GT_INCLUDE_DIRS}
-                ${CRYPTONODE_INCLUDES}
-
+        target_include_directories(supernode_test PRIVATE
+            ${PROJECT_SOURCE_DIR}/modules/mongoose
+            ${GRAFT_INCLUDE_DIRS}
+            ${GT_INCLUDE_DIRS}
+            ${CRYPTONODE_INCLUDES}
         )
 
-        target_link_libraries(graft_server_test
-            PRIVATE
+        target_link_libraries(supernode_test PRIVATE
             ${CRYPTONODE_LIBS}
             ${GT_LIBS}
-            ${GS_LIBS}
             ${Boost_LIBRARIES}
             ${CMAKE_THREAD_LIBS_INIT}
             ${COMMON_LIBS}
+            graft
             )
 
 
-        target_compile_definitions(graft_server_test PRIVATE MG_ENABLE_COAP=1)
-        add_dependencies(graft_server_test libr3 cryptonode graftlet_lib googletest)
-        set_target_properties(graft_server_test PROPERTIES LINK_FLAGS "-Wl,-E")
+        target_compile_definitions(supernode_test PRIVATE MG_ENABLE_COAP=1)
+        add_dependencies(supernode_test graft libr3 cryptonode graftlet_lib googletest)
+        set_target_properties(supernode_test PROPERTIES LINK_FLAGS "-Wl,-E")
         if(ENABLE_SYSLOG)
-            target_compile_definitions(graft_server_test PRIVATE -DELPP_SYSLOG)
+            target_compile_definitions(supernode_test PRIVATE -DELPP_SYSLOG)
         endif()
 
         if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
             add_custom_command(
-                TARGET graft_server POST_BUILD
+                TARGET supernode POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_SOURCE_DIR}/data/test_wallet.keys
                 ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
@@ -300,7 +308,7 @@ endif (OPT_BUILD_TESTS)
 # copy config file to build directory
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
     add_custom_command(
-        TARGET graft_server POST_BUILD
+        TARGET supernode POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_SOURCE_DIR}/data/*
         ${CMAKE_CURRENT_BINARY_DIR}/)
