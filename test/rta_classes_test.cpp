@@ -401,6 +401,55 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
  }
 
 
+TEST_F(FullSupernodeListTest, noFalseBalance)
+{
+    MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
+
+    const std::string daemon_addr = "localhost:28881";
+    constexpr bool testnet = true;
+
+    // This wallet has a tiny initial incoming transaction (0.85 GRFT) follows by an incoming
+    // transaction of the required stake (250K), followed by a withdrawal of most of that stake,
+    // leaving 1.7761855320 (the unspent 0.85 plus some dust from the transferred-out 250K) as the
+    // actual wallet balance.  A view-only wallet without key images or with only the key image for
+    // the unspent 0.85 will see a balance of 250001.7761855320 instead.
+    const std::string wallet_path{"supernode_fake_tier4_1"};
+
+    FullSupernodeList sn_list(daemon_addr, testnet);
+
+    Supernode sn(wallet_path, "", daemon_addr, testnet);
+    sn.refresh();
+    EXPECT_EQ(sn.stakeAmount(), 17761855320ull);
+
+    // create view only supernode using just the first key image
+    crypto::secret_key viewkey = sn.exportViewkey();
+    std::vector<Supernode::SignedKeyImage> key_images;
+    sn.exportKeyImages(key_images);
+    EXPECT_EQ(key_images.size(), 3);
+    std::vector<Supernode::SignedKeyImage> first_key_image(1, key_images.front());
+
+    boost::filesystem::path temp_path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+    Supernode * sn_viewonly = Supernode::createFromViewOnlyWallet(temp_path.native(), sn.walletAddress(), viewkey, testnet);
+    LOG_PRINT_L0("temp wallet path: " << temp_path.native());
+
+    sn_viewonly->setDaemonAddress(daemon_addr);
+    sn_viewonly->refresh();
+
+    EXPECT_TRUE(sn_list.add(sn_viewonly));
+    EXPECT_EQ(sn_list.size(), 1);
+
+    EXPECT_TRUE(sn_list.update(sn.walletAddress(), first_key_image));
+    EXPECT_EQ(sn_viewonly->walletBalance(), 2500017761855320ull);
+    EXPECT_EQ(sn_viewonly->stakeAmount(), 8500000000ull);
+
+    // Now go ahead with the full set of key images, which should make the watch-only wallet
+    // accurate:
+    EXPECT_TRUE(sn_list.update(sn.walletAddress(), key_images));
+    EXPECT_EQ(sn_viewonly->walletBalance(), sn_viewonly->stakeAmount());
+    EXPECT_EQ(sn_viewonly->stakeAmount(), sn.stakeAmount());
+}
+
+
 TEST_F(FullSupernodeListTest, getBlockHash)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");

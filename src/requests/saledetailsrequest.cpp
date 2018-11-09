@@ -226,7 +226,9 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
     ctx.global.remove(task_id + CONTEXT_SALE_DETAILS_RESULT);
 
     // send response to the client
-    output.load(sdr);
+    SaleDetailsResponseJsonRpc out;
+    out.result = sdr;
+    output.load(out);
     MDEBUG(__FUNCTION__ << " end");
     return Status::Ok;
 }
