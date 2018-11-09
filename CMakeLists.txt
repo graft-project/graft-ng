@@ -264,6 +264,7 @@ if (OPT_BUILD_TESTS)
             ${SUPERNODE_SOURCES}
             ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
             ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/thread_pool_test.cpp
             ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
             ${PROJECT_SOURCE_DIR}/test/json_test.cpp
             ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
