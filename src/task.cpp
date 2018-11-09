@@ -2,6 +2,7 @@
 #include "connection.h"
 #include "router.h"
 #include "state_machine.h"
+#include "handler_api.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -9,7 +10,6 @@
 namespace graft {
 
 thread_local bool TaskManager::io_thread = false;
-TaskManager* TaskManager::g_upstreamManager{nullptr};
 
 void StateMachine::process(BaseTaskPtr bt)
 {
@@ -174,7 +174,7 @@ void StateMachine::init_table()
 
 }
 
-TaskManager::TaskManager(const ConfigOpts& copts) : m_copts(copts)
+TaskManager::TaskManager(const ConfigOpts& copts) : m_copts(copts), m_gcm(this)
 {
     // TODO: validate options, throw exception if any mandatory options missing
     initThreadPool(copts.workers_count, copts.worker_queue_len);
@@ -196,16 +196,48 @@ inline size_t TaskManager::next_pow2(size_t val)
     return ++val;
 }
 
+bool TaskManager::addPeriodicTask(const Router::Handler& h_worker,
+                             std::chrono::milliseconds interval_ms,
+                             std::chrono::milliseconds initial_interval_ms)
+{
+    if(io_thread)
+    {//it is called from pre_action or post_action, and we can call requestAddPeriodicTask directly
+        addPeriodicTask({nullptr, h_worker, nullptr}, interval_ms, initial_interval_ms);
+        return true;
+    }
+    else
+    {
+        PeridicTaskItem item = std::make_tuple(Router::Handler3(nullptr, h_worker, nullptr), interval_ms, initial_interval_ms);
+        bool ok = m_periodicTaskQueue->push( std::move(item) );
+        if(!ok) return false;
+        notifyJobReady();
+        return true;
+    }
+}
+
+void TaskManager::checkPeriodicTaskIO()
+{
+    while(true)
+    {
+        PeridicTaskItem pti;
+        bool res = m_periodicTaskQueue->pop(pti);
+        if(!res) break;
+        Router::Handler3& h3 = std::get<0>(pti);
+        std::chrono::milliseconds& interval_ms = std::get<1>(pti);
+        std::chrono::milliseconds& initial_interval_ms = std::get<2>(pti);
+        addPeriodicTask(h3, interval_ms, initial_interval_ms);
+    }
+}
+
 //pay attension, input is output and vice versa
 void TaskManager::sendUpstreamBlocking(Output& output, Input& input, std::string& err)
 {
     if(io_thread) throw std::logic_error("the function sendUpstreamBlocking should not be called in IO thread");
-    assert(g_upstreamManager);
     std::promise<Input> promise;
     std::future<Input> future = promise.get_future();
     std::pair< std::promise<Input>, Output> pair = std::make_pair( std::move(promise), output);
-    g_upstreamManager->m_promiseQueue->push( std::move(pair) );
-    g_upstreamManager->notifyJobReady();
+    m_promiseQueue->push( std::move(pair) );
+    notifyJobReady();
     err.clear();
     try
     {
@@ -517,14 +549,11 @@ void TaskManager::processOk(BaseTaskPtr bt)
     respondAndDie(bt, bt->getOutput().data());
 }
 
-void TaskManager::addPeriodicTask(const Router::Handler3& h3, std::chrono::milliseconds interval_ms)
-{
-    addPeriodicTask(h3, interval_ms, interval_ms);
-}
-
 void TaskManager::addPeriodicTask(
         const Router::Handler3& h3, std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms)
 {
+    if(initial_interval_ms == std::chrono::milliseconds::max()) initial_interval_ms = interval_ms;
+
     BaseTask* bt = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms, initial_interval_ms).get();
     PeriodicTask* pt = dynamic_cast<PeriodicTask*>(bt);
     assert(pt);
@@ -552,6 +581,7 @@ void TaskManager::onClientDone(BaseTaskPtr bt)
 void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
 {
     if(threadCount <= 0) threadCount = std::thread::hardware_concurrency();
+    threadCount = next_pow2(threadCount);
     if(workersQueueSize <= 0) workersQueueSize = 32;
 
     tp::ThreadPoolOptions th_op;
@@ -566,7 +596,9 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     m_threadPool = std::make_unique<ThreadPoolX>(std::move(thread_pool));
     m_resQueue = std::make_unique<TPResQueue>(std::move(resQueue));
     m_threadPoolInputSize = maxinputSize;
-    m_promiseQueue = std::make_unique<PromiseQueue>( next_pow2(threadCount) );
+    m_promiseQueue = std::make_unique<PromiseQueue>( threadCount );
+    //TODO: it is not clear how many items we need in PeriodicTaskQueue, maybe we should make it dynamically but this requires additional synchronization
+    m_periodicTaskQueue = std::make_unique<PeriodicTaskQueue>(2*threadCount);
 
     LOG_PRINT_L1("Thread pool created with " << threadCount
                  << " workers with " << workersQueueSize
@@ -575,17 +607,7 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
 
 void TaskManager::setIOThread(bool current)
 {
-    if(current)
-    {
-        io_thread = true;
-        assert(!g_upstreamManager);
-        g_upstreamManager = this;
-    }
-    else
-    {
-        g_upstreamManager = nullptr;
-        io_thread = false;
-    }
+    io_thread = current;
 }
 
 void TaskManager::cb_event(uint64_t cnt)

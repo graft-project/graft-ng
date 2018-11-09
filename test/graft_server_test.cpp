@@ -1,9 +1,7 @@
 #include <gtest/gtest.h>
 #include <deque>
 #include <jsonrpc.h>
-#include <boost/uuid/uuid_io.hpp>
 #include <misc_log_ex.h>
-
 #include "context.h"
 #include "requests.h"
 #include "requests/salerequest.h"
@@ -16,6 +14,7 @@
 #include "requestdefines.h"
 #include "inout.h"
 #include "fixture.h"
+#include "handler_api.h"
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -1210,6 +1209,51 @@ public:
     };
 };
 
+TEST_F(GraftServerTestBase, addPeriodicTask)
+{
+    std::chrono::milliseconds ms(50);
+    int timer_count = 0;
+    auto timer_action = [&timer_count](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        ++timer_count;
+        return graft::Status::Stop;
+    };
+
+    auto run_timer_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        ctx.handlerAPI()->addPeriodicTask(timer_action, ms);
+        return graft::Status::Ok;
+    };
+
+    MainServer mainServer;
+    mainServer.router.addRoute("/timer_pre", METHOD_POST|METHOD_GET, {run_timer_action, nullptr, nullptr});
+    mainServer.router.addRoute("/timer_worker", METHOD_POST|METHOD_GET, {nullptr, run_timer_action, nullptr});
+    mainServer.router.addRoute("/timer_post", METHOD_POST|METHOD_GET, {nullptr, nullptr, run_timer_action});
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/timer_pre", "", post_data);
+    std::this_thread::sleep_for(1.5*ms);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    EXPECT_EQ(timer_count, 1);
+
+    client.serve("http://localhost:9084/timer_worker", "", post_data);
+    std::this_thread::sleep_for(1.5*ms);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    EXPECT_EQ(timer_count, 2);
+
+    client.serve("http://localhost:9084/timer_post", "", post_data);
+    std::this_thread::sleep_for(1.5*ms);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    EXPECT_EQ(timer_count, 3);
+
+    mainServer.stop_and_wait_for();
+}
+
 TEST_F(GraftServerBlockingTest, common)
 {
     TempCryptoN crypton;
@@ -1225,7 +1269,7 @@ TEST_F(GraftServerBlockingTest, common)
         int state = 0;
         try
         {
-            graft::TaskManager::sendUpstreamBlocking(out, res, err);
+            ctx.handlerAPI()->sendUpstreamBlocking(out, res, err);
             state = 1;
         }
         catch(std::exception& ex)
@@ -1243,13 +1287,13 @@ TEST_F(GraftServerBlockingTest, common)
         crypton.answer = "crypton answer";
         graft::Input res;
         std::string err;
-        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        ctx.handlerAPI()->sendUpstreamBlocking(out, res, err);
         EXPECT_EQ(res.body, crypton.answer);
         EXPECT_EQ(err.empty(), true);
         //with error
         res.body.clear();
         crypton.ignore = true;
-        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        ctx.handlerAPI()->sendUpstreamBlocking(out, res, err);
         EXPECT_EQ(err.empty(), false);
         return graft::Status::Ok;
     };
