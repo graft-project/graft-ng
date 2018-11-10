@@ -175,11 +175,59 @@ void StateMachine::init_table()
 
 }
 
-TaskManager::TaskManager(const ConfigOpts& copts) : m_copts(copts), m_gcm(this)
+namespace detail
+{
+
+template<typename Uuid = Context::uuid_t, typename Clock = std::chrono::high_resolution_clock>
+class expiring_list
+{
+    using Pair = std::pair<typename Clock::time_point, Uuid>;
+
+    typename Clock::duration m_delta;
+
+    std::deque<Pair> m_cont;
+    void chop(const typename Clock::time_point& now = Clock::now())
+    {
+        if(m_cont.empty() || now < m_cont.begin()->first) return;
+        auto it = std::lower_bound(++m_cont.begin(), m_cont.end(), std::make_pair(now, Uuid()),
+                                   [](const auto& l, const auto& r)->bool { return l.first < r.first; });
+        m_cont.erase(m_cont.begin(), it);
+    }
+public:
+    void add(const Uuid& uuid)
+    {
+        typename Clock::time_point now = Clock::now();
+        chop(now);
+        m_cont.emplace_back(std::make_pair(now + m_delta, uuid));
+    }
+    bool remove(const Uuid& uuid)
+    {
+        if(m_cont.empty()) return false;
+        chop();
+        auto it = std::find_if(m_cont.begin(), m_cont.end(), [&uuid](const auto& v)->bool { return v.second == uuid; } );
+        if(it == m_cont.end()) return false;
+        m_cont.erase(it);
+        return true;
+    }
+    expiring_list(int life_time_ms) : m_delta( std::chrono::milliseconds(life_time_ms) ) { }
+};
+
+} //namespace detail
+
+class ExpiringList : public detail::expiring_list<>
+{
+public:
+    ExpiringList(int life_time_ms) : detail::expiring_list<>( life_time_ms ) { }
+};
+
+TaskManager::TaskManager(const ConfigOpts& copts)
+    : m_copts(copts)
+    , m_gcm(this)
+    , m_stateMachine(std::make_unique<StateMachine>())
+    , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000*copts.http_connection_timeout))
 {
     // TODO: validate options, throw exception if any mandatory options missing
     initThreadPool(copts.workers_count, copts.worker_queue_len, copts.workers_expelling_interval_ms);
-    m_stateMachine = std::make_unique<StateMachine>();
 }
 
 TaskManager::~TaskManager()
@@ -477,6 +525,15 @@ void TaskManager::postponeTask(BaseTaskPtr bt)
 {
     Context::uuid_t uuid = bt->getCtx().getId();
     assert(!uuid.is_nil());
+
+    //find already recieved uuid
+    if(m_futurePostponeUuids->remove(uuid))
+    {//found
+        m_readyToResume.push_back(bt);
+        LOG_PRINT_RQS_BT(2,bt,"for the task with uuid '" << uuid << "' an answer found; it will be resumed.");
+        return;
+    }
+
     assert(m_postponedTasks.find(uuid) == m_postponedTasks.end());
     m_postponedTasks[uuid] = bt;
     std::chrono::duration<double> timeout(m_copts.http_connection_timeout);
@@ -552,6 +609,7 @@ void TaskManager::processOk(BaseTaskPtr bt)
         if(it == m_postponedTasks.end())
         {
             LOG_PRINT_RQS_BT(2,bt,"attempt to resume task with uuid '" << nextUuid << "' failed, maybe it is not postponed yet.");
+            m_futurePostponeUuids->add(nextUuid);
         }
         else
         {
