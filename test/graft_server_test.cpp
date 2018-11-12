@@ -15,6 +15,7 @@
 #include "inout.h"
 #include "fixture.h"
 #include "handler_api.h"
+#include "expiring_list.h"
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -490,6 +491,26 @@ TEST(Context, groupSimple)
     EXPECT_EQ(ctx.global.groupHasKey("A","b"), false);
     EXPECT_EQ(ctx.global.groupAddKey("A","b"), true);
     EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 22);
+}
+
+TEST(ExpiringList, common)
+{
+    graft::detail::ExpiringListT<int> el(200); //lifetime 200 ms
+    for(int i = 0; i< 5; ++i)
+    {
+        el.add(i); //0ms - 200ms
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //100ms
+    for(int i = 5; i< 10; ++i)
+    {
+        el.add(i); //100ms - 300ms
+    }
+    EXPECT_EQ(el.remove(3), true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //200ms
+    EXPECT_EQ(el.remove(2), false);
+    EXPECT_EQ(el.remove(7), true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //300ms
+    EXPECT_EQ(el.remove(8), false);
 }
 
 /////////////////////////////////
