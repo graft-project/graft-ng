@@ -1,10 +1,12 @@
 #include "supernode.h"
-#include <boost/property_tree/ini_parser.hpp>
 #include "requests.h"
+#include "sys_info.h"
 #include "requestdefines.h"
 #include "requests/sendsupernodeannouncerequest.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+
+#include <boost/property_tree/ini_parser.hpp>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.supernode"

@@ -1,5 +1,6 @@
 #include "connection.h"
 #include "mongoosex.h"
+#include "sys_info.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.connection"
@@ -45,6 +46,10 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
     assert(m_upstream);
     m_upstream->user_data = this;
     mg_set_timer(m_upstream, mg_time() + opts.upstream_request_timeout);
+
+    auto& rsi = Context(manager.getGcm()).runtime_sys_info();
+    rsi.count_upstrm_http_req();
+    rsi.count_upstrm_http_req_bytes_raw(url.size() + extra_headers.size() + body.size());
 }
 
 void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
@@ -71,9 +76,14 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         mg_set_timer(upstream, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
         m_bt->getInput() = *hm;
+
+        auto* man = TaskManager::from(upstream->mgr);
+        assert(man);
+        Context(man->getGcm()).runtime_sys_info().count_upstrm_http_resp_bytes_raw(hm->message.len);
+
         setError(Status::Ok);
         upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
-        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        man->onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
         m_upstream = nullptr;
         releaseItself();
@@ -244,9 +254,14 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     {
     case MG_EV_HTTP_REQUEST:
     {
+        Context(manager->getGcm()).runtime_sys_info().count_http_request_total();
+
         mg_set_timer(client, 0);
 
         struct http_message *hm = (struct http_message *) ev_data;
+
+        Context(manager->getGcm()).runtime_sys_info().count_http_req_bytes_raw(hm->message.len);
+
         std::string uri(hm->uri.p, hm->uri.len);
 
         int method = translateMethod(hm->method.p, hm->method.len);
@@ -259,6 +274,8 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         Router::JobParams prms;
         if (httpcm->matchRoute(uri, method, prms))
         {
+            Context(manager->getGcm()).runtime_sys_info().count_http_request_routed();
+
             mg_str& body = hm->body;
             prms.input.load(body.p, body.len);
             LOG_PRINT_CLN(2,client,"Matching Route found; body = " << std::string(body.p, body.len));
@@ -273,6 +290,8 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         }
         else
         {
+            Context(manager->getGcm()).runtime_sys_info().count_http_request_unrouted();
+
             LOG_PRINT_CLN(2,client,"Matching Route not found; closing connection");
             mg_http_send_error(client, 500, "invalid parameter");
             client->flags |= MG_F_SEND_AND_CLOSE;
@@ -363,31 +382,36 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
             ct->getManager().onClientDone(ct->getSelf());
         return;
     }
-    int code;
-    switch(ct->getCtx().local.getLastStatus())
+
+    int code = 0;
+    auto& ctx = ct->getCtx();
+    auto& rsi = ctx.runtime_sys_info();
+
+    switch(ctx.local.getLastStatus())
     {
-    case Status::Again:
-    case Status::Ok: code = 200; break;
-    case Status::InternalError:
-    case Status::Error: code = 500; break;
-    case Status::Busy: code = 503; break;
-    case Status::Drop: code = 400; break;
-    default: assert(false); break;
+        case Status::Again:
+        case Status::Ok:              { code = 200; rsi.count_http_resp_status_ok(); }    break;
+        case Status::InternalError:
+        case Status::Error:           { code = 500; rsi.count_http_resp_status_error(); } break;
+        case Status::Busy:            { code = 503; rsi.count_http_resp_status_busy(); }  break;
+        case Status::Drop:            { code = 400; rsi.count_http_resp_status_drop(); }  break;
+        default:                      assert(false);                                      break;
     }
 
-    auto& ctx = ct->getCtx();
     auto& client = ct->m_client;
-    LOG_PRINT_CLN(2, ct->m_client, "Reply to client: " << s);
+    LOG_PRINT_CLN(2, client, "Reply to client: " << s);
     if(Status::Ok == ctx.local.getLastStatus())
     {
         mg_send_head(client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
         mg_send(client, s.c_str(), s.size());
+        ctx.runtime_sys_info().count_http_resp_bytes_raw(s.size());
     }
     else
     {
         mg_http_send_error(client, code, s.c_str());
     }
-    LOG_PRINT_CLN(2,ct->m_client,"Client request finished with result " << ct->getStrStatus());
+
+    LOG_PRINT_CLN(2, client, "Client request finished with result " << ct->getStrStatus());
     client->flags |= MG_F_SEND_AND_CLOSE;
     if(ct->getLastStatus() != Status::Again)
         ct->getManager().onClientDone(ct->getSelf());

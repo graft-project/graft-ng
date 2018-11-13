@@ -283,9 +283,11 @@ public:
     static std::string send_request(const std::string &url, const std::string &json_data)
     {
         std::ostringstream s;
-        s << "curl --data \"" << json_data << "\" " << url;
-        std::string ss = s.str();
-        return run_cmdline_read(ss.c_str());
+        s << "curl ";
+        if(!json_data.empty())
+            s << "--data \"" << json_data << "\" ";
+        s << url;
+        return run_cmdline_read(s.str());
     }
 
 protected:
@@ -295,3 +297,4 @@ protected:
     { }
 
 };
+
