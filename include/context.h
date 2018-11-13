@@ -49,7 +49,6 @@ public:
     }
 };
 
-using GlobalContextMap = graft::TSHashtable<std::string, std::any>;
 using SysInfoCounter = supernode::system_info::Counter;
 
 class Context
