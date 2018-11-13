@@ -111,7 +111,7 @@ private:
     std::forward_list<Route> m_routes;
     std::string m_endpointPrefix;
 
-    friend bool Root::arm();
+    //friend bool Root::arm();
 };
 
 using Router = RouterT<Input, Output>;

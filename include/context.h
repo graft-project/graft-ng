@@ -17,13 +17,24 @@
 #include "graft_utility.hpp"
 #include "graft_constants.h"
 
+namespace graft { class ConfigOpts; }
+namespace graft::supernode::system_info { class Counter; }
+
 namespace graft
 {
 using GlobalContextMap = graft::TSHashtable<std::string, std::any>;
+using SysInfoCounter = supernode::system_info::Counter;
 
 class Context
 {
 public:
+
+    const ConfigOpts& config_opts(void) const;
+    void config_opts(const ConfigOpts& copts);
+
+    SysInfoCounter& runtime_sys_info(void);
+    void runtime_sys_info(SysInfoCounter& sic);
+
     class Local
     {
     private:
@@ -205,7 +216,7 @@ public:
         }
 
         template<typename T>
-        T get(const std::string& key, T defval)
+        T get(const std::string& key, T defval) const
         {
             return std::any_cast<T>(
                 m_map.valueFor(

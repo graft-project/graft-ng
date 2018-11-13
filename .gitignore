@@ -1,1 +1,7 @@
-build/*
+.gitignore
+.ycm*
+Makefile
+build
+test.log
+
+
