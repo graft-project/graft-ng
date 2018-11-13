@@ -7,8 +7,11 @@ namespace graftlet {
 class GraftletLoader;
 } //namespace graftlet
 
+namespace graft::supernode::system_info { class Counter; }
+
 namespace graft {
 
+using SysInfoCounter = supernode::system_info::Counter;
 
 class GraftServer
 {
@@ -33,8 +36,8 @@ protected:
     virtual void initMisc(ConfigOpts& configOpts);
     virtual void initRouters();
 
-    bool ready() const { return m_looper && m_looper->ready(); }
-    void stop(bool force = false) { m_looper->stop(force); }
+    bool ready() const;
+    void stop(bool force = false);
     ConnectionManager* getConMgr(const ConnectionManager::Proto& proto);
 
     //the order of members is important because of destruction order.
@@ -43,17 +46,19 @@ private:
     void initLog(int log_level);
     void initGlobalContext();
     void initConnectionManagers();
-    void prepareDataDirAndSupernodes();
     void serve();
     static void initSignals();
     void addGlobalCtxCleaner();
+    void create_looper(ConfigOpts& configOpts);
+    void create_system_info_counter(void);
     void initGraftlets();
     void initGraftletRouters();
     static void checkRoutes(graft::ConnectionManager& cm);
-    ConfigOpts& getCopts() { assert(m_looper); return m_looper->getCopts(); }
+    ConfigOpts& getCopts();
 
     std::unique_ptr<graftlet::GraftletLoader> m_graftletLoader;
     std::map<ConnectionManager::Proto, std::unique_ptr<ConnectionManager>> m_conManagers;
+    std::unique_ptr<SysInfoCounter> m_sys_info;
 };
 
 }//namespace graft

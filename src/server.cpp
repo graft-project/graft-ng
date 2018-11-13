@@ -1,8 +1,9 @@
 #include "server.h"
 #include "backtrace.h"
+#include "GraftletLoader.h"
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-#include "GraftletLoader.h"
+#include "sys_info.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
@@ -28,12 +29,40 @@ static void signal_handler_restart(int sig_num)
 
 GraftServer::GraftServer()
 {
-
 }
 
 GraftServer::~GraftServer()
 {
+}
 
+ConfigOpts& GraftServer::getCopts()
+{
+    assert(m_looper);
+    return m_looper->getCopts();
+}
+
+bool GraftServer::ready() const
+{
+    return m_looper && m_looper->ready();
+}
+
+void GraftServer::stop(bool force)
+{
+    m_looper->stop(force);
+}
+
+void GraftServer::create_looper(ConfigOpts& configOpts)
+{
+    assert(!m_looper);
+    m_looper = std::make_unique<Looper>(configOpts);
+    assert(m_looper);
+}
+
+void GraftServer::create_system_info_counter(void)
+{
+    assert(!m_sys_info);
+    m_sys_info = std::make_unique<SysInfoCounter>();
+    assert(m_sys_info);
 }
 
 void GraftServer::initGraftlets()
@@ -83,6 +112,9 @@ void GraftServer::initGlobalContext()
 //    ctx.global["testnet"] = copts.testnet;
 //    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
 //    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
+    assert(m_sys_info);
+    ctx.runtime_sys_info(*(m_sys_info.get()));
+    ctx.config_opts(getCopts());
 }
 
 void GraftServer::initMisc(ConfigOpts& configOpts)
@@ -95,10 +127,8 @@ bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
     bool res = initConfigOption(argc, argv, configOpts);
     if(!res) return false;
 
-    assert(!m_looper);
-    m_looper = std::make_unique<Looper>(configOpts);
-    assert(m_looper);
-
+    create_looper(configOpts);
+    create_system_info_counter();
     initGraftlets();
     addGlobalCtxCleaner();
 

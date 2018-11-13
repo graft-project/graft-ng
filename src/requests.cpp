@@ -15,10 +15,10 @@
 #include "requests/authorizertatxrequest.h"
 #include "requests/sendsupernodeannouncerequest.h"
 
-
 namespace graft {
 
 void __registerDebugRequests(Router& router);
+namespace supernode::system_info { void register_request(Router& router); }
 
 void registerRTARequests(graft::Router &router)
 {
@@ -47,6 +47,8 @@ void registerHealthcheckRequests(Router &router)
 void registerDebugRequests(Router &router)
 {
     graft::__registerDebugRequests(router);
+    graft::supernode::system_info::register_request(router);
 }
 
 }
+

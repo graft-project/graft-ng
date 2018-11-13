@@ -62,6 +62,9 @@ set(GRAFT_INCLUDE_DIRS
     )
 
 set(SUPERNODE_SOURCES
+    ${PROJECT_SOURCE_DIR}/src/sys_info.cpp
+    ${PROJECT_SOURCE_DIR}/src/sys_info_request.cpp
+    ${PROJECT_SOURCE_DIR}/src/context.cpp
     ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/requests.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
@@ -165,6 +168,7 @@ set_target_properties(graftlet_lib PROPERTIES
 
 ### graft library
 add_library(graft STATIC
+    ${PROJECT_SOURCE_DIR}/src/context.cpp
     ${PROJECT_SOURCE_DIR}/src/task.cpp
     ${PROJECT_SOURCE_DIR}/src/connection.cpp
     ${PROJECT_SOURCE_DIR}/src/inout.cpp
@@ -175,6 +179,9 @@ add_library(graft STATIC
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
     ${PROJECT_SOURCE_DIR}/src/server.cpp
     ${PROJECT_SOURCE_DIR}/src/log.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode.cpp
+    ${PROJECT_SOURCE_DIR}/src/sys_info.cpp
+    ${PROJECT_SOURCE_DIR}/src/sys_info_request.cpp
     )
 
 target_include_directories(graft PRIVATE
@@ -201,7 +208,6 @@ set_target_properties(graft PROPERTIES
 add_executable(supernode
     ${SUPERNODE_SOURCES}
     ${PROJECT_SOURCE_DIR}/src/main.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode.cpp
     )
 
 target_include_directories(supernode PRIVATE
@@ -268,6 +274,7 @@ if (OPT_BUILD_TESTS)
             ${PROJECT_SOURCE_DIR}/test/json_test.cpp
             ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
             ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/sys_info.cpp
             ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 

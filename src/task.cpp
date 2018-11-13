@@ -3,6 +3,7 @@
 #include "router.h"
 #include "state_machine.h"
 #include "handler_api.h"
+#include "sys_info.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -628,6 +629,11 @@ void TaskManager::cb_event(uint64_t cnt)
 
 void TaskManager::onUpstreamDone(UpstreamSender& uss)
 {
+    if(Status::Ok == uss.getStatus())
+        Context(getGcm()).runtime_sys_info().count_upstrm_http_resp_ok();
+    else
+        Context(getGcm()).runtime_sys_info().count_upstrm_http_resp_err();
+
     BaseTaskPtr bt = uss.getTask();
     UpstreamTask* ust = dynamic_cast<UpstreamTask*>(bt.get());
     if(ust)
