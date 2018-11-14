@@ -146,6 +146,7 @@ bool signAuthResponse(AuthorizeRtaTxResponse &arg, const SupernodePtr &supernode
     supernode->signHash(tx_id, sign);
     arg.signature.tx_signature = epee::string_tools::pod_to_hex(sign);
     arg.signature.address = supernode->walletAddress();
+    return true;
 }
 
 /*!
