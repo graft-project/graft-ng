@@ -299,9 +299,11 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
     authResponseMulticast.params.callback_uri = PATH_RESPONSE;
     AuthorizeRtaTxResponse authResponse;
     authResponse.tx_id = tx_id_str;
-    authResponse.result = static_cast<int>(amount > 0 ? RTAAuthResult::Approved : RTAAuthResult::Rejected);
+    authResponse.result = static_cast<int>(amount > 0 && tx.type == cryptonote::transaction::tx_type_rta ?
+                                             RTAAuthResult::Approved
+                                           : RTAAuthResult::Rejected);
     signAuthResponse(authResponse, supernode);
-    authResponse.signature.address   = supernode->walletAddress();
+    authResponse.signature.address  = supernode->walletAddress();
 
     // store tx
     ctx.global.set(authResponse.tx_id + CONTEXT_KEY_TX_BY_TXID, tx, RTA_TX_TTL);
