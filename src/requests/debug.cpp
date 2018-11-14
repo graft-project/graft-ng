@@ -39,7 +39,13 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
 
+    bool validOnly = true;
 
+    try {
+        validOnly = stoul(vars.find("all")->second) == 0;
+    } catch (...) {
+        return errorInternalError("invalid input", output);
+    }
 
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     auto supernodes = fsl->items();
@@ -48,10 +54,14 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
     for (auto& sa : supernodes)
     {
         auto sPtr = fsl->get(sa);
+        uint64_t lastUpdateAge = static_cast<unsigned>(std::time(nullptr)) - sPtr->lastUpdateTime();
+        if (validOnly && !(lastUpdateAge <= FullSupernodeList::ANNOUNCE_TTL_SECONDS
+            && sPtr->stakeAmount()))
+          continue;
         DbSupernode dbSupernode;
+        dbSupernode.LastUpdateAge = lastUpdateAge;
         dbSupernode.Address = sPtr->walletAddress();
         dbSupernode.StakeAmount = sPtr->stakeAmount();
-        dbSupernode.LastUpdateAge = static_cast<unsigned>(std::time(nullptr)) - sPtr->lastUpdateTime();
         resp.result.items.push_back(dbSupernode);
     }
 
@@ -106,8 +116,10 @@ Status doAnnounce(const Router::vars_t& vars, const graft::Input& input,
 void __registerDebugRequests(Router &router)
 {
 #define _HANDLER(h) {nullptr, requests::debug::h, nullptr}
+    // /debug/supernode_list/0 -> do not include inactive items
+    // /debug/supernode_list/1 -> include inactive items
+    router.addRoute("/debug/supernode_list/{all:[0-1]}", METHOD_GET, _HANDLER(getSupernodeList));
 
-    router.addRoute("/debug/supernode_list", METHOD_GET, _HANDLER(getSupernodeList));
     router.addRoute("/debug/auth_sample/{height:[0-9]+}", METHOD_GET, _HANDLER(getAuthSample));
     router.addRoute("/debug/announce", METHOD_POST, _HANDLER(doAnnounce));
 }
