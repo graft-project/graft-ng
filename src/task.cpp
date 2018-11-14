@@ -372,7 +372,9 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize)
     m_threadPool = std::make_unique<ThreadPoolX>(std::move(thread_pool));
     m_resQueue = std::make_unique<TPResQueue>(std::move(resQueue));
     m_threadPoolInputSize = maxinputSize;
-    m_promiseQueue = std::make_unique<PromiseQueue>(threadCount);
+    size_t pq_size = 2;
+    while (pq_size < threadCount) pq_size <<= 1;
+    m_promiseQueue = std::make_unique<PromiseQueue>(pq_size);
 
     LOG_PRINT_L1("Thread pool created with " << threadCount
                  << " workers with " << workersQueueSize
