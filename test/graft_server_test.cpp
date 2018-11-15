@@ -76,6 +76,68 @@ TEST(InOut, common)
     EXPECT_EQ(s_out, s);
 }
 
+
+TEST(InOut, nested)
+{
+    GRAFT_DEFINE_IO_STRUCT(Nested,
+        (uint64, amount),
+        (uint32, block_height),
+        (std::string, payment_id),
+        (std::string, tx_hash),
+        (uint32, unlock_time)
+    );
+
+    GRAFT_DEFINE_IO_STRUCT(Cont,
+        (int, val),
+        (Nested, nested),
+        (std::string, s)
+    );
+
+    GRAFT_DEFINE_IO_STRUCT(ContX,
+        (int, val),
+        (blob, nested),
+        (std::string, s)
+    );
+
+    Nested nested{ {}, 10, 20, "30", "40", 50 };
+    Cont cont{ {}, 60, nested, "70" };
+
+    //cont -> json
+    graft::Output output;
+    output.loadT(cont);
+    std::string cont_json = output.body;
+
+    //json -> cont1
+    graft::Input input; input.body = cont_json;
+    Cont cont1; input.getT(cont1);
+    EXPECT_EQ(cont1.nested.amount, 10);
+    EXPECT_EQ(cont1.nested.block_height, 20);
+    EXPECT_EQ(cont1.nested.payment_id, "30");
+    EXPECT_EQ(cont1.nested.tx_hash, "40");
+    EXPECT_EQ(cont1.nested.unlock_time, 50);
+    EXPECT_EQ(cont1.val, 60);
+    EXPECT_EQ(cont1.s, "70");
+
+    //nested -> json
+    output.loadT(nested);
+    std::string nested_json = output.body;
+
+    //contx -> json
+    ContX contx;
+    contx.val = 60;
+    contx.nested.json = nested_json;
+    contx.s = "70";
+    output.loadT(contx);
+    EXPECT_EQ(output.body, cont_json);
+
+    //json -> contx1
+    input.body = output.body;
+    ContX contx1; input.getT(contx1);
+    EXPECT_EQ(contx1.nested.json, nested_json);
+    EXPECT_EQ(contx1.val, 60);
+    EXPECT_EQ(contx1.s, "70");
+}
+
 namespace graft { namespace serializer {
 
 template<typename T>

@@ -47,6 +47,7 @@ struct mg_str; //from mongoose.h
  *   std::unique_ptr, std::shared_ptr                        | depends/null
  *   std::map, std::unordered_map                            | object
  *   JsonSerializable                                        | object
+ *   blob                                                    | object
  *  ---------------------------------------------------------+--------------
  *
  *  Example of structure definitions:
@@ -73,7 +74,67 @@ struct mg_str; //from mongoose.h
  * GRAFT_DEFINE_IO_STRUCT(Payments,
  *     (std::vector<Payment>, payments)
  * );
+ *
+ * You can use blob type instead of nested struct object. Thus, instead of
+ *
+ *  GRAFT_DEFINE_IO_STRUCT(Nested,
+ *      (int, x),
+ *      (int, y)
+ * );
+ *
+ *  GRAFT_DEFINE_IO_STRUCT(Wrapper,
+ *      (int, nestedType),
+ *      (Nested, nested)
+ * );
+ *
+ * following can be used
+ *
+ *  GRAFT_DEFINE_IO_STRUCT(Wrapper,
+ *      (int, nestedType),
+ *      (blob, nested)
+ * );
+ *
+ * and nested.json represents nested object as json string.
+ *
  */
+
+struct blob
+{
+    std::string json;
+};
+
+namespace ReflectiveRapidJSON {
+namespace JsonReflector {
+
+template <>
+inline void push<blob>(
+    const blob &reflectable, RAPIDJSON_NAMESPACE::Value &value, RAPIDJSON_NAMESPACE::Document::AllocatorType &allocator)
+{
+    RAPIDJSON_NAMESPACE::Document doc;
+    doc.Parse(reflectable.json.c_str());
+    auto obj = doc.GetObject();
+    value.SetObject() = obj;
+}
+
+template <>
+inline void pull<blob>(blob &reflectable,
+    const RAPIDJSON_NAMESPACE::GenericValue<RAPIDJSON_NAMESPACE::UTF8<char>> &value, JsonDeserializationErrors *errors)
+{
+    if (!value.IsObject()) {
+        if (errors) {
+            errors->reportTypeMismatch<RAPIDJSON_NAMESPACE::Value::Object>(value.GetType());
+        }
+        return;
+    }
+    RAPIDJSON_NAMESPACE::StringBuffer sb;
+    RAPIDJSON_NAMESPACE::Writer<RAPIDJSON_NAMESPACE::StringBuffer> writer( sb );
+    value.Accept(writer);
+    reflectable.json = sb.GetString();
+}
+
+} // namespace JsonReflector
+} // namespace ReflectiveRapidJSON
+
 
 namespace graft 
 {
