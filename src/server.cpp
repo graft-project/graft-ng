@@ -1,9 +1,11 @@
+
 #include "server.h"
 #include "backtrace.h"
 #include "GraftletLoader.h"
+#include "sys_info.h"
+
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-#include "sys_info.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"

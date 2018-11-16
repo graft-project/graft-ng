@@ -178,6 +178,12 @@ add_library(graft STATIC
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
     ${PROJECT_SOURCE_DIR}/src/server.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/server/server.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/server/config.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/server/config_loader.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/node.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/config.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/config_loader.cpp
     ${PROJECT_SOURCE_DIR}/src/log.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode.cpp
     ${PROJECT_SOURCE_DIR}/src/sys_info.cpp

@@ -75,8 +75,10 @@ struct mg_str; //from mongoose.h
  * );
  */
 
-namespace graft 
+namespace graft
 {
+    using namespace supernode;
+
     namespace serializer
     {
         class JsonParseError : public std::runtime_error

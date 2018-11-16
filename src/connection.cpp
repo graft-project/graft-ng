@@ -113,14 +113,20 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
 }
 
 Looper::Looper(const ConfigOpts& copts)
-    : TaskManager(copts)
-    , m_mgr(std::make_unique<mg_mgr>())
+: TaskManager(copts)
+, m_mgr(std::make_unique<mg_mgr>())
 {
     mg_mgr_init(m_mgr.get(), this, cb_event);
 }
 
+Looper::Looper(const Config& cfg)
+: TaskManager(cfg)
+, m_mgr(std::make_unique<mg_mgr>())
+{
+    mg_mgr_init(m_mgr.get(), this, cb_event);
+}
 
-Looper::~Looper()
+Looper::~Looper(void)
 {
     mg_mgr_free(m_mgr.get());
 }

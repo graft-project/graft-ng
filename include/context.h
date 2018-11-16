@@ -19,6 +19,7 @@
 
 namespace graft { class ConfigOpts; }
 namespace graft::supernode::system_info { class Counter; }
+namespace graft::supernode::server { class Config; }
 
 namespace graft
 {
@@ -50,10 +51,13 @@ public:
 };
 
 using SysInfoCounter = supernode::system_info::Counter;
+using supernode::server::Config;
 
 class Context
 {
 public:
+    const Config& config(void) const;
+    void config(const Config& cfg);
 
     const ConfigOpts& config_opts(void) const;
     void config_opts(const ConfigOpts& copts);

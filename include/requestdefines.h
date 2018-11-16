@@ -73,6 +73,7 @@ static const std::string CONTEXT_SALE_DETAILS_RESULT(":sale_details_result");
 static const double AUTHSAMPLE_FEE_PERCENTAGE = 0.5;
 
 static const std::string CONTEXT_KEY_CONFIG_OPTS(":config-opts");
+static const std::string CONTEXT_KEY_CONFIG(":config");
 static const std::string CONTEXT_KEY_RUNTIME_SYS_INFO(":runtime-sys-info");
 
 namespace graft {

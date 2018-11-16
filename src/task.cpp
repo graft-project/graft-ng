@@ -4,6 +4,7 @@
 #include "state_machine.h"
 #include "handler_api.h"
 #include "sys_info.h"
+#include "supernode/server/config.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -175,16 +176,26 @@ void StateMachine::init_table()
 
 }
 
-TaskManager::TaskManager(const ConfigOpts& copts) : m_copts(copts), m_gcm(this)
+TaskManager::TaskManager(const ConfigOpts& copts)
+: m_copts(copts)
+, m_gcm(this)
 {
     // TODO: validate options, throw exception if any mandatory options missing
     initThreadPool(copts.workers_count, copts.worker_queue_len);
     m_stateMachine = std::make_unique<StateMachine>();
 }
 
-TaskManager::~TaskManager()
+TaskManager::TaskManager(const Config& cfg)
+: m_cfg(cfg)
+, m_gcm(this)
 {
+    // TODO: validate options, throw exception if any mandatory options missing
+    initThreadPool(cfg.workers_count, cfg.worker_queue_len);
+    m_stateMachine = std::make_unique<StateMachine>();
+}
 
+TaskManager::~TaskManager(void)
+{
 }
 
 inline size_t TaskManager::next_pow2(size_t val)
