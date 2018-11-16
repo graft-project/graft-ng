@@ -128,6 +128,27 @@ void GraftServer::initMisc(ConfigOpts& configOpts)
 
 }
 
+void GraftServer::addGeneralCallbackRoute()
+{
+    auto generalCallback = [](const Router::vars_t& vars, const Input&, Context& ctx, Output& output)->Status
+    {
+        if (vars.count("id") == 0)
+        {
+            output.body = "Cannot find callback UUID";
+            return Status::Error;
+        }
+        std::string id = vars.find("id")->second;
+        boost::uuids::string_generator sg;
+        boost::uuids::uuid uuid = sg(id);
+        ctx.setNextTaskId(uuid);
+        return Status::Ok;
+    };
+    Router router;
+    router.addRoute("/callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,generalCallback,nullptr});
+    ConnectionManager* httpcm = getConMgr("HTTP");
+    httpcm->addRouter(router);
+}
+
 bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
 {
     bool res = initConfigOption(argc, argv, configOpts);
@@ -143,6 +164,7 @@ bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
     initMisc(configOpts);
 
     initConnectionManagers();
+    addGeneralCallbackRoute();
     initRouters();
     initGraftletRouters();
 

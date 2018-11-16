@@ -34,6 +34,22 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
     std::string default_uri = opts.cryptonode_rpc_address.c_str();
     Output& output = bt->getOutput();
     std::string url = output.makeUri(default_uri);
+
+    Context::uuid_t callback_uuid = bt->getCtx().getId(false);
+    if(!callback_uuid.is_nil())
+    {//add extra header
+        unsigned int mg_port = 0;
+        {
+            std::string uri = opts.http_address;
+            assert(!uri.empty());
+            mg_str mg_uri{uri.c_str(), uri.size()};
+            int res = mg_parse_uri(mg_uri, 0, 0, 0, &mg_port, 0, 0, 0);
+            assert(0<=res);
+        }
+        std::stringstream ss;
+        ss << ":" << mg_port << "/callback/" << boost::uuids::to_string(callback_uuid);
+        output.headers.emplace_back(std::make_pair("X-Callback", ss.str()));
+    }
     std::string extra_headers = output.combine_headers();
     if(extra_headers.empty())
     {

@@ -48,6 +48,7 @@ private:
     void initLog(int log_level);
     void initGlobalContext();
     void initConnectionManagers();
+    void addGeneralCallbackRoute();
     void serve();
     static void initSignals();
     void addGlobalCtxCleaner();
