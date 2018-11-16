@@ -14,8 +14,9 @@ using namespace graft;
 namespace
 {
 
-const unsigned int WALLET_MEMORY_CACHE_TTL_SECONDS = 10 * 60; //TODO: move to config
-const unsigned int WALLET_TRANSACTIONS_QUEUE_SIZE  = 256; //TODO: move to config
+const unsigned int WALLET_MEMORY_CACHE_TTL_SECONDS       = 10 * 60; //TODO: move to config
+const unsigned int WALLET_TRANSACTIONS_QUEUE_SIZE        = 256; //TODO: move to config
+const uint64_t     WALLET_DISK_CACHE_FLUSH_DELAY_SECONDS = 3600; //TODO: move to config
 
 /// Holder for lamba to be used inside FixedFunction
 struct FixedFunctionWrapper
@@ -499,7 +500,57 @@ void WalletManager::prepareTransfer(Context& context, const WalletId& wallet_id,
   });
 }
 
+namespace
+{
+
+std::vector<std::string> getAllMatchingFiles(const char* dir, const char* name_re)
+{
+  time_t now;
+
+  time(&now);
+
+  const std::string target_path(dir);
+  const boost::regex my_filter(name_re);
+
+  std::vector<std::string> result;
+
+  boost::filesystem::directory_iterator end_itr;
+
+  for (boost::filesystem::directory_iterator it(target_path); it != end_itr; ++it)
+  {
+    if (!boost::filesystem::is_regular_file(it->status()))
+      continue;
+
+    boost::smatch what;
+    std::string file_name = it->path().filename().native();
+
+    if (!boost::regex_match(file_name, what, my_filter))
+      continue;
+
+    std::time_t modification_time = last_write_time(it->path());
+    double seconds_delta = difftime(now, modification_time);
+
+    if (seconds_delta < WALLET_DISK_CACHE_FLUSH_DELAY_SECONDS)
+      continue;
+
+    result.push_back(file_name);
+  }
+
+  return result;
+}
+
+}
+
 void WalletManager::flushDiskCaches()
 {
   LOG_PRINT_L1("Flush disk caches");
+
+  std::vector<std::string> cache_files = getAllMatchingFiles(".", ".*\\.cache");
+
+  for (const std::string& cache_file_name : cache_files)
+  {
+    LOG_PRINT_L1("  remove cache file " << cache_file_name);
+
+    boost::filesystem::remove(cache_file_name);
+  }
 }

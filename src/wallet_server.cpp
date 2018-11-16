@@ -6,7 +6,7 @@
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
-const int WALLET_DISK_CACHES_UPDATE_TIME_MS = 60 * 1000; //TODO: move to config
+const int WALLET_DISK_CACHES_UPDATE_TIME_MS = 10 * 60 * 1000; //TODO: move to config
 
 namespace po = boost::program_options;
 
@@ -119,7 +119,7 @@ void WalletServer::startPeriodicTasks()
     };
  
     m_looper->addPeriodicTask(graft::Router::Handler3(nullptr, flush_caches_handler, nullptr),
-        std::chrono::milliseconds(WALLET_DISK_CACHES_UPDATE_TIME_MS), std::chrono::milliseconds(WALLET_DISK_CACHES_UPDATE_TIME_MS));
+        std::chrono::milliseconds(WALLET_DISK_CACHES_UPDATE_TIME_MS), std::chrono::milliseconds(1));
 }
 
 }//namespace graft
