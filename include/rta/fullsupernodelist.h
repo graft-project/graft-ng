@@ -13,13 +13,9 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/thread.hpp>
 
+namespace graft::utils { class ThreadPool; }
 
 namespace graft {
-
-namespace utils {
-    class ThreadPool;
-}
-
 
 class FullSupernodeList
 {
@@ -45,7 +41,7 @@ public:
      * \return            - number of loaded supernode wallets
      */
     size_t loadFromDir(const std::string &base_dir);
-    
+
     /*!
      * \brief loadFromDirThreaded - loads list from directory.
      * \param base_dir            - directory where to search for wallets
@@ -53,7 +49,7 @@ public:
      * \return                    - number of loaded supernodes
      */
     size_t loadFromDirThreaded(const std::string &base_dir, size_t &found_wallets);
-    
+
     /*!
      * \brief remove  - removes Supernode from list. closes it's wallet and frees memory
      * \param address - supernode address
@@ -140,7 +136,7 @@ private:
     bool m_testnet;
     DaemonRpcClient m_rpc_client;
     mutable boost::shared_mutex m_access;
-    std::unique_ptr<utils::ThreadPool> m_tp;
+    std::unique_ptr<graft::utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
 };
 

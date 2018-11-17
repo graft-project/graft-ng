@@ -144,7 +144,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         UnicastRequestJsonRpc unicastReq;
         unicastReq.params.sender_address = supernode->walletAddress();
         size_t maxIndex = authSample.size() - 1;
-        size_t randomIndex = utils::random_number<size_t>(0, maxIndex);
+        size_t randomIndex = supernode::utils::random_number<size_t>(0, maxIndex);
         unicastReq.params.receiver_address = authSample.at(randomIndex)->walletAddress();
         MDEBUG("requesting sale details from remote supernode: "
                << unicastReq.params.receiver_address

@@ -67,6 +67,7 @@ class Looper final : public TaskManager
 {
 public:
     Looper(const ConfigOpts& copts);
+    Looper(const Config& cfg);
     virtual ~Looper();
 
     void serve();

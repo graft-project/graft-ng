@@ -43,7 +43,7 @@ protected:
     //the order of members is important because of destruction order.
     std::unique_ptr<graft::Looper> m_looper;
 private:
-    void initLog(int log_level);
+    //void initLog(int log_level);
     void initGlobalContext();
     void initConnectionManagers();
     void serve();

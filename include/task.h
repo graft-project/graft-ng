@@ -10,6 +10,9 @@
 #include "serveropts.h"
 #include <misc_log_ex.h>
 #include "handler_api.h"
+
+#include "supernode/server/config.h"
+
 #include <future>
 #include <deque>
 
@@ -33,6 +36,7 @@
 struct mg_mgr;
 struct mg_connection;
 
+
 namespace graft
 {
 extern std::string client_addr(mg_connection* client);
@@ -47,6 +51,7 @@ using BaseTaskPtr = std::shared_ptr<BaseTask>;
 class GJPtr;
 using TPResQueue = tp::MPMCBoundedQueue< GJPtr >;
 using GJ = GraftJob<BaseTaskPtr, TPResQueue, TaskManager>;
+using Config = graft::supernode::server::Config;
 
 //////////////
 /// \brief The GJPtr class
@@ -188,6 +193,7 @@ class TaskManager : private HandlerAPI
 {
 public:
     TaskManager(const ConfigOpts& copts);
+    TaskManager(const Config& cfg);
     virtual ~TaskManager();
 
     void sendUpstream(BaseTaskPtr bt);
@@ -198,6 +204,10 @@ public:
     virtual mg_mgr* getMgMgr()  = 0;
     GlobalContextMap& getGcm() { return m_gcm; }
     ConfigOpts& getCopts() { return m_copts; }
+
+    GlobalContextMap& gcm(void) { return m_gcm; }
+    Config& config(void) { return m_cfg; }
+
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
 
     static TaskManager* from(mg_mgr* mgr);
@@ -228,6 +238,8 @@ protected:
     void checkPeriodicTaskIO();
 
     ConfigOpts m_copts;
+    Config m_cfg;
+
 private:
     void Execute(BaseTaskPtr bt);
     void processForward(BaseTaskPtr bt);
