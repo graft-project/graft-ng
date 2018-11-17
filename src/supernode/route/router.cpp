@@ -1,47 +1,76 @@
-#include "router.h"
 
-namespace graft
+#include "supernode/route/router.h"
+
+#include "supernode/route/handler3.h"
+#include "supernode/route/route_set.h"
+#include "supernode/route/job_params.h"
+
+#include <string>
+#include <map>
+#include <iostream>
+#include <sstream>
+
+#include "r3.h"
+//
+//#include <utility>
+//#include <algorithm>
+//#include "inout.h"
+//#include "context.h"
+
+namespace graft::supernode::route {
+
+Router::Router(void)
+: m_compiled(false)
+, m_node(nullptr)
 {
+    m_node = r3_tree_create(10);
+}
 
-template<typename In, typename Out>
-bool RouterT<In,Out>::Root::arm()
+Router::~Router(void)
 {
-    std::for_each(m_routers.begin(), m_routers.end(),
-        [this](Router& ro)
-        {
-            std::for_each(ro.m_routes.begin(), ro.m_routes.end(),
-                [this](Route& r)
-                {
-                    r3_tree_insert_route(m_node, r.methods, r.endpoint.c_str(), &r);
-                }
-            );
-        }
-    );
-    char *errstr = NULL;
-    int err = r3_tree_compile(m_node, &errstr);
+    r3_tree_free(m_node);
+}
 
-    if (err != 0)
-        std::cout << "error: " << std::string(errstr) << std::endl;
+bool Router::arm(void)
+{
+    std::for_each(m_routes.begin(), m_routes.end(), [this](RouteSet& rs)
+    {
+        std::for_each(rs.routes().begin(), rs.routes().end(), [this](Route& r)
+            { r3_tree_insert_route(m_node, r.method, r.endpoint.c_str(), &r); });
+    });
+
+    char* err_str = nullptr;
+    int err = r3_tree_compile(m_node, &err_str);
+
+    if(err)
+        std::cout << "error: " << std::string(err_str) << std::endl;
 
     return m_compiled = (err == 0);
 }
 
-template<typename In, typename Out>
-bool RouterT<In,Out>::Root::match(const std::string& target, int method, JobParams& params)
+void Router::add_route_set(RouteSet& rs)
+{
+    m_routes.push_front(std::move(rs));
+}
+
+bool Router::match(const std::string& target, const int method, JobParams& params) const
 {
     bool ret = false;
 
-    match_entry *entry = match_entry_create(target.c_str());
+    match_entry* entry = match_entry_create(target.c_str());
     entry->request_method = method;
 
-    R3Route *m = r3_tree_match_route(m_node, entry);
-    if (m)
+    if(R3Route* m = r3_tree_match_route(m_node, entry))
     {
-        for (size_t i = 0; i < entry->vars.tokens.size; i++)
+        for(size_t i = 0, cnt = entry->vars.tokens.size; i < cnt; ++i)
+        {
+            const auto& slug = entry->vars.slugs.entries[i];
+            const auto& token = entry->vars.tokens.entries[i];
+
             params.vars.emplace(std::make_pair(
-                std::move(std::string(entry->vars.slugs.entries[i].base, entry->vars.slugs.entries[i].len)),
-                std::move(std::string(entry->vars.tokens.entries[i].base, entry->vars.tokens.entries[i].len))
-            ));
+                std::move(std::string(slug.base, slug.len)),
+                std::move(std::string(token.base, token.len))));
+        }
 
         params.h3 = static_cast<Route*>(m->data)->h3;
         ret = true;
@@ -50,87 +79,48 @@ bool RouterT<In,Out>::Root::match(const std::string& target, int method, JobPara
     return ret;
 }
 
-template<typename In, typename Out>
-std::string RouterT<In,Out>::Root::dbgDumpRouters() const
+std::string Router::dbg_dump_routes(void) const
 {
     std::string res;
     int idx = 0;
-    for(const RouterT& r : m_routers)
+    for(const RouteSet& rs : m_routes)
     {
         std::ostringstream ss;
-        ss << "router[" << idx++ << "]->" << std::endl;
+        ss << "route_set[" << idx++ << "]->" << std::endl;
         res += ss.str();
-        res += r.dbgDumpRouter("\t");
+        res += rs.dbg_dump("\t");
     }
     return res;
 }
 
-template<typename In, typename Out>
-void RouterT<In,Out>::Root::dbgDumpR3Tree(int level) const
+void Router::dbg_dump_R3Tree(const int level) const
 {
     assert(m_compiled);
     r3_tree_dump(m_node, level);
 }
 
-template<typename In, typename Out>
-std::string RouterT<In,Out>::Root::dbgCheckConflictRoutes() const
+std::string Router::dbg_check_conflict_routes(void) const
 {
-    //route -> method bits
-    std::map<std::string,int> map;
-    for(const RouterT& r : m_routers)
+    std::map<std::string, int> map;
+    for(const RouteSet& rs : m_routes)
     {
-        for(const Route& rr : r.m_routes)
+        for(const Route& r : rs.routes())
         {
-            auto it = map.find(rr.endpoint);
+            auto it = map.find(r.endpoint);
             if(it == map.end())
             {
-                map[rr.endpoint] = rr.methods;
+                map[r.endpoint] = r.method;
                 continue;
             }
-            if(it->second & rr.methods) return rr.endpoint;
-            it->second &= rr.methods;
+
+            if(it->second & r.method)
+                return r.endpoint;
+
+            it->second &= r.method;
         }
     }
     return std::string();
 }
 
-template<typename In, typename Out>
-std::string RouterT<In,Out>::dbgDumpRouter(const std::string prefix) const
-{
-    std::ostringstream ss;
-    for(const Route& r : m_routes)
-    {
-        std::string sm = methodsToString(r.methods);
-        auto ptrs = [](auto& ptr)->std::string
-        {
-            if(ptr == nullptr) return "nullptr";
-            std::ostringstream ss;
-            ss << &ptr;
-            return ss.str();
-        };
-        ss << prefix << sm << " " << r.endpoint << " (" <<
-              ptrs(r.h3.pre_action) << "," <<
-              ptrs(r.h3.worker_action) << "," <<
-              ptrs(r.h3.post_action) << ")" << std::endl;
-    }
-    return ss.str();
 }
 
-template class RouterT<Input, Output>;
-
-template<typename In, typename Out>
-std::string RouterT<In, Out>::methodsToString(int methods)
-{
-    constexpr const char* methpow[] = {"", "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"};
-    assert((methods&0xFE)==methods);
-    std::string sm;
-    for(unsigned int b=1, idx=0; idx<8; b<<=1, ++idx)
-    {
-        if(!(methods&b)) continue;
-        if(!sm.empty()) sm += '|';
-        sm += methpow[idx];
-    }
-    return sm;
-}
-
-}//namespace graft
