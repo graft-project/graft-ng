@@ -36,6 +36,7 @@ struct mg_connection;
 namespace graft
 {
 extern std::string client_addr(mg_connection* client);
+extern std::string client_host(mg_connection* client);
 
 class UpstreamSender;
 class TaskManager;
