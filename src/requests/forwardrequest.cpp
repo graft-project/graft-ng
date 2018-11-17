@@ -11,7 +11,7 @@ void registerForward(Router &router)
     {
         switch(ctx.local.getLastStatus())
         {
-        case graft::Status::None:
+        case Status::None:
         {
 
             auto it = vars.equal_range("forward");
@@ -19,22 +19,22 @@ void registerForward(Router &router)
             {
                 throw std::runtime_error("cannot find 'forward' var");
             }
+            auto& forward = it.first->second;
             if(++it.first != it.second)
             {
                 throw std::runtime_error("multiple 'forward' vars found");
             }
-            auto& forward = it.first->second;
 
             ctx.setCallback();
             output.body = input.body;
             output.uri = "$walletnode/api/" + forward;
             return Status::Forward;
         } break;
-        case graft::Status::Forward:
+        case Status::Forward:
         {
-            return graft::Status::Postpone;
+            return Status::Postpone;
         }
-        case graft::Status::Postpone:
+        case Status::Postpone:
         {
             //general callback should set the input that it received from walletnode
             output.body = input.body;
