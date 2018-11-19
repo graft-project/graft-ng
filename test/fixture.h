@@ -5,6 +5,8 @@
 #include <atomic>
 #include "connection.h"
 #include "mongoosex.h"
+#include "context.h"
+#include "sys_info.h"
 
 /////////////////////////////////
 // GraftServerTestBase fixture
@@ -147,10 +149,12 @@ public:
         std::atomic<graft::HttpConnectionManager*> phttpcm{nullptr};
     private:
         std::thread th;
+        graft::supernode::system_info::Counter sys_info_;
     private:
         void x_run()
         {
             graft::Looper looper(copts);
+
             plooper = &looper;
             graft::HttpConnectionManager httpcm;
             phttpcm = &httpcm;
@@ -160,6 +164,11 @@ public:
             EXPECT_EQ(res, true);
 
             httpcm.bind(looper);
+
+            graft::Context ctx(looper.getGcm());
+            ctx.runtime_sys_info(sys_info_);
+            ctx.config_opts(looper.getCopts());
+
             looper.serve();
         }
     };
