@@ -53,7 +53,7 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
             assert(0<=res);
         }
         std::stringstream ss;
-        ss << ":" << mg_port << "/callback/" << boost::uuids::to_string(callback_uuid);
+        ss << "http://0.0.0.0:" << mg_port << "/callback/" << boost::uuids::to_string(callback_uuid);
         output.headers.emplace_back(std::make_pair("X-Callback", ss.str()));
     }
     std::string extra_headers = output.combine_headers();
