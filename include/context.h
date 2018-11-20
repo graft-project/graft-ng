@@ -366,7 +366,12 @@ public:
     Local local;
     Global global;
 
-    uuid_t getId() const { if(m_uuid.is_nil()) m_uuid = boost::uuids::random_generator()(); return m_uuid; }
+    void setCallback() const { getId(); }
+    uuid_t getId(bool generateIfNil = true) const
+    {
+        if(generateIfNil && m_uuid.is_nil()) m_uuid = boost::uuids::random_generator()();
+        return m_uuid;
+    }
     void setNextTaskId(uuid_t uuid) { m_nextUuid = uuid; }
     uuid_t getNextTaskId() const { return m_nextUuid; }
 

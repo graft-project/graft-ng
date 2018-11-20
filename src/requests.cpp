@@ -37,6 +37,7 @@ void registerRTARequests(graft::Router &router)
 void registerForwardRequests(graft::Router &router)
 {
     graft::registerForwardRequest(router);
+    graft::requests::walletnode::registerForward(router);
 }
 
 void registerHealthcheckRequests(Router &router)

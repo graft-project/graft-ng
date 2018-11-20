@@ -15,6 +15,12 @@ std::string client_addr(mg_connection* client)
     return oss.str();
 }
 
+std::string client_host(mg_connection* client)
+{
+    if(!client) return "disconnected";
+    return inet_ntoa(client->sa.sin.sin_addr);
+}
+
 void* getUserData(mg_mgr* mgr) { return mgr->user_data; }
 void* getUserData(mg_connection* nc) { return nc->user_data; }
 mg_mgr* getMgr(mg_connection* nc) { return nc->mgr; }
@@ -34,6 +40,22 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
     std::string default_uri = opts.cryptonode_rpc_address.c_str();
     Output& output = bt->getOutput();
     std::string url = output.makeUri(default_uri);
+
+    Context::uuid_t callback_uuid = bt->getCtx().getId(false);
+    if(!callback_uuid.is_nil())
+    {//add extra header
+        unsigned int mg_port = 0;
+        {
+            std::string uri = opts.http_address;
+            assert(!uri.empty());
+            mg_str mg_uri{uri.c_str(), uri.size()};
+            int res = mg_parse_uri(mg_uri, 0, 0, 0, &mg_port, 0, 0, 0);
+            assert(0<=res);
+        }
+        std::stringstream ss;
+        ss << "http://0.0.0.0:" << mg_port << "/callback/" << boost::uuids::to_string(callback_uuid);
+        output.headers.emplace_back(std::make_pair("X-Callback", ss.str()));
+    }
     std::string extra_headers = output.combine_headers();
     if(extra_headers.empty())
     {
@@ -75,7 +97,7 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
     {
         mg_set_timer(upstream, 0);
         http_message* hm = static_cast<http_message*>(ev_data);
-        m_bt->getInput() = *hm;
+        m_bt->getInput() = Input(*hm, client_host(upstream));
 
         auto* man = TaskManager::from(upstream->mgr);
         assert(man);
@@ -278,7 +300,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
             Context(manager->getGcm()).runtime_sys_info().count_http_request_routed();
 
             mg_str& body = hm->body;
-            prms.input.load(body.p, body.len);
+            prms.input = Input(*hm, client_host(client));
             LOG_PRINT_CLN(2,client,"Matching Route found; body = " << std::string(body.p, body.len));
             BaseTask* bt = BaseTask::Create<ClientTask>(httpcm, client, prms).get();
             assert(dynamic_cast<ClientTask*>(bt));

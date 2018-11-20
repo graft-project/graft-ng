@@ -129,14 +129,15 @@ namespace graft
         InOutHttpBase& operator = (InOutHttpBase&& ) = default;
         ~InOutHttpBase() = default;
 
-        InOutHttpBase(const http_message& hm) { operator =(hm); }
-        InOutHttpBase& operator = (const http_message& hm);
+        InOutHttpBase(const http_message& hm, const std::string& host_) { operator =(hm); host = host_; }
     public:
         InOutHttpBase& operator = (const InOutHttpBase& ) = default;
-    public:
+
         void reset() { *this = InOutHttpBase(); }
         std::string combine_headers();
-    public:
+
+        //sometimes it is required to know client's host in a handler from input
+        std::string host;
         //These fields are from mongoose http_message
         std::string body;
         std::string method;
@@ -162,6 +163,7 @@ namespace graft
         std::vector<std::pair<std::string, std::string>> headers;
         std::string extra_headers;
     private:
+        InOutHttpBase& operator = (const http_message& hm);
         void set_str_field(const http_message& hm, const mg_str& str_fld, std::string& fld);
     };
 
@@ -196,7 +198,7 @@ namespace graft
         {
             return body;
         }
-    public:
+
         /*!
          * \brief makeUri - please DO NOT use it. It is for internal usage.
          * Set uri, proto, host, port, path members if you need.
@@ -206,8 +208,7 @@ namespace graft
          * \return
          */
         std::string makeUri(const std::string& default_uri) const;
-    public:
-        std::string host;
+
         std::string port;
         std::string path;
         static std::unordered_map<std::string, std::string> uri_substitutions;
@@ -222,7 +223,7 @@ namespace graft
         InHttp& operator = (const InHttp&) = default;
         InHttp& operator = (InHttp&&) = default;
         ~InHttp() = default;
-        InHttp(const http_message& hm) : InOutHttpBase(hm)
+        InHttp(const http_message& hm, const std::string& host_) : InOutHttpBase(hm, host_)
         { }
 
         /*!

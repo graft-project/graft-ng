@@ -176,10 +176,30 @@ void StateMachine::init_table()
 
 }
 
-class ExpiringList : public detail::ExpiringListT<>
+class Uuid_Input : private std::pair<Context::uuid_t,std::shared_ptr<Input>>
 {
 public:
-    ExpiringList(int life_time_ms) : detail::ExpiringListT<>( life_time_ms ) { }
+    Uuid_Input() = default;
+    Uuid_Input(const Context::uuid_t& uuid) { first = uuid; }
+    Uuid_Input(const Context::uuid_t& uuid, const Input& input) { first = uuid; second = std::make_shared<Input>(input); }
+    Uuid_Input(const Context::uuid_t& uuid, Input&& input) { first = uuid; second = std::make_shared<Input>(input); }
+    Uuid_Input(Context::uuid_t&& uuid) { first = std::move(uuid); }
+    Uuid_Input(const Uuid_Input& ui) { *this = ui; }
+    Uuid_Input& operator = (const Uuid_Input& ui) { first = ui.first; second = ui.second; return *this; }
+    Uuid_Input(Uuid_Input&& ui) = default;
+    Uuid_Input& operator = (Uuid_Input&& ui) = default;
+    ~Uuid_Input() = default;
+    bool operator == (const Uuid_Input& ui) const { return first == ui.first; }
+
+    std::shared_ptr<Input>& getInputPtr() { return second; }
+};
+
+class ExpiringList : public detail::ExpiringListT< Uuid_Input >
+{
+public:
+    ExpiringList(int life_time_ms)
+        : detail::ExpiringListT< Uuid_Input >( life_time_ms )
+    { }
 };
 
 TaskManager::TaskManager(const ConfigOpts& copts)
@@ -489,8 +509,12 @@ void TaskManager::postponeTask(BaseTaskPtr bt)
     assert(!uuid.is_nil());
 
     //find already recieved uuid
-    if(m_futurePostponeUuids->remove(uuid))
+    auto res = m_futurePostponeUuids->extract(uuid);
+    if(res.first)
     {//found
+        //set saved input
+        assert(res.second.getInputPtr());
+        bt->getParams().input = *res.second.getInputPtr();
         m_readyToResume.push_back(bt);
         LOG_PRINT_RQS_BT(2,bt,"for the task with uuid '" << uuid << "' an answer found; it will be resumed.");
         return;
@@ -571,12 +595,17 @@ void TaskManager::processOk(BaseTaskPtr bt)
         if(it == m_postponedTasks.end())
         {
             LOG_PRINT_RQS_BT(2,bt,"attempt to resume task with uuid '" << nextUuid << "' failed, maybe it is not postponed yet.");
-            m_futurePostponeUuids->add(nextUuid);
+            Input input = bt->getInput();
+            m_futurePostponeUuids->add(Uuid_Input(nextUuid, std::move(input)));
         }
         else
         {
             LOG_PRINT_RQS_BT(2,bt,"resuming task with uuid '" << nextUuid << "'.");
-            m_readyToResume.push_back(it->second);
+            //redirect callback input to postponed task
+            BaseTaskPtr& bt_next = it->second;
+            bt_next->getInput() = bt->getInput();
+
+            m_readyToResume.push_back(bt_next);
             m_postponedTasks.erase(it);
         }
     }

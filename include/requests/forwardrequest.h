@@ -6,4 +6,10 @@ namespace graft {
 
 void registerForwardRequest(graft::Router &router);
 
+namespace requests { namespace walletnode {
+
+void registerForward(graft::Router &router);
+
+}} //namespace requests :: walletnode
+
 }
