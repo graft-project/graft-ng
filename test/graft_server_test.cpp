@@ -1,21 +1,23 @@
+
 #include <gtest/gtest.h>
-#include <deque>
 #include <jsonrpc.h>
 #include <misc_log_ex.h>
 #include "context.h"
 #include "requests.h"
-#include "requests/salerequest.h"
-#include "requests/salestatusrequest.h"
-#include "requests/rejectsalerequest.h"
-#include "requests/saledetailsrequest.h"
-#include "requests/payrequest.h"
-#include "requests/paystatusrequest.h"
-#include "requests/rejectpayrequest.h"
+#include "supernode/requests/sale.h"
+#include "supernode/requests/sale_status.h"
+#include "supernode/requests/reject_sale.h"
+#include "supernode/requests/sale_details.h"
+#include "supernode/requests/pay.h"
+#include "supernode/requests/pay_status.h"
+#include "supernode/requests/reject_pay.h"
 #include "requestdefines.h"
 #include "inout.h"
 #include "fixture.h"
 #include "handler_api.h"
 #include "expiring_list.h"
+
+#include <deque>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),

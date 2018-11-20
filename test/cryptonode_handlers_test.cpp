@@ -27,27 +27,24 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-#include <misc_log_ex.h>
 #include <gtest/gtest.h>
-#include <inout.h>
-#include <jsonrpc.h>
-#include <connection.h>
-#include <router.h>
-#include <requests.h>
-#include <requests/getinforequest.h>
-#include <requests/sendrawtxrequest.h>
-#include <requests/authorizertatxrequest.h>
 
+#include "misc_log_ex.h"
+#include "inout.h"
+#include "jsonrpc.h"
+#include "connection.h"
+#include "router.h"
+#include "requests.h"
+#include "supernode/requests/get_info.h"
+#include "supernode/requests/send_raw_tx.h"
+#include "supernode/requests/authorize_rta_tx.h"
 
 // cryptonode includes
-#include <wallet/wallet2.h>
-
+#include "wallet/wallet2.h"
 
 #include <string>
 #include <thread>
 #include <chrono>
-
-
 
 using namespace graft;
 using namespace std::chrono_literals;

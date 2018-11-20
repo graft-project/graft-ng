@@ -1,9 +1,7 @@
-#ifndef AUTHORIZERTATXREQUEST_H
-#define AUTHORIZERTATXREQUEST_H
+
+#pragma once
 
 #include "router.h"
-#include "inout.h"
-
 
 namespace graft {
 
@@ -14,8 +12,7 @@ GRAFT_DEFINE_IO_STRUCT(AuthorizeRtaTxRequest,
                                                  // TODO: Amount needs to be protected with signature
                        );
 
-void registerAuthorizeRtaTxRequests(graft::Router &router);
+void registerAuthorizeRtaTxRequests(graft::Router& router);
 
 }
 
-#endif // AUTHORIZERTATXREQUEST_H

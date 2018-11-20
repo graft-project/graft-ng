@@ -1,8 +1,7 @@
-#ifndef GETINFOREQUEST_H
-#define GETINFOREQUEST_H
+
+#pragma once
 
 #include "router.h"
-#include "inout.h"
 #include "jsonrpc.h"
 
 namespace graft {
@@ -43,8 +42,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(GetInfoResponse,
                               (uint64_t, white_peerlist_size, 0)
                               );
 
-void registerGetInfoRequest(graft::Router &router);
+void registerGetInfoRequest(graft::Router& router);
 
 }
 
-#endif // GETINFOREQUEST_H

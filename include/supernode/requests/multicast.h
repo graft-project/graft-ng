@@ -1,7 +1,6 @@
-#ifndef MULTICAST_H
-#define MULTICAST_H
 
-#include "inout.h"
+#pragma once
+
 #include "jsonrpc.h"
 #include "requestdefines.h"
 
@@ -33,8 +32,5 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(MulticastResponseToCryptonodeJsonRpc, Mult
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE(MulticastResponseFromCryptonodeJsonRpc, MulticastResponseFromCryptonode);
 
-
 }
 
-
-#endif // MULTICAST_H

@@ -1,8 +1,9 @@
+
 #include "supernode.h"
 #include "requests.h"
 #include "sys_info.h"
 #include "requestdefines.h"
-#include "requests/sendsupernodeannouncerequest.h"
+#include "supernode/requests/send_supernode_announce.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 
@@ -200,5 +201,5 @@ void Supernode::initRouters()
     setCoapRouters(*coapcm);
 }
 
-} //namespace snd
-} //namespace graft
+} }
+

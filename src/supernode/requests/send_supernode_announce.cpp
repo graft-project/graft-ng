@@ -26,9 +26,9 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "requests/sendsupernodeannouncerequest.h"
+#include "supernode/requests/send_supernode_announce.h"
+#include "supernode/requests/send_raw_tx.h"
 #include "requestdefines.h"
-#include "requests/sendrawtxrequest.h"
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
 
@@ -40,7 +40,7 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.sendsupernodeannouncerequest"
 
 namespace {
-    static const char * PATH = "/send_supernode_announce";
+    static const char* PATH = "/send_supernode_announce";
 
 }
 
@@ -203,13 +203,17 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
                    << ", stake amount: " << supernode->stakeAmount());
             return graft::Status::Forward;
         }
-    } catch (std::exception &e) {
+    }
+    catch(const std::exception &e)
+    {
         LOG_ERROR("Exception thrown: " << e.what());
-    } catch (...) {
+    }
+    catch(...)
+    {
         LOG_ERROR("Unknown exception thrown");
     }
     return Status::Ok;
 };
 
-
 }
+

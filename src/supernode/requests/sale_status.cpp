@@ -1,8 +1,8 @@
-#include "requests/salestatusrequest.h"
-#include "requestdefines.h"
-#include "requests/broadcast.h"
-#include <misc_log_ex.h>
 
+#include "supernode/requests/sale_status.h"
+#include "supernode/requests/broadcast.h"
+#include "requestdefines.h"
+#include <misc_log_ex.h>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.salestatusrequest"

@@ -1,4 +1,5 @@
-#include "requests/healthcheckrequest.h"
+
+#include "supernode/requests/health_check.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.healthcheckrequest"
@@ -11,10 +12,11 @@ Status healthcheckHandler(const Router::vars_t& vars, const graft::Input& input,
     return Status::Ok;
 }
 
-void registerHealthcheckRequest(Router &router)
+void registerHealthcheckRequest(Router& router)
 {
     Router::Handler3 h3(nullptr, healthcheckHandler, nullptr);
     router.addRoute("/health", METHOD_GET, h3);
 }
 
 }
+

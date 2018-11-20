@@ -35,7 +35,7 @@
 
 // cryptonode includes
 
-#include <requests/sendsupernodeannouncerequest.h>
+#include "supernode/requests/send_supernode_announce.h"
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
 #include <misc_log_ex.h>
@@ -52,9 +52,6 @@ struct SupernodeTest : public ::testing::Test
         mlog_set_log_level(1);
     }
 };
-
-
-
 
 TEST_F(SupernodeTest, open)
 {
@@ -521,3 +518,4 @@ TEST_F(FullSupernodeListTest, announce1)
     ASSERT_TRUE(watch_only_sn2.get() == nullptr);
 
 }
+

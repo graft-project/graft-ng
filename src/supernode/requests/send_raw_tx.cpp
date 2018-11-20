@@ -26,7 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "requests/sendrawtxrequest.h"
+#include "supernode/requests/send_raw_tx.h"
 #include "requestdefines.h"
 #include <misc_log_ex.h>
 
@@ -34,7 +34,6 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.sendrawtxrequest"
 
 namespace graft {
-
 
 Status sendRawTxHandler(const Router::vars_t& vars, const graft::Input& input,
                                  graft::Context& ctx, graft::Output& output)
@@ -65,7 +64,7 @@ Status sendRawTxHandler(const Router::vars_t& vars, const graft::Input& input,
     }
 }
 
-void registerSendRawTxRequest(graft::Router &router)
+void registerSendRawTxRequest(graft::Router& router)
 {
     Router::Handler3 h3(nullptr, sendRawTxHandler, nullptr);
     const char * path = "/cryptonode/sendrawtx";
@@ -73,7 +72,7 @@ void registerSendRawTxRequest(graft::Router &router)
     LOG_PRINT_L2("route " << path << " registered");
 }
 
-bool createSendRawTxRequest(const tools::wallet2::pending_tx &ptx, SendRawTxRequest &request)
+bool createSendRawTxRequest(const tools::wallet2::pending_tx& ptx, SendRawTxRequest& request)
 {
     assert(ptx.dests.size() == 1);
 
@@ -89,11 +88,11 @@ bool createSendRawTxRequest(const tools::wallet2::pending_tx &ptx, SendRawTxRequ
     return true;
 }
 
-bool createSendRawTxRequest(const cryptonote::transaction &tx, SendRawTxRequest &request)
+bool createSendRawTxRequest(const cryptonote::transaction& tx, SendRawTxRequest& request)
 {
     request.tx_as_hex = epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(tx));
     return true;
 }
 
-
 }
+
