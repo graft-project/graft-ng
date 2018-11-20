@@ -26,7 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "requests/getinforequest.h"
+#include "supernode/requests/get_info.h"
 #include "requestdefines.h"
 #include <misc_log_ex.h>
 
@@ -106,9 +106,7 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
 }
 
 
-
-
-void registerGetInfoRequest(graft::Router &router)
+void registerGetInfoRequest(graft::Router& router)
 {
     Router::Handler3 h3(nullptr, getInfoHandler, nullptr);
     const char * path = "/cryptonode/getinfo";
@@ -117,3 +115,4 @@ void registerGetInfoRequest(graft::Router &router)
 }
 
 }
+

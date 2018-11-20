@@ -26,12 +26,12 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "requests/authorizertatxrequest.h"
+#include "supernode/requests/authorize_rta_tx.h"
 #include "requestdefines.h"
 #include "jsonrpc.h"
-#include "requests/sendrawtxrequest.h"
-#include "requests/multicast.h"
-#include "requests/broadcast.h"
+#include "supernode/requests/send_raw_tx.h"
+#include "supernode/requests/multicast.h"
+#include "supernode/requests/broadcast.h"
 #include "rta/supernode.h"
 #include <misc_log_ex.h>
 #include <exception>

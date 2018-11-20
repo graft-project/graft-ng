@@ -1,11 +1,12 @@
-#include "requests/forwardrequest.h"
+
+#include "supernode/requests/forward.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.forwardrequest"
 
 namespace graft { namespace requests { namespace walletnode {
 
-void registerForward(Router &router)
+void registerForward(Router& router)
 {
     auto forward = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
@@ -52,7 +53,7 @@ void registerForward(Router &router)
 
 namespace graft {
 
-void registerForwardRequest(Router &router)
+void registerForwardRequest(Router& router)
 {
     auto forward = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
@@ -86,3 +87,4 @@ void registerForwardRequest(Router &router)
 }
 
 }
+

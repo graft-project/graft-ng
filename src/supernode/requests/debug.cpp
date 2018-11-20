@@ -1,9 +1,10 @@
-#include "requests/payrequest.h"
+
+#include "supernode/requests/broadcast.h"
+#include "supernode/requests/multicast.h"
+#include "supernode/requests/send_supernode_announce.h"
+#include "supernode/requests/pay.h"
 #include "requestdefines.h"
 #include "requesttools.h"
-#include "requests/broadcast.h"
-#include "requests/multicast.h"
-#include "requests/sendsupernodeannouncerequest.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "inout.h"
@@ -69,18 +70,23 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
     std::vector<SupernodePtr> sample;
 
     uint64_t height;
-    try {
+    try
+    {
         height = stoull(vars.find("height")->second);
-    } catch (...) {
+    }
+    catch(...)
+    {
         return errorInternalError("invalid input", output);
     }
 
-    bool ok = fsl->buildAuthSample(height, sample);
-    if (!ok) {
+    const bool ok = fsl->buildAuthSample(height, sample);
+    if(!ok)
+    {
         return errorInternalError("failed to build auth sample", output);
     }
+
     SupernodeListJsonRpcResult resp;
-    for (auto& sPtr : sample)
+    for(auto& sPtr : sample)
     {
         DbSupernode sn;
         sn.Address = sPtr->walletAddress();
@@ -97,7 +103,6 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
 Status doAnnounce(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
-
     return sendAnnounce(vars, input, ctx, output);
 }
 

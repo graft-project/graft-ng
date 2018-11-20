@@ -1,4 +1,5 @@
-#include "requests/rejectsalerequest.h"
+
+#include "supernode/requests/reject_sale.h"
 #include "requestdefines.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -23,10 +24,11 @@ Status rejectSaleHandler(const Router::vars_t& vars, const graft::Input& input,
     return Status::Ok;
 }
 
-void registerRejectSaleRequest(Router &router)
+void registerRejectSaleRequest(Router& router)
 {
     Router::Handler3 h3(nullptr, rejectSaleHandler, nullptr);
     router.addRoute("/reject_sale", METHOD_POST, h3);
 }
 
 }
+

@@ -1,4 +1,5 @@
-#include "requests/paystatusrequest.h"
+
+#include "supernode/requests/pay_status.h"
 #include "requestdefines.h"
 #include "jsonrpc.h"
 #include <misc_log_ex.h>
@@ -42,10 +43,11 @@ Status payStatusHandler(const Router::vars_t& vars, const graft::Input& input,
 
 }
 
-void registerPayStatusRequest(Router &router)
+void registerPayStatusRequest(Router& router)
 {
     Router::Handler3 h3(payStatusHandler, nullptr, nullptr);
     router.addRoute("/pay_status", METHOD_POST, h3);
 }
 
 }
+
