@@ -27,7 +27,8 @@ void registerForward(Router &router)
 
             ctx.setCallback();
             output.body = input.body;
-            output.uri = "$walletnode/api/" + forward;
+            output.uri = "$walletnode";
+            output.path = "/api/" + forward;
             return Status::Forward;
         } break;
         case Status::Forward:
