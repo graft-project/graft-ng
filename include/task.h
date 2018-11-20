@@ -182,7 +182,9 @@ public:
     ConnectionManager* m_connectionManager;
 };
 
+
 class StateMachine;
+class ExpiringList;
 
 class TaskManager : private HandlerAPI
 {
@@ -265,6 +267,7 @@ private:
     std::map<Context::uuid_t, BaseTaskPtr> m_postponedTasks;
     std::deque<BaseTaskPtr> m_readyToResume;
     std::priority_queue<std::pair<std::chrono::time_point<std::chrono::steady_clock>,Context::uuid_t>> m_expireTaskQueue;
+    std::unique_ptr<ExpiringList> m_futurePostponeUuids;
 
     using PromiseItem = UpstreamTask::PromiseItem;
     using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;

@@ -4,6 +4,7 @@
 #include "state_machine.h"
 #include "handler_api.h"
 #include "sys_info.h"
+#include "expiring_list.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -175,11 +176,20 @@ void StateMachine::init_table()
 
 }
 
-TaskManager::TaskManager(const ConfigOpts& copts) : m_copts(copts), m_gcm(this)
+class ExpiringList : public detail::ExpiringListT<>
+{
+public:
+    ExpiringList(int life_time_ms) : detail::ExpiringListT<>( life_time_ms ) { }
+};
+
+TaskManager::TaskManager(const ConfigOpts& copts)
+    : m_copts(copts)
+    , m_gcm(this)
+    , m_stateMachine(std::make_unique<StateMachine>())
+    , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000*copts.http_connection_timeout))
 {
     // TODO: validate options, throw exception if any mandatory options missing
     initThreadPool(copts.workers_count, copts.worker_queue_len, copts.workers_expelling_interval_ms);
-    m_stateMachine = std::make_unique<StateMachine>();
 }
 
 TaskManager::~TaskManager()
@@ -477,6 +487,15 @@ void TaskManager::postponeTask(BaseTaskPtr bt)
 {
     Context::uuid_t uuid = bt->getCtx().getId();
     assert(!uuid.is_nil());
+
+    //find already recieved uuid
+    if(m_futurePostponeUuids->remove(uuid))
+    {//found
+        m_readyToResume.push_back(bt);
+        LOG_PRINT_RQS_BT(2,bt,"for the task with uuid '" << uuid << "' an answer found; it will be resumed.");
+        return;
+    }
+
     assert(m_postponedTasks.find(uuid) == m_postponedTasks.end());
     m_postponedTasks[uuid] = bt;
     std::chrono::duration<double> timeout(m_copts.http_connection_timeout);
@@ -552,6 +571,7 @@ void TaskManager::processOk(BaseTaskPtr bt)
         if(it == m_postponedTasks.end())
         {
             LOG_PRINT_RQS_BT(2,bt,"attempt to resume task with uuid '" << nextUuid << "' failed, maybe it is not postponed yet.");
+            m_futurePostponeUuids->add(nextUuid);
         }
         else
         {

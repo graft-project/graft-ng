@@ -15,6 +15,7 @@
 #include "inout.h"
 #include "fixture.h"
 #include "handler_api.h"
+#include "expiring_list.h"
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -490,6 +491,26 @@ TEST(Context, groupSimple)
     EXPECT_EQ(ctx.global.groupHasKey("A","b"), false);
     EXPECT_EQ(ctx.global.groupAddKey("A","b"), true);
     EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 22);
+}
+
+TEST(ExpiringList, common)
+{
+    graft::detail::ExpiringListT<int> el(200); //lifetime 200 ms
+    for(int i = 0; i< 5; ++i)
+    {
+        el.add(i); //0ms - 200ms
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //100ms
+    for(int i = 5; i< 10; ++i)
+    {
+        el.add(i); //100ms - 300ms
+    }
+    EXPECT_EQ(el.remove(3), true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //200ms
+    EXPECT_EQ(el.remove(2), false);
+    EXPECT_EQ(el.remove(7), true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //300ms
+    EXPECT_EQ(el.remove(8), false);
 }
 
 /////////////////////////////////
@@ -1063,7 +1084,9 @@ public:
 
 TEST_F(GraftServerPostponeTest, common)
 {
-    auto callback_action = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    std::atomic<bool> callbacked;
+
+    auto callback_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
         output.body = input.data();
         assert(vars.count("id") == 1);
@@ -1072,10 +1095,12 @@ TEST_F(GraftServerPostponeTest, common)
         boost::uuids::uuid uuid = sg(id);
 
         ctx.setNextTaskId(uuid);
+        callbacked = true;
         return graft::Status::Ok;
     };
 
     std::string postpone_result = "this is postpone result";
+    std::atomic<bool> pause{false};
 
     auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
@@ -1091,6 +1116,14 @@ TEST_F(GraftServerPostponeTest, common)
         case graft::Status::Forward:
         {
             boost::uuids::uuid uuid = ctx.getId();
+            if(pause)
+            {
+                while(!callbacked)
+                {
+                    std::this_thread::sleep_for(std::chrono::microseconds(1));
+                }
+                std::this_thread::sleep_for(std::chrono::microseconds(10));
+            }
             return graft::Status::Postpone;
         } break;
         case graft::Status::Postpone:
@@ -1102,8 +1135,23 @@ TEST_F(GraftServerPostponeTest, common)
         }
     };
 
-    TempCryptoN crypton;
-    crypton.run();
+    std::atomic<bool> stop_crypton{false};
+    TempCryptoN* cryptonPtr = nullptr;
+    std::thread th_crypton{
+      [&]()
+        {
+            TempCryptoN crypton;
+            cryptonPtr = &crypton;
+            crypton.run();
+            while(!stop_crypton) std::this_thread::sleep_for(std::chrono::microseconds(1));
+            crypton.stop_and_wait_for();
+        }
+    };
+
+    //wait, we need the crypton is ready
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
+    assert(cryptonPtr);
+
     MainServer mainServer;
     mainServer.router.addRoute("/json_rpc",METHOD_POST,{nullptr,action,nullptr});
     mainServer.router.addRoute("/callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,callback_action,nullptr});
@@ -1111,15 +1159,22 @@ TEST_F(GraftServerPostponeTest, common)
 
     std::string post_data = "some data";
     Client client;
-    client.serve("http://localhost:9084/json_rpc", "", post_data);
 
-    EXPECT_EQ(false, client.get_closed());
-    EXPECT_EQ(200, client.get_resp_code());
-    std::string s = client.get_body();
-    EXPECT_EQ(s, postpone_result);
+    for(int i = 0; i < 10; ++i)
+    {
+        callbacked = false;
+        pause = (i%2)? 0 : 2000;
+
+        client.serve("http://localhost:9084/json_rpc", "", post_data);
+
+        EXPECT_EQ(false, client.get_closed());
+        EXPECT_EQ(200, client.get_resp_code());
+        std::string s = client.get_body();
+        EXPECT_EQ(s, postpone_result);
+    }
 
     //make hang postpones
-    crypton.do_callback = false;
+    cryptonPtr->do_callback = false;
     client.serve("http://localhost:9084/json_rpc", "", post_data);
     EXPECT_EQ(false, client.get_closed());
     EXPECT_EQ(500, client.get_resp_code());
@@ -1127,7 +1182,9 @@ TEST_F(GraftServerPostponeTest, common)
     EXPECT_EQ(body, "Postpone task response timeout");
 
     mainServer.stop_and_wait_for();
-    crypton.stop_and_wait_for();
+
+    stop_crypton = true;
+    th_crypton.join();
 }
 
 TEST_F(GraftServerTestBase, forward)
