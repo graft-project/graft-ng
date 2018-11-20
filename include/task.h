@@ -220,9 +220,12 @@ public:
     virtual void notifyJobReady() = 0;
 
     void cb_event(uint64_t cnt);
+
+    void getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledWorkers) const;
 protected:
     bool canStop();
     void executePostponedTasks();
+    void expelWorkers();
     void setIOThread(bool current);
     void checkUpstreamBlockingIO();
     void checkPeriodicTaskIO();
@@ -240,7 +243,7 @@ private:
     void runWorkerAction(BaseTaskPtr bt);
     void runPostAction(BaseTaskPtr bt);
 
-    void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32);
+    void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32, int expellingIntervalMs = 2000);
     bool tryProcessReadyJob();
 
     static inline size_t next_pow2(size_t val);

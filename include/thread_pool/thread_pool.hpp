@@ -86,11 +86,24 @@ public:
         return cnt;
     }
 
-private:
-    Worker<Task, Queue>& getWorker();
+    //it is for a single thread
+    void expelWorkers();
 
-    std::vector<std::unique_ptr<Worker<Task, Queue>>> m_workers;
-    std::atomic<size_t> m_next_worker;
+    static uint64_t getActiveWorkersCount();
+    static uint64_t getExpelledWorkersCount();
+
+private:
+    size_t getWorkerIdx();
+
+    using Worker = WorkerT<Task, Queue>;
+    using TimePoint = typename Worker::TimePoint;
+    using QueuesVec = std::vector<Queue<Task>>;
+    using WorkersVec = std::vector<std::shared_ptr<Worker>>;
+
+    std::unique_ptr<std::vector<Queue<Task>>> m_queues;
+    std::unique_ptr<std::vector<std::shared_ptr<Worker>>> m_workers;
+
+    std::atomic<size_t> m_next_worker = 0;
 };
 
 
@@ -99,20 +112,67 @@ private:
 template <typename Task, template<typename> class Queue>
 inline ThreadPoolImpl<Task, Queue>::ThreadPoolImpl(
                                             const ThreadPoolOptions& options)
-    : m_workers(options.threadCount())
-    , m_next_worker(0)
 {
-    for(auto& worker_ptr : m_workers)
+    using Milliseconds = typename Worker::Milliseconds;
+    Worker::defaultPeriodMs = Milliseconds(options.expellingIntervalMs());
+
+    m_queues = std::make_unique<QueuesVec>();
+    m_queues->reserve(options.threadCount());
+    m_workers = std::make_unique<WorkersVec>();
+    m_workers->reserve(options.threadCount());
+
+    QueuesVec& queues = *m_queues;
+    WorkersVec& workers = *m_workers;
+
+    for(size_t i = 0; i < options.threadCount(); ++i)
     {
-        worker_ptr.reset(new Worker<Task, Queue>(options.queueSize()));
+        queues.emplace_back(Queue<Task>(options.queueSize()));
+        workers.emplace_back(std::make_shared<Worker>());
     }
 
-    for(size_t i = 0; i < m_workers.size(); ++i)
+    for(size_t i = 0; i < workers.size(); ++i)
     {
-        Worker<Task, Queue>* steal_donor =
-                                m_workers[(i + 1) % m_workers.size()].get();
-        m_workers[i]->start(i, steal_donor);
+        size_t i1 = (i + 1) % workers.size();
+        std::shared_ptr wrkr(workers[i]);
+        workers[i]->start(i, queues[i], queues[i1], std::move(wrkr));
     }
+}
+
+//this function should be called by a single thread per ThreadPool only
+template <typename Task, template<typename> class Queue>
+inline void ThreadPoolImpl<Task, Queue>::expelWorkers()
+{
+    TimePoint now = Worker::getTimePoint();
+
+    QueuesVec& queues = *m_queues;
+    WorkersVec& workers = *m_workers;
+
+    for(size_t i = 0; i < workers.size(); ++i)
+    {
+        if(now < workers[i]->m_timePoint.load()) continue;
+        auto oworker = workers[i];
+        oworker->m_running_flag = false;
+        oworker->m_thread.detach();
+
+        std::shared_ptr<Worker> nworker = std::make_shared<Worker>();
+        workers[i] = nworker;
+        size_t i1 = (i + 1) % workers.size();
+        workers[i]->start(i, queues[i], queues[i1], std::move(nworker));
+
+        ++Worker::expelledCount;
+    }
+}
+
+template <typename Task, template<typename> class Queue>
+inline uint64_t ThreadPoolImpl<Task, Queue>::getActiveWorkersCount()
+{
+    return Worker::activeCount;
+}
+
+template <typename Task, template<typename> class Queue>
+inline uint64_t ThreadPoolImpl<Task, Queue>::getExpelledWorkersCount()
+{
+    return Worker::expelledCount;
 }
 
 template <typename Task, template<typename> class Queue>
@@ -124,10 +184,19 @@ inline ThreadPoolImpl<Task, Queue>::ThreadPoolImpl(ThreadPoolImpl<Task, Queue>&&
 template <typename Task, template<typename> class Queue>
 inline ThreadPoolImpl<Task, Queue>::~ThreadPoolImpl()
 {
-    for (auto& worker_ptr : m_workers)
+    if(!m_workers) return;
+    //it is expected that a caller of this dtor checks somehow before calling that the thread pool is empty,
+    //more strictly that all jobs are done
+    for (auto& worker_ptr : *m_workers)
     {
         worker_ptr->stop();
     }
+
+    while(Worker::activeCount)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert((Worker::activeCount == 0));
 }
 
 template <typename Task, template<typename> class Queue>
@@ -136,6 +205,7 @@ ThreadPoolImpl<Task, Queue>::operator=(ThreadPoolImpl<Task, Queue>&& rhs) noexce
 {
     if (this != &rhs)
     {
+        m_queues = std::move(rhs.m_queues);
         m_workers = std::move(rhs.m_workers);
         m_next_worker = rhs.m_next_worker.load();
     }
@@ -146,14 +216,14 @@ template <typename Task, template<typename> class Queue>
 template <typename Handler>
 inline bool ThreadPoolImpl<Task, Queue>::tryPost(Handler&& handler)
 {
-    return getWorker().post(std::forward<Handler>(handler));
+    return (*m_queues)[getWorkerIdx()].push(std::forward<Handler>(handler));
 }
 
 template <typename Task, template<typename> class Queue>
 template <typename Handler>
 inline void ThreadPoolImpl<Task, Queue>::post(Handler&& handler, bool to_any_queue)
 {
-    int try_count = (to_any_queue)? m_workers.size() : 1;
+    int try_count = (to_any_queue)? m_workers->size() : 1;
     for(int i = 0; i < try_count; ++i)
     {
         bool ok = tryPost(std::forward<Handler>(handler));
@@ -163,16 +233,16 @@ inline void ThreadPoolImpl<Task, Queue>::post(Handler&& handler, bool to_any_que
 }
 
 template <typename Task, template<typename> class Queue>
-inline Worker<Task, Queue>& ThreadPoolImpl<Task, Queue>::getWorker()
+inline size_t ThreadPoolImpl<Task, Queue>::getWorkerIdx()
 {
-    auto id = Worker<Task, Queue>::getWorkerIdForCurrentThread();
+    auto id = Worker::getWorkerIdForCurrentThread();
 
-    if (id > m_workers.size())
+    if (id > m_workers->size())
     {
         id = m_next_worker.fetch_add(1, std::memory_order_relaxed) %
-             m_workers.size();
+             m_workers->size();
     }
 
-    return *m_workers[id];
+    return id;
 }
 }

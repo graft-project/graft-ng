@@ -40,9 +40,21 @@ public:
      */
     size_t queueSize() const;
 
+    /**
+     * @brief setExpellingIntervalMs Set default time interval per a job before creating substituting worker.
+     * @param ms Value in milliseconds.
+     */
+    void setExpellingIntervalMs(size_t ms) { m_workers_expelling_interval_ms = ms; }
+
+    /**
+     * @brief expellingIntervalMs Return default time interval per a job before creating substituting worker.
+     */
+    size_t expellingIntervalMs() const { return m_workers_expelling_interval_ms; }
+
 private:
     size_t m_thread_count;
     size_t m_queue_size;
+    size_t m_workers_expelling_interval_ms;
 };
 
 /// Implementation
@@ -50,6 +62,7 @@ private:
 inline ThreadPoolOptions::ThreadPoolOptions()
     : m_thread_count(std::max<size_t>(1u, std::thread::hardware_concurrency()))
     , m_queue_size(1024u)
+    , m_workers_expelling_interval_ms(1000u)
 {
 }
 

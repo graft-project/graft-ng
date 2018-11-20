@@ -125,6 +125,7 @@ public:
             copts.upstream_request_timeout = 1;
             copts.workers_count = 0;
             copts.worker_queue_len = 0;
+            copts.workers_expelling_interval_ms = 0;
             copts.cryptonode_rpc_address = "127.0.0.1:1234";
             copts.timer_poll_interval_ms = 50;
         }

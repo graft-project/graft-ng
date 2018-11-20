@@ -14,6 +14,7 @@ struct ConfigOpts
     double upstream_request_timeout;
     int workers_count;
     int worker_queue_len;
+    int workers_expelling_interval_ms;
     std::string cryptonode_rpc_address;
     int timer_poll_interval_ms;
     int log_trunc_to_size;

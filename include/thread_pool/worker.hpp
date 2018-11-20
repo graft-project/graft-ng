@@ -7,37 +7,52 @@ namespace tp
 {
 
 /**
- * @brief The Worker class owns task queue and executing thread.
+ * @brief The WorkerT class owns task queue and executing thread.
  * In thread it tries to pop task from queue. If queue is empty then it tries
  * to steal task from the sibling worker. If steal was unsuccessful then spins
  * with one millisecond delay.
  */
 template <typename Task, template<typename> class Queue>
-class Worker
+class WorkerT
 {
 public:
+    using TimePoint = std::chrono::high_resolution_clock::time_point;
+    using Milliseconds = std::chrono::milliseconds;
+
+    static TimePoint maxTimePoint()
+    {
+        return std::chrono::high_resolution_clock::time_point::max();
+    }
+
+    static TimePoint getTimePoint(Milliseconds d = Milliseconds(0))
+    {
+        TimePoint tp = std::chrono::high_resolution_clock::now();
+        tp += d;
+        return tp;
+    }
+
     /**
-     * @brief Worker Constructor.
+     * @brief WorkerT Constructor.
      * @param queue_size Length of undelaying task queue.
      */
-    explicit Worker(size_t queue_size);
+    WorkerT() noexcept : m_timePoint(maxTimePoint()) { }
 
     /**
      * @brief Move ctor implementation.
      */
-    Worker(Worker&& rhs) noexcept;
+    WorkerT(WorkerT&& rhs) noexcept;
 
     /**
      * @brief Move assignment implementaion.
      */
-    Worker& operator=(Worker&& rhs) noexcept;
+    WorkerT& operator=(WorkerT&& rhs) noexcept;
 
     /**
      * @brief start Create the executing thread and start tasks execution.
-     * @param id Worker ID.
+     * @param id WorkerT ID.
      * @param steal_donor Sibling worker to steal task from it.
      */
-    void start(size_t id, Worker* steal_donor);
+    void start(size_t id, Queue<Task>& queue, Queue<Task>& steal_queue, std::shared_ptr<WorkerT>&& rwptr);
 
     /**
      * @brief stop Stop all worker's thread and stealing activity.
@@ -46,37 +61,28 @@ public:
     void stop();
 
     /**
-     * @brief post Post task to queue.
-     * @param handler Handler to be executed in executing thread.
-     * @return true on success.
-     */
-    template <typename Handler>
-    bool post(Handler&& handler);
-
-    /**
-     * @brief steal Steal one task from this worker queue.
-     * @param task Place for stealed task to be stored.
-     * @return true on success.
-     */
-    bool steal(Task& task);
-
-    /**
      * @brief getWorkerIdForCurrentThread Return worker ID associated with
      * current thread if exists.
-     * @return Worker ID.
+     * @return WorkerT ID.
      */
     static size_t getWorkerIdForCurrentThread();
 
-private:
     /**
      * @brief threadFunc Executing thread function.
-     * @param id Worker ID to be associated with this thread.
+     * @param id WorkerT ID to be associated with this thread.
      * @param steal_donor Sibling worker to steal task from it.
      */
-    void threadFunc(size_t id, Worker* steal_donor);
 
-    Queue<Task> m_queue;
-    std::atomic<bool> m_running_flag;
+    void threadFunc(size_t id, Queue<Task>& queue, Queue<Task>& steal_queue, std::shared_ptr<WorkerT>&& rwptr);
+
+    static_assert(std::atomic<uint64_t>::is_always_lock_free);
+    static std::atomic<uint64_t> activeCount;
+    static std::atomic<uint64_t> expelledCount;
+    static std::chrono::milliseconds defaultPeriodMs;
+
+    std::atomic<TimePoint> m_timePoint = maxTimePoint();
+    static_assert(decltype(m_timePoint)::is_always_lock_free);
+    std::atomic<bool> m_running_flag{true};
     std::thread m_thread;
 };
 
@@ -93,24 +99,25 @@ namespace detail
 }
 
 template <typename Task, template<typename> class Queue>
-inline Worker<Task, Queue>::Worker(size_t queue_size)
-    : m_queue(queue_size)
-    , m_running_flag(true)
-{
-}
+std::atomic<uint64_t> WorkerT<Task, Queue>::activeCount = 0;
 
 template <typename Task, template<typename> class Queue>
-inline Worker<Task, Queue>::Worker(Worker&& rhs) noexcept
+std::atomic<uint64_t> WorkerT<Task, Queue>::expelledCount = 0;
+
+template <typename Task, template<typename> class Queue>
+std::chrono::milliseconds WorkerT<Task, Queue>::defaultPeriodMs(200);
+
+template <typename Task, template<typename> class Queue>
+inline WorkerT<Task, Queue>::WorkerT(WorkerT&& rhs) noexcept
 {
     *this = rhs;
 }
 
 template <typename Task, template<typename> class Queue>
-inline Worker<Task, Queue>& Worker<Task, Queue>::operator=(Worker&& rhs) noexcept
+inline WorkerT<Task, Queue>& WorkerT<Task, Queue>::operator=(WorkerT&& rhs) noexcept
 {
     if (this != &rhs)
     {
-        m_queue = std::move(rhs.m_queue);
         m_running_flag = rhs.m_running_flag.load();
         m_thread = std::move(rhs.m_thread);
     }
@@ -118,55 +125,52 @@ inline Worker<Task, Queue>& Worker<Task, Queue>::operator=(Worker&& rhs) noexcep
 }
 
 template <typename Task, template<typename> class Queue>
-inline void Worker<Task, Queue>::stop()
+inline void WorkerT<Task, Queue>::stop()
 {
     m_running_flag.store(false, std::memory_order_relaxed);
     m_thread.join();
 }
 
 template <typename Task, template<typename> class Queue>
-inline void Worker<Task, Queue>::start(size_t id, Worker* steal_donor)
+inline void WorkerT<Task, Queue>::start(size_t id, Queue<Task>& queue, Queue<Task>& steal_queue, std::shared_ptr<WorkerT>&& rwptr)
 {
-    m_thread = std::thread(&Worker<Task, Queue>::threadFunc, this, id, steal_donor);
+    assert(rwptr.get() == this);
+    ++activeCount;
+    m_thread = std::thread([this,id,&queue,&steal_queue,rwptr]()
+    {
+        std::shared_ptr<WorkerT> wptr = rwptr;
+        threadFunc(id, queue, steal_queue, std::move(wptr));
+    });
+
 }
 
 template <typename Task, template<typename> class Queue>
-inline size_t Worker<Task, Queue>::getWorkerIdForCurrentThread()
+inline size_t WorkerT<Task, Queue>::getWorkerIdForCurrentThread()
 {
     return *detail::thread_id();
 }
 
 template <typename Task, template<typename> class Queue>
-template <typename Handler>
-inline bool Worker<Task, Queue>::post(Handler&& handler)
+inline void WorkerT<Task, Queue>::threadFunc(size_t id, Queue<Task>& queue, Queue<Task>& steal_queue, std::shared_ptr<WorkerT>&& rwptr)
 {
-    return m_queue.push(std::forward<Handler>(handler));
-}
+    assert(rwptr.get() == this);
 
-template <typename Task, template<typename> class Queue>
-inline bool Worker<Task, Queue>::steal(Task& task)
-{
-    return m_queue.pop(task);
-}
-
-template <typename Task, template<typename> class Queue>
-inline void Worker<Task, Queue>::threadFunc(size_t id, Worker* steal_donor)
-{
     *detail::thread_id() = id;
 
     Task handler;
 
     while (m_running_flag.load(std::memory_order_relaxed))
     {
-        if (m_queue.pop(handler) || steal_donor->steal(handler))
+        if (queue.pop(handler) || steal_queue.pop(handler))
         {
             try
             {
+                m_timePoint = getTimePoint(defaultPeriodMs);
                 handler();
+                m_timePoint = maxTimePoint();
             }
             catch(...)
             {
-                // suppress all exceptions
                 throw;
             }
         }
@@ -175,6 +179,7 @@ inline void Worker<Task, Queue>::threadFunc(size_t id, Worker* steal_donor)
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
+    --activeCount;
 }
 
 }

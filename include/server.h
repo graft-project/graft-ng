@@ -31,6 +31,8 @@ public:
 
     bool init(int argc, const char** argv, ConfigOpts& configOpts);
     RunRes run();
+
+    void getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledWorkers) const;
 protected:
     virtual bool initConfigOption(int argc, const char** argv, ConfigOpts& configOpts);
     virtual void initMisc(ConfigOpts& configOpts);
