@@ -128,9 +128,9 @@ void GraftServer::initMisc(ConfigOpts& configOpts)
 
 }
 
-void GraftServer::addGeneralCallbackRoute()
+void GraftServer::addGenericCallbackRoute()
 {
-    auto generalCallback = [](const Router::vars_t& vars, const Input&, Context& ctx, Output& output)->Status
+    auto genericCallback = [](const Router::vars_t& vars, const Input&, Context& ctx, Output& output)->Status
     {
         if (vars.count("id") == 0)
         {
@@ -144,7 +144,7 @@ void GraftServer::addGeneralCallbackRoute()
         return Status::Ok;
     };
     Router router;
-    router.addRoute("/callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,generalCallback,nullptr});
+    router.addRoute("/callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,genericCallback,nullptr});
     ConnectionManager* httpcm = getConMgr("HTTP");
     httpcm->addRouter(router);
 }
@@ -164,7 +164,7 @@ bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
     initMisc(configOpts);
 
     initConnectionManagers();
-    addGeneralCallbackRoute();
+    addGenericCallbackRoute();
     initRouters();
     initGraftletRouters();
 
