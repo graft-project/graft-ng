@@ -171,7 +171,6 @@ inline void WorkerT<Task, Queue>::threadFunc(size_t id, Queue<Task>& queue, Queu
             }
             catch(...)
             {
-                // suppress all exceptions? No
                 throw;
             }
         }

@@ -39,7 +39,7 @@ GraftServer::~GraftServer()
 void GraftServer::getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledWorkers) const
 {
     assert(m_looper);
-    this->m_looper->getThreadPoolInfo(activeWorkers, expelledWorkers);
+    m_looper->getThreadPoolInfo(activeWorkers, expelledWorkers);
 }
 
 void GraftServer::initGraftlets()
