@@ -1255,7 +1255,7 @@ TEST_F(GraftServerTest, genericCallback)
             //find webhook endpoint
             auto it = std::find_if(input.headers.begin(), input.headers.end(), [](auto& v)->bool { v.first == "X-Callback"; } );
             assert(it != input.headers.end());
-            std::string path = it->second; //":port/callback/<uuid>"
+            std::string path = it->second; //"http://0.0.0.0:port/callback/<uuid>"
 
             //make answer uri
             const std::string _0_0 = "0.0.0.0";
