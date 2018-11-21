@@ -1,3 +1,4 @@
+
 #include "supernode/requests/pay.h"
 #include "requestdefines.h"
 #include "requesttools.h"
@@ -17,8 +18,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.payrequest"
 
-namespace graft {
-
+namespace graft::supernode::request {
 
 enum class PayHandlerState : int
 {
@@ -223,3 +223,4 @@ void registerPayRequest(Router &router)
 }
 
 }
+

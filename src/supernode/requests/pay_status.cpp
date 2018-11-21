@@ -7,7 +7,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.paystatusrequest"
 
-namespace graft {
+namespace graft::supernode::request {
 
 // json-rpc request from client
 GRAFT_DEFINE_JSON_RPC_REQUEST(PayStatusRequestJsonRpc, PayStatusRequest);

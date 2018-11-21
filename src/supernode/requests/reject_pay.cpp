@@ -5,7 +5,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.rejectpayrequest"
 
-namespace graft {
+namespace graft::supernode::request {
 
 Status rejectPayHandler(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
@@ -31,3 +31,4 @@ void registerRejectPayRequest(Router &router)
 }
 
 }
+

@@ -12,7 +12,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.saledetailsrequest"
 
-namespace graft {
+namespace graft::supernode::request {
 
 // json-rpc request from POS
 GRAFT_DEFINE_JSON_RPC_REQUEST(SaleDetailsRequestJsonRpc, SaleDetailsRequest);
@@ -430,3 +430,4 @@ void registerSaleDetailsRequest(Router &router)
 }
 
 }
+

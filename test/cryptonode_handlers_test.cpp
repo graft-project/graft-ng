@@ -47,6 +47,7 @@
 #include <chrono>
 
 using namespace graft;
+using namespace graft::supernode::request;
 using namespace std::chrono_literals;
 
 struct CryptonodeHandlersTest : public ::testing::Test
@@ -71,9 +72,9 @@ struct CryptonodeHandlersTest : public ::testing::Test
 
         Router router;
 
-        graft::registerGetInfoRequest(router);
-        graft::registerSendRawTxRequest(router);
-        graft::registerAuthorizeRtaTxRequests(router);
+        registerGetInfoRequest(router);
+        registerSendRawTxRequest(router);
+        registerAuthorizeRtaTxRequests(router);
 
         httpcm = std::make_unique<HttpConnectionManager>();
         httpcm->addRouter(router);

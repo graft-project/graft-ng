@@ -16,39 +16,39 @@
 #include "supernode/requests/authorize_rta_tx.h"
 #include "supernode/requests/send_supernode_announce.h"
 
-namespace graft {
+namespace graft::supernode::request::debug { void __registerDebugRequests(Router& router); }
+namespace graft::supernode::system_info { void register_request(Router& router); }
 
-void __registerDebugRequests(Router& router);
-namespace supernode::system_info { void register_request(Router& router); }
+namespace graft::supernode::request {
 
 void registerRTARequests(graft::Router &router)
 {
-    graft::registerSaleRequest(router);
-    graft::registerSaleStatusRequest(router);
-    graft::registerRejectSaleRequest(router);
-    graft::registerGetInfoRequest(router);
-    graft::registerSaleDetailsRequest(router);
-    graft::registerPayRequest(router);
-    graft::registerPayStatusRequest(router);
-    graft::registerRejectPayRequest(router);
-    graft::registerAuthorizeRtaTxRequests(router);
-    graft::registerSendSupernodeAnnounceRequest(router);
+    registerSaleRequest(router);
+    registerSaleStatusRequest(router);
+    registerRejectSaleRequest(router);
+    registerGetInfoRequest(router);
+    registerSaleDetailsRequest(router);
+    registerPayRequest(router);
+    registerPayStatusRequest(router);
+    registerRejectPayRequest(router);
+    registerAuthorizeRtaTxRequests(router);
+    registerSendSupernodeAnnounceRequest(router);
 }
 
 void registerForwardRequests(graft::Router &router)
 {
-    graft::registerForwardRequest(router);
-    graft::requests::walletnode::registerForward(router);
+    walletnode::registerForwardRequest(router);
+    walletnode::registerForward(router);
 }
 
 void registerHealthcheckRequests(Router &router)
 {
-    graft::registerHealthcheckRequest(router);
+    registerHealthcheckRequest(router);
 }
 
 void registerDebugRequests(Router &router)
 {
-    graft::__registerDebugRequests(router);
+    debug::__registerDebugRequests(router);
     graft::supernode::system_info::register_request(router);
 }
 

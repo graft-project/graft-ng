@@ -47,9 +47,7 @@ namespace {
     static const size_t RTA_VOTES_TO_APPROVE = 4/*7*/;
 }
 
-namespace graft {
-
-
+namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeSignature,
                               (std::string, address, std::string()),
@@ -705,7 +703,6 @@ Status authorizeRtaTxResponseHandler(const Router::vars_t& vars, const graft::In
 
 }
 
-
 void registerAuthorizeRtaTxRequests(graft::Router &router)
 {
     Router::Handler3 request_handler(nullptr, authorizeRtaTxRequestHandler, nullptr);
@@ -717,3 +714,4 @@ void registerAuthorizeRtaTxRequests(graft::Router &router)
 }
 
 }
+

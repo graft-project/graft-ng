@@ -12,6 +12,7 @@
 namespace graft {
 
 using namespace std;
+using namespace graft::supernode::request;
 
 Status errorInvalidPaymentID(Output& output)
 {

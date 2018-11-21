@@ -32,6 +32,7 @@ namespace graft
 namespace snd
 {
 
+
 bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& configOpts)
 {
     bool res = GraftServer::initConfigOption(argc, argv, configOpts);
@@ -139,7 +140,7 @@ void Supernode::startSupernodePeriodicTasks()
         size_t initial_interval_ms = 1000;
         assert(m_looper);
         m_looper->addPeriodicTask(
-                    graft::Router::Handler3(nullptr, sendAnnounce, nullptr),
+                    graft::Router::Handler3(nullptr, graft::supernode::request::sendAnnounce, nullptr),
                     std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
                     std::chrono::milliseconds(initial_interval_ms)
                     );
@@ -148,6 +149,8 @@ void Supernode::startSupernodePeriodicTasks()
 
 void Supernode::setHttpRouters(ConnectionManager& httpcm)
 {
+    using namespace graft::supernode::request;
+
     Router dapi_router("/dapi/v2.0");
     auto http_test = [](const Router::vars_t&, const Input&, Context&, Output&)->Status
     {
@@ -160,19 +163,19 @@ void Supernode::setHttpRouters(ConnectionManager& httpcm)
     // httpcm.addRouter(dapi_router);
 
     // Router http_router;
-    graft::registerRTARequests(dapi_router);
+    registerRTARequests(dapi_router);
     httpcm.addRouter(dapi_router);
 
     Router forward_router;
-    graft::registerForwardRequests(forward_router);
+    registerForwardRequests(forward_router);
     httpcm.addRouter(forward_router);
 
     Router health_router;
-    graft::registerHealthcheckRequests(health_router);
+    registerHealthcheckRequests(health_router);
     httpcm.addRouter(health_router);
 
     Router debug_router;
-    graft::registerDebugRequests(debug_router);
+    registerDebugRequests(debug_router);
     httpcm.addRouter(debug_router);
 }
 

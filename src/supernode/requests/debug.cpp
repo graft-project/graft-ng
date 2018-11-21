@@ -19,7 +19,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.payrequest"
 
-namespace graft { namespace requests { namespace debug {
+namespace graft::supernode::request::debug {
 
 GRAFT_DEFINE_IO_STRUCT(DbSupernode,
     (std::string, Address),
@@ -30,9 +30,6 @@ GRAFT_DEFINE_IO_STRUCT(DbSupernode,
 GRAFT_DEFINE_IO_STRUCT(SupernodeListResponse,
     (std::vector<DbSupernode>, items)
 );
-
-
-
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SupernodeListJsonRpcResult, SupernodeListResponse);
 
@@ -106,11 +103,9 @@ Status doAnnounce(const Router::vars_t& vars, const graft::Input& input,
     return sendAnnounce(vars, input, ctx, output);
 }
 
-}}
-
 void __registerDebugRequests(Router &router)
 {
-#define _HANDLER(h) {nullptr, requests::debug::h, nullptr}
+#define _HANDLER(h) {nullptr, graft::supernode::request::debug::h, nullptr}
 
     router.addRoute("/debug/supernode_list", METHOD_GET, _HANDLER(getSupernodeList));
     router.addRoute("/debug/auth_sample/{height:[0-9]+}", METHOD_GET, _HANDLER(getAuthSample));
@@ -118,3 +113,4 @@ void __registerDebugRequests(Router &router)
 }
 
 }
+

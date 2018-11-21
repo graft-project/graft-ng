@@ -33,7 +33,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.getinforequest"
 
-namespace graft {
+namespace graft::supernode::request {
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE(GetInfoResponseJsonRpc, GetInfoResponse);
 
@@ -104,7 +104,6 @@ Status getInfoHandler(const Router::vars_t& vars, const graft::Input& input,
         }
     }
 }
-
 
 void registerGetInfoRequest(graft::Router& router)
 {

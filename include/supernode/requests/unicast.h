@@ -1,5 +1,5 @@
-#ifndef UNICAST_H
-#define UNICAST_H
+
+#pragma once
 
 #include "inout.h"
 #include "jsonrpc.h"
@@ -8,8 +8,7 @@
 #include <vector>
 #include <string>
 
-
-namespace graft {
+namespace graft::supernode::request {
 
 // Plan "B" in case we can't do that magic, we just define:
 GRAFT_DEFINE_IO_STRUCT_INITED(UnicastRequest,
@@ -34,8 +33,5 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(UnicastResponseToCryptonodeJsonRpc, Unicas
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE(UnicastResponseFromCryptonodeJsonRpc, UnicastResponseFromCryptonode);
 
-
 }
 
-
-#endif // UNICAST_H

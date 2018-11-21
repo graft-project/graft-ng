@@ -1,10 +1,10 @@
-#ifndef PAYREQUEST_H
-#define PAYREQUEST_H
+
+#pragma once
 
 #include "router.h"
 #include "jsonrpc.h"
 
-namespace graft {
+namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT_INITED(PayRequest,
     (std::string, PaymentID, std::string()),
@@ -23,9 +23,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(PayResponse,
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(PayResponseJsonRpc, PayResponse);
 
-
 void registerPayRequest(graft::Router &router);
 
 }
 
-#endif // PAYREQUEST_H

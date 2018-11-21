@@ -1,12 +1,11 @@
-#ifndef SENDSUPERNODEANNOUNCEREQUEST_H
-#define SENDSUPERNODEANNOUNCEREQUEST_H
+
+#pragma once
 
 #include "router.h"
 #include "inout.h"
 #include "jsonrpc.h"
 
-
-namespace graft {
+namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT(SignedKeyImageStr,
                       (std::string, key_image),
@@ -46,5 +45,4 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
 
 }
 
-#endif // SENDSUPERNODEANNOUNCEREQUEST_H
 

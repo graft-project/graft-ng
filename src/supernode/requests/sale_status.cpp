@@ -7,10 +7,9 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.salestatusrequest"
 
-namespace graft {
+namespace graft::supernode::request {
 
 using namespace std;
-
 
 // json-rpc request from client
 GRAFT_DEFINE_JSON_RPC_REQUEST(SaleStatusRequestJsonRpc, SaleStatusRequest);
@@ -134,3 +133,4 @@ bool checkSaleStatusUpdateSignature(const string &payment_id, int status, const 
 }
 
 }
+
