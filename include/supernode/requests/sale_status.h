@@ -1,18 +1,16 @@
-#ifndef SALESTATUSREQUEST_H
-#define SALESTATUSREQUEST_H
+
+#pragma once
 
 #include "router.h"
 #include "jsonrpc.h"
 #include "rta/supernode.h"
 
-namespace graft {
+namespace graft::supernode::request {
 
 // returns sale status by sale id
 GRAFT_DEFINE_IO_STRUCT(SaleStatusRequest,
     (std::string, PaymentID)
 );
-
-
 
 // message to be broadcasted
 GRAFT_DEFINE_IO_STRUCT_INITED(UpdateSaleStatusBroadcast,
@@ -51,4 +49,3 @@ void registerSaleStatusRequest(graft::Router &router);
 
 }
 
-#endif // SALESTATUSREQUEST_H

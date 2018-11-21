@@ -6,7 +6,7 @@
 
 #include <string>
 
-namespace graft {
+namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT(BroadcastRequest,
                        (std::string, sender_address),

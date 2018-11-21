@@ -20,7 +20,7 @@ BOOST_HANA_ADAPT_STRUCT(graft::SaleData,
                         Amount
                         );
 
-namespace graft {
+namespace graft::supernode::request {
 
 static const std::chrono::seconds SALE_TTL = std::chrono::seconds(60);
 
@@ -32,16 +32,12 @@ GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
                        (string, details)
                        );
 
-
-
-
 enum class SaleHandlerState : int
 {
     ClientRequest = 0,
     SaleMulticastReply,
     SaleStatusReply,
 };
-
 
 Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
@@ -237,7 +233,6 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
 Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& input,
                              graft::Context& ctx, graft::Output& output)
 {
-
     MulticastRequestJsonRpc req;
     if (!input.get(req)) {
         return errorInvalidParams(output);
@@ -275,7 +270,6 @@ Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& inp
     return Status::Ok;
 }
 
-
 void registerSaleRequest(graft::Router &router)
 {
     Router::Handler3 h1(nullptr, saleClientHandler, nullptr);
@@ -285,3 +279,4 @@ void registerSaleRequest(graft::Router &router)
 }
 
 }
+

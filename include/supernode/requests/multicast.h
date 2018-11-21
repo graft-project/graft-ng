@@ -7,8 +7,7 @@
 #include <vector>
 #include <string>
 
-
-namespace graft {
+namespace graft::supernode::request {
 
 // Plan "B" in case we can't do that magic, we just define:
 GRAFT_DEFINE_IO_STRUCT(MulticastRequest,

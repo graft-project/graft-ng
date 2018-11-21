@@ -1,5 +1,5 @@
-#ifndef SENDRAWTXREQUEST_H
-#define SENDRAWTXREQUEST_H
+
+#pragma once
 
 #include "router.h"
 #include "inout.h"
@@ -8,8 +8,7 @@
 #include <string>
 #include <wallet/wallet2.h>
 
-
-namespace graft {
+namespace graft::supernode::request {
 
 // here we testing how supernode can proxy "sendrawtransaction" call to cryptonode
 
@@ -47,4 +46,3 @@ bool createSendRawTxRequest(const cryptonote::transaction &tx, SendRawTxRequest 
 
 }
 
-#endif // SENDRAWTXREQUEST_H

@@ -1,12 +1,11 @@
-#ifndef SALEREQUEST_H
-#define SALEREQUEST_H
+
+#pragma once
 
 #include "router.h"
 #include "jsonrpc.h"
 #include "requestdefines.h"
 
-
-namespace graft {
+namespace graft::supernode::request {
 
 // Sale request payload
 GRAFT_DEFINE_IO_STRUCT_INITED(SaleRequest,
@@ -15,7 +14,6 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SaleRequest,
     (std::string, PaymentID, std::string()),
     (uint64_t, Amount, 0)
 );
-
 
 // Sale request in wrapped as json-rpc
 GRAFT_DEFINE_JSON_RPC_REQUEST(SaleRequestJsonRpc, SaleRequest)
@@ -34,4 +32,3 @@ void registerSaleRequest(graft::Router &router);
 
 }
 
-#endif // SALEREQUEST_H

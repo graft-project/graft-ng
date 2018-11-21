@@ -4,7 +4,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.forwardrequest"
 
-namespace graft { namespace requests { namespace walletnode {
+namespace graft::supernode::request::walletnode {
 
 void registerForward(Router& router)
 {
@@ -48,10 +48,6 @@ void registerForward(Router& router)
 
     router.addRoute("/walletapi/{forward:create_account|restore_account|wallet_balance|prepare_transfer|transaction_history}",METHOD_POST,{nullptr,forward,nullptr});
 }
-
-}}} //namespace graft { namespace requests { namespace walletnode {
-
-namespace graft {
 
 void registerForwardRequest(Router& router)
 {

@@ -3,15 +3,11 @@
 
 #include "router.h"
 
-namespace graft {
+namespace graft::supernode::request::walletnode {
 
 void registerForwardRequest(graft::Router& router);
 
-namespace requests::walletnode {
-
 void registerForward(graft::Router& router);
-
-}
 
 }
 

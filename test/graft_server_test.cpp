@@ -19,6 +19,8 @@
 
 #include <deque>
 
+using namespace graft::supernode::request;
+
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
       (uint32, block_height),
@@ -594,7 +596,7 @@ private:
             http_router.addRoute("/root/r{id:\\d+}", METHOD_GET, h3_test);
             http_router.addRoute("/root/r{id:\\d+}", METHOD_POST, h3_test);
             http_router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, h3_test);
-            graft::registerRTARequests(http_router);
+            registerRTARequests(http_router);
         }
 
         graft::ConfigOpts copts;
@@ -1195,7 +1197,7 @@ TEST_F(GraftServerTestBase, forward)
     crypton.on_http = crypton.http_echo;
     crypton.run();
     MainServer mainServer;
-    graft::registerForwardRequests(mainServer.router);
+    registerForwardRequests(mainServer.router);
     mainServer.run();
 
     std::string post_data = "some data";
@@ -1224,7 +1226,7 @@ TEST_F(GraftServerTestBase, DISABLED_getVersion)
 {
     MainServer mainServer;
     mainServer.copts.cryptonode_rpc_address = "localhost:38281";
-    graft::registerForwardRequests(mainServer.router);
+    registerForwardRequests(mainServer.router);
     mainServer.run();
 
     graft::JsonRpcRequestHeader request;

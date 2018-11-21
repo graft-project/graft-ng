@@ -15,9 +15,11 @@ namespace cryptonote {
     class transaction;
 }
 
+namespace graft::supernode::request { struct SupernodeAnnounce; }
+
 namespace graft {
 
-struct SupernodeAnnounce;
+using graft::supernode::request::SupernodeAnnounce;
 
 /*!
  * \brief The Supernode class - Representing supernode instance
@@ -137,7 +139,7 @@ public:
      * \param announce           - reference to graft::SupernodeAnnounce
      * \return                   - true on success
      */
-    bool updateFromAnnounce(const graft::SupernodeAnnounce &announce);
+    bool updateFromAnnounce(const SupernodeAnnounce &announce);
 
     /*!
      * \brief createFromAnnounce - creates new Supernode instance from announce
@@ -147,11 +149,11 @@ public:
      * \return                   - Supernode pointer on success
      */
     static Supernode * createFromAnnounce(const std::string &path,
-                                          const graft::SupernodeAnnounce &announce,
+                                          const SupernodeAnnounce &announce,
                                           const std::string &daemon_address,
                                           bool testnet);
 
-    bool prepareAnnounce(graft::SupernodeAnnounce &announce);
+    bool prepareAnnounce(SupernodeAnnounce &announce);
 
     /*!
      * \brief exportViewkey - exports stake wallet private viewkey

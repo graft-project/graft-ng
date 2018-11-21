@@ -44,8 +44,7 @@ namespace {
 
 }
 
-
-namespace graft {
+namespace graft::supernode::request {
 
 /**
  * @brief
@@ -184,7 +183,7 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
 
             supernode->setLastUpdateTime(static_cast<uint64_t>(std::time(nullptr)));
 
-            graft::SendSupernodeAnnounceJsonRpcRequest req;
+            SendSupernodeAnnounceJsonRpcRequest req;
             if (!supernode->prepareAnnounce(req.params)) {
                 return errorCustomError(string("failed to prepare announce: ") + supernode->walletAddress(),
                                         ERROR_INTERNAL_ERROR, output);

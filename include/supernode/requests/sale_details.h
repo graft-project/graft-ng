@@ -1,13 +1,12 @@
-#ifndef SALEDETAILSREQUEST_H
-#define SALEDETAILSREQUEST_H
+
+#pragma once
 
 #include "inout.h"
 #include "router.h"
 
 #include <vector>
 
-namespace graft {
-
+namespace graft::supernode::request {
 
 // fee per supernode
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeFee,
@@ -30,4 +29,3 @@ void registerSaleDetailsRequest(graft::Router &router);
 
 }
 
-#endif // SALEDETAILSREQUEST_H

@@ -1,9 +1,9 @@
-#ifndef PAYSTATUSREQUEST_H
-#define PAYSTATUSREQUEST_H
+
+#pragma once
 
 #include "router.h"
 
-namespace graft {
+namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT(PayStatusRequest,
     (std::string, PaymentID)
@@ -17,4 +17,3 @@ void registerPayStatusRequest(graft::Router &router);
 
 }
 
-#endif // PAYSTATUSREQUEST_H

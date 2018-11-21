@@ -1,9 +1,9 @@
-#ifndef REJECTPAYREQUEST_H
-#define REJECTPAYREQUEST_H
+
+#pragma once
 
 #include "router.h"
 
-namespace graft {
+namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT(RejectPayRequest,
     (std::string, PaymentID)
@@ -17,4 +17,3 @@ void registerRejectPayRequest(graft::Router &router);
 
 }
 
-#endif // REJECTPAYREQUEST_H

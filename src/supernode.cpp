@@ -32,6 +32,8 @@ namespace graft
 namespace snd
 {
 
+using namespace graft::supernode::request;
+
 bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& configOpts)
 {
     bool res = GraftServer::initConfigOption(argc, argv, configOpts);
@@ -160,19 +162,19 @@ void Supernode::setHttpRouters(ConnectionManager& httpcm)
     // httpcm.addRouter(dapi_router);
 
     // Router http_router;
-    graft::registerRTARequests(dapi_router);
+    registerRTARequests(dapi_router);
     httpcm.addRouter(dapi_router);
 
     Router forward_router;
-    graft::registerForwardRequests(forward_router);
+    registerForwardRequests(forward_router);
     httpcm.addRouter(forward_router);
 
     Router health_router;
-    graft::registerHealthcheckRequests(health_router);
+    registerHealthcheckRequests(health_router);
     httpcm.addRouter(health_router);
 
     Router debug_router;
-    graft::registerDebugRequests(debug_router);
+    registerDebugRequests(debug_router);
     httpcm.addRouter(debug_router);
 }
 

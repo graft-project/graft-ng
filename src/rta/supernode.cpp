@@ -17,6 +17,8 @@ using namespace std;
 
 namespace graft {
 
+using graft::supernode::request::SignedKeyImageStr;
+
 Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
                      const string &seed_language)
     : m_wallet{new tools::wallet2(testnet)}

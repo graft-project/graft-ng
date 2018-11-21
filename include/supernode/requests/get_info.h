@@ -4,7 +4,7 @@
 #include "router.h"
 #include "jsonrpc.h"
 
-namespace graft {
+namespace graft::supernode::request {
 
 //GRAFT_DEFINE_IO_STRUCT_INITED(GetInfoResult,
 //                              (uint64_t, alt_blocks_count, 0),
