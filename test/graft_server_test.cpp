@@ -1243,6 +1243,52 @@ TEST_F(GraftServerTestBase, DISABLED_getVersion)
     mainServer.stop_and_wait_for();
 }
 
+//It uses registerForwardRequests to check generic callback functionality using existing walletnode forward request.
+TEST_F(GraftServerTest, genericCallback)
+{
+    auto pretend_walletnode_echo = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        switch(ctx.local.getLastStatus())
+        {
+        case graft::Status::None:
+        {
+            //find webhook endpoint
+            auto it = std::find_if(input.headers.begin(), input.headers.end(), [](auto& v)->bool { v.first == "X-Callback"; } );
+            assert(it != input.headers.end());
+            std::string path = it->second; //":port/callback/<uuid>"
+
+            //make answer uri
+            const std::string _0_0 = "0.0.0.0";
+            std::string::size_type pos = path.find(_0_0);
+            assert( pos != std::string::npos );
+            path.replace(pos, _0_0.size(), input.host);
+
+            output.uri = path;
+            output.body = input.body;
+            return graft::Status::Forward;
+        } break;
+        case graft::Status::Forward:
+        {
+            return graft::Status::Ok;
+        } break;
+        }
+    };
+
+    graft::registerForwardRequests(m_httpRouter);
+    m_httpRouter.addRoute("/api/{forward:create_account|restore_account|wallet_balance|prepare_transfer|transaction_history}",METHOD_POST,{nullptr,pretend_walletnode_echo,nullptr});
+    graft::Output::uri_substitutions.emplace("walletnode", "http://localhost:28690/");
+    run();
+
+    std::string post_data = "some data";
+    GraftServerTestBase::Client client;
+    client.serve("http://localhost:28690/walletapi/restore_account", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    EXPECT_EQ(post_data, client.get_body());
+
+    stop_and_wait_for();
+}
+
 /////////////////////////////////
 // GraftServerBlockingTest fixture
 
