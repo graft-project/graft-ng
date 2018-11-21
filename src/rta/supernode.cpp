@@ -18,6 +18,7 @@ using namespace std;
 namespace graft {
 
 using graft::supernode::request::SignedKeyImageStr;
+using graft::supernode::request::SupernodeAnnounce;
 
 Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
                      const string &seed_language)

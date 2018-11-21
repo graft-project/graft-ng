@@ -499,7 +499,7 @@ TEST_F(FullSupernodeListTest, announce1)
 
     FullSupernodeList fsl(daemon_addr, testnet);
 
-    SupernodeAnnounce announce;
+    graft::supernode::request::SupernodeAnnounce announce;
     ASSERT_TRUE(sn.prepareAnnounce(announce));
 
 

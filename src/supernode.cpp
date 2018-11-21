@@ -32,7 +32,6 @@ namespace graft
 namespace snd
 {
 
-using namespace graft::supernode::request;
 
 bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& configOpts)
 {
@@ -141,7 +140,7 @@ void Supernode::startSupernodePeriodicTasks()
         size_t initial_interval_ms = 1000;
         assert(m_looper);
         m_looper->addPeriodicTask(
-                    graft::Router::Handler3(nullptr, sendAnnounce, nullptr),
+                    graft::Router::Handler3(nullptr, graft::supernode::request::sendAnnounce, nullptr),
                     std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
                     std::chrono::milliseconds(initial_interval_ms)
                     );
@@ -150,6 +149,8 @@ void Supernode::startSupernodePeriodicTasks()
 
 void Supernode::setHttpRouters(ConnectionManager& httpcm)
 {
+    using namespace graft::supernode::request;
+
     Router dapi_router("/dapi/v2.0");
     auto http_test = [](const Router::vars_t&, const Input&, Context&, Output&)->Status
     {
