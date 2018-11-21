@@ -38,7 +38,7 @@ void registerForward(Router& router)
         }
         case Status::Postpone:
         {
-            //general callback should set the input that it received from walletnode
+            //generic callback should set the input that it has received from walletnode
             output.body = input.body;
             return graft::Status::Ok;
         }

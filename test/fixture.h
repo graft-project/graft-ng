@@ -5,12 +5,19 @@
 #include <atomic>
 #include "connection.h"
 #include "mongoosex.h"
+#include "test.h"
+#include "server.h"
 
 #include "context.h"
 #include "sys_info.h"
 
 /////////////////////////////////
 // GraftServerTestBase fixture
+//
+//It has:
+//1. class MainServer based on Looper
+//2. class Client based on mongoose
+//3. internal class TempCryptoNodeServer to simulate upstream behavior
 
 class GraftServerTestBase : public ::testing::Test
 {
@@ -308,3 +315,90 @@ protected:
 
 };
 
+/////////////////////////////////
+// GraftServerTest fixture
+//
+//Typical usage:
+//1. set m_copts fields to specific values required for a test
+//2. register required endpoints using m_httpRouter
+//3. run(); - launches the server
+//4. stop_and_wait_for(); - shutdowns the server
+
+class GraftServerTest : public ::testing::Test
+{
+public:
+    graft::ConfigOpts m_copts;
+    graft::Router m_httpRouter;
+
+    void run()
+    {
+        m_th = std::thread([this]
+        {
+            m_gserver = std::make_unique<GSTest>(m_httpRouter);
+            m_serverCreated = true;
+            m_gserver->init(start_args.argc, start_args.argv, m_copts);
+            m_gserver->run();
+        });
+        while(!m_serverCreated || !m_gserver->ready())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+    void stop_and_wait_for()
+    {
+        m_gserver->stop();
+        m_th.join();
+    }
+
+private:
+    class GSTest : public graft::GraftServer
+    {
+    public:
+        GSTest(graft::Router& httpRouter) : m_httpRouter(httpRouter) { }
+        bool ready() const { return graft::GraftServer::ready(); }
+        void stop() { graft::GraftServer::stop(); }
+    protected:
+        virtual void initRouters() override
+        {
+            graft::ConnectionManager* httpcm = getConMgr("HTTP");
+            httpcm->addRouter(m_httpRouter);
+        }
+    private:
+        graft::Router& m_httpRouter;
+    };
+
+    std::unique_ptr<GSTest> m_gserver;
+    std::atomic_bool m_serverCreated{false};
+    std::thread m_th;
+private:
+    void initOpts()
+    {
+        m_copts.http_address = "0.0.0.0:28690";
+        m_copts.coap_address = "udp://0.0.0.0:18991";
+        m_copts.workers_count = 0;
+        m_copts.worker_queue_len = 0;
+        m_copts.http_connection_timeout = 360;
+        m_copts.timer_poll_interval_ms = 1000;
+        m_copts.upstream_request_timeout = 360;
+        m_copts.cryptonode_rpc_address = "127.0.0.1:28681";
+        m_copts.graftlet_dirs.emplace_back("graftlets");
+        m_copts.lru_timeout_ms = 60000;
+    }
+protected:
+    GraftServerTest()
+    {
+        initOpts();
+    }
+
+    ~GraftServerTest()
+    {
+    }
+protected:
+    static void SetUpTestCase()
+    {
+    }
+
+    static void TearDownTestCase()
+    {
+    }
+};
