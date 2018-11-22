@@ -1,14 +1,19 @@
 #include "requests.h"
+#include "requests/getinforequest.h"
+
 #include "requests/salerequest.h"
 #include "requests/salestatusrequest.h"
 #include "requests/rejectsalerequest.h"
-#include "requests/getinforequest.h"
 
 #include "requests/saledetailsrequest.h"
 #include "requests/payrequest.h"
 #include "requests/paystatusrequest.h"
 #include "requests/rejectpayrequest.h"
+
+#include "requests/sendtransferrequest.h"
+
 #include "requests/forwardrequest.h"
+
 #include "requests/healthcheckrequest.h"
 
 #include "requests/sendrawtxrequest.h"
@@ -32,6 +37,11 @@ void registerRTARequests(graft::Router &router)
     graft::registerRejectPayRequest(router);
     graft::registerAuthorizeRtaTxRequests(router);
     graft::registerSendSupernodeAnnounceRequest(router);
+}
+
+void registerWalletApiRequests(graft::Router &router)
+{
+    graft::registerSendTransferRequest(router);
 }
 
 void registerForwardRequests(graft::Router &router)

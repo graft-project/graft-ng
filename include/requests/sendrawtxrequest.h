@@ -8,7 +8,6 @@
 #include <string>
 #include <wallet/wallet2.h>
 
-
 namespace graft {
 
 // here we testing how supernode can proxy "sendrawtransaction" call to cryptonode
@@ -16,19 +15,19 @@ namespace graft {
 GRAFT_DEFINE_IO_STRUCT_INITED(TransactionInfo,
                               (uint64_t, amount, 0),
                               (uint64_t, fee, 0),
-                              (std::string, dest_address, ""),
-                              (std::string, id, ""),
-                              (std::string, tx_blob, "")
+                              (std::string, dest_address, std::string()),
+                              (std::string, id, std::string()),
+                              (std::string, tx_blob, std::string())
                               );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SendRawTxRequest,
-                              (std::string, tx_as_hex, ""),
+                              (std::string, tx_as_hex, std::string()),
                               (bool, do_not_relay, false)
                               );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SendRawTxResponse,
-                              (std::string, status, ""),
-                              (std::string, reason, ""),
+                              (std::string, status, std::string()),
+                              (std::string, reason, std::string()),
                               (bool, not_relayed, true),
                               (bool, low_mixin, true),
                               (bool, double_spend, true),

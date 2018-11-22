@@ -82,6 +82,7 @@ set(SUPERNODE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/requests/sendtransferrequest.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
