@@ -1,9 +1,10 @@
+
 #include "requestdefines.h"
 #include "jsonrpc.h"
 #include "context.h"
 #include "rta/supernode.h"
-#include "requests/broadcast.h"
-#include "requests/salestatusrequest.h"
+#include "supernode/requests/broadcast.h"
+#include "supernode/requests/sale_status.h"
 
 #include <string_tools.h> // epee
 #include <misc_log_ex.h>
@@ -11,8 +12,9 @@
 namespace graft {
 
 using namespace std;
+using namespace graft::supernode::request;
 
-Status errorInvalidPaymentID(Output &output)
+Status errorInvalidPaymentID(Output& output)
 {
     JsonRpcError err;
     err.code = ERROR_PAYMENT_ID_INVALID;
@@ -23,7 +25,7 @@ Status errorInvalidPaymentID(Output &output)
     return Status::Error;
 }
 
-Status errorInvalidParams(Output &output)
+Status errorInvalidParams(Output& output)
 {
     JsonRpcError err;
     err.code = ERROR_INVALID_PARAMS;
@@ -34,7 +36,7 @@ Status errorInvalidParams(Output &output)
     return Status::Error;
 }
 
-Status errorInvalidAmount(Output &output)
+Status errorInvalidAmount(Output& output)
 {
     JsonRpcError err;
     err.code = ERROR_AMOUNT_INVALID;
@@ -45,7 +47,7 @@ Status errorInvalidAmount(Output &output)
     return Status::Error;
 }
 
-Status errorInvalidAddress(Output &output)
+Status errorInvalidAddress(Output& output)
 {
     JsonRpcError err;
     err.code = ERROR_ADDRESS_INVALID;
@@ -56,7 +58,7 @@ Status errorInvalidAddress(Output &output)
     return Status::Error;
 }
 
-Status errorBuildAuthSample(Output &output)
+Status errorBuildAuthSample(Output& output)
 {
     JsonRpcError err;
     err.code = ERROR_INTERNAL_ERROR;
@@ -68,7 +70,7 @@ Status errorBuildAuthSample(Output &output)
 }
 
 
-bool errorFinishedPayment(int status, Output &output)
+bool errorFinishedPayment(int status, Output& output)
 {
     if (status != static_cast<int>(RTAStatus::Waiting)
             && status != static_cast<int>(RTAStatus::InProgress))
@@ -92,7 +94,7 @@ bool errorFinishedPayment(int status, Output &output)
     return false;
 }
 
-Status errorInvalidTransaction(const std::string &tx_data, Output &output)
+Status errorInvalidTransaction(const std::string& tx_data, Output& output)
 {
     JsonRpcError err;
     err.code = ERROR_TRANSACTION_INVALID;
@@ -103,7 +105,7 @@ Status errorInvalidTransaction(const std::string &tx_data, Output &output)
     return Status::Error;
 }
 
-Status errorInternalError(const std::string &message, Output &output)
+Status errorInternalError(const std::string& message, Output& output)
 {
     JsonRpcError err;
     err.code = ERROR_INTERNAL_ERROR;
@@ -114,7 +116,7 @@ Status errorInternalError(const std::string &message, Output &output)
     return Status::Error;
 }
 
-Status errorCustomError(const std::string &message, int code, Output &output)
+Status errorCustomError(const std::string& message, int code, Output& output)
 {
     JsonRpcError err;
     err.code = code;
@@ -127,14 +129,14 @@ Status errorCustomError(const std::string &message, int code, Output &output)
 }
 
 
-void cleanPaySaleData(const std::string &payment_id, Context &ctx)
+void cleanPaySaleData(const std::string& payment_id, Context& ctx)
 {
     ctx.global.remove(payment_id + CONTEXT_KEY_PAY);
     ctx.global.remove(payment_id + CONTEXT_KEY_SALE);
     ctx.global.remove(payment_id + CONTEXT_KEY_STATUS);
 }
 
-void buildBroadcastSaleStatusOutput(const std::string &payment_id, int status, const SupernodePtr &supernode, Output &output)
+void buildBroadcastSaleStatusOutput(const std::string& payment_id, int status, const SupernodePtr& supernode, Output& output)
 {
     UpdateSaleStatusBroadcast ussb;
     ussb.address = supernode->walletAddress();
@@ -166,7 +168,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(ResultResponse,
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(ResultResponseJsonRpc, ResultResponse);
 
-Status sendOkResponseToCryptonode(Output &output)
+Status sendOkResponseToCryptonode(Output& output)
 {
     ResultResponseJsonRpc res;
     output.load(res);

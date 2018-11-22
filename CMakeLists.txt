@@ -68,21 +68,21 @@ set(SUPERNODE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/requests.cpp
     ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/authorizertatxrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/debug.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/forwardrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/getinforequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/healthcheckrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/payrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/paystatusrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/rejectpayrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/rejectsalerequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/saledetailsrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/salerequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/salestatusrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/sendrawtxrequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/sendsupernodeannouncerequest.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests/sendtransferrequest.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/authorize_rta_tx.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/get_info.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/health_check.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/pay.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/pay_status.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_pay.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_sale.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_details.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_raw_tx.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
@@ -322,3 +322,4 @@ if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
         ${CMAKE_SOURCE_DIR}/data/*
         ${CMAKE_CURRENT_BINARY_DIR}/)
 endif()
+

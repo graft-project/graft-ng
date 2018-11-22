@@ -34,6 +34,9 @@
 #include <connection.h>
 #include <router.h>
 
+#include "context.h"
+#include "sys_info.h"
+
 #include <string>
 #include <thread>
 #include <chrono>
@@ -160,6 +163,8 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
+        graft::supernode::system_info::Counter sys_info;
+
         ConfigOpts sopts {"", "localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
@@ -169,6 +174,11 @@ struct JsonRpcTest : public ::testing::Test
         httpcm.enableRouting();
         this->looper = &looper;
         httpcm.bind(looper);
+
+        graft::Context ctx(looper.getGcm());
+        ctx.runtime_sys_info(sys_info);
+        ctx.config_opts(looper.getCopts());
+
         looper.serve();
     }
 

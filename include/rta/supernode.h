@@ -15,10 +15,9 @@ namespace cryptonote {
     class transaction;
 }
 
+namespace graft::supernode::request { struct SupernodeAnnounce; }
+
 namespace graft {
-
-struct SupernodeAnnounce;
-
 /*!
  * \brief The Supernode class - Representing supernode instance
  */
@@ -133,11 +132,11 @@ public:
                                        const std::string &seed_language = std::string());
 
     /*!
-     * \brief updateFromAnnounce - updates supernode from announce (helper to extract signed key images from graft::SupernodeAnnounce)
-     * \param announce           - reference to graft::SupernodeAnnounce
+     * \brief updateFromAnnounce - updates supernode from announce (helper to extract signed key images from graft::supernode::request::SupernodeAnnounce)
+     * \param announce           - reference to graft::supernode::request::SupernodeAnnounce
      * \return                   - true on success
      */
-    bool updateFromAnnounce(const graft::SupernodeAnnounce &announce);
+    bool updateFromAnnounce(const graft::supernode::request::SupernodeAnnounce& announce);
 
     /*!
      * \brief createFromAnnounce - creates new Supernode instance from announce
@@ -147,11 +146,11 @@ public:
      * \return                   - Supernode pointer on success
      */
     static Supernode * createFromAnnounce(const std::string &path,
-                                          const graft::SupernodeAnnounce &announce,
+                                          const graft::supernode::request::SupernodeAnnounce& announce,
                                           const std::string &daemon_address,
                                           bool testnet);
 
-    bool prepareAnnounce(graft::SupernodeAnnounce &announce);
+    bool prepareAnnounce(graft::supernode::request::SupernodeAnnounce& announce);
 
     /*!
      * \brief exportViewkey - exports stake wallet private viewkey

@@ -1,7 +1,5 @@
 #include <gtest/gtest.h>
 #include "fixture.h"
-#include "server.h"
-#include "test.h"
 #define INCLUDE_DEPENDENCY_GRAPH
 #include "GraftletLoader.h"
 
@@ -323,76 +321,11 @@ TEST(Graftlets, checkFwVersion)
     graftlet::GraftletLoader::setFwVersion(save_ver);
 #undef VER
 }
-/////////////////////////////////
-// GraftServerTest fixture
-
-class GraftServerTest : public ::testing::Test
-{
-    class GSTest : public graft::GraftServer
-    {
-    public:
-        bool ready() const { return graft::GraftServer::ready(); }
-        void stop() { graft::GraftServer::stop(); }
-    protected:
-        virtual bool initConfigOption(int argc, const char** argv, graft::ConfigOpts& copts) override
-        {
-            copts.http_address = "0.0.0.0:28690";
-            copts.coap_address = "udp://0.0.0.0:18991";
-            copts.workers_count = 0;
-            copts.worker_queue_len = 0;
-            copts.http_connection_timeout = 360;
-            copts.timer_poll_interval_ms = 1000;
-            copts.upstream_request_timeout = 360;
-            copts.cryptonode_rpc_address = "127.0.0.1:28681";
-            copts.graftlet_dirs.emplace_back("graftlets");
-            copts.lru_timeout_ms = 60000;
-            return true;
-        }
-    };
-
-    GSTest gserver;
-    std::thread th;
-private:
-    void run()
-    {
-        th = std::thread([this]
-        {
-            graft::ConfigOpts copts;
-            gserver.init(start_args.argc, start_args.argv, copts);
-            gserver.run();
-        });
-        while(!gserver.ready())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-    }
-    void stop_and_wait_for()
-    {
-        gserver.stop();
-        th.join();
-    }
-protected:
-    GraftServerTest()
-    {
-        run();
-    }
-
-    ~GraftServerTest()
-    {
-        stop_and_wait_for();
-    }
-protected:
-    static void SetUpTestCase()
-    {
-    }
-
-    static void TearDownTestCase()
-    {
-    }
-};
 
 TEST_F(GraftServerTest, graftlets)
 {
+    run();
+
     std::string json_data = "something";
 
     {
@@ -420,4 +353,6 @@ TEST_F(GraftServerTest, graftlets)
         std::string res1 = client.get_body();
         EXPECT_EQ(res1, json_data+"123");
     }
+
+    stop_and_wait_for();
 }

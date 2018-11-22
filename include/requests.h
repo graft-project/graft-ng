@@ -1,9 +1,9 @@
-#ifndef REQUESTS_H
-#define REQUESTS_H
+
+#pragma once
 
 #include "router.h"
 
-namespace graft {
+namespace graft::supernode::request {
 
 void registerRTARequests(graft::Router &router);
 void registerWalletApiRequests(graft::Router &router);
@@ -13,4 +13,3 @@ void registerDebugRequests(Router &router);
 
 }
 
-#endif // REQUESTS_H

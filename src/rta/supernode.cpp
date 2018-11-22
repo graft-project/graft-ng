@@ -1,7 +1,7 @@
+
 #include "supernode.h"
 #include "rta/fullsupernodelist.h"
-#include "requests/sendsupernodeannouncerequest.h"
-
+#include "supernode/requests/send_supernode_announce.h"
 
 #include <misc_log_ex.h>
 #include <wallet/wallet2.h>
@@ -17,6 +17,9 @@ using namespace std;
 
 namespace graft {
 
+using graft::supernode::request::SignedKeyImageStr;
+using graft::supernode::request::SupernodeAnnounce;
+
 Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
                      const string &seed_language)
     : m_wallet{new tools::wallet2(testnet)}
@@ -31,11 +34,14 @@ Supernode::Supernode(const string &wallet_path, const string &wallet_password, c
                  << "  wallet_file_exists: " << boolalpha << wallet_file_exists << noboolalpha);
 
     // existing wallet, open it
-    if (keys_file_exists) {
+    if(keys_file_exists)
+    {
         m_wallet->load(wallet_path, wallet_password);
     // new wallet, generating it
-    } else {
-        if (!seed_language.empty())
+    }
+    else
+    {
+        if(!seed_language.empty())
             m_wallet->set_seed_language(seed_language);
         crypto::secret_key recovery_val, secret_key;
         recovery_val = m_wallet->generate(wallet_path, wallet_password, secret_key, false, false);
@@ -93,15 +99,21 @@ bool Supernode::exportKeyImages(vector<Supernode::SignedKeyImage> &key_images) c
 
 bool Supernode::importKeyImages(const vector<Supernode::SignedKeyImage> &key_images, uint64_t &height)
 {
+    uint64_t spent = 0;
+    uint64_t unspent = 0;
 
-    uint64_t spent = 0, unspent = 0;
-    try {
+    try
+    {
         m_wallet->import_key_images(key_images, spent, unspent);
         m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
-    } catch (const std::exception &e) {
+    }
+    catch(const std::exception& e)
+    {
         LOG_ERROR("wallet exception: " << e.what());
         return false;
-    } catch (...) {
+    }
+    catch (...)
+    {
         LOG_ERROR("unknown exception");
         return false;
     }
@@ -375,11 +387,10 @@ void Supernode::setLastUpdateTime(uint64_t time)
 }
 
 Supernode::Supernode(bool testnet)
-    : m_wallet{ new tools::wallet2(testnet) }
+: m_wallet{ new tools::wallet2(testnet) }
 {
 
 }
 
+}
 
-
-} // namespace graft
