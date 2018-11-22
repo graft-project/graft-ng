@@ -32,7 +32,7 @@ enum class PayHandlerState : int
     StatusReply
 };
 
-Status processAuthorizationRequest(const std::string &tx_hex, const graft::PayRequest &pay_request,
+Status processAuthorizationRequest(const std::string &tx_hex, const PayRequest &pay_request,
                                    const std::vector<SupernodePtr> &authSample,
                                    SupernodePtr supernode, graft::Context& ctx,
                                    graft::Output& output)

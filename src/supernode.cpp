@@ -167,7 +167,7 @@ void Supernode::setHttpRouters(ConnectionManager& httpcm)
     httpcm.addRouter(dapi_router);
 
     Router walletapi_router("/walletapi");
-    graft::registerWalletApiRequests(walletapi_router);
+    registerWalletApiRequests(walletapi_router);
     httpcm.addRouter(walletapi_router);
 
     Router forward_router;
