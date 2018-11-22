@@ -31,11 +31,72 @@ enum class PayHandlerState : int
     StatusReply
 };
 
+Status processAuthorizationRequest(const std::string &tx_hex, const graft::PayRequest &pay_request,
+                                   const std::vector<SupernodePtr> &authSample,
+                                   SupernodePtr supernode, graft::Context& ctx,
+                                   graft::Output& output)
+{
+    MDEBUG(__FUNCTION__ << " begin");
+    // parse tx and validate tx, read tx id
+    cryptonote::transaction tx;
+    crypto::hash tx_hash, tx_prefix_hash;
+    cryptonote::blobdata tx_blob;
+
+    if (!epee::string_tools::parse_hexstr_to_binbuff(tx_hex, tx_blob)) {
+        return errorInvalidTransaction(tx_hex, output);
+    }
+    if (!cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash, tx_prefix_hash)) {
+        return errorInvalidTransaction(tx_hex, output);
+    }
+
+    MDEBUG("processing pay, payment:  "
+           << pay_request.PaymentID
+           << ", tx_id: " <<  epee::string_tools::pod_to_hex(tx_hash)
+           << ", block: " << pay_request.BlockNumber
+           << ", to: " << pay_request.Address
+           << ", amount: " << pay_request.Amount
+           << ", auth sample: " << authSample);
+
+    // map tx_id -> payment id
+    ctx.global.set(epee::string_tools::pod_to_hex(tx_hash) + CONTEXT_KEY_PAYMENT_ID_BY_TXID,
+                   pay_request.PaymentID, RTA_TX_TTL);
+
+    // send multicast to /cryptonode/authorize_rta_tx_request
+    MulticastRequestJsonRpc cryptonode_req;
+    for (const auto & sn : authSample) {
+        cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
+    }
+
+    Output innerOut;
+    AuthorizeRtaTxRequest authTxReq;
+
+    authTxReq.tx_hex = tx_hex;
+    authTxReq.payment_id = pay_request.PaymentID;
+    authTxReq.amount = pay_request.Amount;
+
+    innerOut.loadT<serializer::JSON_B64>(authTxReq);
+    cryptonode_req.method = "multicast";
+    cryptonode_req.params.callback_uri =  "/cryptonode/authorize_rta_tx_request";
+    cryptonode_req.params.data = innerOut.data();
+    cryptonode_req.params.sender_address = supernode->walletAddress();
+    // store payment id as we need it to change the sale/pay state in next call
+    ctx.local["payment_id"] = pay_request.PaymentID;
+    // TODO: what is the purpose of PayData?
+    PayData data(pay_request.Address, pay_request.BlockNumber, pay_request.Amount);
+    ctx.global[pay_request.PaymentID + CONTEXT_KEY_PAY] = data;
+    ctx.global[pay_request.PaymentID + CONTEXT_KEY_STATUS] = static_cast<int>(RTAStatus::InProgress);
+
+    output.load(cryptonode_req);
+    output.path = "/json_rpc/rta";
+    MDEBUG("multicasting: " << output.data());
+    MDEBUG(__FUNCTION__ << " end");
+    return Status::Forward;
+}
+
 // processes /dapi/.../pay
 Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
-
     MDEBUG(__FUNCTION__ << " begin");
     PayRequestJsonRpc req;
 
@@ -97,60 +158,11 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
         // TODO: !implement tx vector in every interface!
         tx_hex = in.Transactions[0];
     }
-    // parse tx and validate tx, read tx id
-    cryptonote::transaction tx;
-    crypto::hash tx_hash, tx_prefix_hash;
-    cryptonote::blobdata tx_blob;
 
-    if (!epee::string_tools::parse_hexstr_to_binbuff(tx_hex, tx_blob)) {
-        return errorInvalidTransaction(tx_hex, output);
-    }
-    if (!cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash, tx_prefix_hash)) {
-        return errorInvalidTransaction(tx_hex, output);
-    }
-
-    MDEBUG("processing pay, payment:  "
-           << in.PaymentID
-           << ", tx_id: " <<  epee::string_tools::pod_to_hex(tx_hash)
-           << ", block: " << in.BlockNumber
-           << ", to: " << in.Address
-           << ", amount: " << in.Amount
-           << ", auth sample: " << authSample);
-
-    // map tx_id -> payment id
-    ctx.global.set(epee::string_tools::pod_to_hex(tx_hash) + CONTEXT_KEY_PAYMENT_ID_BY_TXID,
-                   in.PaymentID, RTA_TX_TTL);
-
-    // send multicast to /cryptonode/authorize_rta_tx_request
-    MulticastRequestJsonRpc cryptonode_req;
-    for (const auto & sn : authSample) {
-        cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
-    }
-
-    Output innerOut;
-    AuthorizeRtaTxRequest authTxReq;
-
-    authTxReq.tx_hex = tx_hex;
-    authTxReq.payment_id = in.PaymentID;
-    authTxReq.amount = in.Amount;
-
-    innerOut.loadT<serializer::JSON_B64>(authTxReq);
-    cryptonode_req.method = "multicast";
-    cryptonode_req.params.callback_uri =  "/cryptonode/authorize_rta_tx_request";
-    cryptonode_req.params.data = innerOut.data();
-    cryptonode_req.params.sender_address = supernode->walletAddress();
-    // store payment id as we need it to change the sale/pay state in next call
-    ctx.local["payment_id"] = in.PaymentID;
-    // TODO: what is the purpose of PayData?
-    PayData data(in.Address, in.BlockNumber, in.Amount);
-    ctx.global[in.PaymentID + CONTEXT_KEY_PAY] = data;
-    ctx.global[in.PaymentID + CONTEXT_KEY_STATUS] = static_cast<int>(RTAStatus::InProgress);
-
-    output.load(cryptonode_req);
-    output.path = "/json_rpc/rta";
+    Status result = processAuthorizationRequest(tx_hex, in, authSample, supernode, ctx, output);
     MDEBUG("multicasting: " << output.data());
     MDEBUG(__FUNCTION__ << " end");
-    return Status::Forward;
+    return result;
 }
 
 Status handlePrepareTxReply(const Router::vars_t& vars, const graft::Input& input,
@@ -182,17 +194,6 @@ Status handleWaitingTxReply(const Router::vars_t& vars, const graft::Input& inpu
 
     // TODO: !implement tx vector in every interface!
     string tx_hex = res.Transactions[0];
-    // parse tx and validate tx, read tx id
-    cryptonote::transaction tx;
-    crypto::hash tx_hash, tx_prefix_hash;
-    cryptonote::blobdata tx_blob;
-
-    if (!epee::string_tools::parse_hexstr_to_binbuff(tx_hex, tx_blob)) {
-        return errorInvalidTransaction(tx_hex, output);
-    }
-    if (!cryptonote::parse_and_validate_tx_from_blob(tx_blob, tx, tx_hash, tx_prefix_hash)) {
-        return errorInvalidTransaction(tx_hex, output);
-    }
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
@@ -211,47 +212,10 @@ Status handleWaitingTxReply(const Router::vars_t& vars, const graft::Input& inpu
         return errorBuildAuthSample(output);
     }
 
-    MDEBUG("processing pay, payment:  "
-           << payData.PaymentID
-           << ", tx_id: " <<  epee::string_tools::pod_to_hex(tx_hash)
-           << ", block: " << payData.BlockNumber
-           << ", to: " << payData.Address
-           << ", amount: " << payData.Amount
-           << ", auth sample: " << authSample);
-
-    // map tx_id -> payment id
-    ctx.global.set(epee::string_tools::pod_to_hex(tx_hash) + CONTEXT_KEY_PAYMENT_ID_BY_TXID,
-                   payData.PaymentID, RTA_TX_TTL);
-
-    // send multicast to /cryptonode/authorize_rta_tx_request
-    MulticastRequestJsonRpc cryptonode_req;
-    for (const auto & sn : authSample) {
-        cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
-    }
-
-    Output innerOut;
-    AuthorizeRtaTxRequest authTxReq;
-    authTxReq.tx_hex = tx_hex;
-    authTxReq.payment_id = payData.PaymentID;
-    authTxReq.amount = payData.Amount;
-
-    innerOut.loadT<serializer::JSON_B64>(authTxReq);
-    cryptonode_req.method = "multicast";
-    cryptonode_req.params.callback_uri =  "/cryptonode/authorize_rta_tx_request";
-    cryptonode_req.params.data = innerOut.data();
-    cryptonode_req.params.sender_address = supernode->walletAddress();
-    // store payment id as we need it to change the sale/pay state in next call
-    ctx.local["payment_id"] = payData.PaymentID;
-    // TODO: what is the purpose of PayData?
-    PayData data(payData.Address, payData.BlockNumber, payData.Amount);
-    ctx.global[payData.PaymentID + CONTEXT_KEY_PAY] = data;
-    ctx.global[payData.PaymentID + CONTEXT_KEY_STATUS] = static_cast<int>(RTAStatus::InProgress);
-
-    output.load(cryptonode_req);
-    output.path = "/json_rpc/rta";
+    Status result = processAuthorizationRequest(tx_hex, payData, authSample, supernode, ctx, output);
     MDEBUG("multicasting: " << output.data());
     MDEBUG(__FUNCTION__ << " end");
-    return Status::Forward;
+    return result;
 }
 
 // handles response from cryptonode/rta/multicast call with tx auth request
