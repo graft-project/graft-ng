@@ -1197,7 +1197,7 @@ TEST_F(GraftServerTestBase, forward)
     crypton.on_http = crypton.http_echo;
     crypton.run();
     MainServer mainServer;
-    registerForwardRequests(mainServer.router);
+    graft::supernode::request::registerForwardRequests(mainServer.router);
     mainServer.run();
 
     std::string post_data = "some data";
@@ -1276,7 +1276,7 @@ TEST_F(GraftServerTest, genericCallback)
         }
     };
 
-    graft::registerForwardRequests(m_httpRouter);
+    graft::supernode::request::registerForwardRequests(m_httpRouter);
     m_httpRouter.addRoute("/api/{forward:create_account|restore_account|wallet_balance|prepare_transfer|transaction_history}",METHOD_POST,{nullptr,pretend_walletnode_echo,nullptr});
     graft::Output::uri_substitutions.emplace("walletnode", "http://localhost:28690/");
     run();
