@@ -1,8 +1,8 @@
 
 #pragma once
 
-#include "inout.h"
-#include "router.h"
+#include "lib/graft/inout.h"
+#include "lib/graft/router.h"
 
 #include <vector>
 

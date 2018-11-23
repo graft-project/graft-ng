@@ -1,7 +1,8 @@
+
 #include <gtest/gtest.h>
 #include "fixture.h"
 #define INCLUDE_DEPENDENCY_GRAPH
-#include "GraftletLoader.h"
+#include "lib/graft/GraftletLoader.h"
 
 TEST(DependencyGraph, dependencies)
 {

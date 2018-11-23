@@ -1,9 +1,9 @@
 
 #pragma once
 
-#include "inout.h"
-#include "jsonrpc.h"
-#include "requestdefines.h"
+#include "lib/graft/inout.h"
+#include "lib/graft/jsonrpc.h"
+#include "supernode/requestdefines.h"
 
 #include <vector>
 #include <string>

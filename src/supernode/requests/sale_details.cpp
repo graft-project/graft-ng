@@ -1,12 +1,12 @@
 
 #include "supernode/requests/sale_details.h"
 #include "supernode/requests/unicast.h"
-#include "requestdefines.h"
-#include "jsonrpc.h"
-#include "router.h"
+#include "supernode/requestdefines.h"
+#include "lib/graft/jsonrpc.h"
+#include "lib/graft/router.h"
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
-#include "common/utils.h"
+#include "lib/graft/common/utils.h"
 
 
 #undef MONERO_DEFAULT_LOG_CATEGORY

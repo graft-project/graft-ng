@@ -27,8 +27,8 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "supernode/requests/authorize_rta_tx.h"
-#include "requestdefines.h"
-#include "jsonrpc.h"
+#include "supernode/requestdefines.h"
+#include "lib/graft/jsonrpc.h"
 #include "supernode/requests/send_raw_tx.h"
 #include "supernode/requests/multicast.h"
 #include "supernode/requests/broadcast.h"

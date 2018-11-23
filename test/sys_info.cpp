@@ -1,19 +1,19 @@
 
 #include <gtest/gtest.h>
 
-#include "context.h"
-#include "serveropts.h"
-#include "inout.h"
-#include "router.h"
-#include "sys_info.h"
-#include "sys_info_request.h"
+#include "lib/graft/context.h"
+#include "lib/graft/serveropts.h"
+#include "lib/graft/inout.h"
+#include "lib/graft/router.h"
+#include "lib/graft/sys_info.h"
+#include "lib/graft/sys_info_request.h"
 
 #include <vector>
 #include <string>
 #include <chrono>
 
-using SysInfoCounter = graft::supernode::system_info::Counter;
-using graft::supernode::system_info::Response;
+using SysInfoCounter = graft::request::system_info::Counter;
+using graft::request::system_info::Response;
 using graft::ConfigOpts;
 using graft::GlobalContextMap;
 
@@ -165,7 +165,7 @@ TEST(SysInfo, response_content_initial_and_after_handler)
     Output otp;
 
     Router route;
-    graft::supernode::system_info::register_request(route);
+    graft::request::system_info::register_request(route);
 
     Router::Root router;
     router.addRouter(route);

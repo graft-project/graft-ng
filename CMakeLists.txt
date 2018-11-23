@@ -62,12 +62,12 @@ set(GRAFT_INCLUDE_DIRS
     )
 
 set(SUPERNODE_SOURCES
-    ${PROJECT_SOURCE_DIR}/src/sys_info.cpp
-    ${PROJECT_SOURCE_DIR}/src/sys_info_request.cpp
-    ${PROJECT_SOURCE_DIR}/src/context.cpp
-    ${PROJECT_SOURCE_DIR}/src/requestdefines.cpp
-    ${PROJECT_SOURCE_DIR}/src/requests.cpp
-    ${PROJECT_SOURCE_DIR}/src/requesttools.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/sys_info.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/sys_info_request.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/context.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requestdefines.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/requesttools.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/authorize_rta_tx.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
@@ -149,7 +149,7 @@ link_directories(${CRYPTONODE_LIB_DIRS})
 
 ### graftlet_lib
 add_library(graftlet_lib STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/GraftletLoader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/lib/graft/GraftletLoader.cpp
     )
 
 target_include_directories(graftlet_lib PRIVATE
@@ -168,20 +168,20 @@ set_target_properties(graftlet_lib PROPERTIES
 
 ### graft library
 add_library(graft STATIC
-    ${PROJECT_SOURCE_DIR}/src/context.cpp
-    ${PROJECT_SOURCE_DIR}/src/task.cpp
-    ${PROJECT_SOURCE_DIR}/src/connection.cpp
-    ${PROJECT_SOURCE_DIR}/src/inout.cpp
-    ${PROJECT_SOURCE_DIR}/src/router.cpp
-    ${PROJECT_SOURCE_DIR}/src/mongoosex.cpp
-    ${PROJECT_SOURCE_DIR}/src/common/utils.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/common/utils.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/backtrace.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/connection.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/context.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/inout.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/log.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/mongoosex.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/router.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/task.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
-    ${PROJECT_SOURCE_DIR}/src/backtrace.cpp
-    ${PROJECT_SOURCE_DIR}/src/server.cpp
-    ${PROJECT_SOURCE_DIR}/src/log.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode.cpp
-    ${PROJECT_SOURCE_DIR}/src/sys_info.cpp
-    ${PROJECT_SOURCE_DIR}/src/sys_info_request.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/server.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/supernode.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/sys_info.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/sys_info_request.cpp
     )
 
 target_include_directories(graft PRIVATE
@@ -207,7 +207,7 @@ set_target_properties(graft PROPERTIES
 ### supernode
 add_executable(supernode
     ${SUPERNODE_SOURCES}
-    ${PROJECT_SOURCE_DIR}/src/main.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/main.cpp
     )
 
 target_include_directories(supernode PRIVATE
