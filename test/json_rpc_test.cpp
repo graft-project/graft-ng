@@ -165,7 +165,7 @@ struct JsonRpcTest : public ::testing::Test
     {
         graft::supernode::system_info::Counter sys_info;
 
-        ConfigOpts sopts {"", "localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
+        ConfigOpts sopts {"", "localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, 1000, "localhost:28281/sendrawtransaction", 1000, -1, {}, 60000};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
