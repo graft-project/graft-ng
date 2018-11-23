@@ -53,18 +53,18 @@ void GraftServer::stop(bool force)
     m_looper->stop(force);
 }
 
-void GraftServer::create_looper(ConfigOpts& configOpts)
+void GraftServer::createLooper(ConfigOpts& configOpts)
 {
     assert(!m_looper);
     m_looper = std::make_unique<Looper>(configOpts);
     assert(m_looper);
 }
 
-void GraftServer::create_system_info_counter(void)
+void GraftServer::createSystemInfoCounter(void)
 {
-    if(m_sys_info) return;
-    m_sys_info = std::make_unique<SysInfoCounter>();
-    assert(m_sys_info);
+    if(m_sysInfo) return;
+    m_sysInfo = std::make_unique<SysInfoCounter>();
+    assert(m_sysInfo);
 }
 
 void GraftServer::setSysInfoCounter(std::unique_ptr<SysInfoCounter> counter)
@@ -72,8 +72,8 @@ void GraftServer::setSysInfoCounter(std::unique_ptr<SysInfoCounter> counter)
     //Call the function with derived SysInfoCounter once only if required.
     //Otherwise, default SysInfoCounter will be created.
     //This requirement exists because it is possible that the counter to be replaced already has counted something.
-    assert(!m_sys_info);
-    m_sys_info.swap(counter);
+    assert(!m_sysInfo);
+    m_sysInfo.swap(counter);
 }
 
 void GraftServer::getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledWorkers) const
@@ -129,8 +129,8 @@ void GraftServer::initGlobalContext()
 //    ctx.global["testnet"] = copts.testnet;
 //    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
 //    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
-    assert(m_sys_info);
-    ctx.runtime_sys_info(*(m_sys_info.get()));
+    assert(m_sysInfo);
+    ctx.runtime_sys_info(*(m_sysInfo.get()));
     ctx.config_opts(getCopts());
 }
 
@@ -162,12 +162,12 @@ void GraftServer::addGenericCallbackRoute()
 
 bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
 {
-    create_system_info_counter();
+    createSystemInfoCounter();
 
     bool res = initConfigOption(argc, argv, configOpts);
     if(!res) return false;
 
-    create_looper(configOpts);
+    createLooper(configOpts);
     initGraftlets();
     addGlobalCtxCleaner();
 
