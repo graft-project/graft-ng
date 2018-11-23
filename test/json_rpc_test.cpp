@@ -163,7 +163,7 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
-        graft::supernode::system_info::Counter sys_info;
+        graft::system_info::Counter sys_info;
 
         ConfigOpts sopts {"", "localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, 1000, "localhost:28281/sendrawtransaction", 1000, -1, {}, 60000};
         Router router;

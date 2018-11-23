@@ -7,7 +7,7 @@
 
 namespace graft { class Context; }
 
-namespace graft::supernode::system_info {
+namespace graft::system_info {
 
 using u32 = std::uint32_t;
 using u64 = std::uint64_t;

@@ -7,11 +7,11 @@ namespace graftlet {
 class GraftletLoader;
 } //namespace graftlet
 
-namespace graft::supernode::system_info { class Counter; }
+namespace graft::system_info { class Counter; }
 
 namespace graft {
 
-using SysInfoCounter = supernode::system_info::Counter;
+using SysInfoCounter = system_info::Counter;
 
 class GraftServer
 {

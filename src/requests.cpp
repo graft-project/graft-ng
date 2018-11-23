@@ -17,7 +17,7 @@
 #include "supernode/requests/send_supernode_announce.h"
 
 namespace graft::supernode::request::debug { void __registerDebugRequests(Router& router); }
-namespace graft::supernode::system_info { void register_request(Router& router); }
+namespace graft::system_info { void register_request(Router& router); }
 
 namespace graft::supernode::request {
 
@@ -49,7 +49,7 @@ void registerHealthcheckRequests(Router &router)
 void registerDebugRequests(Router &router)
 {
     debug::__registerDebugRequests(router);
-    graft::supernode::system_info::register_request(router);
+    graft::system_info::register_request(router);
 }
 
 }

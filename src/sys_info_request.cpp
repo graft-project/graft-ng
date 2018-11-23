@@ -10,7 +10,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.sys_info"
 
-namespace graft::supernode::system_info {
+namespace graft::system_info {
 
 using Vars = Router::vars_t;
 using Input = graft::Input;

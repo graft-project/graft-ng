@@ -12,8 +12,8 @@
 #include <string>
 #include <chrono>
 
-using SysInfoCounter = graft::supernode::system_info::Counter;
-using graft::supernode::system_info::Response;
+using SysInfoCounter = graft::system_info::Counter;
+using graft::system_info::Response;
 using graft::ConfigOpts;
 using graft::GlobalContextMap;
 
@@ -165,7 +165,7 @@ TEST(SysInfo, response_content_initial_and_after_handler)
     Output otp;
 
     Router route;
-    graft::supernode::system_info::register_request(route);
+    graft::system_info::register_request(route);
 
     Router::Root router;
     router.addRouter(route);

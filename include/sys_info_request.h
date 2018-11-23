@@ -9,7 +9,7 @@
 
 namespace graft { template<typename In, typename Out> class RouterT; class InHttp; class OutHttp; using Router = RouterT<InHttp, OutHttp>; }
 
-namespace graft::supernode::system_info {
+namespace graft::system_info {
 
 using u32 = std::uint32_t;
 using u64 = std::uint64_t;

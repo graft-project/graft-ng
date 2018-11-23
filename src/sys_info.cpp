@@ -1,7 +1,7 @@
 
 #include "sys_info.h"
 
-namespace graft::supernode::system_info {
+namespace graft::system_info {
 
 Counter::Counter(void)
 : m_http_req_total_cnt(0)

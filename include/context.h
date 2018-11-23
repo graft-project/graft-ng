@@ -18,7 +18,7 @@
 #include "graft_constants.h"
 
 namespace graft { class ConfigOpts; }
-namespace graft::supernode::system_info { class Counter; }
+namespace graft::system_info { class Counter; }
 
 namespace graft
 {
@@ -49,7 +49,7 @@ public:
     }
 };
 
-using SysInfoCounter = supernode::system_info::Counter;
+using SysInfoCounter = system_info::Counter;
 
 class Context
 {
