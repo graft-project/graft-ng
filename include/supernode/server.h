@@ -27,6 +27,11 @@ public:
         UnexpectedOk,
     };
 
+    //Call the function with derived SysInfoCounter once only if required.
+    //Otherwise, default SysInfoCounter will be created.
+    void setSysInfoCounter(std::unique_ptr<SysInfoCounter> counter);
+    SysInfoCounter& getSysInfoCounter() { return *m_sys_info.get(); }
+
     bool init(int argc, const char** argv, ConfigOpts& configOpts);
     RunRes run();
 

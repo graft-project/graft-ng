@@ -62,9 +62,18 @@ void GraftServer::create_looper(ConfigOpts& configOpts)
 
 void GraftServer::create_system_info_counter(void)
 {
-    assert(!m_sys_info);
+    if(m_sys_info) return;
     m_sys_info = std::make_unique<SysInfoCounter>();
     assert(m_sys_info);
+}
+
+void GraftServer::setSysInfoCounter(std::unique_ptr<SysInfoCounter> counter)
+{
+    //Call the function with derived SysInfoCounter once only if required.
+    //Otherwise, default SysInfoCounter will be created.
+    //This requirement exists because it is possible that the counter to be replaced already has counted something.
+    assert(!m_sys_info);
+    m_sys_info.swap(counter);
 }
 
 void GraftServer::getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledWorkers) const
@@ -153,11 +162,12 @@ void GraftServer::addGenericCallbackRoute()
 
 bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
 {
+    create_system_info_counter();
+
     bool res = initConfigOption(argc, argv, configOpts);
     if(!res) return false;
 
     create_looper(configOpts);
-    create_system_info_counter();
     initGraftlets();
     addGlobalCtxCleaner();
 
