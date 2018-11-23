@@ -136,9 +136,10 @@ public:
             copts.upstream_request_timeout = 1;
             copts.workers_count = 0;
             copts.worker_queue_len = 0;
-            copts.workers_expelling_interval_ms = 0;
+            copts.workers_expelling_interval_ms = 1000;
             copts.cryptonode_rpc_address = "127.0.0.1:1234";
             copts.timer_poll_interval_ms = 50;
+            copts.lru_timeout_ms = 60000;
         }
     public:
         void run()
@@ -384,6 +385,7 @@ private:
         m_copts.cryptonode_rpc_address = "127.0.0.1:28681";
         m_copts.graftlet_dirs.emplace_back("graftlets");
         m_copts.lru_timeout_ms = 60000;
+        m_copts.workers_expelling_interval_ms = 1000;
     }
 protected:
     GraftServerTest()
