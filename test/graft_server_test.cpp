@@ -1,4 +1,3 @@
-
 #include <gtest/gtest.h>
 
 #include "lib/graft/jsonrpc.h"
@@ -591,7 +590,7 @@ private:
     static void init_server(graft::Router::Handler3 h3_test)
     {
         assert(h3_test.worker_action);
-        graft::Router& http_router = mainServer.router;
+        graft::Router& http_router = mainServer.m_router;
         {
             http_router.addRoute("/root/r{id:\\d+}", METHOD_GET, h3_test);
             http_router.addRoute("/root/r{id:\\d+}", METHOD_POST, h3_test);
@@ -611,7 +610,7 @@ private:
         copts.timer_poll_interval_ms = 50;
         copts.lru_timeout_ms = 60000;
 
-        mainServer.copts = copts;
+        mainServer.m_copts = copts;
         mainServer.run();
     }
 
@@ -769,7 +768,7 @@ TEST_F(GraftServerTestBase, clientTimeout)
     };
 
     MainServer server;
-    server.router.addRoute("/timeout", METHOD_POST, {nullptr, action, nullptr});
+    server.m_router.addRoute("/timeout", METHOD_POST, {nullptr, action, nullptr});
     server.run();
 
     Client client;
@@ -805,7 +804,7 @@ TEST_F(GraftServerTestBase, logging)
     };
 
     MainServer server;
-    server.router.addRoute("/logging", METHOD_GET, {pre, worker, post, cat.c_str()});
+    server.m_router.addRoute("/logging", METHOD_GET, {pre, worker, post, cat.c_str()});
     server.run();
 
     Client client;
@@ -871,7 +870,7 @@ TEST_F(GraftServerTestBase, Again)
     crypton.on_http = crypton.http_echo;
     crypton.run();
     MainServer server;
-    server.router.addRoute("/again", METHOD_POST, {nullptr, action, nullptr});
+    server.m_router.addRoute("/again", METHOD_POST, {nullptr, action, nullptr});
     server.run();
 
     Client client;
@@ -1159,8 +1158,8 @@ TEST_F(GraftServerPostponeTest, common)
     assert(cryptonPtr);
 
     MainServer mainServer;
-    mainServer.router.addRoute("/json_rpc",METHOD_POST,{nullptr,action,nullptr});
-    mainServer.router.addRoute("/test_callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,callback_action,nullptr});
+    mainServer.m_router.addRoute("/json_rpc",METHOD_POST,{nullptr,action,nullptr});
+    mainServer.m_router.addRoute("/test_callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,callback_action,nullptr});
     mainServer.run();
 
     std::string post_data = "some data";
@@ -1199,7 +1198,7 @@ TEST_F(GraftServerTestBase, forward)
     crypton.on_http = crypton.http_echo;
     crypton.run();
     MainServer mainServer;
-    graft::supernode::request::registerForwardRequests(mainServer.router);
+    graft::supernode::request::registerForwardRequests(mainServer.m_router);
     mainServer.run();
 
     std::string post_data = "some data";
@@ -1227,8 +1226,8 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JRResponseResult, GetVersionResp);
 TEST_F(GraftServerTestBase, DISABLED_getVersion)
 {
     MainServer mainServer;
-    mainServer.copts.cryptonode_rpc_address = "localhost:38281";
-    graft::supernode::request::registerForwardRequests(mainServer.router);
+    mainServer.m_copts.cryptonode_rpc_address = "localhost:38281";
+    graft::supernode::request::registerForwardRequests(mainServer.m_router);
     mainServer.run();
 
     graft::JsonRpcRequestHeader request;
@@ -1335,9 +1334,9 @@ TEST_F(GraftServerTestBase, addPeriodicTask)
     };
 
     MainServer mainServer;
-    mainServer.router.addRoute("/timer_pre", METHOD_POST|METHOD_GET, {run_timer_action, nullptr, nullptr});
-    mainServer.router.addRoute("/timer_worker", METHOD_POST|METHOD_GET, {nullptr, run_timer_action, nullptr});
-    mainServer.router.addRoute("/timer_post", METHOD_POST|METHOD_GET, {nullptr, nullptr, run_timer_action});
+    mainServer.m_router.addRoute("/timer_pre", METHOD_POST|METHOD_GET, {run_timer_action, nullptr, nullptr});
+    mainServer.m_router.addRoute("/timer_worker", METHOD_POST|METHOD_GET, {nullptr, run_timer_action, nullptr});
+    mainServer.m_router.addRoute("/timer_post", METHOD_POST|METHOD_GET, {nullptr, nullptr, run_timer_action});
     mainServer.run();
 
     std::string post_data = "some data";
@@ -1408,7 +1407,7 @@ TEST_F(GraftServerBlockingTest, common)
     };
 
     MainServer mainServer;
-    mainServer.router.addRoute("/json_block", METHOD_POST|METHOD_GET,
+    mainServer.m_router.addRoute("/json_block", METHOD_POST|METHOD_GET,
                                graft::Router::Handler3(pre_action, action, nullptr));
     mainServer.run();
 
