@@ -27,25 +27,24 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-#include <misc_log_ex.h>
 #include <gtest/gtest.h>
-#include <inout.h>
-#include <jsonrpc.h>
-#include <connection.h>
-#include <router.h>
 
-#include "context.h"
-#include "sys_info.h"
+#include "lib/graft/inout.h"
+#include "lib/graft/jsonrpc.h"
+#include "lib/graft/connection.h"
+#include "lib/graft/router.h"
+
+#include "lib/graft/context.h"
+#include "lib/graft/sys_info.h"
+
+#include "misc_log_ex.h"
 
 #include <string>
 #include <thread>
 #include <chrono>
 
-
-
 using namespace graft;
 using namespace std::chrono_literals;
-
 
 GRAFT_DEFINE_IO_STRUCT_INITED(Payment1,
      (uint64, amount, 0),
@@ -163,7 +162,7 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
-        graft::supernode::system_info::Counter sys_info;
+        graft::request::system_info::Counter sys_info;
 
         ConfigOpts sopts {"", "localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
         Router router;

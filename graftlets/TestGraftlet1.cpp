@@ -1,6 +1,7 @@
+
 #define __GRAFTLET__
-#include "GraftletRegistry.h"
-#include "IGraftlet.h"
+#include "lib/graft/GraftletRegistry.h"
+#include "lib/graft/IGraftlet.h"
 
 #include<cassert>
 
@@ -93,5 +94,4 @@ struct Informer
 Informer informer;
 
 } //namespace
-
 

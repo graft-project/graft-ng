@@ -27,7 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "supernode/requests/send_raw_tx.h"
-#include "requestdefines.h"
+#include "supernode/requestdefines.h"
 #include <misc_log_ex.h>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY

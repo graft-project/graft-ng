@@ -1,9 +1,12 @@
 
 #include <gtest/gtest.h>
-#include <jsonrpc.h>
-#include <misc_log_ex.h>
-#include "context.h"
-#include "requests.h"
+
+#include "lib/graft/jsonrpc.h"
+#include "lib/graft/context.h"
+#include "lib/graft/inout.h"
+#include "lib/graft/handler_api.h"
+#include "lib/graft/expiring_list.h"
+#include "supernode/requests.h"
 #include "supernode/requests/sale.h"
 #include "supernode/requests/sale_status.h"
 #include "supernode/requests/reject_sale.h"
@@ -11,11 +14,10 @@
 #include "supernode/requests/pay.h"
 #include "supernode/requests/pay_status.h"
 #include "supernode/requests/reject_pay.h"
-#include "requestdefines.h"
-#include "inout.h"
+#include "supernode/requestdefines.h"
 #include "fixture.h"
-#include "handler_api.h"
-#include "expiring_list.h"
+
+#include <misc_log_ex.h>
 
 #include <deque>
 

@@ -1,15 +1,16 @@
+
 #pragma once
+
+#include "lib/graft/connection.h"
+#include "lib/graft/mongoosex.h"
+#include "lib/graft/context.h"
+#include "supernode/server.h"
+#include "lib/graft/sys_info.h"
+#include "test.h"
 
 #include <gtest/gtest.h>
 #include <thread>
 #include <atomic>
-#include "connection.h"
-#include "mongoosex.h"
-#include "test.h"
-#include "server.h"
-
-#include "context.h"
-#include "sys_info.h"
 
 /////////////////////////////////
 // GraftServerTestBase fixture
@@ -158,7 +159,7 @@ public:
         std::atomic<graft::HttpConnectionManager*> phttpcm{nullptr};
     private:
         std::thread th;
-        graft::supernode::system_info::Counter sys_info_;
+        graft::request::system_info::Counter sys_info_;
     private:
         void x_run()
         {

@@ -4,8 +4,8 @@
 #include "supernode/requests/broadcast.h"
 #include "supernode/requests/sale_status.h"
 
-#include "requestdefines.h"
-#include "requesttools.h"
+#include "supernode/requestdefines.h"
+#include "lib/graft/requesttools.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 

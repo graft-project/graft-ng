@@ -29,17 +29,17 @@
 
 #include <gtest/gtest.h>
 
-#include "misc_log_ex.h"
-#include "inout.h"
-#include "jsonrpc.h"
-#include "connection.h"
-#include "router.h"
-#include "requests.h"
+#include "lib/graft/inout.h"
+#include "lib/graft/jsonrpc.h"
+#include "lib/graft/connection.h"
+#include "lib/graft/router.h"
+#include "supernode/requests.h"
 #include "supernode/requests/get_info.h"
 #include "supernode/requests/send_raw_tx.h"
 #include "supernode/requests/authorize_rta_tx.h"
 
 // cryptonode includes
+#include "misc_log_ex.h"
 #include "wallet/wallet2.h"
 
 #include <string>

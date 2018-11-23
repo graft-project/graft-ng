@@ -1,9 +1,9 @@
 
 #pragma once
 
-#include "router.h"
-#include "jsonrpc.h"
-#include "requestdefines.h"
+#include "lib/graft/router.h"
+#include "lib/graft/jsonrpc.h"
+#include "supernode/requestdefines.h"
 
 namespace graft::supernode::request {
 

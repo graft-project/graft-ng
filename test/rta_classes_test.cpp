@@ -30,7 +30,7 @@
 #include <misc_log_ex.h>
 #include <gtest/gtest.h>
 #include <boost/scoped_ptr.hpp>
-#include <thread_pool/thread_pool.hpp>
+#include "lib/graft/thread_pool/thread_pool.hpp"
 
 
 // cryptonode includes

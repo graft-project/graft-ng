@@ -1,9 +1,9 @@
 
 #pragma once
 
-#include "router.h"
-#include "inout.h"
-#include "jsonrpc.h"
+#include "lib/graft/router.h"
+#include "lib/graft/inout.h"
+#include "lib/graft/jsonrpc.h"
 
 #include <string>
 #include <wallet/wallet2.h>

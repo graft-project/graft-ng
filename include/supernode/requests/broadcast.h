@@ -1,8 +1,8 @@
 
 #pragma once
 
-#include "jsonrpc.h"
-#include "requestdefines.h"
+#include "lib/graft/jsonrpc.h"
+#include "supernode/requestdefines.h"
 
 #include <string>
 

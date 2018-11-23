@@ -1,5 +1,5 @@
 
-#include "supernode.h"
+#include "supernode/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "supernode/requests/send_supernode_announce.h"
 
