@@ -160,53 +160,53 @@ public:
     class MainServer
     {
     public:
-        graft::ConfigOpts copts;
-        graft::Router router;
+        graft::ConfigOpts m_copts;
+        graft::Router m_router;
 
-        graft::Looper& getLooper() const { assert(gserver); return gserver->getLooper(); }
-        graft::GlobalContextMap& getGcm() const { assert(gserver); return gserver->getContext(); }
+        graft::Looper& getLooper() const { assert(m_gserver); return m_gserver->getLooper(); }
+        graft::GlobalContextMap& getGcm() const { assert(m_gserver); return m_gserver->getContext(); }
 
         MainServer()
         {
-            copts.http_address = "127.0.0.1:9084";
-            copts.coap_address = "127.0.0.1:9086";
-            copts.http_connection_timeout = 1;
-            copts.upstream_request_timeout = 1;
-            copts.workers_count = 0;
-            copts.worker_queue_len = 0;
-            copts.workers_expelling_interval_ms = 1000;
-            copts.cryptonode_rpc_address = "127.0.0.1:1234";
-            copts.timer_poll_interval_ms = 50;
-            copts.lru_timeout_ms = 60000;
+            m_copts.http_address = "127.0.0.1:9084";
+            m_copts.coap_address = "127.0.0.1:9086";
+            m_copts.http_connection_timeout = 1;
+            m_copts.upstream_request_timeout = 1;
+            m_copts.workers_count = 0;
+            m_copts.worker_queue_len = 0;
+            m_copts.workers_expelling_interval_ms = 1000;
+            m_copts.cryptonode_rpc_address = "127.0.0.1:1234";
+            m_copts.timer_poll_interval_ms = 50;
+            m_copts.lru_timeout_ms = 60000;
         }
 
         void run()
         {
-            th = std::thread([this]{ x_run(); });
-            while(!gserver_created || !gserver->ready())
+            m_th = std::thread([this]{ x_run(); });
+            while(!m_gserver_created || !m_gserver->ready())
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
         void stop_and_wait_for()
         {
-            gserver->stop();
-            th.join();
-            gserver_created = false;
-            gserver.reset();
+            m_gserver->stop();
+            m_th.join();
+            m_gserver_created = false;
+            m_gserver.reset();
         }
 
     private:
-        std::atomic_bool gserver_created{false};
-        std::unique_ptr<detail::GSTest> gserver{nullptr};
-        std::thread th;
+        std::atomic_bool m_gserver_created{false};
+        std::unique_ptr<detail::GSTest> m_gserver{nullptr};
+        std::thread m_th;
 
         void x_run()
         {
-            gserver = std::make_unique<detail::GSTest>(router, true);
-            gserver_created = true;
-            gserver->init(start_args.argc, start_args.argv, copts);
-            gserver->run();
+            m_gserver = std::make_unique<detail::GSTest>(m_router, true);
+            m_gserver_created = true;
+            m_gserver->init(start_args.argc, start_args.argv, m_copts);
+            m_gserver->run();
         }
     };
 public:
