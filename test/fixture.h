@@ -16,9 +16,45 @@
 // GraftServerTestBase fixture
 //
 //It has:
-//1. class MainServer based on Looper
+//1. class MainServer based on GraftServer
 //2. class Client based on mongoose
 //3. internal class TempCryptoNodeServer to simulate upstream behavior
+
+namespace detail
+{
+
+class GSTest : public graft::GraftServer
+{
+public:
+    GSTest(graft::Router& httpRouter, bool ignoreInitConfig)
+        : m_httpRouter(httpRouter)
+        , m_ignoreInitConfig(ignoreInitConfig)
+    { }
+    bool ready() const { return graft::GraftServer::ready(); }
+    void stop() { graft::GraftServer::stop(); }
+    graft::GlobalContextMap& getContext() const { assert(m_looper); return m_looper->getGcm(); }
+    graft::Looper& getLooper() const { assert(m_looper); return *m_looper.get(); }
+    virtual ~GSTest() { }
+    GSTest(const GSTest&) = delete;
+    GSTest& operator = (const GSTest&) = delete;
+
+protected:
+    virtual bool initConfigOption(int argc, const char** argv, graft::ConfigOpts& configOpts) override
+    {
+        if(m_ignoreInitConfig) return true; //prevents loading parameters from command line and config.ini
+        return graft::GraftServer::initConfigOption(argc, argv, configOpts);
+    }
+    virtual void initRouters() override
+    {
+        graft::ConnectionManager* httpcm = getConMgr("HTTP");
+        httpcm->addRouter(m_httpRouter);
+    }
+private:
+    graft::Router& m_httpRouter;
+    bool m_ignoreInitConfig;
+};
+
+}//namespace detail
 
 class GraftServerTestBase : public ::testing::Test
 {
@@ -34,7 +70,7 @@ protected:
         using on_http_t = bool (const http_message *hm, int& status_code, std::string& headers, std::string& data);
         std::function<on_http_t> on_http = nullptr;
         static std::function<on_http_t> http_echo;
-    public:
+
         void run()
         {
             ready = false;
@@ -61,7 +97,7 @@ protected:
         std::thread th;
         std::atomic_bool ready;
         std::atomic_bool stop;
-    private:
+
         void x_run()
         {
             mg_mgr mgr;
@@ -75,7 +111,7 @@ protected:
             }
             mg_mgr_free(&mgr);
         }
-    private:
+
         static void ev_handler_empty_s(mg_connection *client, int ev, void *ev_data)
         {
         }
@@ -127,7 +163,10 @@ public:
     public:
         graft::ConfigOpts copts;
         graft::Router router;
-    public:
+
+        graft::Looper& getLooper() const { assert(gserver); return gserver->getLooper(); }
+        graft::GlobalContextMap& getGcm() const { assert(gserver); return gserver->getContext(); }
+
         MainServer()
         {
             copts.http_address = "127.0.0.1:9084";
@@ -141,45 +180,34 @@ public:
             copts.timer_poll_interval_ms = 50;
             copts.lru_timeout_ms = 60000;
         }
-    public:
+
         void run()
         {
             th = std::thread([this]{ x_run(); });
-            while(!plooper || !plooper.load()->ready())
+            while(!gserver_created || !gserver->ready())
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
         void stop_and_wait_for()
         {
-            plooper.load()->stop();
+            gserver->stop();
             th.join();
+            gserver_created = false;
+            gserver.reset();
         }
-    public:
-        std::atomic<graft::Looper*> plooper{nullptr};
-        std::atomic<graft::HttpConnectionManager*> phttpcm{nullptr};
+
     private:
+        std::atomic_bool gserver_created{false};
+        std::unique_ptr<detail::GSTest> gserver{nullptr};
         std::thread th;
-        graft::request::system_info::Counter sys_info_;
-    private:
+
         void x_run()
         {
-            graft::Looper looper(copts);
-            plooper = &looper;
-            graft::HttpConnectionManager httpcm;
-            phttpcm = &httpcm;
-
-            httpcm.addRouter(router);
-            bool res = httpcm.enableRouting();
-            EXPECT_EQ(res, true);
-
-            httpcm.bind(looper);
-
-            graft::Context ctx(looper.getGcm());
-            ctx.runtime_sys_info(sys_info_);
-            ctx.config_opts(looper.getCopts());
-
-            looper.serve();
+            gserver = std::make_unique<detail::GSTest>(router, true);
+            gserver_created = true;
+            gserver->init(start_args.argc, start_args.argv, copts);
+            gserver->run();
         }
     };
 public:
@@ -336,7 +364,7 @@ public:
     {
         m_th = std::thread([this]
         {
-            m_gserver = std::make_unique<GSTest>(m_httpRouter);
+            m_gserver = std::make_unique<detail::GSTest>(m_httpRouter, false);
             m_serverCreated = true;
             m_gserver->init(start_args.argc, start_args.argv, m_copts);
             m_gserver->run();
@@ -353,23 +381,7 @@ public:
     }
 
 private:
-    class GSTest : public graft::GraftServer
-    {
-    public:
-        GSTest(graft::Router& httpRouter) : m_httpRouter(httpRouter) { }
-        bool ready() const { return graft::GraftServer::ready(); }
-        void stop() { graft::GraftServer::stop(); }
-    protected:
-        virtual void initRouters() override
-        {
-            graft::ConnectionManager* httpcm = getConMgr("HTTP");
-            httpcm->addRouter(m_httpRouter);
-        }
-    private:
-        graft::Router& m_httpRouter;
-    };
-
-    std::unique_ptr<GSTest> m_gserver;
+    std::unique_ptr<detail::GSTest> m_gserver;
     std::atomic_bool m_serverCreated{false};
     std::thread m_th;
 private:
