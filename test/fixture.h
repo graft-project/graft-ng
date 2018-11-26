@@ -34,9 +34,6 @@ public:
     void stop() { graft::GraftServer::stop(); }
     graft::GlobalContextMap& getContext() const { assert(m_looper); return m_looper->getGcm(); }
     graft::Looper& getLooper() const { assert(m_looper); return *m_looper.get(); }
-    virtual ~GSTest() { }
-    GSTest(const GSTest&) = delete;
-    GSTest& operator = (const GSTest&) = delete;
 
 protected:
     virtual bool initConfigOption(int argc, const char** argv, graft::ConfigOpts& configOpts) override
