@@ -37,6 +37,7 @@
 #include "supernode/requests/get_info.h"
 #include "supernode/requests/send_raw_tx.h"
 #include "supernode/requests/authorize_rta_tx.h"
+#include "fixture.h"
 
 // cryptonode includes
 #include "misc_log_ex.h"
@@ -53,12 +54,6 @@ using namespace std::chrono_literals;
 struct CryptonodeHandlersTest : public ::testing::Test
 {
     // this     is blocking function that will not end until server stopped explicitly
-    void startServer()
-    {
-        httpcm->bind(*looper);
-        looper->serve();
-    }
-
     CryptonodeHandlersTest()
     {
         mlog_configure("", true);
@@ -68,7 +63,6 @@ struct CryptonodeHandlersTest : public ::testing::Test
         LOG_PRINT_L2("L2");
 
         ConfigOpts copts {"", "localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, 1000, "localhost:28281/sendrawtransaction", 1000, -1, {}, 60000};
-        looper = std::make_unique<Looper>(copts);
 
         Router router;
 
@@ -76,17 +70,16 @@ struct CryptonodeHandlersTest : public ::testing::Test
         registerSendRawTxRequest(router);
         registerAuthorizeRtaTxRequests(router);
 
-        httpcm = std::make_unique<HttpConnectionManager>();
-        httpcm->addRouter(router);
-        httpcm->enableRouting();
+        m_gserver = std::make_unique<detail::GSTest>(router, true);
 
-        server_thread = std::thread([this]() {
-            this->startServer();
+        m_server_thread = std::thread([this, &copts]() {
+            m_gserver->init(start_args.argc, start_args.argv, copts);
+            m_gserver->run();
         });
 
         LOG_PRINT_L0("Server thread started..");
 
-        while (!looper->ready()) {
+        while (!m_gserver->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
@@ -155,11 +148,8 @@ struct CryptonodeHandlersTest : public ::testing::Test
     virtual void TearDown() override
     { }
 
-
-    std::unique_ptr<HttpConnectionManager> httpcm;
-    std::unique_ptr<Looper>     looper;
-
-    std::thread server_thread;
+    std::unique_ptr<detail::GSTest> m_gserver;
+    std::thread m_server_thread;
 };
 
 
@@ -171,7 +161,7 @@ TEST_F(CryptonodeHandlersTest, getinfo)
 
     std::string response_s = send_request("http://localhost:8855/cryptonode/getinfo");
     EXPECT_FALSE(response_s.empty());
-    server_thread.join();
+    m_server_thread.join();
     return;
 
     LOG_PRINT_L2("response: " << response_s);
@@ -182,8 +172,8 @@ TEST_F(CryptonodeHandlersTest, getinfo)
     EXPECT_TRUE(resp.difficulty > 0);
     EXPECT_TRUE(resp.tx_count > 0);
     LOG_PRINT_L2("Stopping server...");
-    looper->stop();
-    server_thread.join();
+    m_gserver->stop();
+    m_server_thread.join();
     LOG_PRINT_L2("Server stopped, Server thread done...");
 }
 
@@ -239,8 +229,8 @@ TEST_F(CryptonodeHandlersTest, sendrawtx)
     EXPECT_FALSE(resp.not_rct);
 
     LOG_PRINT_L2("Stopping server...");
-    looper->stop();
-    server_thread.join();
+    m_gserver->stop();
+    m_server_thread.join();
     LOG_PRINT_L2("Server stopped, Server thread done...");
 }
 
