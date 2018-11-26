@@ -9,6 +9,7 @@
 #include "supernode/requests/pay.h"
 #include "supernode/requests/pay_status.h"
 #include "supernode/requests/reject_pay.h"
+#include "supernode/requests/send_transfer.h"
 #include "supernode/requests/forward.h"
 #include "supernode/requests/health_check.h"
 
@@ -33,6 +34,11 @@ void registerRTARequests(graft::Router &router)
     registerRejectPayRequest(router);
     registerAuthorizeRtaTxRequests(router);
     registerSendSupernodeAnnounceRequest(router);
+}
+
+void registerWalletApiRequests(graft::Router &router)
+{
+    registerSendTransferRequest(router);
 }
 
 void registerForwardRequests(graft::Router &router)
