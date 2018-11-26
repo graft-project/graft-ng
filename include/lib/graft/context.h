@@ -55,13 +55,6 @@ using SysInfoCounter = request::system_info::Counter;
 class Context
 {
 public:
-
-    const ConfigOpts& config_opts(void) const;
-    void config_opts(const ConfigOpts& copts);
-
-    SysInfoCounter& runtime_sys_info(void);
-    void runtime_sys_info(SysInfoCounter& sic);
-
     class Local
     {
     private:

@@ -203,8 +203,9 @@ public:
     { }
 };
 
-TaskManager::TaskManager(const ConfigOpts& copts)
+TaskManager::TaskManager(const ConfigOpts& copts, SysInfoCounter* sysInfoCounter)
     : m_copts(copts)
+    , m_sysInfoCounter(sysInfoCounter)
     , m_gcm(this)
     , m_stateMachine(std::make_unique<StateMachine>())
     , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000*copts.http_connection_timeout))
@@ -246,6 +247,17 @@ bool TaskManager::addPeriodicTask(const Router::Handler& h_worker,
         notifyJobReady();
         return true;
     }
+}
+
+request::system_info::Counter& TaskManager::runtimeSysInfo()
+{
+    assert(m_sysInfoCounter);
+    return *m_sysInfoCounter;
+}
+
+const ConfigOpts& TaskManager::configOpts() const
+{
+    return m_copts;
 }
 
 void TaskManager::checkPeriodicTaskIO()
@@ -695,9 +707,9 @@ void TaskManager::cb_event(uint64_t cnt)
 void TaskManager::onUpstreamDone(UpstreamSender& uss)
 {
     if(Status::Ok == uss.getStatus())
-        Context(getGcm()).runtime_sys_info().count_upstrm_http_resp_ok();
+        runtimeSysInfo().count_upstrm_http_resp_ok();
     else
-        Context(getGcm()).runtime_sys_info().count_upstrm_http_resp_err();
+        runtimeSysInfo().count_upstrm_http_resp_err();
 
     BaseTaskPtr bt = uss.getTask();
     UpstreamTask* ust = dynamic_cast<UpstreamTask*>(bt.get());

@@ -35,6 +35,13 @@ GraftServer::GraftServer()
 
 GraftServer::~GraftServer()
 {
+    //m_looper depends on pointer that is held by m_sysInfo.
+    //It could be possible that m_looper uses the counters in its dtor.
+    //Thus we should ensure that m_looper should be destroyed before m_sysInfo.
+    //The same destruction order could be achieved if we reorder the members
+    //in the class definition, but it would intersect private and protected sections.
+    m_looper.reset();
+    m_sysInfo.reset();
 }
 
 ConfigOpts& GraftServer::getCopts()
@@ -55,8 +62,8 @@ void GraftServer::stop(bool force)
 
 void GraftServer::createLooper(ConfigOpts& configOpts)
 {
-    assert(!m_looper);
-    m_looper = std::make_unique<Looper>(configOpts);
+    assert(m_sysInfo && !m_looper);
+    m_looper = std::make_unique<Looper>(configOpts, m_sysInfo.get());
     assert(m_looper);
 }
 
@@ -129,9 +136,6 @@ void GraftServer::initGlobalContext()
 //    ctx.global["testnet"] = copts.testnet;
 //    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
 //    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
-    assert(m_sysInfo);
-    ctx.runtime_sys_info(*(m_sysInfo.get()));
-    ctx.config_opts(getCopts());
 }
 
 void GraftServer::initMisc(ConfigOpts& configOpts)

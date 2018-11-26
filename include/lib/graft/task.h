@@ -193,8 +193,10 @@ class ExpiringList;
 class TaskManager : private HandlerAPI
 {
 public:
-    TaskManager(const ConfigOpts& copts);
+    TaskManager(const ConfigOpts& copts, SysInfoCounter* sysInfoCounter);
     virtual ~TaskManager();
+    TaskManager(const TaskManager&) = delete;
+    TaskManager& operator = (const TaskManager&) = delete;
 
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3,
@@ -217,11 +219,15 @@ public:
     void onTimer(BaseTaskPtr bt);
     void onUpstreamDone(UpstreamSender& uss);
 
+    //HandlerAPI implementation
     virtual void sendUpstreamBlocking(Output& output, Input& input, std::string& err) override;
     virtual bool addPeriodicTask(const Router::Handler& h_worker,
                                  std::chrono::milliseconds interval_ms,
                                  std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max()) override;
+    virtual request::system_info::Counter& runtimeSysInfo() override;
+    virtual const ConfigOpts& configOpts() const override;
 
+    //
     void runWorkerActionFromTheThreadPool(BaseTaskPtr bt);
 
     virtual void notifyJobReady() = 0;
@@ -255,6 +261,7 @@ private:
 
     static inline size_t next_pow2(size_t val);
 
+    SysInfoCounter* m_sysInfoCounter;
     GlobalContextMap m_gcm;
 
     uint64_t m_cntBaseTask = 0;

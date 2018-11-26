@@ -1,13 +1,11 @@
-
 #include <gtest/gtest.h>
-
 #include "lib/graft/context.h"
 #include "lib/graft/serveropts.h"
 #include "lib/graft/inout.h"
 #include "lib/graft/router.h"
 #include "lib/graft/sys_info.h"
 #include "lib/graft/sys_info_request.h"
-
+#include "lib/graft/handler_api.h"
 #include <vector>
 #include <string>
 #include <chrono>
@@ -145,20 +143,45 @@ TEST(SysInfo, counters_in_action)
     EXPECT_EQ(sic.upstrm_http_resp_bytes_raw_cnt(), 10);
 }
 
+namespace detail
+{
+
+class HandlerAPIImpl : public graft::HandlerAPI
+{
+public:
+    virtual void sendUpstreamBlocking(Output& output, Input& input, std::string& err) override { }
+    virtual bool addPeriodicTask(const Router::Handler& h_worker,
+                                        std::chrono::milliseconds interval_ms,
+                                 std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max()) override { }
+    virtual graft::request::system_info::Counter& runtimeSysInfo() override
+    {
+        return m_sic;
+    }
+    virtual const ConfigOpts& configOpts() const override
+    {
+        return m_co;
+    }
+
+    HandlerAPIImpl(SysInfoCounter& sic, ConfigOpts& co) : m_sic(sic), m_co(co) { }
+private:
+    SysInfoCounter& m_sic;
+    ConfigOpts& m_co;
+};
+
+} //namespace detail
+
 TEST(SysInfo, response_content_initial_and_after_handler)
 {
-    GlobalContextMap gcm;
-    Ctx ctx(gcm);
-
     SysInfoCounter sic;
     ConfigOpts co;
+    detail::HandlerAPIImpl hapii(sic, co);
+    GlobalContextMap gcm(&hapii);
+    Ctx ctx(gcm);
+
     co.workers_count = 0;
     co.worker_queue_len = 0;
     co.timer_poll_interval_ms = 0;
     co.lru_timeout_ms = 0;
-
-    ctx.runtime_sys_info(sic);
-    ctx.config_opts(co);
 
     Vars vars;
     Input inp;

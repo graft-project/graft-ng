@@ -19,7 +19,7 @@ using Output = graft::Output;
 
 Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
 {
-    auto& rsi = ctx.runtime_sys_info();
+    auto& rsi = ctx.handlerAPI()->runtimeSysInfo();
 
     Response out;
     auto& ri = out.running_info;
@@ -46,7 +46,7 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     ri.uptime_sec = rsi.system_uptime_sec();
 
     auto& cfg = out.configuration;
-    const ConfigOpts& co = ctx.config_opts();
+    const ConfigOpts& co = ctx.handlerAPI()->configOpts();
 
     cfg.config_filename = co.config_filename;
     cfg.http_address = co.http_address;
