@@ -1,7 +1,7 @@
 
 #include "supernode/requests/send_transfer.h"
 #include "supernode/requests/send_raw_tx.h"
-#include "requestdefines.h"
+#include "supernode/requestdefines.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.sendtransferrequest"
