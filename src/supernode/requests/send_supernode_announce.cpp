@@ -28,7 +28,7 @@
 
 #include "supernode/requests/send_supernode_announce.h"
 #include "supernode/requests/send_raw_tx.h"
-#include "requestdefines.h"
+#include "supernode/requestdefines.h"
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
 

@@ -1,7 +1,7 @@
 
 #include "supernode/requests/pay_status.h"
-#include "requestdefines.h"
-#include "jsonrpc.h"
+#include "supernode/requestdefines.h"
+#include "lib/graft/jsonrpc.h"
 #include <misc_log_ex.h>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY

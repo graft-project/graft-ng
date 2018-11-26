@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <functional>
-#include "thread_pool/thread_pool.hpp"
+#include "lib/graft/thread_pool/thread_pool.hpp"
 
 namespace detail
 {

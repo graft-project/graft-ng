@@ -1,6 +1,6 @@
 
 #include "supernode/requests/reject_sale.h"
-#include "requestdefines.h"
+#include "supernode/requestdefines.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.rejectsalerequest"
