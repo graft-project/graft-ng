@@ -209,6 +209,7 @@ TaskManager::TaskManager(const ConfigOpts& copts)
     , m_stateMachine(std::make_unique<StateMachine>())
     , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000*copts.http_connection_timeout))
 {
+    copts.check_asserts();
     // TODO: validate options, throw exception if any mandatory options missing
     initThreadPool(copts.workers_count, copts.worker_queue_len, copts.workers_expelling_interval_ms);
 }
