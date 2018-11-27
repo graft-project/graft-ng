@@ -292,8 +292,15 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         int method = translateMethod(hm->method.p, hm->method.len);
         if (method < 0) return;
 
+        const sockaddr_in& remote_address = client->sa.sin;
+        uint16_t remote_port = static_cast<uint16_t>(remote_address.sin_port);
+        char remote_address_host_str[INET_ADDRSTRLEN];
+        if (!inet_ntop(AF_INET, &(remote_address.sin_addr), remote_address_host_str, sizeof remote_address_host_str))
+            *remote_address_host_str = '\0';
+
         std::string s_method(hm->method.p, hm->method.len);
-        LOG_PRINT_CLN(1,client,"New HTTP client. uri:" << std::string(hm->uri.p, hm->uri.len) << " method:" << s_method);
+        LOG_PRINT_CLN(1,client,"New HTTP client. uri:" << std::string(hm->uri.p, hm->uri.len) << " method:" << s_method
+            << " remote: " << remote_address_host_str << ":" << remote_port);
 
         HttpConnectionManager* httpcm = HttpConnectionManager::from_accepted(client);
         Router::JobParams prms;
@@ -303,6 +310,9 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
 
             mg_str& body = hm->body;
             prms.input = Input(*hm, client_host(client));
+
+            prms.input.port = remote_port;
+
             LOG_PRINT_CLN(2,client,"Matching Route found; body = " << std::string(body.p, body.len));
             BaseTask* bt = BaseTask::Create<ClientTask>(httpcm, client, prms).get();
             assert(dynamic_cast<ClientTask*>(bt));

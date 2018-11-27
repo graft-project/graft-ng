@@ -313,6 +313,9 @@ namespace graft
         {
             return body;
         }
+
+    public:
+        uint16_t port = 0;
     };
 
     using Input = InHttp;

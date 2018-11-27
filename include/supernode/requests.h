@@ -12,4 +12,3 @@ void registerHealthcheckRequests(graft::Router &router);
 void registerDebugRequests(Router &router);
 
 }
-

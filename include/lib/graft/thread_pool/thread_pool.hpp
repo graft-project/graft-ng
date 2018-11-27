@@ -7,9 +7,11 @@
 #include "lib/graft/thread_pool/worker.hpp"
 
 #include <atomic>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include <cassert>
 
 namespace tp
 {
