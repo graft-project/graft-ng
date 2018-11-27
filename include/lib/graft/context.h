@@ -214,6 +214,8 @@ public:
         Global(const Global&) = delete;
         Global(Global&&) = delete;
 
+        GlobalContextMap& getGcm() { return m_map; }
+
 #if 0
         //currently broken; needs to be fixed
         template<typename T>
