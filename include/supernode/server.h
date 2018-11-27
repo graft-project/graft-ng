@@ -27,6 +27,11 @@ public:
         UnexpectedOk,
     };
 
+    //Call the function with derived SysInfoCounter once only if required.
+    //Otherwise, default SysInfoCounter will be created.
+    void setSysInfoCounter(std::unique_ptr<SysInfoCounter> counter);
+    SysInfoCounter& getSysInfoCounter() { return *m_sysInfo.get(); }
+
     bool init(int argc, const char** argv, ConfigOpts& configOpts);
     RunRes run();
 
@@ -50,8 +55,8 @@ private:
     void serve();
     static void initSignals();
     void addGlobalCtxCleaner();
-    void create_looper(ConfigOpts& configOpts);
-    void create_system_info_counter(void);
+    void createLooper(ConfigOpts& configOpts);
+    void createSystemInfoCounter(void);
     void initGraftlets();
     void initGraftletRouters();
     static void checkRoutes(graft::ConnectionManager& cm);
@@ -59,7 +64,7 @@ private:
 
     std::unique_ptr<graftlet::GraftletLoader> m_graftletLoader;
     std::map<ConnectionManager::Proto, std::unique_ptr<ConnectionManager>> m_conManagers;
-    std::unique_ptr<SysInfoCounter> m_sys_info;
+    std::unique_ptr<SysInfoCounter> m_sysInfo;
 };
 
 }//namespace graft

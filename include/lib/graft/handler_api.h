@@ -5,6 +5,9 @@
 namespace graft
 {
 
+namespace request::system_info { class Counter; }
+struct ConfigOpts;
+
 class HandlerAPI
 {
 public:
@@ -12,7 +15,8 @@ public:
     virtual bool addPeriodicTask(const Router::Handler& h_worker,
                                         std::chrono::milliseconds interval_ms,
                                         std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max()) = 0;
+    virtual request::system_info::Counter& runtimeSysInfo() = 0;
+    virtual const ConfigOpts& configOpts() const = 0;
 };
 
 }//namespace graft
-

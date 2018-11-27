@@ -71,7 +71,7 @@ void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
     m_upstream->user_data = this;
     mg_set_timer(m_upstream, mg_time() + opts.upstream_request_timeout);
 
-    auto& rsi = Context(manager.getGcm()).runtime_sys_info();
+    auto& rsi = manager.runtimeSysInfo();
     rsi.count_upstrm_http_req();
     rsi.count_upstrm_http_req_bytes_raw(url.size() + extra_headers.size() + body.size());
 }
@@ -103,7 +103,7 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
 
         auto* man = TaskManager::from(upstream->mgr);
         assert(man);
-        Context(man->getGcm()).runtime_sys_info().count_upstrm_http_resp_bytes_raw(hm->message.len);
+        man->runtimeSysInfo().count_upstrm_http_resp_bytes_raw(hm->message.len);
 
         setError(Status::Ok);
         upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
@@ -136,8 +136,8 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
     }
 }
 
-Looper::Looper(const ConfigOpts& copts)
-    : TaskManager(copts)
+Looper::Looper(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter)
+    : TaskManager(copts, sysInfoCounter)
     , m_mgr(std::make_unique<mg_mgr>())
 {
     mg_mgr_init(m_mgr.get(), this, cb_event);
@@ -279,13 +279,13 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     {
     case MG_EV_HTTP_REQUEST:
     {
-        Context(manager->getGcm()).runtime_sys_info().count_http_request_total();
+        manager->runtimeSysInfo().count_http_request_total();
 
         mg_set_timer(client, 0);
 
         struct http_message *hm = (struct http_message *) ev_data;
 
-        Context(manager->getGcm()).runtime_sys_info().count_http_req_bytes_raw(hm->message.len);
+        manager->runtimeSysInfo().count_http_req_bytes_raw(hm->message.len);
 
         std::string uri(hm->uri.p, hm->uri.len);
 
@@ -306,7 +306,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         Router::JobParams prms;
         if (httpcm->matchRoute(uri, method, prms))
         {
-            Context(manager->getGcm()).runtime_sys_info().count_http_request_routed();
+            manager->runtimeSysInfo().count_http_request_routed();
 
             mg_str& body = hm->body;
             prms.input = Input(*hm, client_host(client));
@@ -325,7 +325,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         }
         else
         {
-            Context(manager->getGcm()).runtime_sys_info().count_http_request_unrouted();
+            manager->runtimeSysInfo().count_http_request_unrouted();
 
             LOG_PRINT_CLN(2,client,"Matching Route not found; closing connection");
             mg_http_send_error(client, 500, "invalid parameter");
@@ -420,7 +420,7 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
 
     int code = 0;
     auto& ctx = ct->getCtx();
-    auto& rsi = ctx.runtime_sys_info();
+    auto& rsi = ct->getManager().runtimeSysInfo();
 
     switch(ctx.local.getLastStatus())
     {
@@ -439,7 +439,7 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
     {
         mg_send_head(client, code, s.size(), "Content-Type: application/json\r\nConnection: close");
         mg_send(client, s.c_str(), s.size());
-        ctx.runtime_sys_info().count_http_resp_bytes_raw(s.size());
+        rsi.count_http_resp_bytes_raw(s.size());
     }
     else
     {
