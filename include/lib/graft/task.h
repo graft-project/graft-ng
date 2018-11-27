@@ -193,7 +193,7 @@ class ExpiringList;
 class TaskManager : private HandlerAPI
 {
 public:
-    TaskManager(const ConfigOpts& copts, SysInfoCounter* sysInfoCounter);
+    TaskManager(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter);
     virtual ~TaskManager();
     TaskManager(const TaskManager&) = delete;
     TaskManager& operator = (const TaskManager&) = delete;
@@ -261,7 +261,7 @@ private:
 
     static inline size_t next_pow2(size_t val);
 
-    SysInfoCounter* m_sysInfoCounter;
+    SysInfoCounter& m_sysInfoCounter;
     GlobalContextMap m_gcm;
 
     uint64_t m_cntBaseTask = 0;

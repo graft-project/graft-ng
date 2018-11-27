@@ -63,7 +63,7 @@ void GraftServer::stop(bool force)
 void GraftServer::createLooper(ConfigOpts& configOpts)
 {
     assert(m_sysInfo && !m_looper);
-    m_looper = std::make_unique<Looper>(configOpts, m_sysInfo.get());
+    m_looper = std::make_unique<Looper>(configOpts, *m_sysInfo.get());
     assert(m_looper);
 }
 

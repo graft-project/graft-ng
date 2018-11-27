@@ -203,7 +203,7 @@ public:
     { }
 };
 
-TaskManager::TaskManager(const ConfigOpts& copts, SysInfoCounter* sysInfoCounter)
+TaskManager::TaskManager(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter)
     : m_copts(copts)
     , m_sysInfoCounter(sysInfoCounter)
     , m_gcm(this)
@@ -251,8 +251,7 @@ bool TaskManager::addPeriodicTask(const Router::Handler& h_worker,
 
 request::system_info::Counter& TaskManager::runtimeSysInfo()
 {
-    assert(m_sysInfoCounter);
-    return *m_sysInfoCounter;
+    return m_sysInfoCounter;
 }
 
 const ConfigOpts& TaskManager::configOpts() const

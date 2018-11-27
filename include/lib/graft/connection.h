@@ -67,7 +67,7 @@ private:
 class Looper final : public TaskManager
 {
 public:
-    Looper(const ConfigOpts& copts, SysInfoCounter* sysInfoCounter);
+    Looper(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter);
     virtual ~Looper();
 
     void serve();

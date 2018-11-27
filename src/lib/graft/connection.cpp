@@ -136,7 +136,7 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
     }
 }
 
-Looper::Looper(const ConfigOpts& copts, SysInfoCounter* sysInfoCounter)
+Looper::Looper(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter)
     : TaskManager(copts, sysInfoCounter)
     , m_mgr(std::make_unique<mg_mgr>())
 {
