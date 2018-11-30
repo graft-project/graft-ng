@@ -12,14 +12,6 @@
 #include <thread>
 #include <atomic>
 
-/////////////////////////////////
-// GraftServerTestBase fixture
-//
-//It has:
-//1. class MainServer based on GraftServer
-//2. class Client based on mongoose
-//3. internal class TempCryptoNodeServer to simulate upstream behavior
-
 namespace detail
 {
 
@@ -52,6 +44,14 @@ private:
 };
 
 }//namespace detail
+
+/////////////////////////////////
+// GraftServerTestBase fixture
+//
+//It has:
+//1. class MainServer based on GraftServer
+//2. class Client based on mongoose
+//3. internal class TempCryptoNodeServer to simulate upstream behavior
 
 class GraftServerTestBase : public ::testing::Test
 {
@@ -346,7 +346,8 @@ protected:
 // GraftServerTest fixture
 //
 //Typical usage:
-//1. set m_copts fields to specific values required for a test
+//1. set m_copts fields to specific values required for a test.
+//   And set m_ignoreConfigIni to true, otherwise the options will be read from config.ini
 //2. register required endpoints using m_httpRouter
 //3. run(); - launches the server
 //4. stop_and_wait_for(); - shutdowns the server
@@ -354,6 +355,7 @@ protected:
 class GraftServerTest : public ::testing::Test
 {
 public:
+    bool m_ignoreConfigIni = true;
     graft::ConfigOpts m_copts;
     graft::Router m_httpRouter;
 
@@ -361,7 +363,7 @@ public:
     {
         m_th = std::thread([this]
         {
-            m_gserver = std::make_unique<detail::GSTest>(m_httpRouter, false);
+            m_gserver = std::make_unique<detail::GSTest>(m_httpRouter, m_ignoreConfigIni);
             m_serverCreated = true;
             m_gserver->init(start_args.argc, start_args.argv, m_copts);
             m_gserver->run();
