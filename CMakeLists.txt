@@ -174,6 +174,7 @@ set_target_properties(graftlet_lib PROPERTIES
 add_library(graft STATIC
     ${PROJECT_SOURCE_DIR}/src/lib/graft/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/backtrace.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/blacklist.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/connection.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/context.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/inout.cpp
@@ -298,6 +299,7 @@ if (OPT_BUILD_TESTS)
 
         add_executable(supernode_test
             ${SUPERNODE_SOURCES}
+            ${PROJECT_SOURCE_DIR}/test/blacklist_test.cpp
             ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
             ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
             ${PROJECT_SOURCE_DIR}/test/thread_pool_test.cpp
