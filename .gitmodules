@@ -1,14 +1,14 @@
 [submodule "cryptonode"]
 	path = modules/cryptonode
-	url = https://github.com/graft-project/GraftNetwork.git
+	url = ../GraftNetwork.git
 	branch = rta-alpha2-syslog
 [submodule "libr3"]
 	path = modules/libr3
-	url = https://github.com/graft-project/r3.git
+	url = ../r3.git
 	branch = graft-master
 [submodule "mongoose"]
 	path = modules/mongoose
-	url = https://github.com/graft-project/mongoose.git
+	url = ../mongoose.git
 	branch = master
 [submodule "googletest"]
 	path = modules/googletest
