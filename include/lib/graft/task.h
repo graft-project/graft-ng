@@ -10,6 +10,7 @@
 #include "lib/graft/router.h"
 #include "lib/graft/timer.h"
 #include "lib/graft/thread_pool.h"
+#include "lib/graft/blacklist.h"
 
 #include "misc_log_ex.h"
 
@@ -208,6 +209,7 @@ public:
     ConfigOpts& getCopts() { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
     ThreadPoolX& getThreadPool() { return *m_threadPool; }
+    BlackList& getBlackList() { return *m_blackList; }
 
     static TaskManager* from(mg_mgr* mgr);
 
@@ -256,6 +258,7 @@ private:
     void runWorkerAction(BaseTaskPtr bt);
     void runPostAction(BaseTaskPtr bt);
 
+    void loadBlacklist();
     void initThreadPool(int threadCount = std::thread::hardware_concurrency(), int workersQueueSize = 32, int expellingIntervalMs = 2000);
     bool tryProcessReadyJob();
 
@@ -280,6 +283,8 @@ private:
     std::deque<BaseTaskPtr> m_readyToResume;
     std::priority_queue<std::pair<std::chrono::time_point<std::chrono::steady_clock>,Context::uuid_t>> m_expireTaskQueue;
     std::unique_ptr<ExpiringList> m_futurePostponeUuids;
+
+    std::unique_ptr<BlackList> m_blackList;
 
     using PromiseItem = UpstreamTask::PromiseItem;
     using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;

@@ -335,6 +335,14 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     }
     case MG_EV_ACCEPT:
     {
+        auto res = manager->getBlackList().find( client->sa.sin.sin_addr.s_addr );
+        if(!res.second)
+        {
+            LOG_PRINT_CLN(2,client,"The address is in the black-list; closing connection");
+            client->flags |= MG_F_CLOSE_IMMEDIATELY;
+            break;
+        }
+
         const ConfigOpts& opts = manager->getCopts();
 
         mg_set_timer(client, mg_time() + opts.http_connection_timeout);

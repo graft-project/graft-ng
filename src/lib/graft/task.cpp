@@ -207,10 +207,13 @@ TaskManager::TaskManager(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter
     : m_copts(copts)
     , m_sysInfoCounter(sysInfoCounter)
     , m_gcm(this)
+    , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000 * copts.http_connection_timeout))
+    , m_blackList(BlackList::Create())
     , m_stateMachine(std::make_unique<StateMachine>())
-    , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000*copts.http_connection_timeout))
 {
     copts.check_asserts();
+
+    loadBlacklist();
     // TODO: validate options, throw exception if any mandatory options missing
     initThreadPool(copts.workers_count, copts.worker_queue_len, copts.workers_expelling_interval_ms);
 }
@@ -228,6 +231,32 @@ inline size_t TaskManager::next_pow2(size_t val)
         val |= val >> i;
     }
     return ++val;
+}
+
+void TaskManager::loadBlacklist()
+{
+    if(!m_copts.blacklist_filename.empty())
+    {
+        LOG_PRINT_L1("Loading blacklist from file " << m_copts.blacklist_filename);
+        std::string error;
+        try
+        {
+            m_blackList->readRules(m_copts.blacklist_filename.c_str());
+        }
+        catch(std::exception& e)
+        {
+            error = e.what();
+        }
+        std::string warns = m_blackList->getWarnings();
+        if(!warns.empty())
+        {
+            LOG_PRINT_L1("Blacklist warnings :\n" << warns);
+        }
+        if(!error.empty())
+        {
+            throw std::runtime_error("Cannot load blacklist, '" + error + "'");
+        }
+    }
 }
 
 bool TaskManager::addPeriodicTask(const Router::Handler& h_worker,

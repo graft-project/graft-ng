@@ -21,6 +21,7 @@ struct ConfigOpts
     int log_trunc_to_size;
     std::vector<std::string> graftlet_dirs;
     int lru_timeout_ms;
+    std::string blacklist_filename;
 
     void check_asserts() const
     {
