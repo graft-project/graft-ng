@@ -6,6 +6,7 @@
 #include "lib/graft/handler_api.h"
 #include "lib/graft/expiring_list.h"
 #include "lib/graft/sys_info.h"
+#include "lib/graft/graft_exception.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -254,7 +255,7 @@ void TaskManager::loadBlacklist()
         }
         if(!error.empty())
         {
-            throw std::runtime_error("Cannot load blacklist, '" + error + "'");
+            throw graft::exit_error("Cannot load blacklist, '" + error + "'");
         }
     }
 }
