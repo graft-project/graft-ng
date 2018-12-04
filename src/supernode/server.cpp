@@ -31,47 +31,18 @@ static void signal_handler_restart(int sig_num)
 
 GraftServer::GraftServer()
 {
+    m_connectionBase = std::make_unique<ConnectionBase>();
+    m_connectionBaseReady = true;
 }
 
 GraftServer::~GraftServer()
 {
-    //m_looper depends on pointer that is held by m_sysInfo.
-    //It could be possible that m_looper uses the counters in its dtor.
-    //Thus we should ensure that m_looper should be destroyed before m_sysInfo.
-    //The same destruction order could be achieved if we reorder the members
-    //in the class definition, but it would intersect private and protected sections.
-    m_looper.reset();
-    m_sysInfo.reset();
 }
 
 ConfigOpts& GraftServer::getCopts()
 {
-    assert(m_looper);
-    return m_looper->getCopts();
-}
-
-bool GraftServer::ready() const
-{
-    return m_looper && m_looper->ready();
-}
-
-void GraftServer::stop(bool force)
-{
-    m_looper->stop(force);
-}
-
-void GraftServer::createLooper(ConfigOpts& configOpts)
-{
-    assert(m_sysInfo && !m_looper);
-    m_looper = std::make_unique<Looper>(configOpts, *m_sysInfo.get());
-    assert(m_looper);
-}
-
-void GraftServer::createSystemInfoCounter(void)
-{
-    if(m_sysInfo) return;
-    m_sysInfo = std::make_unique<SysInfoCounter>();
-    assert(m_sysInfo);
+    assert(m_connectionBase);
+    return m_connectionBase->getCopts();
 }
 
 void GraftServer::setSysInfoCounter(std::unique_ptr<SysInfoCounter> counter)
@@ -79,14 +50,14 @@ void GraftServer::setSysInfoCounter(std::unique_ptr<SysInfoCounter> counter)
     //Call the function with derived SysInfoCounter once only if required.
     //Otherwise, default SysInfoCounter will be created.
     //This requirement exists because it is possible that the counter to be replaced already has counted something.
-    assert(!m_sysInfo);
-    m_sysInfo.swap(counter);
+    assert(m_connectionBase);
+    m_connectionBase->setSysInfoCounter(counter);
 }
 
 void GraftServer::getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledWorkers) const
 {
-    assert(m_looper);
-    m_looper->getThreadPoolInfo(activeWorkers, expelledWorkers);
+    assert(m_connectionBase);
+    m_connectionBase->getLooper().getThreadPoolInfo(activeWorkers, expelledWorkers);
 }
 
 void GraftServer::initGraftlets()
@@ -129,8 +100,9 @@ void GraftServer::initGlobalContext()
     //ANSWER: It is correct. The ctx is not initialized, ctx is attached to
     //  the global part of the context to which we want to get access here, only
     //  the local part of it has lifetime the same as the lifetime of ctx variable.
-    Context ctx(m_looper->getGcm());
-    const ConfigOpts& copts = m_looper->getCopts();
+    assert(m_connectionBase);
+    Context ctx(m_connectionBase->getLooper().getGcm());
+    const ConfigOpts& copts = getCopts();
 //  copts is empty here
 
 //    ctx.global["testnet"] = copts.testnet;
@@ -166,12 +138,14 @@ void GraftServer::addGenericCallbackRoute()
 
 bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
 {
-    createSystemInfoCounter();
+    assert(m_connectionBase);
+    m_connectionBase->createSystemInfoCounter();
 
     bool res = initConfigOption(argc, argv, configOpts);
     if(!res) return false;
 
-    createLooper(configOpts);
+    m_connectionBase->loadBlacklist(configOpts);
+    m_connectionBase->createLooper(configOpts);
     initGraftlets();
     addGlobalCtxCleaner();
 
@@ -179,18 +153,12 @@ bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
 
     initMisc(configOpts);
 
-    initConnectionManagers();
+    m_connectionBase->initConnectionManagers();
     addGenericCallbackRoute();
     initRouters();
     initGraftletRouters();
 
-    for(auto& it : m_conManagers)
-    {
-        ConnectionManager* cm = it.second.get();
-        cm->enableRouting();
-        checkRoutes(*cm);
-        cm->bind(*m_looper);
-    }
+    m_connectionBase->bindConnectionManagers();
 
     return true;
 }
@@ -199,7 +167,7 @@ void GraftServer::serve()
 {
     LOG_PRINT_L0("Starting server on: [http] " << getCopts().http_address << ", [coap] " << getCopts().coap_address);
 
-    m_looper->serve();
+    m_connectionBase->getLooper().serve();
 }
 
 GraftServer::RunRes GraftServer::run()
@@ -540,23 +508,6 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     return true;
 }
 
-ConnectionManager* GraftServer::getConMgr(const ConnectionManager::Proto& proto)
-{
-    auto it = m_conManagers.find(proto);
-    assert(it != m_conManagers.end());
-    return it->second.get();
-}
-
-void GraftServer::initConnectionManagers()
-{
-    std::unique_ptr<HttpConnectionManager> httpcm = std::make_unique<HttpConnectionManager>();
-    auto res1 = m_conManagers.emplace(httpcm->getProto(), std::move(httpcm));
-    assert(res1.second);
-    std::unique_ptr<CoapConnectionManager> coapcm = std::make_unique<CoapConnectionManager>();
-    auto res2 = m_conManagers.emplace(coapcm->getProto(), std::move(coapcm));
-    assert(res2.second);
-}
-
 void GraftServer::initRouters()
 {
 
@@ -569,26 +520,10 @@ void GraftServer::addGlobalCtxCleaner()
         graft::Context::GlobalFriend::cleanup(ctx.global);
         return graft::Status::Ok;
     };
-    m_looper->addPeriodicTask(
+    m_connectionBase->getLooper().addPeriodicTask(
                 graft::Router::Handler3(nullptr, cleaner, nullptr),
-                std::chrono::milliseconds(m_looper->getCopts().lru_timeout_ms)
+                std::chrono::milliseconds(m_connectionBase->getCopts().lru_timeout_ms)
                 );
-}
-
-void GraftServer::checkRoutes(graft::ConnectionManager& cm)
-{//check conflicts in routes
-    std::string s = cm.dbgCheckConflictRoutes();
-    if(!s.empty())
-    {
-        std::cout << std::endl << "==> " << cm.getProto() << " manager.dbgDumpRouters()" << std::endl;
-        std::cout << cm.dbgDumpRouters();
-
-        //if you really need dump of r3tree uncomment two following lines
-        //std::cout << std::endl << std::endl << "==> manager.dbgDumpR3Tree()" << std::endl;
-        //manager.dbgDumpR3Tree();
-
-        throw std::runtime_error("Routes conflict found:" + s);
-    }
 }
 
 }//namespace graft

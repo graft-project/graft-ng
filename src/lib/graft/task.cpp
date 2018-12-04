@@ -6,7 +6,6 @@
 #include "lib/graft/handler_api.h"
 #include "lib/graft/expiring_list.h"
 #include "lib/graft/sys_info.h"
-#include "lib/graft/graft_exception.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -209,12 +208,10 @@ TaskManager::TaskManager(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter
     , m_sysInfoCounter(sysInfoCounter)
     , m_gcm(this)
     , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000 * copts.http_connection_timeout))
-    , m_blackList(BlackList::Create())
     , m_stateMachine(std::make_unique<StateMachine>())
 {
     copts.check_asserts();
 
-    loadBlacklist();
     // TODO: validate options, throw exception if any mandatory options missing
     initThreadPool(copts.workers_count, copts.worker_queue_len, copts.workers_expelling_interval_ms);
 }
@@ -232,32 +229,6 @@ inline size_t TaskManager::next_pow2(size_t val)
         val |= val >> i;
     }
     return ++val;
-}
-
-void TaskManager::loadBlacklist()
-{
-    if(!m_copts.blacklist_filename.empty())
-    {
-        LOG_PRINT_L1("Loading blacklist from file " << m_copts.blacklist_filename);
-        std::string error;
-        try
-        {
-            m_blackList->readRules(m_copts.blacklist_filename.c_str());
-        }
-        catch(std::exception& e)
-        {
-            error = e.what();
-        }
-        std::string warns = m_blackList->getWarnings();
-        if(!warns.empty())
-        {
-            LOG_PRINT_L1("Blacklist warnings :\n" << warns);
-        }
-        if(!error.empty())
-        {
-            throw graft::exit_error("Cannot load blacklist, '" + error + "'");
-        }
-    }
 }
 
 bool TaskManager::addPeriodicTask(const Router::Handler& h_worker,
@@ -666,13 +637,6 @@ void TaskManager::addPeriodicTask(
     schedule(pt);
 }
 
-TaskManager *TaskManager::from(mg_mgr *mgr)
-{
-    void* user_data = getUserData(mgr);
-    assert(user_data);
-    return static_cast<TaskManager*>(user_data);
-}
-
 void TaskManager::onNewClient(BaseTaskPtr bt)
 {
     ++m_cntBaseTask;
@@ -826,7 +790,7 @@ std::chrono::milliseconds PeriodicTask::getTimeout()
 }
 
 ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
-    : BaseTask(*TaskManager::from( getMgr(client) ), prms)
+    : BaseTask(ConnectionBase::from( getMgr(client) )->getLooper(), prms)
     , m_connectionManager(connectionManager)
     , m_client(client)
 {

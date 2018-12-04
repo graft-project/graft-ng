@@ -1,8 +1,8 @@
 
 #include "lib/graft/connection.h"
 #include "lib/graft/mongoosex.h"
-
 #include "lib/graft/sys_info.h"
+#include "lib/graft/graft_exception.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.connection"
@@ -89,7 +89,7 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
             std::ostringstream ss;
             ss << "cryptonode connect failed: " << strerror(err);
             setError(Status::Error, ss.str().c_str());
-            TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+            ConnectionBase::from(upstream->mgr)->getLooper().onUpstreamDone(*this);
             upstream->handler = static_empty_ev_handler;
             m_upstream = nullptr;
             releaseItself();
@@ -101,13 +101,13 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         http_message* hm = static_cast<http_message*>(ev_data);
         m_bt->getInput() = Input(*hm, client_host(upstream));
 
-        auto* man = TaskManager::from(upstream->mgr);
-        assert(man);
-        man->runtimeSysInfo().count_upstrm_http_resp_bytes_raw(hm->message.len);
+        ConnectionBase* conBase = ConnectionBase::from(upstream->mgr);
+        assert(conBase);
+        conBase->getSysInfoCounter().count_upstrm_http_resp_bytes_raw(hm->message.len);
 
         setError(Status::Ok);
         upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
-        man->onUpstreamDone(*this);
+        conBase->getLooper().onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
         m_upstream = nullptr;
         releaseItself();
@@ -116,7 +116,7 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
     {
         mg_set_timer(upstream, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
-        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        ConnectionBase::from(upstream->mgr)->getLooper().onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
         m_upstream = nullptr;
         releaseItself();
@@ -126,7 +126,7 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         mg_set_timer(upstream, 0);
         setError(Status::Error, "cryptonode request timout");
         upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
-        TaskManager::from(upstream->mgr)->onUpstreamDone(*this);
+        ConnectionBase::from(upstream->mgr)->getLooper().onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
         m_upstream = nullptr;
         releaseItself();
@@ -136,11 +136,124 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
     }
 }
 
-Looper::Looper(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter)
-    : TaskManager(copts, sysInfoCounter)
+ConnectionBase::ConnectionBase()
+    : m_blackList(BlackList::Create())
+{
+
+}
+
+ConnectionBase::~ConnectionBase()
+{
+    //m_looper depends on pointer that is held by m_sysInfo.
+    //It could be possible that m_looper uses the counters in its dtor.
+    //Thus we should ensure that m_looper should be destroyed before m_sysInfo.
+    //Following is explicit destruction order to be independent on the members order..
+    m_looper.reset();
+    m_sysInfo.reset();
+}
+
+ConnectionBase* ConnectionBase::from(mg_mgr *mgr)
+{
+    void* user_data = getUserData(mgr);
+    assert(user_data);
+    return static_cast<ConnectionBase*>(user_data);
+}
+
+void ConnectionBase::loadBlacklist(const ConfigOpts& copts)
+{
+    if(!copts.blacklist_filename.empty())
+    {
+        LOG_PRINT_L1("Loading blacklist from file " << copts.blacklist_filename);
+        std::string error;
+        try
+        {
+            m_blackList->readRules(copts.blacklist_filename.c_str());
+        }
+        catch(std::exception& e)
+        {
+            error = e.what();
+        }
+        std::string warns = m_blackList->getWarnings();
+        if(!warns.empty())
+        {
+            LOG_PRINT_L1("Blacklist warnings :\n" << warns);
+        }
+        if(!error.empty())
+        {
+            throw graft::exit_error("Cannot load blacklist, '" + error + "'");
+        }
+    }
+}
+
+void ConnectionBase::setSysInfoCounter(std::unique_ptr<SysInfoCounter>& counter)
+{
+    assert(!m_sysInfo);
+    m_sysInfo.swap(counter);
+}
+
+void ConnectionBase::createSystemInfoCounter()
+{
+    if(m_sysInfo) return;
+    m_sysInfo = std::make_unique<SysInfoCounter>();
+}
+
+void ConnectionBase::createLooper(ConfigOpts& configOpts)
+{
+    assert(m_sysInfo && !m_looper);
+    m_looper = std::make_unique<Looper>(configOpts, *this);
+    m_looperReady = true;
+}
+
+ConnectionManager* ConnectionBase::getConMgr(const ConnectionManager::Proto& proto)
+{
+    auto it = m_conManagers.find(proto);
+    assert(it != m_conManagers.end());
+    return it->second.get();
+}
+
+void ConnectionBase::initConnectionManagers()
+{
+    std::unique_ptr<HttpConnectionManager> httpcm = std::make_unique<HttpConnectionManager>();
+    auto res1 = m_conManagers.emplace(httpcm->getProto(), std::move(httpcm));
+    assert(res1.second);
+    std::unique_ptr<CoapConnectionManager> coapcm = std::make_unique<CoapConnectionManager>();
+    auto res2 = m_conManagers.emplace(coapcm->getProto(), std::move(coapcm));
+    assert(res2.second);
+}
+
+void ConnectionBase::bindConnectionManagers()
+{
+    for(auto& it : m_conManagers)
+    {
+        ConnectionManager* cm = it.second.get();
+        cm->enableRouting();
+        checkRoutes(*cm);
+        cm->bind(getLooper());
+    }
+}
+
+void ConnectionBase::checkRoutes(graft::ConnectionManager& cm)
+{//check conflicts in routes
+    std::string s = cm.dbgCheckConflictRoutes();
+    if(!s.empty())
+    {
+        std::cout << std::endl << "==> " << cm.getProto() << " manager.dbgDumpRouters()" << std::endl;
+        std::cout << cm.dbgDumpRouters();
+
+        //if you really need dump of r3tree uncomment two following lines
+        //std::cout << std::endl << std::endl << "==> manager.dbgDumpR3Tree()" << std::endl;
+        //manager.dbgDumpR3Tree();
+
+        throw std::runtime_error("Routes conflict found:" + s);
+    }
+}
+
+
+Looper::Looper(const ConfigOpts& copts, ConnectionBase& connectionBase)
+    : TaskManager(copts, connectionBase.getSysInfoCounter())
     , m_mgr(std::make_unique<mg_mgr>())
 {
-    mg_mgr_init(m_mgr.get(), this, cb_event);
+    mg_mgr_init(m_mgr.get(), &connectionBase, cb_event);
 }
 
 
@@ -184,7 +297,8 @@ void Looper::notifyJobReady()
 
 void Looper::cb_event(mg_mgr *mgr, uint64_t cnt)
 {
-    TaskManager::from(mgr)->cb_event(cnt);
+    TaskManager& tm = ConnectionBase::from(mgr)->getLooper();
+    tm.cb_event(cnt);
 }
 
 ConnectionManager* ConnectionManager::from_accepted(mg_connection *cn)
@@ -200,7 +314,7 @@ void ConnectionManager::ev_handler_empty(mg_connection *client, int ev, void *ev
 void ConnectionManager::ev_handler(ClientTask* ct, mg_connection *client, int ev, void *ev_data)
 {
     assert(ct->m_client == client);
-    assert(&ct->getManager() == TaskManager::from(client->mgr));
+    assert(&ct->getManager() == &ConnectionBase::from(client->mgr)->getLooper());
     switch (ev)
     {
     case MG_EV_CLOSE:
@@ -273,19 +387,19 @@ CoapConnectionManager* CoapConnectionManager::from_accepted(mg_connection* cn)
 
 void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 {
-    TaskManager* manager = TaskManager::from(client->mgr);
+    ConnectionBase* conBase = ConnectionBase::from(client->mgr);
 
     switch (ev)
     {
     case MG_EV_HTTP_REQUEST:
     {
-        manager->runtimeSysInfo().count_http_request_total();
+        conBase->getLooper().runtimeSysInfo().count_http_request_total();
 
         mg_set_timer(client, 0);
 
         struct http_message *hm = (struct http_message *) ev_data;
 
-        manager->runtimeSysInfo().count_http_req_bytes_raw(hm->message.len);
+        conBase->getLooper().runtimeSysInfo().count_http_req_bytes_raw(hm->message.len);
 
         std::string uri(hm->uri.p, hm->uri.len);
 
@@ -306,7 +420,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         Router::JobParams prms;
         if (httpcm->matchRoute(uri, method, prms))
         {
-            manager->runtimeSysInfo().count_http_request_routed();
+            conBase->getLooper().runtimeSysInfo().count_http_request_routed();
 
             mg_str& body = hm->body;
             prms.input = Input(*hm, client_host(client));
@@ -321,11 +435,11 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
             client->user_data = ptr;
             client->handler = static_ev_handler<ClientTask>;
 
-            manager->onNewClient(ptr->getSelf());
+            conBase->getLooper().onNewClient(ptr->getSelf());
         }
         else
         {
-            manager->runtimeSysInfo().count_http_request_unrouted();
+            conBase->getLooper().runtimeSysInfo().count_http_request_unrouted();
 
             LOG_PRINT_CLN(2,client,"Matching Route not found; closing connection");
             mg_http_send_error(client, 500, "invalid parameter");
@@ -335,7 +449,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     }
     case MG_EV_ACCEPT:
     {
-        auto res = manager->getBlackList().find( client->sa.sin.sin_addr.s_addr );
+        auto res = conBase->getBlackList().find( client->sa.sin.sin_addr.s_addr );
         if(!res.second)
         {
             LOG_PRINT_CLN(2,client,"The address is in the black-list; closing connection");
@@ -343,7 +457,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
             break;
         }
 
-        const ConfigOpts& opts = manager->getCopts();
+        const ConfigOpts& opts = conBase->getLooper().getCopts();
 
         mg_set_timer(client, mg_time() + opts.http_connection_timeout);
         break;
@@ -404,8 +518,8 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
             client->user_data = ptr;
             client->handler = static_ev_handler<ClientTask>;
 
-            TaskManager* manager = TaskManager::from(client->mgr);
-            manager->onNewClient(ptr->getSelf());
+            ConnectionBase* conBase = ConnectionBase::from(client->mgr);
+            conBase->getLooper().onNewClient(ptr->getSelf());
         }
         break;
     }

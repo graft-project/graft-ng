@@ -2,6 +2,7 @@
 #pragma once
 
 #include "lib/graft/task.h"
+#include "lib/graft/blacklist.h"
 
 namespace graft {
 
@@ -64,10 +65,12 @@ private:
     std::string m_error;
 };
 
+class ConnectionBase;
+
 class Looper final : public TaskManager
 {
 public:
-    Looper(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter);
+    Looper(const ConfigOpts& copts, ConnectionBase& connectionBase);
     virtual ~Looper();
 
     void serve();
@@ -124,6 +127,42 @@ protected:
     Router::Root m_root;
 private:
     Proto m_proto;
+};
+
+class ConnectionBase final
+{
+public:
+    ConnectionBase();
+    ~ConnectionBase();
+    ConnectionBase(const ConnectionBase&) = delete;
+    ConnectionBase& operator = (const ConnectionBase&) = delete;
+
+    void setSysInfoCounter(std::unique_ptr<SysInfoCounter>& counter);
+    void createSystemInfoCounter();
+    void loadBlacklist(const ConfigOpts& copts);
+    void createLooper(ConfigOpts& configOpts);
+    void initConnectionManagers();
+    void bindConnectionManagers();
+
+    bool ready() const { return m_looperReady && m_looper->ready(); }
+    void stop(bool force = false) { assert(m_looper); m_looper->stop(force); }
+
+    BlackList& getBlackList() { return *m_blackList; }
+    SysInfoCounter& getSysInfoCounter() { assert(m_sysInfo); return *m_sysInfo; }
+    Looper& getLooper() { assert(m_looper); return *m_looper; }
+    ConfigOpts& getCopts() { assert(m_looper); return m_looper->getCopts(); }
+    ConnectionManager* getConMgr(const ConnectionManager::Proto& proto);
+
+    static ConnectionBase* from(mg_mgr* mgr);
+private:
+    static void checkRoutes(graft::ConnectionManager& cm);
+
+    //the order of members is important because of destruction order.
+    std::unique_ptr<BlackList> m_blackList;
+    std::unique_ptr<SysInfoCounter> m_sysInfo;
+    std::atomic_bool m_looperReady{false};
+    std::unique_ptr<Looper> m_looper;
+    std::map<ConnectionManager::Proto, std::unique_ptr<ConnectionManager>> m_conManagers;
 };
 
 namespace details

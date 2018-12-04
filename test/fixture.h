@@ -24,8 +24,8 @@ public:
     { }
     bool ready() const { return graft::GraftServer::ready(); }
     void stop() { graft::GraftServer::stop(); }
-    graft::GlobalContextMap& getContext() const { assert(m_looper); return m_looper->getGcm(); }
-    graft::Looper& getLooper() const { assert(m_looper); return *m_looper.get(); }
+    graft::GlobalContextMap& getContext() { return graft::GraftServer::getLooper().getGcm(); }
+    graft::Looper& getLooper() { return graft::GraftServer::getLooper(); }
 
 protected:
     virtual bool initConfigOption(int argc, const char** argv, graft::ConfigOpts& configOpts) override

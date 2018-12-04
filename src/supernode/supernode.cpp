@@ -115,8 +115,7 @@ void Supernode::prepareDataDirAndSupernodes()
     fsl->add(supernode);
 
     //put fsl into global context
-    assert(m_looper);
-    Context ctx(m_looper->getGcm());
+    Context ctx(getLooper().getGcm());
     ctx.global["supernode"] = supernode;
     ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
     ctx.global["testnet"] = m_configEx.testnet;
@@ -138,8 +137,7 @@ void Supernode::startSupernodePeriodicTasks()
 
     if (m_configEx.stake_wallet_refresh_interval_ms > 0) {
         size_t initial_interval_ms = 1000;
-        assert(m_looper);
-        m_looper->addPeriodicTask(
+        getLooper().addPeriodicTask(
                     graft::Router::Handler3(nullptr, graft::supernode::request::sendAnnounce, nullptr),
                     std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
                     std::chrono::milliseconds(initial_interval_ms)
