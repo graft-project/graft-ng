@@ -7,26 +7,18 @@ TEST(Blacklist, common)
 {
     auto bl = graft::BlackList::Create(5, 100);
 
-    EXPECT_EQ( bl->find("1.1.1.1").first, false);
-    EXPECT_EQ( bl->find("1.1.1.1").second, true);
-    EXPECT_EQ( bl->find("1.1.1.2").first, false);
-    EXPECT_EQ( bl->find("1.1.1.2").second, true);
+    EXPECT_EQ( bl->find("1.1.1.1"), std::make_pair(false, true));
+    EXPECT_EQ( bl->find("1.1.1.2"), std::make_pair(false, true));
 
     std::istringstream iss(" allow 1.1.1.0/24 ;; aaa ;; aaa \n deny\t 1.1.2.0/24 ;; bla-bla allow \n \n ;;ththth\r\n;;thth;;th \r\n\r\n allow 1.1.3.3 \n deny all");
     bl->readRules(iss);
 
-    EXPECT_EQ( bl->find("1.1.1.1").first, true);
-    EXPECT_EQ( bl->find("1.1.1.1").second, true);
-    EXPECT_EQ( bl->find("1.1.1.2").first, true);
-    EXPECT_EQ( bl->find("1.1.1.2").second, true);
-    EXPECT_EQ( bl->find("1.1.2.0").first, true);
-    EXPECT_EQ( bl->find("1.1.2.0").second, false);
-    EXPECT_EQ( bl->find("1.1.2.2").first, true);
-    EXPECT_EQ( bl->find("1.1.2.2").second, false);
-    EXPECT_EQ( bl->find("1.1.3.3").first, true);
-    EXPECT_EQ( bl->find("1.1.3.3").second, true);
-    EXPECT_EQ( bl->find("1.1.3.4").first, false);
-    EXPECT_EQ( bl->find("1.1.3.4").second, false);
+    EXPECT_EQ( bl->find("1.1.1.1"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("1.1.1.2"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("1.1.2.0"), std::make_pair(true, false));
+    EXPECT_EQ( bl->find("1.1.2.2"), std::make_pair(true, false));
+    EXPECT_EQ( bl->find("1.1.3.3"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("1.1.3.4"), std::make_pair(false, false));
 
     bl->addEntry("10.16.10.1", 32, true);
     bl->addEntry("10.16.10.0", 24, false); //deny
@@ -44,30 +36,20 @@ TEST(Blacklist, common)
     bl->addEntry("192.168.4.0", 24, false);
 
 
-    EXPECT_EQ( bl->find("10.16.10.1").first, true);
-    EXPECT_EQ( bl->find("10.16.10.1").second, true);
-    EXPECT_EQ( bl->find("10.16.10.2").first, true);
-    EXPECT_EQ( bl->find("10.16.10.2").second, false);
-    EXPECT_EQ( bl->find("10.16.11.3").first, true);
-    EXPECT_EQ( bl->find("10.16.11.3").second, true);
+    EXPECT_EQ( bl->find("10.16.10.1"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("10.16.10.2"), std::make_pair(true, false));
+    EXPECT_EQ( bl->find("10.16.11.3"), std::make_pair(true, true));
 
-    EXPECT_EQ( bl->find("10.16.12.7").first, true);
-    EXPECT_EQ( bl->find("10.16.12.7").second, true);
-    EXPECT_EQ( bl->find("10.16.12.6").first, true);
-    EXPECT_EQ( bl->find("10.16.12.6").second, false);
-    EXPECT_EQ( bl->find("10.16.12.5").first, true);
-    EXPECT_EQ( bl->find("10.16.12.5").second, true);
-    EXPECT_EQ( bl->find("10.16.12.4").first, true);
-    EXPECT_EQ( bl->find("10.16.12.4").second, true);
-    EXPECT_EQ( bl->find("10.16.12.3").first, true);
-    EXPECT_EQ( bl->find("10.16.12.3").second, true);
-    EXPECT_EQ( bl->find("10.16.12.2").first, true);
-    EXPECT_EQ( bl->find("10.16.12.2").second, true);
-    EXPECT_EQ( bl->find("10.16.12.1").first, true);
-    EXPECT_EQ( bl->find("10.16.12.1").second, true);
-    EXPECT_EQ( bl->find("10.16.12.0").first, true);
-    EXPECT_EQ( bl->find("10.16.12.0").second, true);
+    EXPECT_EQ( bl->find("10.16.12.7"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("10.16.12.6"), std::make_pair(true, false));
+    EXPECT_EQ( bl->find("10.16.12.5"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("10.16.12.4"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("10.16.12.3"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("10.16.12.2"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("10.16.12.1"), std::make_pair(true, true));
+    EXPECT_EQ( bl->find("10.16.12.0"), std::make_pair(true, true));
 
+    //single /32 entries
     EXPECT_EQ( bl->find("10.16.17.1"), std::make_pair(true, true));
     bl->addEntry("10.16.17.1", 32, false);
     EXPECT_EQ( bl->find("10.16.17.1"), std::make_pair(true, false));
