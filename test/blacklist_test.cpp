@@ -68,6 +68,17 @@ TEST(Blacklist, common)
     EXPECT_EQ( bl->find("10.16.12.0").first, true);
     EXPECT_EQ( bl->find("10.16.12.0").second, true);
 
+    EXPECT_EQ( bl->find("10.16.17.1"), std::make_pair(true, true));
+    bl->addEntry("10.16.17.1", 32, false);
+    EXPECT_EQ( bl->find("10.16.17.1"), std::make_pair(true, false));
+    bl->removeEntry("10.16.17.1");
+    EXPECT_EQ( bl->find("10.16.17.1"), std::make_pair(true, true));
+
+    EXPECT_EQ( bl->find("10.16.12.5"), std::make_pair(true, true));
+    bl->addEntry("10.16.12.5", 32, false);
+    EXPECT_EQ( bl->find("10.16.12.5"), std::make_pair(true, false));
+    bl->removeEntry("10.16.12.5");
+    EXPECT_EQ( bl->find("10.16.12.5"), std::make_pair(true, true));
 }
 
 TEST(Blacklist, activity)

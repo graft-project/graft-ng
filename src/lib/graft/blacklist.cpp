@@ -193,6 +193,22 @@ public:
         m_table.insert(std::make_pair(entry,allow));
     }
 
+    virtual void removeEntry(const char* ip) override
+    {
+        in_addr addr;
+        int res = inet_aton(ip,&addr);
+        assert(res);
+        removeEntry(addr.s_addr, true);
+    }
+
+    virtual void removeEntry(in_addr_t addr, bool networkOrder = true) override
+    {
+        if(networkOrder) addr = ntohl(addr);
+
+        RtEntry entry{ addr, 32 };
+        m_table.erase(entry);
+    }
+
     virtual std::pair<bool, Allow> find(in_addr_t addr, bool networkOrder) override
     {
         if(networkOrder) addr = ntohl(addr);
@@ -334,5 +350,17 @@ inline graft::BlackListImpl::RtEntry radix_substr<graft::BlackListImpl::RtEntry>
     graft::BlackListImpl::RtEntry res;
     res.m_addr = (entry.m_addr & mask) << begin;
     res.m_prefixLen = num;
+    return res;
+}
+
+template<>
+inline graft::BlackListImpl::RtEntry radix_join(const graft::BlackListImpl::RtEntry& entry1, const graft::BlackListImpl::RtEntry& entry2)
+{
+    graft::BlackListImpl::RtEntry res;
+
+    res.m_addr = entry1.m_addr;
+    res.m_addr |= entry2.m_addr >> entry1.m_prefixLen;
+    res.m_prefixLen  = entry1.m_prefixLen + entry2.m_prefixLen;
+
     return res;
 }
