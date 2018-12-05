@@ -137,7 +137,7 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
 }
 
 ConnectionBase::ConnectionBase()
-    : m_blackList(BlackList::Create())
+    : m_blackList(BlackList::Create(5, 100))
 {
 
 }

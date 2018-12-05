@@ -4,13 +4,110 @@
 #include <sstream>
 #include <fstream>
 #include <regex>
+#include <chrono>
 
 namespace graft {
+
+namespace
+{
+
+struct Window
+{
+    std::chrono::steady_clock::time_point m_tpStart;
+    int m_count;
+
+    Window(std::chrono::steady_clock::time_point now, int count = 1) : m_tpStart(now), m_count(count) { }
+};
+
+class IpMap
+{
+public:
+    IpMap(int wnd_size_sec, int requests_per_sec)
+        : m_wndSizeSec(wnd_size_sec)
+        , m_wndSize(std::chrono::seconds(wnd_size_sec))
+        , m_requestsPerSec(requests_per_sec)
+    { }
+
+    //return true if triggered
+    bool inc(in_addr_t addr, bool networkOrder)
+    {
+        if(networkOrder) addr = htonl(addr);
+        auto now = std::chrono::steady_clock::now();
+        auto it = m_ipwnd.find(addr);
+        bool triggered = false;
+        if(it != m_ipwnd.end())
+        {
+            while(true)
+            {
+                Window& wnd = it->second;
+                auto tp_end = wnd.m_tpStart + m_wndSize;
+                if(tp_end + m_wndSize < now)
+                {//too old data
+                    wnd = Window(now);
+                    break;
+                }
+                if(tp_end + one_sec < now)
+                {
+                    auto secs = std::chrono::duration_cast<std::chrono::seconds>(now - tp_end);
+                    wnd.m_count -= secs.count() * m_requestsPerSec;
+                    if(wnd.m_count <= 0)
+                    {
+                        wnd = Window(now);
+                        break;
+                    }
+                    wnd.m_tpStart += std::chrono::seconds(secs.count());
+                }
+                if(m_wndSizeSec * m_requestsPerSec < ++wnd.m_count) triggered = true;
+                break;
+            }
+        }
+        else
+        {
+            auto res = m_ipwnd.emplace(std::make_pair(addr, Window(now)));
+            it = res.first;
+        }
+
+        removeItAndNeighbor(it, triggered, now);
+
+        return triggered;
+    }
+
+    size_t getCnt() { return m_ipwnd.size(); }
+
+private:
+    int m_wndSizeSec = 5;
+    std::chrono::steady_clock::duration m_wndSize = std::chrono::seconds(5);
+    int m_requestsPerSec = 100;
+    const std::chrono::steady_clock::duration one_sec = std::chrono::seconds(1);
+    //host order
+    std::map<in_addr_t, Window> m_ipwnd;
+
+    void removeItAndNeighbor(decltype(m_ipwnd)::iterator it, bool triggered, std::chrono::steady_clock::time_point now)
+    {
+        //remove data if triggered, and position to neighbor
+        if(triggered)
+        {
+            it = m_ipwnd.erase(it);
+        }
+        else ++it;
+        if(it == m_ipwnd.end()) it = m_ipwnd.begin();
+
+        if(it != m_ipwnd.end())
+        {//remove neighbor if old
+            Window& wnd = it->second;
+            if(wnd.m_tpStart + m_wndSize + m_wndSize <= now) m_ipwnd.erase(it);
+        }
+    }
+};
+
+} // namespace
 
 class BlackListImpl : public BlackList
 {
 public:
-    ~BlackListImpl() = default;
+    BlackListImpl(int wnd_size_sec, int requests_per_sec) : m_ipmap(wnd_size_sec, requests_per_sec) { }
+
+    virtual ~BlackListImpl() override = default;
 
     //radix table entry
     struct RtEntry
@@ -45,6 +142,7 @@ private:
     Table m_table;
     Allow m_defaultAllow = true;
     std::ostringstream m_warns;
+    IpMap m_ipmap;
 
     void addRule(Allow allow, const char* ip, int len, int line)
     {
@@ -197,11 +295,22 @@ public:
             }
         }
     }
+
+    //for testing
+    virtual bool active(in_addr_t addr) override
+    {
+        return m_ipmap.inc(addr, false);
+    }
+
+    virtual size_t activeCnt() override
+    {
+        return m_ipmap.getCnt();
+    }
 };
 
-std::unique_ptr<BlackList> BlackList::Create()
+std::unique_ptr<BlackList> BlackList::Create(int wnd_size_sec, int requests_per_sec)
 {
-    return std::make_unique<BlackListImpl>();
+    return std::make_unique<BlackListImpl>(wnd_size_sec, requests_per_sec);
 }
 
 } //namespace graft

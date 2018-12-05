@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 #include "lib/graft/blacklist.h"
+#include <chrono>
+#include <thread>
 
 TEST(Blacklist, common)
 {
-    auto bl = graft::BlackList::Create();
+    auto bl = graft::BlackList::Create(5, 100);
 
     EXPECT_EQ( bl->find("1.1.1.1").first, false);
     EXPECT_EQ( bl->find("1.1.1.1").second, true);
@@ -66,4 +68,87 @@ TEST(Blacklist, common)
     EXPECT_EQ( bl->find("10.16.12.0").first, true);
     EXPECT_EQ( bl->find("10.16.12.0").second, true);
 
+}
+
+TEST(Blacklist, activity)
+{
+    //returns triggered, seconds, active calls count
+    auto act_per_sec = [](graft::BlackList& bl, in_addr_t addr, std::vector<int>& vec) -> std::tuple<bool,int,int>
+    {
+        auto start = std::chrono::steady_clock::now();
+        bool triggered = false;
+        int cnt = 0, seconds = 0;
+        for(auto& v : vec)
+        {
+            for(int i = 0; i < v; ++i)
+            {
+                ++cnt;
+                triggered = bl.active(addr);
+                if(triggered) break;
+            }
+            ++seconds;
+            if(triggered) break;
+            start += std::chrono::seconds(1);
+            while(std::chrono::steady_clock::now() < start)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
+        return std::make_tuple(triggered, seconds, cnt);
+    };
+
+    auto bl = graft::BlackList::Create(5, 100);
+    //random IPs
+    for(int i = 0; i < 20; ++i)
+    {
+        in_addr_t addr = 100+i*10;
+        bl->active(addr);
+    }
+
+    {
+        std::vector<int> vec{501,501,501,501,101,101,101,101,101,101};
+        bool triggered; int seconds, cnt;
+        std::tie(triggered, seconds, cnt) = act_per_sec(*bl, 1, vec);
+
+        EXPECT_EQ(triggered, true);
+        EXPECT_EQ(seconds, 1);
+        EXPECT_EQ(cnt, 501);
+        EXPECT_EQ(20, bl->activeCnt());
+    }
+
+    {
+        //                   400 460 470 480 490 500  501
+        std::vector<int> vec{400, 60, 10, 10, 10, 10, 101,1,1,1};
+        bool triggered; int seconds, cnt;
+        std::tie(triggered, seconds, cnt) = act_per_sec(*bl, 1, vec);
+
+        EXPECT_EQ(triggered, true);
+        EXPECT_EQ(seconds, 7);
+        EXPECT_EQ(cnt, 601);
+        EXPECT_EQ(20, bl->activeCnt());
+    }
+
+    {
+        //                   400 460 470 480 490 500 410 320 230 140  50  10  501
+        std::vector<int> vec{400, 60, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 491, 1,1,1};
+        bool triggered; int seconds, cnt;
+        std::tie(triggered, seconds, cnt) = act_per_sec(*bl, 1, vec);
+
+        EXPECT_EQ(triggered, true);
+        EXPECT_EQ(seconds, 13);
+        EXPECT_EQ(cnt, 1051);
+        EXPECT_EQ(0, bl->activeCnt()); //random IPs become old on 10th second
+    }
+
+    {
+        //                   10 110 210 310 400 500 500 501
+        std::vector<int> vec{10,100,100,100, 90,100,100,101,1,1};
+        bool triggered; int seconds, cnt;
+        std::tie(triggered, seconds, cnt) = act_per_sec(*bl, 1, vec);
+
+        EXPECT_EQ(triggered, true);
+        EXPECT_EQ(seconds, 8);
+        EXPECT_EQ(cnt, 701);
+        EXPECT_EQ(0, bl->activeCnt());
+    }
 }

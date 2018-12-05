@@ -14,7 +14,7 @@ class BlackList
 public:
     using Allow = bool;
 
-    static std::unique_ptr<BlackList> Create();
+    static std::unique_ptr<BlackList> Create(int wnd_size_sec, int requests_per_sec);
 
     virtual ~BlackList() = default;
 
@@ -26,6 +26,10 @@ public:
     virtual void readRules(const char* filepath) = 0;
     virtual void readRules(std::istream& is) = 0;
     virtual std::string getWarnings() = 0;
+
+    //for testing
+    virtual bool active(in_addr_t addr) = 0;
+    virtual size_t activeCnt() = 0;
 protected:
     BlackList(const BlackList&) = delete;
     BlackList& operator = (const BlackList&) = delete;
