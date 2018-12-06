@@ -136,12 +136,6 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
     }
 }
 
-ConnectionBase::ConnectionBase()
-    : m_blackList(BlackList::Create(5, 100))
-{
-
-}
-
 ConnectionBase::~ConnectionBase()
 {
     //m_looper depends on pointer that is held by m_sysInfo.
@@ -161,13 +155,22 @@ ConnectionBase* ConnectionBase::from(mg_mgr *mgr)
 
 void ConnectionBase::loadBlacklist(const ConfigOpts& copts)
 {
-    if(!copts.blacklist_filename.empty())
+
+    const IPFilterOpts& ipfilter = copts.ipfilter;
+
+    assert(!m_blackList);
+    m_blackList = BlackList::Create(
+                ipfilter.requests_per_sec,
+                ipfilter.window_size_sec,
+                ipfilter.ban_ip_sec);
+
+    if(!ipfilter.rules_filename.empty())
     {
-        LOG_PRINT_L1("Loading blacklist from file " << copts.blacklist_filename);
+        LOG_PRINT_L1("Loading blacklist from file " << ipfilter.rules_filename);
         std::string error;
         try
         {
-            m_blackList->readRules(copts.blacklist_filename.c_str());
+            m_blackList->readRules(ipfilter.rules_filename.c_str());
         }
         catch(std::exception& e)
         {

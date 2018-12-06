@@ -469,18 +469,28 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
     configOpts.lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
 
-    //configOpts.blacklist_filename
-    configOpts.blacklist_filename = server_conf.get<std::string>("blacklist", "");
-    if(!configOpts.blacklist_filename.empty())
+    //ipfilter
+    auto opt_ipfilter = config.get_child_optional("ipfilter");
+    if(opt_ipfilter)
     {
-        configOpts.blacklist_filename = details::trim_comments(configOpts.blacklist_filename);
-        fs::path path = configOpts.blacklist_filename;
-        if(path.is_relative())
+        IPFilterOpts& ipfilter = configOpts.ipfilter;
+        const auto ipfilter_conf = opt_ipfilter.get();
+        ipfilter.window_size_sec = ipfilter_conf.get<int>("window-size-sec", 0);
+        ipfilter.requests_per_sec = ipfilter_conf.get<int>("requests-per-sec", 0);
+        ipfilter.ban_ip_sec = ipfilter_conf.get<int>("ban-ip-sec", 0);
+        //ipfilter.rules_filename
+        ipfilter.rules_filename = ipfilter_conf.get<std::string>("rules", "");
+        if(!ipfilter.rules_filename.empty())
         {
-            fs::path selfpath = argv[0];
-            selfpath.remove_filename();
-            path = fs::complete(path, selfpath);
-            configOpts.blacklist_filename = path.string();
+            ipfilter.rules_filename = details::trim_comments(ipfilter.rules_filename);
+            fs::path path = ipfilter.rules_filename;
+            if(path.is_relative())
+            {
+                fs::path selfpath = argv[0];
+                selfpath.remove_filename();
+                path = fs::complete(path, selfpath);
+                ipfilter.rules_filename = path.string();
+            }
         }
     }
 

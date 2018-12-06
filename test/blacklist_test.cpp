@@ -5,7 +5,7 @@
 
 TEST(Blacklist, common)
 {
-    auto bl = graft::BlackList::Create(5, 100);
+    auto bl = graft::BlackList::Create(100, 5, 120);
 
     EXPECT_EQ( bl->find("1.1.1.1"), std::make_pair(false, true));
     EXPECT_EQ( bl->find("1.1.1.2"), std::make_pair(false, true));
@@ -90,7 +90,7 @@ TEST(Blacklist, activity)
         return std::make_tuple(triggered, seconds, cnt);
     };
 
-    auto bl = graft::BlackList::Create(5, 100);
+    auto bl = graft::BlackList::Create(100, 5, 120);
     //random IPs
     for(int i = 0; i < 20; ++i)
     {

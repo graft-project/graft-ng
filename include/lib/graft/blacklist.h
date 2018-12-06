@@ -14,7 +14,9 @@ class BlackList
 public:
     using Allow = bool;
 
-    static std::unique_ptr<BlackList> Create(int wnd_size_sec, int requests_per_sec);
+    //requests_per_sec == 0, means disable ban
+    //ban_ip_sec == 0, means ban forever
+    static std::unique_ptr<BlackList> Create(int requests_per_sec, int window_size_sec, int ban_ip_sec);
 
     virtual ~BlackList() = default;
 

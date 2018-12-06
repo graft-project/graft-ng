@@ -22,10 +22,10 @@ struct Window
 class IpMap
 {
 public:
-    IpMap(int wnd_size_sec, int requests_per_sec)
-        : m_wndSizeSec(wnd_size_sec)
-        , m_wndSize(std::chrono::seconds(wnd_size_sec))
-        , m_requestsPerSec(requests_per_sec)
+    IpMap(int requests_per_sec, int window_size_sec)
+        : m_requestsPerSec(requests_per_sec)
+        , m_wndSizeSec(window_size_sec)
+        , m_wndSize(std::chrono::seconds(window_size_sec))
     { }
 
     //return true if triggered
@@ -79,9 +79,9 @@ private:
 
     const std::chrono::steady_clock::duration one_sec = std::chrono::seconds(1);
 
-    int m_wndSizeSec = 5;
-    std::chrono::steady_clock::duration m_wndSize = std::chrono::seconds(5);
-    int m_requestsPerSec = 100;
+    int m_requestsPerSec;
+    int m_wndSizeSec;
+    std::chrono::steady_clock::duration m_wndSize;
     //host order
     IpWnd m_ipwnd;
 
@@ -108,7 +108,11 @@ private:
 class BlackListImpl : public BlackList
 {
 public:
-    BlackListImpl(int wnd_size_sec, int requests_per_sec) : m_ipmap(wnd_size_sec, requests_per_sec) { }
+    BlackListImpl(int requests_per_sec, int window_size_sec, int ban_ip_sec)
+        : banEnabled(requests_per_sec != 0)
+        , m_ipmap(requests_per_sec, window_size_sec)
+        , m_banTimeout(std::chrono::seconds(ban_ip_sec))
+    { }
 
     virtual ~BlackListImpl() override = default;
 
@@ -146,8 +150,9 @@ private:
     Allow m_defaultAllow = true;
     std::ostringstream m_warns;
 
+    bool banEnabled;
     IpMap m_ipmap;
-    std::chrono::steady_clock::duration m_banTimeout = std::chrono::seconds(100);
+    std::chrono::steady_clock::duration m_banTimeout;
     std::deque< std::pair<std::chrono::steady_clock::time_point, in_addr_t> > m_bannedIPs;
 
     void unban()
@@ -165,6 +170,8 @@ private:
     void ban(in_addr_t addr)
     {
         addEntry(addr, false, false, 32);
+
+        if(m_banTimeout.count() == 0) return;
         m_bannedIPs.emplace_back( std::make_pair(
                                       std::chrono::steady_clock::now() + m_banTimeout,
                                       addr ) );
@@ -200,10 +207,15 @@ private:
 public:
     virtual bool isAllowedActive(in_addr_t addr, bool networkOrder = true) override
     {
-        unban();
+        if(banEnabled && m_banTimeout.count() != 0)
+        {
+            unban();
+        }
 
         if(networkOrder) addr = ntohl(addr);
         if(!find(addr, false).second) return false;
+
+        if(!banEnabled) return true;
 
         bool triggered = m_ipmap.inc( addr, false);
         if(triggered)
@@ -366,9 +378,9 @@ public:
     }
 };
 
-std::unique_ptr<BlackList> BlackList::Create(int wnd_size_sec, int requests_per_sec)
+std::unique_ptr<BlackList> BlackList::Create(int requests_per_sec, int window_size_sec, int ban_ip_sec)
 {
-    return std::make_unique<BlackListImpl>(wnd_size_sec, requests_per_sec);
+    return std::make_unique<BlackListImpl>(requests_per_sec, window_size_sec, ban_ip_sec);
 }
 
 } //namespace graft

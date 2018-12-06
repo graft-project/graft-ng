@@ -132,7 +132,7 @@ private:
 class ConnectionBase final
 {
 public:
-    ConnectionBase();
+    ConnectionBase() = default;
     ~ConnectionBase();
     ConnectionBase(const ConnectionBase&) = delete;
     ConnectionBase& operator = (const ConnectionBase&) = delete;
