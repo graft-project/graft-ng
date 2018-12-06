@@ -18,6 +18,8 @@ public:
 
     virtual ~BlackList() = default;
 
+    virtual bool isAllowedActive(in_addr_t addr, bool networkOrder = true) = 0;
+
     virtual void addEntry(const char* ip, int len = 32, Allow allow = false) = 0;
     virtual void addEntry(in_addr_t addr, bool networkOrder = true, Allow allow = false, int len = 32) = 0;
     virtual void removeEntry(const char* ip) = 0;
@@ -29,7 +31,7 @@ public:
     virtual void readRules(std::istream& is) = 0;
     virtual std::string getWarnings() = 0;
 
-    //for testing
+    //for testing only
     virtual bool active(in_addr_t addr) = 0;
     virtual size_t activeCnt() = 0;
 protected:

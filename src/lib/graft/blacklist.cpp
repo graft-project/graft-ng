@@ -75,14 +75,17 @@ public:
     size_t getCnt() { return m_ipwnd.size(); }
 
 private:
+    using IpWnd = std::map<in_addr_t, Window>;
+
+    const std::chrono::steady_clock::duration one_sec = std::chrono::seconds(1);
+
     int m_wndSizeSec = 5;
     std::chrono::steady_clock::duration m_wndSize = std::chrono::seconds(5);
     int m_requestsPerSec = 100;
-    const std::chrono::steady_clock::duration one_sec = std::chrono::seconds(1);
     //host order
-    std::map<in_addr_t, Window> m_ipwnd;
+    IpWnd m_ipwnd;
 
-    void removeItAndNeighbor(decltype(m_ipwnd)::iterator it, bool triggered, std::chrono::steady_clock::time_point now)
+    void removeItAndNeighbor(IpWnd::iterator it, bool triggered, std::chrono::steady_clock::time_point now)
     {
         //remove data if triggered, and position to neighbor
         if(triggered)
@@ -142,7 +145,30 @@ private:
     Table m_table;
     Allow m_defaultAllow = true;
     std::ostringstream m_warns;
+
     IpMap m_ipmap;
+    std::chrono::steady_clock::duration m_banTimeout = std::chrono::seconds(100);
+    std::deque< std::pair<std::chrono::steady_clock::time_point, in_addr_t> > m_bannedIPs;
+
+    void unban()
+    {
+        auto now = std::chrono::steady_clock::now();
+        while(!m_bannedIPs.empty())
+        {
+            auto& item = m_bannedIPs.front();
+            if(now < item.first) break;
+            removeEntry(item.second, false);
+            m_bannedIPs.pop_front();
+        }
+    }
+
+    void ban(in_addr_t addr)
+    {
+        addEntry(addr, false, false, 32);
+        m_bannedIPs.emplace_back( std::make_pair(
+                                      std::chrono::steady_clock::now() + m_banTimeout,
+                                      addr ) );
+    }
 
     void addRule(Allow allow, const char* ip, int len, int line)
     {
@@ -172,6 +198,22 @@ private:
         m_table.insert(std::make_pair(entry,allow));
     }
 public:
+    virtual bool isAllowedActive(in_addr_t addr, bool networkOrder = true) override
+    {
+        unban();
+
+        if(networkOrder) addr = ntohl(addr);
+        if(!find(addr, false).second) return false;
+
+        bool triggered = m_ipmap.inc( addr, false);
+        if(triggered)
+        {
+            ban(addr);
+            return false;
+        }
+        return true;
+    }
+
     virtual std::string getWarnings() override
     {
         return m_warns.str();
