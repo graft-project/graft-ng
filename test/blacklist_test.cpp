@@ -2,6 +2,7 @@
 #include "lib/graft/blacklist.h"
 #include <chrono>
 #include <thread>
+#include "fixture.h"
 
 TEST(Blacklist, common)
 {
@@ -144,4 +145,40 @@ TEST(Blacklist, activity)
         EXPECT_EQ(cnt, 701);
         EXPECT_EQ(0, bl->activeCnt());
     }
+}
+
+TEST_F(GraftServerTest, ban)
+{
+    m_copts.ipfilter.requests_per_sec = 3;
+    m_copts.ipfilter.window_size_sec = 1;
+    m_copts.ipfilter.ban_ip_sec = 3;
+
+    run();
+
+    std::string json_data = "something";
+    for(int i = 0; i < 10; ++i)
+    {
+        GraftServerTestBase::Client client;
+        client.serve("http://127.0.0.1:28690/URI/test/123", "", json_data);
+        if(i<3)
+        {
+            EXPECT_EQ(client.get_closed(), false);
+            std::string res1 = client.get_body();
+            EXPECT_EQ(res1, json_data+"123");
+            continue;
+        }
+        if(i<6)
+        {
+            EXPECT_EQ(client.get_closed(), true);
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
+        }
+        EXPECT_EQ(client.get_closed(), false);
+        std::string res1 = client.get_body();
+        EXPECT_EQ(res1, json_data+"123");
+        if(i == 6) std::this_thread::sleep_for(std::chrono::seconds(1));
+        if(6 <= i) std::this_thread::sleep_for(std::chrono::milliseconds(400));
+    }
+
+    stop_and_wait_for();
 }

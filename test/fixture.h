@@ -5,7 +5,6 @@
 #include "lib/graft/mongoosex.h"
 #include "lib/graft/context.h"
 #include "supernode/server.h"
-#include "lib/graft/sys_info.h"
 #include "test.h"
 
 #include <gtest/gtest.h>
