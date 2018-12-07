@@ -5,7 +5,7 @@
 
 TEST(Blacklist, common)
 {
-    auto bl = graft::BlackList::Create(100, 5, 120);
+    auto bl = graft::BlackListTest::Create(100, 5, 120);
 
     EXPECT_EQ( bl->find("1.1.1.1"), std::make_pair(false, true));
     EXPECT_EQ( bl->find("1.1.1.2"), std::make_pair(false, true));
@@ -66,7 +66,7 @@ TEST(Blacklist, common)
 TEST(Blacklist, activity)
 {
     //returns triggered, seconds, active calls count
-    auto act_per_sec = [](graft::BlackList& bl, in_addr_t addr, std::vector<int>& vec) -> std::tuple<bool,int,int>
+    auto act_per_sec = [](graft::BlackListTest& bl, in_addr_t addr, std::vector<int>& vec) -> std::tuple<bool,int,int>
     {
         auto start = std::chrono::steady_clock::now();
         bool triggered = false;
@@ -90,7 +90,7 @@ TEST(Blacklist, activity)
         return std::make_tuple(triggered, seconds, cnt);
     };
 
-    auto bl = graft::BlackList::Create(100, 5, 120);
+    auto bl = graft::BlackListTest::Create(100, 5, 120);
     //random IPs
     for(int i = 0; i < 20; ++i)
     {

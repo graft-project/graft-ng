@@ -105,7 +105,7 @@ private:
 
 } // namespace
 
-class BlackListImpl : public BlackList
+class BlackListImpl : public BlackListTest
 {
 public:
     BlackListImpl(int requests_per_sec, int window_size_sec, int ban_ip_sec)
@@ -205,7 +205,7 @@ private:
         m_table.insert(std::make_pair(entry,allow));
     }
 public:
-    virtual bool isAllowedActive(in_addr_t addr, bool networkOrder = true) override
+    virtual bool processIp(in_addr_t addr, bool networkOrder = true) override
     {
         if(banEnabled && m_banTimeout.count() != 0)
         {
@@ -379,6 +379,11 @@ public:
 };
 
 std::unique_ptr<BlackList> BlackList::Create(int requests_per_sec, int window_size_sec, int ban_ip_sec)
+{
+    return std::make_unique<BlackListImpl>(requests_per_sec, window_size_sec, ban_ip_sec);
+}
+
+std::unique_ptr<BlackListTest> BlackListTest::Create(int requests_per_sec, int window_size_sec, int ban_ip_sec)
 {
     return std::make_unique<BlackListImpl>(requests_per_sec, window_size_sec, ban_ip_sec);
 }

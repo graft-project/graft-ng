@@ -452,7 +452,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     }
     case MG_EV_ACCEPT:
     {
-        if(!conBase->getBlackList().isAllowedActive( client->sa.sin.sin_addr.s_addr ))
+        if(!conBase->getBlackList().processIp( client->sa.sin.sin_addr.s_addr ))
         {
             LOG_PRINT_CLN(2,client,"The address is in the black-list; closing connection");
             client->flags |= MG_F_CLOSE_IMMEDIATELY;
