@@ -207,10 +207,11 @@ TaskManager::TaskManager(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter
     : m_copts(copts)
     , m_sysInfoCounter(sysInfoCounter)
     , m_gcm(this)
+    , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000 * copts.http_connection_timeout))
     , m_stateMachine(std::make_unique<StateMachine>())
-    , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000*copts.http_connection_timeout))
 {
     copts.check_asserts();
+
     // TODO: validate options, throw exception if any mandatory options missing
     initThreadPool(copts.workers_count, copts.worker_queue_len, copts.workers_expelling_interval_ms);
 }
@@ -636,13 +637,6 @@ void TaskManager::addPeriodicTask(
     schedule(pt);
 }
 
-TaskManager *TaskManager::from(mg_mgr *mgr)
-{
-    void* user_data = getUserData(mgr);
-    assert(user_data);
-    return static_cast<TaskManager*>(user_data);
-}
-
 void TaskManager::onNewClient(BaseTaskPtr bt)
 {
     ++m_cntBaseTask;
@@ -796,7 +790,7 @@ std::chrono::milliseconds PeriodicTask::getTimeout()
 }
 
 ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
-    : BaseTask(*TaskManager::from( getMgr(client) ), prms)
+    : BaseTask(ConnectionBase::from( getMgr(client) )->getLooper(), prms)
     , m_connectionManager(connectionManager)
     , m_client(client)
 {

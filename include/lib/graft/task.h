@@ -10,9 +10,7 @@
 #include "lib/graft/router.h"
 #include "lib/graft/timer.h"
 #include "lib/graft/thread_pool.h"
-
 #include "misc_log_ex.h"
-
 #include <future>
 #include <deque>
 
@@ -208,8 +206,6 @@ public:
     ConfigOpts& getCopts() { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
     ThreadPoolX& getThreadPool() { return *m_threadPool; }
-
-    static TaskManager* from(mg_mgr* mgr);
 
     ////events
     void onNewClient(BaseTaskPtr bt);

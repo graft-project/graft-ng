@@ -42,9 +42,7 @@ void WalletServer::setHttpRouters(ConnectionManager& httpcm)
 
 void WalletServer::initMisc(ConfigOpts& configOpts)
 {
-    assert(m_looper);
-
-    Context ctx(m_looper->getGcm());
+    Context ctx(getLooper().getGcm());
 
     ctx.global["testnet"] = m_configEx.testnet;
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
@@ -87,10 +85,9 @@ bool WalletServer::initConfigOption(int argc, const char** argv, ConfigOpts& con
 
 void WalletServer::initWalletManager()
 {
-    assert(m_looper);
     assert(!m_walletManager);
 
-    m_walletManager = std::make_unique<WalletManager>(*m_looper, m_configEx.testnet);
+    m_walletManager = std::make_unique<WalletManager>(getLooper(), m_configEx.testnet);
 }
 
 void WalletServer::initRouters()
@@ -107,14 +104,12 @@ void WalletServer::flushWalletDiskCaches()
 
 void WalletServer::startPeriodicTasks()
 {
-    assert(m_looper);
-
     Router::Handler flush_caches_handler = [this](const graft::Router::vars_t&, const graft::Input&, graft::Context&, graft::Output&) {
         flushWalletDiskCaches();
         return Status::Ok;
     };
  
-    m_looper->addPeriodicTask(graft::Router::Handler3(nullptr, flush_caches_handler, nullptr),
+    getLooper().addPeriodicTask(graft::Router::Handler3(nullptr, flush_caches_handler, nullptr),
         std::chrono::milliseconds(WALLET_DISK_CACHES_UPDATE_TIME_MS), std::chrono::milliseconds(1));
 }
 
