@@ -1,5 +1,44 @@
 cmake_minimum_required(VERSION 3.10)
 
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+   set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+
+if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+    message("==> The configuration is ${CMAKE_BUILD_TYPE}. Debug info will be extracted into separate files.")
+
+    function (add_executable _name)
+        _add_executable(${ARGV})
+
+        if (TARGET ${_name})
+            message("==> ${_name} executable, debug info will be extracted into separate file.")
+            set(TargetList "${TargetList} ${_name}")
+            add_custom_command(TARGET ${_name} POST_BUILD
+                COMMAND objcopy --only-keep-debug "${_name}" "${_name}.debug"
+                COMMAND strip --strip-debug --strip-unneeded "${_name}"
+                COMMAND objcopy --add-gnu-debuglink="${_name}.debug" "${_name}"
+            )
+        endif()
+    endfunction()
+
+    function (add_library _name _type)
+        _add_library(${ARGV})
+
+        if (TARGET ${_name} AND ${_type} STREQUAL SHARED)
+            message("==> ${_name} library, debug info will be extracted into separate file.")
+
+            set(FNAME "lib${_name}.so")
+            add_custom_command(TARGET ${_name} POST_BUILD
+                COMMAND objcopy --only-keep-debug "${FNAME}" "${FNAME}.debug"
+                COMMAND strip --strip-debug --strip-unneeded "${FNAME}"
+                COMMAND objcopy --add-gnu-debuglink="${FNAME}.debug" "${FNAME}"
+                WORKING_DIRECTORY ${GRAFTLETS_OUTPUT_DIR}
+            )
+        endif()
+    endfunction()
+
+endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+
 project(graft_server)
 
 option(OPT_BUILD_TESTS "Build tests." OFF)
