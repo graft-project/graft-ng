@@ -12,11 +12,11 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
         if (TARGET ${_name})
             message("==> ${_name} executable, debug info will be extracted into separate file.")
-            set(TargetList "${TargetList} ${_name}")
             add_custom_command(TARGET ${_name} POST_BUILD
-                COMMAND objcopy --only-keep-debug "${_name}" "${_name}.debug"
-                COMMAND strip --strip-debug --strip-unneeded "${_name}"
-                COMMAND objcopy --add-gnu-debuglink="${_name}.debug" "${_name}"
+                COMMAND echo "Extract debug info for $<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
             )
         endif()
     endfunction()
@@ -26,13 +26,11 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
         if (TARGET ${_name} AND ${_type} STREQUAL SHARED)
             message("==> ${_name} library, debug info will be extracted into separate file.")
-
-            set(FNAME "lib${_name}.so")
             add_custom_command(TARGET ${_name} POST_BUILD
-                COMMAND objcopy --only-keep-debug "${FNAME}" "${FNAME}.debug"
-                COMMAND strip --strip-debug --strip-unneeded "${FNAME}"
-                COMMAND objcopy --add-gnu-debuglink="${FNAME}.debug" "${FNAME}"
-                WORKING_DIRECTORY ${GRAFTLETS_OUTPUT_DIR}
+                COMMAND echo "Extract debug info for $<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
             )
         endif()
     endfunction()
