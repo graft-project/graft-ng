@@ -90,7 +90,8 @@ void StrandImpl<Task, Queue>::invokeCall()
 
     for (;;)
     {
-        assert(m_queue.pop(handler));
+        bool res = m_queue.pop(handler);
+        assert(res);
 
         try
         {
