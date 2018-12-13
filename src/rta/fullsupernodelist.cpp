@@ -189,7 +189,7 @@ size_t FullSupernodeList::loadFromDirThreaded(const string &base_dir, size_t &fo
 bool FullSupernodeList::remove(const string &address)
 {
     boost::unique_lock<boost::shared_mutex> readerLock(m_access);
-    m_list.erase(address) > 0;
+    return m_list.erase(address) > 0;
 }
 
 size_t FullSupernodeList::size() const

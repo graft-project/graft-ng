@@ -263,6 +263,11 @@ TEST_F(FullSupernodeListTest, buildAuthSample)
 
     ASSERT_TRUE(loadedItems > 0);
 
+    // update lastUpdated
+    for (const std::string &addr : sn_list.items()) {
+      sn_list.get(addr)->setLastUpdateTime(std::time(nullptr));
+    }
+
     std::string hash_str;
     sn_list.getBlockHash(2, hash_str);
 
