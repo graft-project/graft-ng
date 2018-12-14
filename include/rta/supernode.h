@@ -4,6 +4,7 @@
 #include <crypto/crypto.h>
 #include <cryptonote_config.h>
 #include <boost/scoped_ptr.hpp>
+#include <boost/thread/shared_mutex.hpp>
 #include <string>
 #include <vector>
 
@@ -224,10 +225,17 @@ public:
     uint64_t lastUpdateTime() const;
 
     /*!
-     * \brief setLastUpdateTime - upda
+     * \brief setLastUpdateTime - updates wallet refresh time
      * \param time
      */
     void setLastUpdateTime(uint64_t time);
+
+    /*!
+     * \brief busy - checks if stake wallet currently busy
+     * \return
+     */
+    bool busy() const;
+
 
 private:
     Supernode(bool testnet = false);
@@ -237,6 +245,7 @@ private:
     mutable wallet2_ptr m_wallet;
     std::string    m_network_address;
     uint64_t       m_last_update_time;
+    mutable boost::shared_mutex m_wallet_guard;
 };
 
 using SupernodePtr = boost::shared_ptr<Supernode>;
