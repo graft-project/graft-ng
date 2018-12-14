@@ -31,18 +31,8 @@ protected:
     virtual bool initConfigOption(int argc, const char** argv, ConfigOpts& configOpts) override;
     virtual void initRouters() override;
 public:
-    bool run(int argc, const char** argv)
-    {
-        for(bool run = true; run;)
-        {
-            run = false;
-            if(!init(argc, argv, m_configEx)) return false;
-            argc = 1;
-            RunRes res = GraftServer::run();
-            if(res == RunRes::SignalRestart) run = true;
-        }
-        return true;
-    }
+    bool run(int argc, const char** argv);
+
 };
 
 }
