@@ -33,11 +33,11 @@ public:
         Handler3& operator = (Handler3&&) = default;
         ~Handler3() = default;
 
-        Handler3(const Handler& pre_action, const Handler& action, const Handler& post_action, const std::string& name = std::string())
-            : pre_action(pre_action), worker_action(action), post_action(post_action), name(name)
+        Handler3(const Handler& pre_action, const Handler& action, const Handler& post_action, const std::string& name = std::string(), int priority = 2)
+            : pre_action(pre_action), worker_action(action), post_action(post_action), name(name), priority(priority)
         { }
-        Handler3(Handler&& pre_action, Handler&& action, Handler&& post_action, std::string&& name = std::string())
-            : pre_action(std::move(pre_action)), worker_action(std::move(action)), post_action(std::move(post_action)), name(std::move(name))
+        Handler3(Handler&& pre_action, Handler&& action, Handler&& post_action, std::string&& name = std::string(), int priority = 2)
+            : pre_action(std::move(pre_action)), worker_action(std::move(action)), post_action(std::move(post_action)), name(std::move(name)), priority(priority)
         { }
 
         Handler3(const Handler& worker_action) : worker_action(worker_action) { }
@@ -47,6 +47,7 @@ public:
         Handler worker_action;
         Handler post_action;
         std::string name;
+        int priority;
     };
 
     struct JobParams

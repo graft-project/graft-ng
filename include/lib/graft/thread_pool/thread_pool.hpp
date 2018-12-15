@@ -15,6 +15,7 @@
 
 namespace tp
 {
+using Iter421 = graft::Iter421;
 
 template <typename Task, template<typename> class Queue>
 class ThreadPoolImpl;
@@ -62,7 +63,7 @@ public:
      * @note All exceptions thrown by handler will be suppressed.
      */
     template <typename Handler>
-    bool tryPost(Handler&& handler);
+    bool tryPost(int priority, Handler&& handler);
 
     /**
      * @brief post Post job to thread pool.
@@ -75,7 +76,7 @@ public:
      * @note All exceptions thrown by handler will be suppressed.
      */
     template <typename Handler>
-    void post(Handler&& handler, bool to_any_queue = false);
+    void post(int priority, Handler&& handler, bool to_any_queue = false);
 
     int dump_info()
     {
@@ -98,12 +99,21 @@ public:
 private:
     size_t getWorkerIdx();
 
+    static const size_t prioritiesSize = Iter421::prioritiesSize;
+
     using Worker = WorkerT<Task, Queue>;
     using TimePoint = typename Worker::TimePoint;
-    using QueuesVec = std::vector<Queue<Task>>;
+    using QueueArr = typename Worker::QueueArr;
+//    using QueuesVec = std::vector< std::array<Queue<Task>, prioritiesSize> >;
+//    using QueuesVec = std::vector< std::array<Queue<Task>, prioritiesSize> >;
+    using QueuesVec = std::vector< QueueArr >;
+//    using QueuesVec = std::vector<Queue<Task>>;
     using WorkersVec = std::vector<std::shared_ptr<Worker>>;
 
-    std::unique_ptr<std::vector<Queue<Task>>> m_queues;
+//    std::unique_ptr<std::vector<Queue<Task>>> m_queues;
+//    std::unique_ptr<std::vector< std::array<Queue<Task>, prioritiesSize> >> m_queues;
+    std::unique_ptr<std::vector< QueueArr >> m_queues;
+    Iter421 m_queuesIter;
     std::unique_ptr<std::vector<std::shared_ptr<Worker>>> m_workers;
 
     std::atomic<size_t> m_next_worker = 0;
@@ -121,6 +131,7 @@ inline ThreadPoolImpl<Task, Queue>::ThreadPoolImpl(
 
     m_queues = std::make_unique<QueuesVec>();
     m_queues->reserve(options.threadCount());
+
     m_workers = std::make_unique<WorkersVec>();
     m_workers->reserve(options.threadCount());
 
@@ -129,7 +140,8 @@ inline ThreadPoolImpl<Task, Queue>::ThreadPoolImpl(
 
     for(size_t i = 0; i < options.threadCount(); ++i)
     {
-        queues.emplace_back(Queue<Task>(options.queueSize()));
+//        queues.emplace_back(Queue<Task>(options.queueSize()));
+        queues.emplace_back(QueueArr{ Queue<Task>(options.queueSize()), Queue<Task>(options.queueSize()), Queue<Task>(options.queueSize()) });
         workers.emplace_back(std::make_shared<Worker>());
     }
 
@@ -217,19 +229,19 @@ ThreadPoolImpl<Task, Queue>::operator=(ThreadPoolImpl<Task, Queue>&& rhs) noexce
 
 template <typename Task, template<typename> class Queue>
 template <typename Handler>
-inline bool ThreadPoolImpl<Task, Queue>::tryPost(Handler&& handler)
+inline bool ThreadPoolImpl<Task, Queue>::tryPost(int priority, Handler&& handler)
 {
-    return (*m_queues)[getWorkerIdx()].push(std::forward<Handler>(handler));
+    return (*m_queues)[priority][getWorkerIdx()].push(std::forward<Handler>(handler));
 }
 
 template <typename Task, template<typename> class Queue>
 template <typename Handler>
-inline void ThreadPoolImpl<Task, Queue>::post(Handler&& handler, bool to_any_queue)
+inline void ThreadPoolImpl<Task, Queue>::post(int priority, Handler&& handler, bool to_any_queue)
 {
     int try_count = (to_any_queue)? m_workers->size() : 1;
     for(int i = 0; i < try_count; ++i)
     {
-        bool ok = tryPost(std::forward<Handler>(handler));
+        bool ok = tryPost(priority, std::forward<Handler>(handler));
         if(ok) return;
     }
     throw std::runtime_error("thread pool queue is full");

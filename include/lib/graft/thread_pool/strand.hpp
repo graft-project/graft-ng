@@ -77,7 +77,7 @@ void StrandImpl<Task, Queue>::post(Handler&& handler, bool to_any_queue)
 {
     m_queue.push(std::forward<Handler>(handler));
 
-    m_thread_pool.post(StrandImplHandler(*this), to_any_queue);
+    m_thread_pool.post(2, StrandImplHandler(*this), to_any_queue);
 }
 
 template <typename Task, template<typename> class Queue>

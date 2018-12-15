@@ -357,7 +357,8 @@ bool TaskManager::canStop()
 bool TaskManager::tryProcessReadyJob()
 {
     GJPtr gj;
-    bool res = m_resQueue->pop(gj);
+//    bool res = m_resQueue->pop(gj);
+    bool res = m_iterResQueues.do_prior([this, &gj](int prior)->bool { return m_resQueues[prior]->pop(gj); });
     if(!res) return res;
     ++m_cntJobDone;
     BaseTaskPtr bt = gj->getTask();
@@ -431,10 +432,17 @@ void TaskManager::runWorkerAction(BaseTaskPtr bt)
     if(params.h3.worker_action)
     {
         ++m_cntJobSent;
+        int prior = bt->getPriority();
+        m_threadPool->post(prior,
+                    GJPtr( bt, m_resQueues[prior].get(), this ),
+                    true
+                    );
+/*
         m_threadPool->post(
                     GJPtr( bt, m_resQueue.get(), this ),
                     true
                     );
+*/
     }
 }
 
@@ -583,6 +591,7 @@ void TaskManager::executePostponedTasks()
 void TaskManager::expelWorkers()
 {
     if(getCopts().workers_expelling_interval_ms == 0) return;
+//    for(auto& tp : m_threadPools) tp->expelWorkers();
     m_threadPool->expelWorkers();
 }
 
@@ -662,10 +671,15 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize, int expe
 
     const size_t maxinputSize = th_op.threadCount()*th_op.queueSize();
     size_t resQueueSize = next_pow2( maxinputSize );
-    graft::TPResQueue resQueue(resQueueSize);
+//    graft::TPResQueue resQueue(resQueueSize);
 
     m_threadPool = std::make_unique<ThreadPoolX>(std::move(thread_pool));
-    m_resQueue = std::make_unique<TPResQueue>(std::move(resQueue));
+    for(auto& q : m_resQueues)
+    {
+        graft::TPResQueue resQueue(resQueueSize);
+        q = std::make_unique<TPResQueue>(std::move(resQueue));
+    }
+//    m_resQueue = std::make_unique<TPResQueue>(std::move(resQueue));
     m_threadPoolInputSize = maxinputSize;
     m_promiseQueue = std::make_unique<PromiseQueue>( threadCount );
     //TODO: it is not clear how many items we need in PeriodicTaskQueue, maybe we should make it dynamically but this requires additional synchronization

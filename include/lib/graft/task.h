@@ -118,6 +118,7 @@ public:
     Output& getOutput() { return m_output; }
     const Router::Handler3& getHandler3() const { return m_params.h3; }
     Context& getCtx() { return m_ctx; }
+    int getPriority() const { return m_params.h3.priority; }
 
     const char* getStrStatus();
     static const char* getStrStatus(Status s);
@@ -191,6 +192,8 @@ class ExpiringList;
 class TaskManager : private HandlerAPI
 {
 public:
+    static const size_t prioritiesSize = 3;
+
     TaskManager(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter);
     virtual ~TaskManager();
     TaskManager(const TaskManager&) = delete;
@@ -206,6 +209,7 @@ public:
     ConfigOpts& getCopts() { return m_copts; }
     TimerList<BaseTaskPtr>& getTimerList() { return m_timerList; }
     ThreadPoolX& getThreadPool() { return *m_threadPool; }
+//    ThreadPoolX& getThreadPool(int priority) { assert(priority < prioritiesSize); return *m_threadPools[priority]; }
 
     ////events
     void onNewClient(BaseTaskPtr bt);
@@ -264,12 +268,18 @@ private:
     uint64_t m_cntBaseTaskDone = 0;
     uint64_t m_cntUpstreamSender = 0;
     uint64_t m_cntUpstreamSenderDone = 0;
+    std::array<uint64_t, prioritiesSize> m_cntsJobSent;
+    std::array<uint64_t, prioritiesSize> m_cntsJobDone;
     uint64_t m_cntJobSent = 0;
     uint64_t m_cntJobDone = 0;
 
     uint64_t m_threadPoolInputSize = 0;
     std::unique_ptr<ThreadPoolX> m_threadPool;
-    std::unique_ptr<TPResQueue> m_resQueue;
+//    std::array<std::unique_ptr<ThreadPoolX>, prioritiesSize> m_threadPools;
+    std::array<std::unique_ptr<TPResQueue>, prioritiesSize> m_resQueues;
+    Iter421 m_iterResQueues;
+
+//    std::unique_ptr<TPResQueue> m_resQueue;
     TimerList<BaseTaskPtr> m_timerList;
 
     std::map<Context::uuid_t, BaseTaskPtr> m_postponedTasks;

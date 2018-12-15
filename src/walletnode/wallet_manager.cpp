@@ -260,7 +260,7 @@ void WalletManager::runAsyncForWallet
 template <class Fn>
 void WalletManager::runAsync(Context& context, const Url& callback_url, const Fn& fn)
 {
-  m_task_manager.getThreadPool().post(FixedFunctionWrapper([fn, callback_url, this]() {
+  m_task_manager.getThreadPool().post(2, FixedFunctionWrapper([fn, callback_url, this]() {
     try
     {    
       WebHookCallback callback(callback_url.c_str());

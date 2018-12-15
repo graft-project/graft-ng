@@ -55,11 +55,11 @@ TEST(ThreadPool, expelling)
     for(int i = 0; i < slow_cnt; ++i)
     {
         std::function<void()> slow_func = slow(K*(slow_cnt-1-i)+1);
-        thPool->post(slow_func, true);
+        thPool->post(2, slow_func, true);
         for(int j = 0; j<fast_per_slow; ++j)
         {
             std::function<void()> fast_func = fast(s, i+1);
-            thPool->post(fast_func, true);
+            thPool->post(2, fast_func, true);
         }
     }
 

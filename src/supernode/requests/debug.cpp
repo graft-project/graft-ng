@@ -105,7 +105,7 @@ Status doAnnounce(const Router::vars_t& vars, const graft::Input& input,
 
 void __registerDebugRequests(Router &router)
 {
-#define _HANDLER(h) {nullptr, graft::supernode::request::debug::h, nullptr}
+#define _HANDLER(h) {nullptr, graft::supernode::request::debug::h, nullptr, "", 0}
 
     router.addRoute("/debug/supernode_list", METHOD_GET, _HANDLER(getSupernodeList));
     router.addRoute("/debug/auth_sample/{height:[0-9]+}", METHOD_GET, _HANDLER(getAuthSample));

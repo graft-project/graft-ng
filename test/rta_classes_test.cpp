@@ -471,7 +471,7 @@ TEST_F(FullSupernodeListTest, threadPool)
     tp::ThreadPool thread_pool;
 
     for (int i = 0; i < 10; ++i) {
-        thread_pool.post([]() {
+        thread_pool.post(2, []() {
             LOG_PRINT_L0("worker thread starting") ;
             boost::this_thread::sleep(
                         boost::posix_time::milliseconds(1000)
