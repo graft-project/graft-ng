@@ -211,7 +211,7 @@ public:
 
     /*!
      * \brief validateAddress - validates wallet address
-     * \param address         - addres
+     * \param address         - address to validate
      * \param testnet         - testnet flag
      * \return                - true if address valid
      */
@@ -244,7 +244,7 @@ private:
     using wallet2_ptr = boost::scoped_ptr<tools::wallet2>;
     mutable wallet2_ptr m_wallet;
     std::string    m_network_address;
-    uint64_t       m_last_update_time;
+    std::atomic<uint64_t>       m_last_update_time;
     mutable boost::shared_mutex m_wallet_guard;
 };
 

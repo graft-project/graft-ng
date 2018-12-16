@@ -90,11 +90,11 @@ Status handleSupernodeAnnounce(const Router::vars_t& vars, const graft::Input& i
         SupernodePtr sn = fsl->get(announce.address);
         if (sn->busy()) {
             MWARNING("Unable to update supernode with announce: " << announce.address << ", BUSY");
-            return Status::Error;
+            return Status::Error; // we don't care about reply here, already replied to the client
         }
         if (!fsl->get(announce.address)->updateFromAnnounce(announce)) {
             LOG_ERROR("Failed to update supernode with announce: " << announce.address);
-            return Status::Error;
+            return Status::Error; // we don't care about reply here, already replied to the client
         }
     } else {
         std::string watchonly_wallets_path = ctx.global["watchonly_wallets_path"];

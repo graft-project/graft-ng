@@ -52,19 +52,25 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
     for (auto& sa : supernodes)
     {
         auto sPtr = fsl->get(sa);
+        MDEBUG("checking supernode: " << sPtr->walletAddress());
+        if (sPtr->busy()) {
+            MDEBUG("supernode: " << sPtr->walletAddress() << " is currently busy");
+            continue;
+        }
         uint64_t lastUpdateAge = static_cast<unsigned>(std::time(nullptr)) - sPtr->lastUpdateTime();
         if (validOnly && !(lastUpdateAge <= FullSupernodeList::ANNOUNCE_TTL_SECONDS
-            && sPtr->stakeAmount()))
-          continue;
+                           && sPtr->stakeAmount())) {
+            MDEBUG("supernode " << sPtr->walletAddress() << " can't be considered as valid one");
+            continue;
+        }
+
         DbSupernode dbSupernode;
         dbSupernode.LastUpdateAge = lastUpdateAge;
         dbSupernode.Address = sPtr->walletAddress();
         dbSupernode.StakeAmount = sPtr->stakeAmount();
         resp.result.items.push_back(dbSupernode);
     }
-
     output.load(resp);
-
     return Status::Ok;
 }
 
