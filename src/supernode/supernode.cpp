@@ -206,5 +206,22 @@ void Supernode::initRouters()
     setCoapRouters(*coapcm);
 }
 
+bool Supernode::run(int argc, const char** argv)
+{
+    for(bool run = true; run;)
+    {
+        run = false;
+        if (!init(argc, argv, m_configEx)) {
+            // TODO: explain reason?
+            MERROR("Failed to initialize supernode");
+            return false;
+        }
+        argc = 1;
+        RunRes res = GraftServer::run();
+        if(res == RunRes::SignalRestart) run = true;
+    }
+    return true;
+}
+
 } }
 
