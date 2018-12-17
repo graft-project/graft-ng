@@ -338,7 +338,7 @@ if (OPT_BUILD_TESTS)
 
         if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
             add_custom_command(
-                TARGET supernode POST_BUILD
+                TARGET supernode_test POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_SOURCE_DIR}/data/test_wallet.keys
                 ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
