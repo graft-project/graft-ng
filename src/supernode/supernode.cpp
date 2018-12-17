@@ -1,5 +1,6 @@
 
 #include "supernode/supernode.h"
+#include "lib/graft/requests.h"
 #include "supernode/requests.h"
 #include "lib/graft/sys_info.h"
 #include "supernode/requestdefines.h"
@@ -173,7 +174,7 @@ void Supernode::setHttpRouters(ConnectionManager& httpcm)
     httpcm.addRouter(forward_router);
 
     Router health_router;
-    registerHealthcheckRequests(health_router);
+    graft::request::registerHealthcheckRequests(health_router);
     httpcm.addRouter(health_router);
 
     Router debug_router;

@@ -3,7 +3,7 @@
 
 #include "lib/graft/router.h"
 
-namespace graft::supernode::request {
+namespace graft::request {
 
 GRAFT_DEFINE_IO_STRUCT(HealthcheckResponse,
     (std::string, NodeAccess)

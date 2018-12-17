@@ -2,12 +2,7 @@
 #pragma once
 
 #include "lib/graft/router.h"
-
-namespace graft::supernode::request {
-
-void registerHealthcheckRequests(graft::Router &router);
-
-}
+#include "lib/graft/requests.h"
 
 namespace graft::walletnode {
 
