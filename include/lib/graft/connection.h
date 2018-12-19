@@ -43,11 +43,11 @@ void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data);
 class UpstreamSender : public SelfHolder<UpstreamSender>
 {
 public:
-    UpstreamSender() = default;
+    UpstreamSender(const BaseTaskPtr& bt) : m_bt(bt) { }
 
     BaseTaskPtr& getTask() { return m_bt; }
 
-    void send(TaskManager& manager, BaseTaskPtr bt);
+    void send(TaskManager& manager);
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
 

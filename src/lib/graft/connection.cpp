@@ -34,16 +34,16 @@ void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
 
 constexpr std::pair<const char *, int> ConnectionManager::m_methods[];
 
-void UpstreamSender::send(TaskManager &manager, BaseTaskPtr bt)
+void UpstreamSender::send(TaskManager &manager)
 {
-    m_bt = bt;
+    assert(m_bt);
 
     const ConfigOpts& opts = manager.getCopts();
     std::string default_uri = opts.cryptonode_rpc_address.c_str();
-    Output& output = bt->getOutput();
+    Output& output = m_bt->getOutput();
     std::string url = output.makeUri(default_uri);
 
-    Context::uuid_t callback_uuid = bt->getCtx().getId(false);
+    Context::uuid_t callback_uuid = m_bt->getCtx().getId(false);
     if(!callback_uuid.is_nil())
     {//add extra header
         unsigned int mg_port = 0;

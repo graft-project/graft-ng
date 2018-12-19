@@ -203,6 +203,53 @@ public:
     { }
 };
 
+class UpstreamManager
+{
+public:
+    UpstreamManager(TaskManager& manager) : m_manager(manager) { }
+
+    bool busy() const
+    {
+        assert((m_activeCnt == 0) == (m_cntUpstreamSender == m_cntUpstreamSenderDone));
+        return m_activeCnt != 0;
+    }
+
+    void send(BaseTaskPtr bt)
+    {
+        UpstreamSender::Ptr uss = UpstreamSender::Create(bt);
+        if(m_activeCnt == m_activeMax)
+        {
+            m_upstreamQueue.emplace_back(std::move(uss));
+            return;
+        }
+        ++m_activeCnt;
+        ++m_cntUpstreamSender;
+        uss->send(m_manager);
+    }
+    void onDone()
+    {
+        ++m_cntUpstreamSenderDone;
+        if(m_upstreamQueue.empty())
+        {
+            --m_activeCnt;
+            assert(0 <= m_activeCnt);
+            return;
+        }
+        UpstreamSender::Ptr& uss = m_upstreamQueue.front();
+        ++m_cntUpstreamSender;
+        uss->send(m_manager);
+        m_upstreamQueue.pop_front();
+    }
+private:
+    uint64_t m_cntUpstreamSender = 0;
+    uint64_t m_cntUpstreamSenderDone = 0;
+
+    int m_activeMax = 3;
+    int m_activeCnt = 0;
+    std::deque<UpstreamSender::Ptr> m_upstreamQueue;
+    TaskManager& m_manager;
+};
+
 TaskManager::TaskManager(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter)
     : m_copts(copts)
     , m_sysInfoCounter(sysInfoCounter)
@@ -302,16 +349,15 @@ void TaskManager::checkUpstreamBlockingIO()
         bool res = m_promiseQueue->pop(pi);
         if(!res) break;
         UpstreamTask::Ptr bt = BaseTask::Create<UpstreamTask>(*this, std::move(pi));
-        UpstreamSender::Ptr uss = UpstreamSender::Create<UpstreamSender>();
-        uss->send(*this, bt);
+        assert(m_upstreamManager);
+        m_upstreamManager->send(bt);
     }
 }
 
 void TaskManager::sendUpstream(BaseTaskPtr bt)
 {
-    ++m_cntUpstreamSender;
-    UpstreamSender::Ptr uss = UpstreamSender::Create();
-    uss->send(*this, bt);
+    assert(m_upstreamManager);
+    m_upstreamManager->send(bt);
 }
 
 void TaskManager::onTimer(BaseTaskPtr bt)
@@ -350,7 +396,7 @@ void TaskManager::schedule(PeriodicTask* pt)
 bool TaskManager::canStop()
 {
     return (m_cntBaseTask == m_cntBaseTaskDone)
-            && (m_cntUpstreamSender == m_cntUpstreamSenderDone)
+            && (!m_upstreamManager->busy())
             && (m_cntJobSent == m_cntJobDone);
 }
 
@@ -670,6 +716,7 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize, int expe
     m_promiseQueue = std::make_unique<PromiseQueue>( threadCount );
     //TODO: it is not clear how many items we need in PeriodicTaskQueue, maybe we should make it dynamically but this requires additional synchronization
     m_periodicTaskQueue = std::make_unique<PeriodicTaskQueue>(2*threadCount);
+    m_upstreamManager = std::make_unique<UpstreamManager>(*this);
 
     LOG_PRINT_L1("Thread pool created with " << threadCount
                  << " workers with " << workersQueueSize
@@ -698,6 +745,14 @@ void TaskManager::cb_event(uint64_t cnt)
 }
 
 void TaskManager::onUpstreamDone(UpstreamSender& uss)
+{
+    upstreamDoneProcess(uss);
+    //uss will be destroyed on exit
+
+    m_upstreamManager->onDone();
+}
+
+void TaskManager::upstreamDoneProcess(UpstreamSender& uss)
 {
     if(Status::Ok == uss.getStatus())
         runtimeSysInfo().count_upstrm_http_resp_ok();
@@ -729,7 +784,6 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
         assert(Status::Error == bt->getLastStatus()); //Status::Error only possible value now
         respondAndDie(bt, bt->getOutput().data());
 
-        ++m_cntUpstreamSenderDone;
         return;
     }
     //here you can send a job to the thread pool or send response to client
@@ -738,13 +792,10 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
         LOG_PRINT_RQS_BT(2,bt, "CryptoNode answered : '" << make_dump_output( bt->getInput().body, getCopts().log_trunc_to_size ) << "'");
         if(!bt->getSelf())
         {//it is possible that a client has closed connection already
-            ++m_cntUpstreamSenderDone;
             return;
         }
         Execute(bt);
     }
-    ++m_cntUpstreamSenderDone;
-    //uss will be destroyed on exit
 }
 
 BaseTask::BaseTask(TaskManager& manager, const Router::JobParams& params)
