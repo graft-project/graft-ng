@@ -3,9 +3,11 @@
 #include "lib/graft/backtrace.h"
 #include "lib/graft/GraftletLoader.h"
 #include "lib/graft/sys_info.h"
+#include "lib/graft/graft_exception.h"
 
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
+#include <regex>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
@@ -368,6 +370,29 @@ void initGraftletDirs(int argc, const char** argv, const std::string& dirs_opt, 
     }
 }
 
+void parseSubstitutionItem(const std::string& name, const std::string& val, std::string& uri, int& cnt, bool& keepAlive, double& timeout)
+{
+    std::string s = trim_comments(val);
+    std::regex regex(R"(^\s*([^,\s]+)\s*(,\s*(\d+)\s*(,\s*(true|false|0|1)\s*(,\s*(\d+\.?\d*)\s*)?)?)?\s*$)");
+    std::smatch m;
+    if(!std::regex_match(s, m, regex))
+    {
+        std::ostringstream oss;
+        oss << "invalid [upstream] format line with name '" << name << "' : '" << val << "'";
+        throw graft::exit_error(oss.str());
+    }
+    assert(7 < m.size());
+    assert(m[1].matched);
+    uri = m[1];
+    cnt = 0; keepAlive = false; timeout = 0;
+    if(!m[3].matched) return;
+    cnt = std::stoi(m[3]);
+    if(!m[5].matched) return;
+    if(m[5] == "true" || m[5] == "1") keepAlive = true;
+    if(!m[7].matched) return;
+    timeout = std::stod(m[7]);
+}
+
 } //namespace details
 
 void usage(const boost::program_options::options_description& desc)
@@ -512,7 +537,10 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     {
         std::string name(it.first);
         std::string val(uri_subst_conf.get<std::string>(name));
-        graft::OutHttp::uri_substitutions.insert({std::move(name), std::move(val)});
+
+        std::string uri; int cnt; bool keepAlive; double timeout;
+        details::parseSubstitutionItem(name, val, uri, cnt, keepAlive, timeout);
+        graft::OutHttp::uri_substitutions.emplace(std::move(name), std::make_tuple(std::move(uri), cnt, keepAlive, timeout));
     });
 
     return true;

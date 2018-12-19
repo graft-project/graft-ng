@@ -4,7 +4,7 @@
 
 namespace graft
 {
-std::unordered_map<std::string, std::string> OutHttp::uri_substitutions;
+std::unordered_map<std::string, std::tuple<std::string,int,bool,double>> OutHttp::uri_substitutions;
 
 void InOutHttpBase::set_str_field(const http_message& hm, const mg_str& str_fld, std::string& fld)
 {
@@ -63,7 +63,7 @@ std::string OutHttp::makeUri(const std::string& default_uri) const
         auto it = Output::uri_substitutions.find(uri_.substr(1));
         if(it == Output::uri_substitutions.end())
             throw std::runtime_error("cannot find uri substitution");
-        uri_ = it->second;
+        uri_ = std::get<0>(it->second);
     }
 
     if(uri_.empty()) uri_ = default_uri;

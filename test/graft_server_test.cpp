@@ -160,7 +160,7 @@ TEST(InOut, makeUri)
     }
     {
         graft::Output output;
-        graft::Output::uri_substitutions.insert({"my_ip", "1.2.3.4"});
+        graft::Output::uri_substitutions.insert({"my_ip", {"1.2.3.4", 0, false, 0}});
         output.proto = "https";
         output.port = "4321";
         output.uri = "$my_ip";
@@ -169,7 +169,7 @@ TEST(InOut, makeUri)
     }
     {
         graft::Output output;
-        graft::Output::uri_substitutions.insert({"my_path", "http://site.com:1234/endpoint?q=1&n=2"});
+        graft::Output::uri_substitutions.insert({"my_path", {"http://site.com:1234/endpoint?q=1&n=2", 0, false, 0}});
         output.proto = "https";
         output.port = "4321";
         output.uri = "$my_path";
@@ -178,7 +178,7 @@ TEST(InOut, makeUri)
     }
     {
         graft::Output output;
-        graft::Output::uri_substitutions.insert({"my_path", "endpoint?q=1&n=2"});
+        graft::Output::uri_substitutions.insert({"my_path", {"endpoint?q=1&n=2", 0, false, 0}});
         output.proto = "https";
         output.host = "mysite.com";
         output.port = "4321";
@@ -1279,7 +1279,7 @@ TEST_F(GraftServerTest, genericCallback)
 
     graft::supernode::request::registerForwardRequests(m_httpRouter);
     m_httpRouter.addRoute("/api/{forward:create_account|restore_account|wallet_balance|prepare_transfer|transaction_history}",METHOD_POST,{nullptr,pretend_walletnode_echo,nullptr});
-    graft::Output::uri_substitutions.emplace("walletnode", "http://localhost:28690/");
+    graft::Output::uri_substitutions.emplace("walletnode", std::make_tuple("http://localhost:28690/", 0, false, 0));
     run();
 
     std::string post_data = "some data";
