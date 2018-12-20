@@ -25,17 +25,6 @@ Status errorInvalidPaymentID(Output& output)
     return Status::Error;
 }
 
-Status errorInvalidParams(Output& output)
-{
-    JsonRpcError err;
-    err.code = ERROR_INVALID_PARAMS;
-    err.message = MESSAGE_INVALID_PARAMS;
-    JsonRpcErrorResponse resp;
-    resp.error = err;
-    output.load(resp);
-    return Status::Error;
-}
-
 Status errorInvalidAmount(Output& output)
 {
     JsonRpcError err;
@@ -181,6 +170,4 @@ bool isFiniteRtaStatus(RTAStatus status)
             || status == RTAStatus::Waiting);
 }
 
-
-
-}
+} //namespace graft

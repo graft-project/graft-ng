@@ -34,7 +34,7 @@ void WalletServer::registerWalletRequests(ConnectionManager& httpcm)
 void WalletServer::setHttpRouters(ConnectionManager& httpcm)
 {
     Router health_router;
-    graft::supernode::request::registerHealthcheckRequests(health_router);
+    graft::request::registerHealthcheckRequests(health_router);
     httpcm.addRouter(health_router);
 
     registerWalletRequests(httpcm);
