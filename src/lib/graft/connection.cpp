@@ -34,14 +34,40 @@ void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data)
 
 constexpr std::pair<const char *, int> ConnectionManager::m_methods[];
 
-void UpstreamSender::send(TaskManager &manager)
+void UpstreamStub::setConnection(mg_connection* upstream)
+{
+    assert(m_onCloseCallback);
+    upstream->user_data = this;
+    upstream->handler = static_ev_handler<UpstreamStub>;
+}
+
+void UpstreamStub::ev_handler(mg_connection *upstream, int ev, void *ev_data)
+{
+    switch (ev)
+    {
+    case MG_EV_CLOSE:
+    {
+        mg_set_timer(upstream, 0);
+        LOG_PRINT_CLN(2,upstream,"Stub connection closed");
+        upstream->handler = static_empty_ev_handler;
+        m_onCloseCallback(upstream);
+    } break;
+    default:
+    {
+        assert(ev == MG_EV_POLL);
+    } break;
+    }
+}
+
+
+void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
 {
     assert(m_bt);
 
     const ConfigOpts& opts = manager.getCopts();
-    std::string default_uri = opts.cryptonode_rpc_address.c_str();
+
     Output& output = m_bt->getOutput();
-    std::string url = output.makeUri(default_uri);
+    std::string url = output.makeUri(def_uri);
 
     Context::uuid_t callback_uuid = m_bt->getCtx().getId(false);
     if(!callback_uuid.is_nil())
@@ -64,12 +90,21 @@ void UpstreamSender::send(TaskManager &manager)
         extra_headers = "Content-Type: application/json\r\n";
     }
     std::string& body = output.body;
-    m_upstream = mg::mg_connect_http_x(manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
+    if(m_upstream)
+    {
+        m_upstream->user_data = this;
+        m_upstream->handler = static_ev_handler<UpstreamSender>;
+    }
+    mg_connection* upstream = mg::mg_connect_http_x(m_upstream, manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
                              extra_headers.c_str(),
                              body); //body.empty() means GET
-    assert(m_upstream);
-    m_upstream->user_data = this;
-    mg_set_timer(m_upstream, mg_time() + opts.upstream_request_timeout);
+    assert(upstream != nullptr && (m_upstream == nullptr || m_upstream == upstream));
+    if(!m_upstream)
+    {
+        m_upstream = upstream;
+        m_upstream->user_data = this;
+    }
+    mg_set_timer(m_upstream, mg_time() + m_timeout);
 
     auto& rsi = manager.runtimeSysInfo();
     rsi.count_upstrm_http_req();
@@ -89,9 +124,9 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
             std::ostringstream ss;
             ss << "cryptonode connect failed: " << strerror(err);
             setError(Status::Error, ss.str().c_str());
-            ConnectionBase::from(upstream->mgr)->getLooper().onUpstreamDone(*this);
             upstream->handler = static_empty_ev_handler;
             m_upstream = nullptr;
+            m_onDone(*this, m_connectioId, m_upstream);
             releaseItself();
         }
     } break;
@@ -106,19 +141,22 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         conBase->getSysInfoCounter().count_upstrm_http_resp_bytes_raw(hm->message.len);
 
         setError(Status::Ok);
-        upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
-        conBase->getLooper().onUpstreamDone(*this);
-        upstream->handler = static_empty_ev_handler;
-        m_upstream = nullptr;
+        if(!m_keepAlive)
+        {
+            upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
+            upstream->handler = static_empty_ev_handler;
+            m_upstream = nullptr;
+        }
+        m_onDone(*this, m_connectioId, m_upstream);
         releaseItself();
     } break;
     case MG_EV_CLOSE:
     {
         mg_set_timer(upstream, 0);
         setError(Status::Error, "cryptonode connection unexpectedly closed");
-        ConnectionBase::from(upstream->mgr)->getLooper().onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
         m_upstream = nullptr;
+        m_onDone(*this, m_connectioId, m_upstream);
         releaseItself();
     } break;
     case MG_EV_TIMER:
@@ -126,9 +164,9 @@ void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
         mg_set_timer(upstream, 0);
         setError(Status::Error, "cryptonode request timout");
         upstream->flags |= MG_F_CLOSE_IMMEDIATELY;
-        ConnectionBase::from(upstream->mgr)->getLooper().onUpstreamDone(*this);
         upstream->handler = static_empty_ev_handler;
         m_upstream = nullptr;
+        m_onDone(*this, m_connectioId, m_upstream);
         releaseItself();
     } break;
     default:

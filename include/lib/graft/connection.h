@@ -28,7 +28,7 @@ mg_mgr* getMgr(mg_connection* nc);
 template<typename C, typename F = details::default_F<C>>
 void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
 {
-    static bool entered = false;
+    static thread_local bool entered = false;
     assert(!entered); //recursive calls are dangerous
     entered = true;
     C* This = static_cast<C*>(getUserData(nc));
@@ -40,14 +40,41 @@ void static_ev_handler(mg_connection *nc, int ev, void *ev_data)
 
 void static_empty_ev_handler(mg_connection *nc, int ev, void *ev_data);
 
+class UpstreamStub
+{
+public:
+    using OnCloseCallback = std::function<void(mg_connection* upstream)>;
+
+    UpstreamStub(OnCloseCallback onCloseCallback = nullptr)
+        : m_onCloseCallback(onCloseCallback)
+    { }
+
+    void setConnection(mg_connection* upstream);
+    void setCallback(OnCloseCallback onCloseCallback)
+    {
+        m_onCloseCallback = onCloseCallback;
+    }
+
+    void ev_handler(mg_connection *upstream, int ev, void *ev_data);
+
+private:
+    OnCloseCallback m_onCloseCallback;
+};
+
 class UpstreamSender : public SelfHolder<UpstreamSender>
 {
 public:
-    UpstreamSender(const BaseTaskPtr& bt) : m_bt(bt) { }
+    using OnDone = std::function<void(UpstreamSender& uss, uint64_t connectionId, mg_connection* client)>;
+
+    UpstreamSender(const BaseTaskPtr& bt, OnDone onDone, double timeout) : m_bt(bt), m_onDone(onDone), m_timeout(timeout) { }
+
+    UpstreamSender(const BaseTaskPtr& bt, OnDone onDone, uint64_t connectionId, mg_connection* upstream, double timeout)
+        : m_bt(bt), m_onDone(onDone), m_keepAlive(true), m_connectioId(connectionId), m_upstream(upstream), m_timeout(timeout)
+    { }
 
     BaseTaskPtr& getTask() { return m_bt; }
 
-    void send(TaskManager& manager);
+    void send(TaskManager& manager, const std::string& uri);
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
 
@@ -59,8 +86,12 @@ private:
         m_error = error;
     }
 
-    mg_connection *m_upstream = nullptr;
     BaseTaskPtr m_bt;
+    OnDone m_onDone;
+    bool m_keepAlive = false;
+    uint64_t m_connectioId = 0;
+    double m_timeout;
+    mg_connection* m_upstream = nullptr;
     Status m_status = Status::None;
     std::string m_error;
 };

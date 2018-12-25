@@ -62,6 +62,7 @@ protected:
         std::string port = "1234";
         int connect_timeout_ms = 1000;
         int poll_timeout_ms = 1000;
+        bool keepAlive = false;
 
         using on_http_t = bool (const http_message *hm, int& status_code, std::string& headers, std::string& data);
         std::function<on_http_t> on_http = nullptr;
@@ -131,7 +132,10 @@ protected:
                 if(!res) break;
                 mg_send_head(client, status_code, data.size(), headers.c_str());
                 mg_send(client, data.c_str(), data.size());
-                client->flags |= MG_F_SEND_AND_CLOSE;
+                if(!keepAlive)
+                {
+                    client->flags |= MG_F_SEND_AND_CLOSE;
+                }
             } break;
             case MG_EV_CLOSE:
             {
@@ -211,12 +215,15 @@ public:
     class Client
     {
     public:
+        int timeout_ms = 0;
+
+    public:
         Client()
         {
             mg_mgr_init(&m_mgr, nullptr, nullptr);
         }
 
-        void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string(), int timeout_ms = 0)
+        void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string(), int timeout_ms = 0, int poll_time_ms = 0)
         {
             m_exit = false; m_closed = false;
             client = mg_connect_http(&m_mgr, graft::static_ev_handler<Client>, url.c_str(),
@@ -225,12 +232,13 @@ public:
             assert(client);
             client->user_data = this;
 
-            int poll_time_ms = 1000;
-            if(0 < timeout_ms)
+            if(0 < timeout_ms && poll_time_ms == 0)
             {
                 poll_time_ms = timeout_ms/4;
                 if(poll_time_ms == 0) ++poll_time_ms;
             }
+            if(poll_time_ms == 0) poll_time_ms = 1000;
+
             auto end = std::chrono::steady_clock::now()
                     + std::chrono::duration<int,std::milli>(timeout_ms);
             while(!m_exit)

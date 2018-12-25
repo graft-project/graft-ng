@@ -56,17 +56,7 @@ std::string InOutHttpBase::combine_headers()
 
 std::string OutHttp::makeUri(const std::string& default_uri) const
 {
-    std::string uri_ = uri;
-
-    if(!uri_.empty() && uri_[0] == '$')
-    {//substitutions
-        auto it = Output::uri_substitutions.find(uri_.substr(1));
-        if(it == Output::uri_substitutions.end())
-            throw std::runtime_error("cannot find uri substitution");
-        uri_ = std::get<0>(it->second);
-    }
-
-    if(uri_.empty()) uri_ = default_uri;
+    std::string uri_ = default_uri;
 
     std::string port_;
 #define V(n) std::string n##_
