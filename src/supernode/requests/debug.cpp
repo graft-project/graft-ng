@@ -138,7 +138,7 @@ void __registerDebugRequests(Router &router)
     // /debug/supernode_list/1 -> include inactive items
     router.addRoute("/debug/supernode_list/{all:[0-1]}", METHOD_GET, _HANDLER(getSupernodeList));
     router.addRoute("/debug/announce", METHOD_POST, _HANDLER(doAnnounce));
-    router.addRoute("/debug/close/", METHOD_POST, _HANDLER(closeStakeWallets));
+    router.addRoute("/debug/close_wallets/", METHOD_POST, _HANDLER(closeStakeWallets));
 }
 
 }
