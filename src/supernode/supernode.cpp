@@ -197,21 +197,6 @@ void Supernode::setCoapRouters(ConnectionManager& coapcm)
 void Supernode::loadStakeWallets()
 {
 
-    // leak descriptors
-#if 0
-    int fd = open("/tmp", O_RDONLY);
-    size_t count = 1;
-    if (fd > 0) {
-        for (int i = 0; i < 1024; ++i) {
-            int fdd = dup(fd);
-            if (fdd)
-                count++;
-        }
-    }
-    MDEBUG("leaked " << count << " descriptors");
-#endif
-
-
     Context ctx(getLooper().getGcm());
     std::string watchonly_wallets_path = ctx.global.get("watchonly_wallets_path", std::string());
 
