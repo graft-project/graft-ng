@@ -386,6 +386,9 @@ void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uin
 bool FullSupernodeList::loadWallet(const std::string &wallet_path)
 {
     bool result = false;
+//    if (this->size() >= 200)
+//        return true;
+    MDEBUG("loading wallet from: " << wallet_path);
     Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
     if (sn)  {
         if (!this->add(sn)) {

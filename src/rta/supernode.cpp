@@ -21,9 +21,11 @@ namespace graft {
 using graft::supernode::request::SignedKeyImageStr;
 using graft::supernode::request::SupernodeAnnounce;
 
+boost::shared_ptr<boost::asio::io_service> Supernode::m_ioservice { new boost::asio::io_service() };
+
 Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
                      const string &seed_language)
-    : m_wallet{new tools::wallet2(testnet)}
+    : m_wallet{new tools::wallet2(testnet, false, Supernode::m_ioservice)}
     , m_last_update_time {0}
 {
     bool keys_file_exists;
