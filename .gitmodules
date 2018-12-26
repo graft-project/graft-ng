@@ -1,7 +1,7 @@
 [submodule "cryptonode"]
 	path = modules/cryptonode
 	url = https://github.com/graft-project/GraftNetwork.git
-	branch = rta-alpha4-rc
+	branch = rta-alpha4-rc-shared-io_serviced
 [submodule "libr3"]
 	path = modules/libr3
 	url = https://github.com/graft-project/r3.git

@@ -5,6 +5,7 @@
 #include <cryptonote_config.h>
 #include <boost/scoped_ptr.hpp>
 #include <boost/thread/shared_mutex.hpp>
+#include <boost/asio/io_service.hpp>
 #include <string>
 #include <vector>
 
@@ -243,6 +244,7 @@ private:
 private:
     using wallet2_ptr = boost::scoped_ptr<tools::wallet2>;
     mutable wallet2_ptr m_wallet;
+    static boost::shared_ptr<boost::asio::io_service> m_ioservice;
     std::string    m_network_address;
     std::atomic<uint64_t>       m_last_update_time;
     mutable boost::shared_mutex m_wallet_guard;
