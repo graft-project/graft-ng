@@ -4,6 +4,7 @@
 #include "lib/graft/GraftletLoader.h"
 #include "lib/graft/sys_info.h"
 #include "lib/graft/graft_exception.h"
+#include "lib/graft/upstream_manager.h"
 
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>

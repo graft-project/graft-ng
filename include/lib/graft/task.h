@@ -38,6 +38,7 @@ namespace graft
 {
 extern std::string client_addr(mg_connection* client);
 extern std::string client_host(mg_connection* client);
+extern unsigned int port_from_uri(const std::string& uri);
 
 class UpstreamSender;
 class TaskManager;
@@ -192,7 +193,7 @@ class UpstreamManager;
 class TaskManager : private HandlerAPI
 {
 public:
-    TaskManager(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter);
+    TaskManager(const ConfigOpts& copts, UpstreamManager& upstreamManager, SysInfoCounter& sysInfoCounter);
     virtual ~TaskManager();
     TaskManager(const TaskManager&) = delete;
     TaskManager& operator = (const TaskManager&) = delete;
@@ -259,6 +260,7 @@ private:
 
     static inline size_t next_pow2(size_t val);
 
+    UpstreamManager& m_upstreamManager;
     SysInfoCounter& m_sysInfoCounter;
     GlobalContextMap m_gcm;
 
@@ -277,7 +279,6 @@ private:
     std::deque<BaseTaskPtr> m_readyToResume;
     std::priority_queue<std::pair<std::chrono::time_point<std::chrono::steady_clock>,Context::uuid_t>> m_expireTaskQueue;
     std::unique_ptr<ExpiringList> m_futurePostponeUuids;
-    std::unique_ptr<UpstreamManager> m_upstreamManager;
 
     using PromiseItem = UpstreamTask::PromiseItem;
     using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;
