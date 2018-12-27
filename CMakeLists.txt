@@ -155,6 +155,7 @@ add_library(graft STATIC
     ${PROJECT_SOURCE_DIR}/src/lib/graft/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/router.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/task.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/upstream_manager.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/supernode/server.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/supernode.cpp
