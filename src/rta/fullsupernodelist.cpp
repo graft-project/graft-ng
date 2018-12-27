@@ -118,10 +118,10 @@ std::future<void> ThreadPool::runAsync()
 } // namespace utils;
 
 
-const uint8_t FullSupernodeList::AUTH_SAMPLE_SIZE;
-const size_t FullSupernodeList::ITEMS_PER_TIER;
-const uint64_t FullSupernodeList::AUTH_SAMPLE_HASH_HEIGHT;
-const uint64_t FullSupernodeList::ANNOUNCE_TTL_SECONDS;
+#ifndef __cpp_inline_variables
+constexpr int32_t FullSupernodeList::TIERS, FullSupernodeList::ITEMS_PER_TIER, FullSupernodeList::AUTH_SAMPLE_SIZE;
+constexpr int64_t FullSupernodeList::AUTH_SAMPLE_HASH_HEIGHT, FullSupernodeList::ANNOUNCE_TTL_SECONDS;
+#endif
 
 FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     : m_daemon_address(daemon_address)
@@ -239,40 +239,74 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
     }
 
     epee::string_tools::hex_to_pod(block_hash_str, block_hash);
-    vector<SupernodePtr> tier_supernodes;
+
+    std::array<std::vector<SupernodePtr>, TIERS> tier_supernodes;
+    {
+        boost::shared_lock<boost::shared_mutex> readerLock(m_access);
+        int64_t now = static_cast<int64_t>(std::time(nullptr));
+        int64_t cutoff_time = now - ANNOUNCE_TTL_SECONDS;
+        for (const auto &sn_pair : m_list) {
+            const auto &sn = sn_pair.second;
+            const auto tier = sn->tier();
+            MTRACE("checking supernode " << sn_pair.first << ", updated: " << (now - sn->lastUpdateTime()) << "s ago"
+                   << ", tier: " << tier);
+            if (tier > 0 && sn->lastUpdateTime() >= cutoff_time)
+                tier_supernodes[tier - 1].push_back(sn);
+        }
+    }
+
+    array<int, TIERS> select;
+    select.fill(ITEMS_PER_TIER);
+    // If we are short of the needed SNs on any tier try selecting additional SNs from the highest
+    // tier with surplus SNs.  For example, if tier 2 is short by 1, look for a surplus first at
+    // tier 4, then tier 3, then tier 1.
+    for (int i = 0; i < TIERS; i++) {
+        int deficit_i = select[i] - int(tier_supernodes[i].size());
+        for (int j = TIERS-1; deficit_i > 0 && j >= 0; j--) {
+            if (i == j) continue;
+            int surplus_j = int(tier_supernodes[j].size()) - select[j];
+            if (surplus_j > 0) {
+                // Tier j has more SNs than needed, so select an extra SN from tier j to make up for
+                // the deficiency at tier i.
+                int transfer = std::min(deficit_i, surplus_j);
+                select[i] -= transfer;
+                select[j] += transfer;
+                deficit_i -= transfer;
+            }
+        }
+        // If we still have a deficit then no other tier has a surplus; we'll just have to work with
+        // a smaller sample because there aren't enough SNs on the entire network.
+        if (deficit_i > 0)
+            select[i] -= deficit_i;
+    }
+
     out.clear();
-
+    out.reserve(ITEMS_PER_TIER * TIERS);
     auto out_it = back_inserter(out);
-
-
-    auto build_tier_sample = [&](uint64_t tier_min, uint64_t tier_max, size_t max_items) -> size_t {
-        if (max_items == 0)
-            return 0;
-        selectTierSupernodes(block_hash, tier_min, tier_max, tier_supernodes, out, max_items);
-        copy(tier_supernodes.begin(), tier_supernodes.end(), out_it);
-        size_t items_selected =  tier_supernodes.size();
-        tier_supernodes.clear();
-        return items_selected;
-    };
-
-    // infinite loop protection
-    size_t tries_left = AUTH_SAMPLE_SIZE * AUTH_SAMPLE_SIZE; // not sure if it needs to be N^2
-
-    while (out.size() < AUTH_SAMPLE_SIZE && tries_left--) {
-        build_tier_sample(Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT, std::min(ITEMS_PER_TIER, AUTH_SAMPLE_SIZE - out.size()));
-        build_tier_sample(Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT, std::min(ITEMS_PER_TIER, AUTH_SAMPLE_SIZE - out.size()));
-        build_tier_sample(Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT, std::min(ITEMS_PER_TIER, AUTH_SAMPLE_SIZE - out.size()));
-        build_tier_sample(Supernode::TIER4_STAKE_AMOUNT, std::numeric_limits<uint64_t>::max(),
-                          std::min(ITEMS_PER_TIER, AUTH_SAMPLE_SIZE - out.size()));
+    for (int i = 0; i < TIERS; i++) {
+        std::partial_sort(
+            tier_supernodes[i].begin(), tier_supernodes[i].begin() + select[i], tier_supernodes[i].end(),
+            [&](const SupernodePtr a, const SupernodePtr b) {
+                crypto::hash hash_a, hash_b;
+                a->getScoreHash(block_hash, hash_a);
+                b->getScoreHash(block_hash, hash_b);
+                return hash_to_int256(hash_a) < hash_to_int256(hash_b);
+            });
+        std::copy(tier_supernodes[i].begin(), tier_supernodes[i].begin() + select[i], out_it);
     }
 
-    std::string auth_sample_str;
-    for (const auto &a : out) {
-        auth_sample_str += a->walletAddress() + "\n";
+    if (VLOG_IS_ON(2)) {
+        std::string auth_sample_str, tier_sample_str;
+        for (const auto &a : out) {
+            auth_sample_str += a->walletAddress() + "\n";
+        }
+        for (size_t i = 0; i < select.size(); i++) {
+            if (i > 0) tier_sample_str += ", ";
+            tier_sample_str += std::to_string(select[i]) + " T"  + std::to_string(i+1);
+        }
+        MDEBUG("selected " << tier_sample_str << " supernodes of " << size() << " for auth sample");
+        MTRACE("auth sample: \n" << auth_sample_str);
     }
-    LOG_PRINT_L0("known supernodes: " << this->size());
-    LOG_PRINT_L0("auth sample: \n" << auth_sample_str);
-
 
     return out.size() == AUTH_SAMPLE_SIZE;
 }
@@ -316,71 +350,6 @@ std::future<void> FullSupernodeList::refreshAsync()
 size_t FullSupernodeList::refreshedItems() const
 {
     return m_refresh_counter;
-}
-
-bool FullSupernodeList::bestSupernode(vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result)
-{
-    if (arg.size() == 0) {
-        LOG_ERROR("empty input");
-        return false;
-    }
-
-    vector<SupernodePtr>::iterator best = max_element(arg.begin(), arg.end(), [&](const SupernodePtr a, const SupernodePtr b) {
-        crypto::hash hash_a, hash_b;
-        a->getScoreHash(block_hash, hash_a);
-        b->getScoreHash(block_hash, hash_b);
-        uint256_t a_value = hash_to_int256(hash_a);
-        uint256_t b_value = hash_to_int256(hash_b);
-        return a_value < b_value;
-
-    });
-    result = *best;
-    arg.erase(best);
-    return true;
-}
-
-
-
-void FullSupernodeList::selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
-                                             vector<SupernodePtr> &output, const vector<SupernodePtr> &selected_items,
-                                             size_t max_items)
-{
-    // copy all the items with the stake not less than given tier_min_stake
-    vector<SupernodePtr> all_tier_items;
-
-    {
-        boost::shared_lock<boost::shared_mutex> readerLock(m_access);
-        for (const auto &it : m_list) {
-            size_t seconds_since_last_update =  size_t(std::time(nullptr)) - it.second->lastUpdateTime();
-            MDEBUG("checking supernode " << it.first << ", updated: " << seconds_since_last_update << " seconds ago"
-                   << ", stake amount: " << it.second->stakeAmount());
-            if (seconds_since_last_update < ANNOUNCE_TTL_SECONDS
-                    && it.second->stakeAmount() >= tier_min_stake
-                    && it.second->stakeAmount() < tier_max_stake
-                    && find_if(selected_items.begin(), selected_items.end(), [&](const auto &sn) {
-                               return sn->walletAddress() == it.first;
-                       }) == selected_items.end()) {
-                MDEBUG("supernode: " << it.first << " selected for auth sample");
-                all_tier_items.push_back(it.second);
-            }
-
-        }
-    }
-    if (all_tier_items.empty()) {
-        LOG_PRINT_L1("No items selected for tier:  " << tier_min_stake << " - " << tier_max_stake);
-        return;
-    }
-
-    for (int i = 0; i < max_items; ++i) {
-        SupernodePtr best;
-        if (bestSupernode(all_tier_items, block_hash, best)) {
-            output.push_back(best);
-        } else {
-            LOG_ERROR("Can't select best supernode");
-            break;
-        }
-    }
-
 }
 
 bool FullSupernodeList::loadWallet(const std::string &wallet_path)
