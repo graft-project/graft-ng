@@ -14,7 +14,7 @@ mg_connection *mg_connect_http_base(
 namespace mg
 {
 
-mg_connection *mg_connect_http_opt_x(
+mg_connection *mg_send_http_opt_x(mg_connection *nc,
     mg_mgr *mgr, MG_CB(mg_event_handler_t ev_handler, void *user_data),
     mg_connect_opts opts, const char *url, const char *extra_headers,
     const std::string& post_data)
@@ -22,13 +22,22 @@ mg_connection *mg_connect_http_opt_x(
     mg_str user = MG_NULL_STR, null_str = MG_NULL_STR;
     mg_str host = MG_NULL_STR, path = MG_NULL_STR;
     mbuf auth;
-    mg_connection *nc = mg_connect_http_base(
-                mgr, MG_CB(ev_handler, user_data),
-                opts, "http", NULL,
-                "https", NULL, url,
-                &path, &user, &host);
+    if(nc == NULL)
+    {
+        nc = mg_connect_http_base(
+                    mgr, MG_CB(ev_handler, user_data),
+                    opts, "http", NULL,
+                    "https", NULL, url,
+                    &path, &user, &host);
 
-    if (nc == NULL) return NULL;
+        if (nc == NULL) return NULL;
+    }
+    else
+    {
+        //TODO: excessive parse second time
+        mg_parse_uri(mg_mk_str(url), NULL, &user, &host, NULL, &path, NULL, NULL);
+        nc = nc;
+    }
 
     mbuf_init(&auth, 0);
     if (user.len > 0)
@@ -52,13 +61,13 @@ mg_connection *mg_connect_http_opt_x(
     return nc;
 }
 
-mg_connection *mg_connect_http_x(
+mg_connection *mg_connect_http_x(mg_connection *nc,
     mg_mgr *mgr, MG_CB(mg_event_handler_t ev_handler, void *user_data),
     const char *url, const char *extra_headers, const std::string& post_data)
 {
     mg_connect_opts opts;
     memset(&opts, 0, sizeof(opts));
-    return mg_connect_http_opt_x(mgr, MG_CB(ev_handler, user_data),
+    return mg_send_http_opt_x(nc, mgr, MG_CB(ev_handler, user_data),
                                  opts, url, extra_headers,
                                  post_data);
 }

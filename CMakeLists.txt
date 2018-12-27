@@ -61,36 +61,6 @@ set(GRAFT_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/include
     )
 
-set(SUPERNODE_SOURCES
-    ${PROJECT_SOURCE_DIR}/src/lib/graft/sys_info.cpp
-    ${PROJECT_SOURCE_DIR}/src/lib/graft/sys_info_request.cpp
-    ${PROJECT_SOURCE_DIR}/src/lib/graft/context.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requestdefines.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests.cpp
-    ${PROJECT_SOURCE_DIR}/src/lib/graft/requesttools.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/authorize_rta_tx.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/get_info.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/health_check.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/pay.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/pay_status.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_pay.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_sale.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_details.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_raw_tx.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
-    ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
-    ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
-    ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
-    ${PROJECT_SOURCE_DIR}/src/walletnode/requests/wallet_requests.cpp
-    ${PROJECT_SOURCE_DIR}/src/walletnode/wallet_manager.cpp
-    ${PROJECT_SOURCE_DIR}/src/walletnode/server.cpp
-    )
-
 set(CRYPTONODE_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/external/easylogging++
@@ -170,6 +140,9 @@ set_target_properties(graftlet_lib PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/graftlets
     )
 
+set(GRAFTLETS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/graftlets)
+add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
+
 ### graft library
 add_library(graft STATIC
     ${PROJECT_SOURCE_DIR}/src/lib/graft/common/utils.cpp
@@ -209,33 +182,6 @@ set_target_properties(graft PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/libgraft
     )
 
-### supernode
-add_executable(supernode
-    ${SUPERNODE_SOURCES}
-    ${PROJECT_SOURCE_DIR}/src/supernode/main.cpp
-    )
-
-target_include_directories(supernode PRIVATE
-    ${GRAFT_INCLUDE_DIRS}
-    )
-
-target_link_libraries(supernode PRIVATE
-    ${CRYPTONODE_LIBS}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY}
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_SERIALIZATION_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${Boost_REGEX_LIBRARY}
-    ${COMMON_LIBS}
-    graft
-    )
-
-set(GRAFTLETS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/graftlets)
-add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
-
 target_compile_definitions(graft PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
 if(ENABLE_SYSLOG)
     target_compile_definitions(graft PRIVATE -DELPP_SYSLOG)
@@ -245,19 +191,19 @@ set_target_properties(graft PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
 
 add_dependencies(graft libr3 cryptonode graftlet_lib)
 
-add_dependencies(supernode graft libr3 cryptonode)
-
-### wallet_server
-add_executable(wallet_server
-    ${SUPERNODE_SOURCES}
-    ${PROJECT_SOURCE_DIR}/src/walletnode/main.cpp
+### requests_common library
+add_library(requests_common STATIC
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/requests.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/requesttools.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/requests/requestdefines.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/requests/health_check.cpp
     )
 
-target_include_directories(wallet_server PRIVATE
+target_include_directories(requests_common PRIVATE
     ${GRAFT_INCLUDE_DIRS}
     )
 
-target_link_libraries(wallet_server PRIVATE
+target_link_libraries(requests_common PRIVATE
     ${CRYPTONODE_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
@@ -271,7 +217,104 @@ target_link_libraries(wallet_server PRIVATE
     graft
     )
 
-add_dependencies(wallet_server graft libr3 cryptonode)
+set_target_properties(requests_common PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/requests_common
+    )
+
+if(ENABLE_SYSLOG)
+    target_compile_definitions(requests_common PRIVATE -DELPP_SYSLOG)
+endif()
+
+add_dependencies(requests_common graft cryptonode)
+
+### supernode_common library
+add_library(supernode_common STATIC
+    ${PROJECT_SOURCE_DIR}/src/supernode/requestdefines.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/authorize_rta_tx.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/get_info.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/pay.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/pay_status.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_pay.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_sale.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_details.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_raw_tx.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
+    ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
+    )
+
+target_include_directories(supernode_common PRIVATE
+    ${GRAFT_INCLUDE_DIRS}
+    )
+
+target_link_libraries(supernode_common PRIVATE
+    ${CRYPTONODE_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_CHRONO_LIBRARY}
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+    ${COMMON_LIBS}
+    requests_common
+    graft
+    )
+
+set_target_properties(supernode_common PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/supernode_common
+    )
+
+target_compile_definitions(supernode_common PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
+if(ENABLE_SYSLOG)
+    target_compile_definitions(supernode_common PRIVATE -DELPP_SYSLOG)
+endif()
+
+add_dependencies(supernode_common requests_common graft cryptonode)
+
+### supernode
+add_executable(supernode
+    ${PROJECT_SOURCE_DIR}/src/supernode/main.cpp
+    )
+
+target_include_directories(supernode PRIVATE
+    ${GRAFT_INCLUDE_DIRS}
+    )
+
+target_link_libraries(supernode PRIVATE
+    graft
+    supernode_common
+    )
+
+add_dependencies(supernode graft supernode_common)
+
+### wallet_server
+add_executable(wallet_server
+    ${PROJECT_SOURCE_DIR}/src/walletnode/main.cpp
+    ${PROJECT_SOURCE_DIR}/src/walletnode/requests/wallet_requests.cpp
+    ${PROJECT_SOURCE_DIR}/src/walletnode/server.cpp
+    ${PROJECT_SOURCE_DIR}/src/walletnode/wallet_manager.cpp
+    )
+
+target_include_directories(wallet_server PRIVATE
+    ${GRAFT_INCLUDE_DIRS}
+    )
+
+target_link_libraries(wallet_server PRIVATE
+    ${Boost_SYSTEM_LIBRARY}
+    graft
+    requests_common
+    )
+
+add_dependencies(wallet_server graft requests_common)
 
 ##################
 ### tests section
@@ -298,7 +341,7 @@ if (OPT_BUILD_TESTS)
             )
 
         add_executable(supernode_test
-            ${SUPERNODE_SOURCES}
+            ${PROJECT_SOURCE_DIR}/test/upstream_test.cpp
             ${PROJECT_SOURCE_DIR}/test/blacklist_test.cpp
             ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
             ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
@@ -320,17 +363,14 @@ if (OPT_BUILD_TESTS)
         )
 
         target_link_libraries(supernode_test PRIVATE
-            ${CRYPTONODE_LIBS}
             ${GT_LIBS}
-            ${Boost_LIBRARIES}
-            ${CMAKE_THREAD_LIBS_INIT}
-            ${COMMON_LIBS}
             graft
+            supernode_common
             )
 
 
         target_compile_definitions(supernode_test PRIVATE MG_ENABLE_COAP=1)
-        add_dependencies(supernode_test graft libr3 cryptonode graftlet_lib googletest)
+        add_dependencies(supernode_test graft supernode_common googletest)
         set_target_properties(supernode_test PROPERTIES LINK_FLAGS "-Wl,-E")
         if(ENABLE_SYSLOG)
             target_compile_definitions(supernode_test PRIVATE -DELPP_SYSLOG)
@@ -338,7 +378,7 @@ if (OPT_BUILD_TESTS)
 
         if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
             add_custom_command(
-                TARGET supernode POST_BUILD
+                TARGET supernode_test POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_SOURCE_DIR}/data/test_wallet.keys
                 ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)

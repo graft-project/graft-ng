@@ -187,6 +187,7 @@ public:
 
 class StateMachine;
 class ExpiringList;
+class UpstreamManager;
 
 class TaskManager : private HandlerAPI
 {
@@ -246,6 +247,7 @@ private:
     void processOk(BaseTaskPtr bt);
     void respondAndDie(BaseTaskPtr bt, const std::string& s, bool die = true);
     void postponeTask(BaseTaskPtr bt);
+    void upstreamDoneProcess(UpstreamSender& uss);
 
     void checkThreadPoolOverflow(BaseTaskPtr bt);
     void runPreAction(BaseTaskPtr bt);
@@ -262,8 +264,7 @@ private:
 
     uint64_t m_cntBaseTask = 0;
     uint64_t m_cntBaseTaskDone = 0;
-    uint64_t m_cntUpstreamSender = 0;
-    uint64_t m_cntUpstreamSenderDone = 0;
+
     uint64_t m_cntJobSent = 0;
     uint64_t m_cntJobDone = 0;
 
@@ -276,6 +277,7 @@ private:
     std::deque<BaseTaskPtr> m_readyToResume;
     std::priority_queue<std::pair<std::chrono::time_point<std::chrono::steady_clock>,Context::uuid_t>> m_expireTaskQueue;
     std::unique_ptr<ExpiringList> m_futurePostponeUuids;
+    std::unique_ptr<UpstreamManager> m_upstreamManager;
 
     using PromiseItem = UpstreamTask::PromiseItem;
     using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;

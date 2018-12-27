@@ -211,7 +211,7 @@ namespace graft
 
         std::string port;
         std::string path;
-        static std::unordered_map<std::string, std::string> uri_substitutions;
+        static std::unordered_map<std::string, std::tuple<std::string,int,bool,double>> uri_substitutions;
     };
 
     class InHttp final : public InOutHttpBase

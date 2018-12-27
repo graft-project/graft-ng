@@ -1,5 +1,4 @@
 
-#include "supernode/requests.h"
 #include "supernode/requests/sale.h"
 #include "supernode/requests/sale_status.h"
 #include "supernode/requests/reject_sale.h"
@@ -11,7 +10,7 @@
 #include "supernode/requests/reject_pay.h"
 #include "supernode/requests/send_transfer.h"
 #include "supernode/requests/forward.h"
-#include "supernode/requests/health_check.h"
+#include "lib/graft/requests/health_check.h"
 
 #include "supernode/requests/send_raw_tx.h"
 #include "supernode/requests/authorize_rta_tx.h"
@@ -45,11 +44,6 @@ void registerForwardRequests(graft::Router &router)
 {
     walletnode::registerForwardRequest(router);
     walletnode::registerForward(router);
-}
-
-void registerHealthcheckRequests(Router &router)
-{
-    registerHealthcheckRequest(router);
 }
 
 void registerDebugRequests(Router &router)
