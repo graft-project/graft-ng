@@ -57,11 +57,11 @@ void UpstreamManager::ConnItem::onCloseIdle(mg_connection* client)
     m_idleConnections.erase(it);
 }
 
-void UpstreamManager::send(BaseTaskPtr bt)
+UpstreamManager::ConnItem* UpstreamManager::findConnItem(const std::string& inputUri)
 {
     ConnItem* connItem = &m_default;
     {//find connItem
-        const std::string& uri = bt->getOutput().uri;
+        const std::string& uri = inputUri;
         if(!uri.empty() && uri[0] == '$')
         {//substitutions
             auto it = m_conn2item.find(uri.substr(1));
@@ -74,6 +74,13 @@ void UpstreamManager::send(BaseTaskPtr bt)
             connItem = &it->second;
         }
     }
+    return connItem;
+}
+
+void UpstreamManager::send(BaseTaskPtr bt)
+{
+    ConnItem* connItem = findConnItem(bt->getOutput().uri);
+
     if(connItem->m_maxConnections != 0 && connItem->m_idleConnections.empty() && connItem->m_connCnt == connItem->m_maxConnections)
     {
         connItem->m_taskQueue.push_back(bt);
@@ -103,7 +110,7 @@ void UpstreamManager::init(const ConfigOpts& copts, mg_mgr* mgr, int http_callba
     int uriId = 0;
     m_default = ConnItem(uriId++, copts.cryptonode_rpc_address.c_str(), 0, false, copts.upstream_request_timeout);
 
-    for(auto& subs : OutHttp::uri_substitutions)
+    for(auto& subs : copts.uri_substitutions)
     {
         double timeout = std::get<3>(subs.second);
         if(timeout < 1e-5) timeout = copts.upstream_request_timeout;
@@ -112,6 +119,12 @@ void UpstreamManager::init(const ConfigOpts& copts, mg_mgr* mgr, int http_callba
         ConnItem* connItem = &res.first->second;
         connItem->m_upstreamStub.setCallback([connItem](mg_connection* client){ connItem->onCloseIdle(client); });
     }
+}
+
+const std::string& UpstreamManager::getUri(ConnItem* connItem, const std::string& inputUri)
+{
+    const std::string& uri = (connItem != &m_default || inputUri.empty())? connItem->m_uri : inputUri;
+    return uri;
 }
 
 void UpstreamManager::createUpstreamSender(ConnItem* connItem, BaseTaskPtr bt)
@@ -133,8 +146,14 @@ void UpstreamManager::createUpstreamSender(ConnItem* connItem, BaseTaskPtr bt)
         uss = UpstreamSender::Create(bt, onDoneAct, connItem->m_timeout);
     }
 
-    const std::string& uri = (connItem != &m_default || bt->getOutput().uri.empty())? connItem->m_uri : bt->getOutput().uri;
+    const std::string& uri = getUri(connItem, bt->getOutput().uri);
     uss->send(m_mgr, m_http_callback_port, uri);
+}
+
+const std::string UpstreamManager::getUri(const std::string& inputUri)
+{
+    ConnItem* connItem = findConnItem(inputUri);
+    return getUri(connItem, inputUri);
 }
 
 }//namespace graft

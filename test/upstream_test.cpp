@@ -34,8 +34,8 @@ TEST_F(GraftServerTestBase, upstreamKeepAlive)
     crypton.keepAlive = true;
     crypton.connect_timeout_ms = 1000;
     crypton.run();
-    graft::Output::uri_substitutions.insert({"crypton", {"127.0.0.1:1234", 3, true, 100}});
     MainServer mainServer;
+    mainServer.m_copts.uri_substitutions.insert({"crypton", {"127.0.0.1:1234", 3, true, 100}});
     mainServer.m_router.addRoute("/test_upstream", METHOD_POST, {nullptr, action, nullptr});
     mainServer.run();
 
@@ -99,8 +99,8 @@ TEST_F(GraftServerTestBase, DISABLED_cryptonodeKeepAlive)
         }
     };
 
-    graft::Output::uri_substitutions.insert({"cryptonode", {"127.0.0.1:18981/json_rpc", 3, true, 100}});
     MainServer mainServer;
+    mainServer.m_copts.uri_substitutions.insert({"cryptonode", {"127.0.0.1:18981/json_rpc", 3, true, 100}});
     mainServer.m_router.addRoute("/test_upstream", METHOD_POST, {nullptr, action, nullptr});
     mainServer.run();
 

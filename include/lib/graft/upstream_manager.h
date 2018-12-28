@@ -19,7 +19,8 @@ public:
     }
 
     void send(BaseTaskPtr bt);
-
+protected:
+    const std::string getUri(const std::string& inputUri);
 private:
     class ConnItem
     {
@@ -57,6 +58,8 @@ private:
 
     void onDone(UpstreamSender& uss, ConnItem* connItem, ConnItem::ConnectionId connectionId, mg_connection* client);
     void createUpstreamSender(ConnItem* connItem, BaseTaskPtr bt);
+    ConnItem* findConnItem(const std::string& inputUri);
+    const std::string& getUri(ConnItem* connItem, const std::string& inputUri);
 
     using Uri2ConnItem = std::map<std::string, ConnItem>;
 

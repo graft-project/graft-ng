@@ -4,7 +4,6 @@
 
 namespace graft
 {
-std::unordered_map<std::string, std::tuple<std::string,int,bool,double>> OutHttp::uri_substitutions;
 
 void InOutHttpBase::set_str_field(const http_message& hm, const mg_str& str_fld, std::string& fld)
 {
