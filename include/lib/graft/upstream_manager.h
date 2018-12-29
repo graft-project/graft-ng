@@ -36,6 +36,11 @@ private:
             , m_timeout(timeout)
         {
         }
+        ~ConnItem()
+        {
+            assert(m_idleConnections.empty());
+            assert(m_activeConnections.empty());
+        }
 
         std::pair<ConnectionId, mg_connection*> getConnection();
         void releaseActive(ConnectionId connectionId, mg_connection* client);
