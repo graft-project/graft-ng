@@ -541,7 +541,7 @@ TEST(ExpiringList, common)
 /////////////////////////////////
 
 std::function<GraftServerTestBase::TempCryptoNodeServer::on_http_t> GraftServerTestBase::TempCryptoNodeServer::http_echo =
-        [] (const http_message *hm, int& status_code, std::string& headers, std::string& data) -> bool
+        [] (mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data) -> bool
 {
     data = std::string(hm->body.p, hm->body.len);
     std::string method(hm->method.p, hm->method.len);
@@ -558,7 +558,7 @@ private:
     class TempCryptoN : public TempCryptoNodeServer
     {
     protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        virtual bool onHttpRequest(mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             data = std::string(hm->uri.p, hm->uri.len);
             graft::Context ctx(mainServer.getGcm());
@@ -1077,7 +1077,7 @@ public:
     public:
         bool do_callback = true;
     protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        virtual bool onHttpRequest(mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             data = std::string(hm->body.p, hm->body.len);
             std::string method(hm->method.p, hm->method.len);
@@ -1327,7 +1327,7 @@ public:
         std::string answer;
         std::string body;
     protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        virtual bool onHttpRequest(mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             body = std::string(hm->body.p, hm->body.len);
             std::string method(hm->method.p, hm->method.len);
