@@ -37,8 +37,12 @@ Supernode::Supernode(const string &wallet_path, const string &wallet_password, c
 
     tools::wallet2::wallet_exists(wallet_path, keys_file_exists, wallet_file_exists);
 
-    LOG_PRINT_L3("keys_file_exists: " << boolalpha << keys_file_exists << noboolalpha
+    MDEBUG("daemon address: " << daemon_address << ", keys_file_exists: " << boolalpha << keys_file_exists << noboolalpha
                  << "  wallet_file_exists: " << boolalpha << wallet_file_exists << noboolalpha);
+
+    // wallet needs to be initialized with the daemon address first.
+    // Otherwize, wallet will get wrong "refresh_from_blockheight" value
+    m_wallet->init(daemon_address);
 
     // existing wallet, open it
     if (keys_file_exists) {
@@ -50,9 +54,19 @@ Supernode::Supernode(const string &wallet_path, const string &wallet_password, c
         crypto::secret_key recovery_val, secret_key;
         recovery_val = m_wallet->generate(wallet_path, wallet_password, secret_key, false, false);
     }
-    m_wallet->init(daemon_address);
+
+    // new wallet. in case we don't have a connection to a daemon at the moment wallet created
+    // it may happen wallet get "refresh from block height" parameter in the future
+    if (!keys_file_exists) {
+        std::string error;
+        uint64 daemon_height = m_wallet->get_daemon_blockchain_height(error);
+        // daemon_height will be 0 in case no daemon
+        if (daemon_height == 0)
+            m_wallet->set_refresh_from_block_height(0);
+    }
     m_wallet->store();
-    LOG_PRINT_L0("supernode created: " << "[" << this << "] " <<  this->walletAddress());
+    MDEBUG("refresh from block height: " << m_wallet->get_refresh_from_block_height());
+    MINFO("supernode created: " << "[" << this << "] " <<  this->walletAddress());
 }
 
 Supernode::~Supernode()
