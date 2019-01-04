@@ -17,6 +17,8 @@
 
 struct http_message; //from mongoose.h
 struct mg_str; //from mongoose.h
+//typedef uint32_t in_addr_t;
+
 
 #define GRAFT_DEFINE_IO_STRUCT(__S__, ...) \
     struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> { \
@@ -208,6 +210,7 @@ namespace graft
          * \return
          */
         std::string makeUri(const std::string& default_uri) const;
+        bool makeUri(const std::string& default_uri, std::string& ip_port, std::string& result_uri) const;
 
         std::string port;
         std::string path;

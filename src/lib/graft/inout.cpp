@@ -1,6 +1,7 @@
 
 #include "lib/graft/inout.h"
 #include "lib/graft/mongoosex.h"
+#include <misc_log_ex.h>
 
 namespace graft
 {
@@ -53,6 +54,80 @@ std::string InOutHttpBase::combine_headers()
     return s;
 }
 
+bool OutHttp::makeUri(const std::string& default_uri, std::string& ip_port, std::string& result_uri) const
+{
+    result_uri.clear();
+    std::string uri_ = default_uri;
+
+    std::string port_;
+#define V(n) std::string n##_
+        V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
+#undef V
+    while(!uri_.empty())
+    {
+        mg_str mg_uri{uri_.c_str(), uri_.size()};
+        //[scheme://[user_info@]]host[:port][/path][?query][#fragment]
+        unsigned int mg_port = 0;
+//        unsigned int& mg_port = result_port; mg_port = 0;
+        mg_str mg_scheme, mg_user_info, mg_host, mg_path, mg_query, mg_fragment;
+        int res = mg_parse_uri(mg_uri, &mg_scheme, &mg_user_info, &mg_host, &mg_port, &mg_path, &mg_query, &mg_fragment);
+        if(res<0) break;
+        if(mg_port)
+            port_ = std::to_string(mg_port);
+//        else mg_port = 80;
+        //find ip
+//        mg_reso
+
+#define V(n) n##_ = std::string(mg_##n.p, mg_##n.len)
+        V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
+#undef V
+        break;
+    }
+
+    if(!proto.empty()) scheme_ = proto;
+    if(!host.empty()) host_ = host;
+    if(!port.empty()) port_ = port;
+    if(!path.empty()) path_ = path;
+
+    {//get ip by host_
+        char buf[0x100];
+        if(!mg_resolve(host_.c_str(), buf, sizeof(buf)))
+        {
+            LOG_PRINT_L1("cannot resolve host '") << host_ << "'";
+            return false;
+        }
+        {
+            LOG_PRINT_L2("host '") << host_ << "' resolved as '" << buf << "'";
+            host_ = buf;
+//            ip_port = host_ +
+        }
+    }
+
+    std::string& url = result_uri;
+    if(!scheme_.empty())
+    {
+        url += scheme_ + "://";
+        if(!user_info_.empty()) url += user_info_ + '@';
+    }
+    ip_port = host_;
+    if(!port_.empty()) ip_port += ':' + port_;
+/*
+    url += host_;
+    if(!port_.empty()) url += ':' + port_;
+*/
+    url += ip_port;
+    if(!path_.empty())
+    {
+        if(path_[0]!='/') path_ = '/' + path_;
+        url += path_;
+    }
+    if(!query_.empty()) url += '?' + query_;
+    if(!fragment_.empty()) url += '#' + fragment_;
+//    return url;
+    return true;
+}
+
+
 std::string OutHttp::makeUri(const std::string& default_uri) const
 {
     std::string uri_ = default_uri;
@@ -70,7 +145,7 @@ std::string OutHttp::makeUri(const std::string& default_uri) const
         int res = mg_parse_uri(mg_uri, &mg_scheme, &mg_user_info, &mg_host, &mg_port, &mg_path, &mg_query, &mg_fragment);
         if(res<0) break;
         if(mg_port)
-        port_ = std::to_string(mg_port);
+            port_ = std::to_string(mg_port);
 #define V(n) n##_ = std::string(mg_##n.p, mg_##n.len)
         V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
 #undef V

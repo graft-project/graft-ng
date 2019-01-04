@@ -1301,7 +1301,8 @@ TEST_F(GraftServerTest, genericCallback)
 
     graft::supernode::request::registerForwardRequests(m_httpRouter);
     m_httpRouter.addRoute("/api/{forward:create_account|restore_account|wallet_balance|prepare_transfer|transaction_history}",METHOD_POST,{nullptr,pretend_walletnode_echo,nullptr});
-    m_copts.uri_substitutions.emplace("walletnode", std::make_tuple("http://localhost:28690/", 0, false, 0));
+//    m_copts.uri_substitutions.emplace("walletnode", std::make_tuple("http://localhost:28690/", 0, false, 0));
+    m_copts.uri_substitutions.emplace("walletnode", std::make_tuple("http://127.0.0.1:28690/", 0, false, 0));
     run();
 
     std::string post_data = "some data";
