@@ -6,6 +6,7 @@
 #include "lib/graft/handler_api.h"
 #include "lib/graft/expiring_list.h"
 #include "lib/graft/sys_info.h"
+#include "lib/graft/upstream_manager.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -203,195 +204,9 @@ public:
     { }
 };
 
-class UpstreamManager
-{
-public:
-    using OnDoneCallback = std::function<void(UpstreamSender& uss)>;
-
-    UpstreamManager(TaskManager& manager, OnDoneCallback onDoneCallback)
-        : m_manager(manager)
-        , m_onDoneCallback(onDoneCallback)
-    { init(); }
-
-    bool busy() const
-    {
-        return (m_cntUpstreamSender != m_cntUpstreamSenderDone);
-    }
-
-    void send(BaseTaskPtr bt)
-    {
-        ConnItem* connItem = &m_default;
-        {//find connItem
-            const std::string& uri = bt->getOutput().uri;
-            if(!uri.empty() && uri[0] == '$')
-            {//substitutions
-                auto it = m_conn2item.find(uri.substr(1));
-                if(it == m_conn2item.end())
-                {
-                    std::ostringstream oss;
-                    oss << "cannot find uri substitution '" << uri << "'";
-                    throw std::runtime_error(oss.str());
-                }
-                connItem = &it->second;
-            }
-        }
-        if(connItem->m_maxConnections != 0 && connItem->m_idleConnections.empty() && connItem->m_connCnt == connItem->m_maxConnections)
-        {
-            connItem->m_taskQueue.push_back(bt);
-            return;
-        }
-
-        createUpstreamSender(connItem, bt);
-    }
-private:
-    uint64_t m_cntUpstreamSender = 0;
-    uint64_t m_cntUpstreamSenderDone = 0;
-
-    class ConnItem
-    {
-    public:
-        using Active = bool;
-        using ConnectionId = uint64_t;
-
-        ConnItem() = default;
-        ConnItem(int uriId, const std::string& uri, int maxConnections, bool keepAlive, double timeout)
-            : m_uriId(uriId)
-            , m_uri(uri)
-            , m_maxConnections(maxConnections)
-            , m_keepAlive(keepAlive)
-            , m_timeout(timeout)
-        {
-        }
-        std::pair<ConnectionId, mg_connection*> getConnection()
-        {
-            //TODO: something wrong with (m_connCnt <= m_maxConnections)
-            assert(m_maxConnections == 0 || m_connCnt <= m_maxConnections);
-            std::pair<ConnectionId, mg_connection*> res = std::make_pair(0,nullptr);
-            if(!m_keepAlive)
-            {
-                ++m_connCnt;
-                return res;
-            }
-            if(!m_idleConnections.empty())
-            {
-                auto it = m_idleConnections.begin();
-                res = std::make_pair(it->second, it->first);
-                m_idleConnections.erase(it);
-            }
-            else
-            {
-                ++m_connCnt;
-                res.first = ++m_newId;
-            }
-            auto res1 = m_activeConnections.emplace(res);
-            assert(res1.second);
-            assert(m_connCnt == m_idleConnections.size() + m_activeConnections.size());
-            return res;
-        }
-
-        void releaseActive(ConnectionId connectionId, mg_connection* client)
-        {
-            assert(m_keepAlive || ((connectionId == 0) && (client == nullptr)));
-            if(!m_keepAlive) return;
-            auto it = m_activeConnections.find(connectionId);
-            assert(it != m_activeConnections.end());
-            assert(it->second == nullptr || client == nullptr || it->second == client);
-            if(client != nullptr)
-            {
-                m_idleConnections.emplace(client, it->first);
-                m_upstreamStub.setConnection(client);
-            }
-            else
-            {
-                --m_connCnt;
-            }
-            m_activeConnections.erase(it);
-        }
-
-        void onCloseIdle(mg_connection* client)
-        {
-            assert(m_keepAlive);
-            auto it = m_idleConnections.find(client);
-            assert(it != m_idleConnections.end());
-            --m_connCnt;
-            m_idleConnections.erase(it);
-        }
-
-        ConnectionId m_newId = 0;
-        int m_connCnt = 0;
-        int m_uriId;
-        std::string m_uri;
-        double m_timeout;
-        //assert(m_upstreamQueue.empty() || 0 < m_maxConn);
-        int m_maxConnections;
-        std::deque<BaseTaskPtr> m_taskQueue;
-        bool m_keepAlive = false;
-        std::map<mg_connection*, ConnectionId> m_idleConnections;
-        std::map<ConnectionId, mg_connection*> m_activeConnections;
-        UpstreamStub m_upstreamStub;
-    };
-
-    void onDone(UpstreamSender& uss, ConnItem* connItem, ConnItem::ConnectionId connectionId, mg_connection* client)
-    {
-        ++m_cntUpstreamSenderDone;
-        m_onDoneCallback(uss);
-        connItem->releaseActive(connectionId, client);
-        if(connItem->m_taskQueue.empty()) return;
-        BaseTaskPtr bt = connItem->m_taskQueue.front(); connItem->m_taskQueue.pop_front();
-        createUpstreamSender(connItem, bt);
-    }
-
-    void init()
-    {
-        int uriId = 0;
-        const ConfigOpts& opts = m_manager.getCopts();
-        m_default = ConnItem(uriId++, opts.cryptonode_rpc_address.c_str(), 0, false, opts.upstream_request_timeout);
-
-        for(auto& subs : OutHttp::uri_substitutions)
-        {
-            double timeout = std::get<3>(subs.second);
-            if(timeout < 1e-5) timeout = opts.upstream_request_timeout;
-            auto res = m_conn2item.emplace(subs.first, ConnItem(uriId, std::get<0>(subs.second), std::get<1>(subs.second), std::get<2>(subs.second), timeout));
-            assert(res.second);
-            ConnItem* connItem = &res.first->second;
-            connItem->m_upstreamStub.setCallback([connItem](mg_connection* client){ connItem->onCloseIdle(client); });
-        }
-    }
-
-    void createUpstreamSender(ConnItem* connItem, BaseTaskPtr bt)
-    {
-        auto onDoneAct = [this, connItem](UpstreamSender& uss, uint64_t connectionId, mg_connection* client)
-        {
-            onDone(uss, connItem, connectionId, client);
-        };
-
-        ++m_cntUpstreamSender;
-        UpstreamSender::Ptr uss;
-        if(connItem->m_keepAlive)
-        {
-            auto res = connItem->getConnection();
-            uss = UpstreamSender::Create(bt, onDoneAct, res.first, res.second, connItem->m_timeout);
-        }
-        else
-        {
-            uss = UpstreamSender::Create(bt, onDoneAct, connItem->m_timeout);
-        }
-
-        const std::string& uri = (connItem != &m_default || bt->getOutput().uri.empty())? connItem->m_uri : bt->getOutput().uri;
-        uss->send(m_manager, uri);
-    }
-
-    using Uri2ConnItem = std::map<std::string, ConnItem>;
-
-    OnDoneCallback m_onDoneCallback;
-
-    ConnItem m_default;
-    Uri2ConnItem m_conn2item;
-    TaskManager& m_manager; //TODO: should be removed, and be independent of TaskManager
-};
-
-TaskManager::TaskManager(const ConfigOpts& copts, SysInfoCounter& sysInfoCounter)
+TaskManager::TaskManager(const ConfigOpts& copts, UpstreamManager& upstreamManager, SysInfoCounter& sysInfoCounter)
     : m_copts(copts)
+    , m_upstreamManager(upstreamManager)
     , m_sysInfoCounter(sysInfoCounter)
     , m_gcm(this)
     , m_futurePostponeUuids(std::make_unique<ExpiringList>(1000 * copts.http_connection_timeout))
@@ -489,15 +304,13 @@ void TaskManager::checkUpstreamBlockingIO()
         bool res = m_promiseQueue->pop(pi);
         if(!res) break;
         UpstreamTask::Ptr bt = BaseTask::Create<UpstreamTask>(*this, std::move(pi));
-        assert(m_upstreamManager);
-        m_upstreamManager->send(bt);
+        sendUpstream(bt);
     }
 }
 
 void TaskManager::sendUpstream(BaseTaskPtr bt)
 {
-    assert(m_upstreamManager);
-    m_upstreamManager->send(bt);
+    m_upstreamManager.send(bt);
 }
 
 void TaskManager::onTimer(BaseTaskPtr bt)
@@ -536,7 +349,7 @@ void TaskManager::schedule(PeriodicTask* pt)
 bool TaskManager::canStop()
 {
     return (m_cntBaseTask == m_cntBaseTaskDone)
-            && (!m_upstreamManager->busy())
+            && (!m_upstreamManager.busy())
             && (m_cntJobSent == m_cntJobDone);
 }
 
@@ -856,7 +669,6 @@ void TaskManager::initThreadPool(int threadCount, int workersQueueSize, int expe
     m_promiseQueue = std::make_unique<PromiseQueue>( threadCount );
     //TODO: it is not clear how many items we need in PeriodicTaskQueue, maybe we should make it dynamically but this requires additional synchronization
     m_periodicTaskQueue = std::make_unique<PeriodicTaskQueue>(2*threadCount);
-    m_upstreamManager = std::make_unique<UpstreamManager>(*this, [this](UpstreamSender& uss){ onUpstreamDone(uss); } );
 
     LOG_PRINT_L1("Thread pool created with " << threadCount
                  << " workers with " << workersQueueSize
@@ -892,6 +704,9 @@ void TaskManager::onUpstreamDone(UpstreamSender& uss)
 
 void TaskManager::upstreamDoneProcess(UpstreamSender& uss)
 {
+    runtimeSysInfo().count_upstrm_http_req();
+    runtimeSysInfo().count_upstrm_http_req_bytes_raw(uss.getRequestSize());
+
     if(Status::Ok == uss.getStatus())
         runtimeSysInfo().count_upstrm_http_resp_ok();
     else

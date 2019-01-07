@@ -4,6 +4,7 @@
 #include "lib/graft/GraftletLoader.h"
 #include "lib/graft/sys_info.h"
 #include "lib/graft/graft_exception.h"
+#include "lib/graft/upstream_manager.h"
 
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -532,15 +533,15 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.log_trunc_to_size = (log_trunc_to_size)? log_trunc_to_size.get() : -1;
 
     const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
-    graft::OutHttp::uri_substitutions.clear();
-    std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf](auto it)
+    configOpts.uri_substitutions.clear();
+    std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf, &configOpts](auto it)
     {
         std::string name(it.first);
         std::string val(uri_subst_conf.get<std::string>(name));
 
         std::string uri; int cnt; bool keepAlive; double timeout;
         details::parseSubstitutionItem(name, val, uri, cnt, keepAlive, timeout);
-        graft::OutHttp::uri_substitutions.emplace(std::move(name), std::make_tuple(std::move(uri), cnt, keepAlive, timeout));
+        configOpts.uri_substitutions.emplace(std::move(name), std::make_tuple(std::move(uri), cnt, keepAlive, timeout));
     });
 
     return true;
