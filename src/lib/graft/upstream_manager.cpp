@@ -54,7 +54,11 @@ void UpstreamManager::ConnItem::releaseActive(ConnectionId connectionId, const I
     Bunch& bunch = getBunch(ip_port);
 
     assert(m_keepAlive || ((connectionId == 0) && (client == nullptr)));
-    if(!m_keepAlive) return;
+    if(!m_keepAlive)
+    {
+        --bunch.m_connCnt;
+        return;
+    }
     auto it = bunch.m_activeConnections.find(connectionId);
     assert(it != bunch.m_activeConnections.end());
     assert(it->second == nullptr || client == nullptr || it->second == client);
@@ -118,6 +122,7 @@ void UpstreamManager::send(BaseTaskPtr& bt)
 
     ConnItem::Bunch& bunch = connItem->getBunch(ip_port, true);
 
+    assert(connItem->m_keepAlive || bunch.m_idleConnections.empty());
     if(connItem->m_maxConnections != 0 && bunch.m_idleConnections.empty() && bunch.m_connCnt == connItem->m_maxConnections)
     {
         connItem->m_taskQueue.push_back( std::make_tuple(bt, ip_port, uri ) );
@@ -183,9 +188,9 @@ void UpstreamManager::createUpstreamSender(ConnItem* connItem, const std::string
 
     ++m_cntUpstreamSender;
     UpstreamSender::Ptr uss;
+    auto res = connItem->getConnection(ip_port);
     if(connItem->m_keepAlive)
     {
-        auto res = connItem->getConnection(ip_port);
         uss = UpstreamSender::Create(bt, onDoneAct, res.first, res.second, connItem->m_timeout);
     }
     else
