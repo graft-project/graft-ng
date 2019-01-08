@@ -3,65 +3,95 @@
 namespace graft
 {
 
-std::pair<UpstreamManager::ConnItem::ConnectionId, mg_connection*> UpstreamManager::ConnItem::getConnection()
+UpstreamManager::ConnItem::Bunch& UpstreamManager::ConnItem::getBunch(const IpPort& ip_port, bool createIfNotExists)
 {
-    assert(m_maxConnections == 0 || m_connCnt < m_maxConnections || m_connCnt == m_maxConnections && !m_idleConnections.empty());
+    assert(m_keepAlive || ip_port.empty());
+    auto b_it = m_bunches.find(ip_port);
+    assert(b_it != m_bunches.end() || createIfNotExists);
+    if(b_it == m_bunches.end())
+    {
+        auto res = m_bunches.emplace(std::make_pair(ip_port, Bunch()));
+        assert(res.second);
+        b_it = res.first;
+
+        Bunch& bunch = b_it->second;
+        bunch.m_upstreamStub.setCallback([this, ip_port](mg_connection* client){ onCloseIdle(ip_port, client); });
+    }
+    return b_it->second;
+}
+
+
+std::pair<UpstreamManager::ConnItem::ConnectionId, mg_connection*> UpstreamManager::ConnItem::getConnection(const IpPort& ip_port)
+{
+    Bunch& bunch = getBunch(ip_port, true);
+
+    assert(m_maxConnections == 0 || bunch.m_connCnt < m_maxConnections || bunch.m_connCnt == m_maxConnections && !bunch.m_idleConnections.empty());
     std::pair<ConnectionId, mg_connection*> res = std::make_pair(0,nullptr);
     if(!m_keepAlive)
     {
-        ++m_connCnt;
+        ++bunch.m_connCnt;
         return res;
     }
-    if(!m_idleConnections.empty())
+    if(!bunch.m_idleConnections.empty())
     {
-        auto it = m_idleConnections.begin();
+        auto it = bunch.m_idleConnections.begin();
         res = std::make_pair(it->second, it->first);
-        m_idleConnections.erase(it);
+        bunch.m_idleConnections.erase(it);
     }
     else
     {
-        ++m_connCnt;
+        ++bunch.m_connCnt;
         res.first = ++m_newId;
     }
-    auto res1 = m_activeConnections.emplace(res);
+    auto res1 = bunch.m_activeConnections.emplace(res);
     assert(res1.second);
-    assert(m_connCnt == m_idleConnections.size() + m_activeConnections.size());
+    assert(bunch.m_connCnt == bunch.m_idleConnections.size() + bunch.m_activeConnections.size());
     return res;
 }
 
-void UpstreamManager::ConnItem::releaseActive(ConnectionId connectionId, mg_connection* client)
+void UpstreamManager::ConnItem::releaseActive(ConnectionId connectionId, const IpPort& ip_port, mg_connection* client)
 {
+    Bunch& bunch = getBunch(ip_port);
+
     assert(m_keepAlive || ((connectionId == 0) && (client == nullptr)));
     if(!m_keepAlive) return;
-    auto it = m_activeConnections.find(connectionId);
-    assert(it != m_activeConnections.end());
+    auto it = bunch.m_activeConnections.find(connectionId);
+    assert(it != bunch.m_activeConnections.end());
     assert(it->second == nullptr || client == nullptr || it->second == client);
     if(client != nullptr)
     {
-        m_idleConnections.emplace(client, it->first);
-        m_upstreamStub.setConnection(client);
+        bunch.m_idleConnections.emplace(client, it->first);
+        bunch.m_upstreamStub.setConnection(client);
     }
     else
     {
-        --m_connCnt;
+        --bunch.m_connCnt;
     }
-    m_activeConnections.erase(it);
+    bunch.m_activeConnections.erase(it);
 }
 
-void UpstreamManager::ConnItem::onCloseIdle(mg_connection* client)
+void UpstreamManager::ConnItem::onCloseIdle(const IpPort& ip_port, mg_connection* client)
 {
+    Bunch& bunch = getBunch(ip_port);
+
     assert(m_keepAlive);
-    auto it = m_idleConnections.find(client);
-    assert(it != m_idleConnections.end());
-    --m_connCnt;
-    m_idleConnections.erase(it);
+    auto it = bunch.m_idleConnections.find(client);
+    assert(it != bunch.m_idleConnections.end());
+    --bunch.m_connCnt;
+    bunch.m_idleConnections.erase(it);
+
+    assert(bunch.m_connCnt == bunch.m_idleConnections.size() + bunch.m_activeConnections.size());
+    if(bunch.m_connCnt == 0)
+    {
+        m_bunches.erase(ip_port);
+    }
 }
 
-UpstreamManager::ConnItem* UpstreamManager::findConnItem(const std::string& inputUri)
+UpstreamManager::ConnItem* UpstreamManager::findConnItem(const Output& output, std::string& ip_port, std::string& result_uri)
 {
     ConnItem* connItem = &m_default;
     {//find connItem
-        const std::string& uri = inputUri;
+        const std::string& uri = output.uri;
         if(!uri.empty() && uri[0] == '$')
         {//substitutions
             auto it = m_conn2item.find(uri.substr(1));
@@ -74,31 +104,39 @@ UpstreamManager::ConnItem* UpstreamManager::findConnItem(const std::string& inpu
             connItem = &it->second;
         }
     }
+
+    output.makeUri( getUri(connItem, output.uri), ip_port, result_uri);
+    if(!connItem->m_keepAlive) ip_port.clear();
+
     return connItem;
 }
 
-void UpstreamManager::send(BaseTaskPtr bt)
+void UpstreamManager::send(BaseTaskPtr& bt)
 {
-    ConnItem* connItem = findConnItem(bt->getOutput().uri);
+    std::string ip_port, uri;
+    ConnItem* connItem = findConnItem(bt->getOutput(), ip_port, uri);
 
-    if(connItem->m_maxConnections != 0 && connItem->m_idleConnections.empty() && connItem->m_connCnt == connItem->m_maxConnections)
+    ConnItem::Bunch& bunch = connItem->getBunch(ip_port, true);
+
+    if(connItem->m_maxConnections != 0 && bunch.m_idleConnections.empty() && bunch.m_connCnt == connItem->m_maxConnections)
     {
-        connItem->m_taskQueue.push_back(bt);
+        connItem->m_taskQueue.push_back( std::make_tuple(bt, ip_port, uri ) );
         return;
     }
 
-    createUpstreamSender(connItem, bt);
+    createUpstreamSender(connItem, ip_port, bt, uri);
 }
 
 
-void UpstreamManager::onDone(UpstreamSender& uss, ConnItem* connItem, ConnItem::ConnectionId connectionId, mg_connection* client)
+void UpstreamManager::onDone(UpstreamSender& uss, ConnItem* connItem, const std::string& ip_port, ConnItem::ConnectionId connectionId, mg_connection* client)
 {
     ++m_cntUpstreamSenderDone;
     m_onDoneCallback(uss);
-    connItem->releaseActive(connectionId, client);
+    connItem->releaseActive(connectionId, ip_port, client);
     if(connItem->m_taskQueue.empty()) return;
-    BaseTaskPtr bt = connItem->m_taskQueue.front(); connItem->m_taskQueue.pop_front();
-    createUpstreamSender(connItem, bt);
+    std::string ip_port_v, uri; BaseTaskPtr bt;
+    std::tie(bt,ip_port_v,uri) = connItem->m_taskQueue.front(); connItem->m_taskQueue.pop_front();
+    createUpstreamSender(connItem, ip_port_v, bt, uri);
 }
 
 void UpstreamManager::init(const ConfigOpts& copts, mg_mgr* mgr, int http_callback_port, OnDoneCallback onDoneCallback)
@@ -116,8 +154,6 @@ void UpstreamManager::init(const ConfigOpts& copts, mg_mgr* mgr, int http_callba
         if(timeout < 1e-5) timeout = copts.upstream_request_timeout;
         auto res = m_conn2item.emplace(subs.first, ConnItem(uriId, std::get<0>(subs.second), std::get<1>(subs.second), std::get<2>(subs.second), timeout));
         assert(res.second);
-        ConnItem* connItem = &res.first->second;
-        connItem->m_upstreamStub.setCallback([connItem](mg_connection* client){ connItem->onCloseIdle(client); });
     }
 }
 
@@ -127,18 +163,19 @@ const std::string& UpstreamManager::getUri(ConnItem* connItem, const std::string
     return uri;
 }
 
-void UpstreamManager::createUpstreamSender(ConnItem* connItem, BaseTaskPtr bt)
+void UpstreamManager::createUpstreamSender(ConnItem* connItem, const std::string& ip_port, BaseTaskPtr bt, const std::string& uri)
 {
-    auto onDoneAct = [this, connItem](UpstreamSender& uss, uint64_t connectionId, mg_connection* client)
+    std::string ip_port_v = ip_port;
+    auto onDoneAct = [this, connItem, ip_port_v](UpstreamSender& uss, uint64_t connectionId, mg_connection* client)
     {
-        onDone(uss, connItem, connectionId, client);
+        onDone(uss, connItem, ip_port_v, connectionId, client);
     };
 
     ++m_cntUpstreamSender;
     UpstreamSender::Ptr uss;
     if(connItem->m_keepAlive)
     {
-        auto res = connItem->getConnection();
+        auto res = connItem->getConnection(ip_port);
         uss = UpstreamSender::Create(bt, onDoneAct, res.first, res.second, connItem->m_timeout);
     }
     else
@@ -146,14 +183,15 @@ void UpstreamManager::createUpstreamSender(ConnItem* connItem, BaseTaskPtr bt)
         uss = UpstreamSender::Create(bt, onDoneAct, connItem->m_timeout);
     }
 
-    const std::string& uri = getUri(connItem, bt->getOutput().uri);
     uss->send(m_mgr, m_http_callback_port, uri);
 }
 
 const std::string UpstreamManager::getUri(const std::string& inputUri)
 {
-    ConnItem* connItem = findConnItem(inputUri);
-    return getUri(connItem, inputUri);
+    Output output; output.uri = inputUri;
+    std::string ip_port, uri;
+    ConnItem* connItem = findConnItem(output, ip_port, uri);
+    return uri;
 }
 
 }//namespace graft

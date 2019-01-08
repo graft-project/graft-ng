@@ -76,7 +76,7 @@ void UpstreamSender::send(mg_mgr* mgr, int http_callback_port, const std::string
     assert(m_bt);
 
     Output& output = m_bt->getOutput();
-    std::string url = output.makeUri(def_uri);
+    std::string url = def_uri;
 
     Context::uuid_t callback_uuid = m_bt->getCtx().getId(false);
     if(!callback_uuid.is_nil())
@@ -96,6 +96,7 @@ void UpstreamSender::send(mg_mgr* mgr, int http_callback_port, const std::string
         m_upstream->user_data = this;
         m_upstream->handler = static_ev_handler<UpstreamSender>;
     }
+    LOG_PRINT_L2("connecting to url '") << url <<"'";
     mg_connection* upstream = mg::mg_connect_http_x(m_upstream, mgr, static_ev_handler<UpstreamSender>, url.c_str(),
                              extra_headers.c_str(),
                              body); //body.empty() means GET
