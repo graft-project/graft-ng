@@ -146,14 +146,24 @@ void UpstreamManager::init(const ConfigOpts& copts, mg_mgr* mgr, int http_callba
     m_onDoneCallback = onDoneCallback;
 
     int uriId = 0;
-    m_default = ConnItem(uriId++, copts.cryptonode_rpc_address.c_str(), 0, false, copts.upstream_request_timeout);
-
     for(auto& subs : copts.uri_substitutions)
     {
         double timeout = std::get<3>(subs.second);
         if(timeout < 1e-5) timeout = copts.upstream_request_timeout;
-        auto res = m_conn2item.emplace(subs.first, ConnItem(uriId, std::get<0>(subs.second), std::get<1>(subs.second), std::get<2>(subs.second), timeout));
+        auto res = m_conn2item.emplace(subs.first, ConnItem(++uriId, std::get<0>(subs.second), std::get<1>(subs.second), std::get<2>(subs.second), timeout));
         assert(res.second);
+    }
+    if(copts.default_uri_substitution_name.empty())
+    {
+        m_default = ConnItem(0, copts.cryptonode_rpc_address.c_str(), 0, false, copts.upstream_request_timeout);
+    }
+    else
+    {
+        auto it = m_conn2item.find(copts.default_uri_substitution_name);
+        assert(it != m_conn2item.end());
+        m_default = it->second;
+        m_default.m_uriId = 0;
+        m_conn2item.erase(it);
     }
 }
 

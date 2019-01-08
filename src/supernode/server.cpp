@@ -543,6 +543,18 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         details::parseSubstitutionItem(name, val, uri, cnt, keepAlive, timeout);
         configOpts.uri_substitutions.emplace(std::move(name), std::make_tuple(std::move(uri), cnt, keepAlive, timeout));
     });
+    if(configOpts.cryptonode_rpc_address[0] == '$')
+    {
+        std::string def_subst_name = configOpts.cryptonode_rpc_address.substr(1);
+        auto it = configOpts.uri_substitutions.find(def_subst_name);
+        if(it == configOpts.uri_substitutions.end())
+        {
+            std::ostringstream oss; oss << "cannot find substitution '" << configOpts.cryptonode_rpc_address << "'";
+            throw std::runtime_error(oss.str());
+        }
+        configOpts.cryptonode_rpc_address = std::get<0>(it->second);
+        configOpts.default_uri_substitution_name = def_subst_name;
+    }
 
     return true;
 }
