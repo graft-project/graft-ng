@@ -374,7 +374,7 @@ void initGraftletDirs(int argc, const char** argv, const std::string& dirs_opt, 
 void parseSubstitutionItem(const std::string& name, const std::string& val, std::string& uri, int& cnt, bool& keepAlive, double& timeout)
 {
     std::string s = trim_comments(val);
-    std::regex regex(R"(^\s*([^,\s]+)\s*(,\s*(\d+)\s*(,\s*(true|false|0|1)\s*(,\s*(\d+\.?\d*)\s*)?)?)?\s*$)");
+    std::regex regex(R"(^\s*([^,\s]+)\s*(,\s*(\d+\.?\d*)\s*(,\s*(\d+|(keepAlive\s*(:\s*(\d+))?)))?)?\s*$)");
     std::smatch m;
     if(!std::regex_match(s, m, regex))
     {
@@ -387,11 +387,18 @@ void parseSubstitutionItem(const std::string& name, const std::string& val, std:
     uri = m[1];
     cnt = 0; keepAlive = false; timeout = 0;
     if(!m[3].matched) return;
-    cnt = std::stoi(m[3]);
-    if(!m[5].matched) return;
-    if(m[5] == "true" || m[5] == "1") keepAlive = true;
+    timeout = std::stod(m[3]);
+    if(!m[4].matched) return;
+    assert(m[5].matched);
+    if(!m[6].matched)
+    {
+        cnt = std::stoi(m[5]);
+        return;
+    }
+    keepAlive = true;
     if(!m[7].matched) return;
-    timeout = std::stod(m[7]);
+    assert(m[8].matched);
+    cnt = std::stoi(m[8]);
 }
 
 } //namespace details
