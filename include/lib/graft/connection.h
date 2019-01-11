@@ -72,6 +72,13 @@ public:
         : m_bt(bt), m_onDone(onDone), m_keepAlive(true), m_connectioId(connectionId), m_upstream(upstream), m_timeout(timeout)
     { }
 
+    UpstreamSender(const BaseTaskPtr& bt, std::string error, std::function<void(UpstreamSender& uss)> onDoneError) : m_bt(bt)
+    {
+        setError(Status::Error, error);
+        onDoneError(*this);
+        releaseItself();
+    }
+
     BaseTaskPtr& getTask() { return m_bt; }
 
     void send(mg_mgr* mgr, int http_callback_port, const std::string& uri);

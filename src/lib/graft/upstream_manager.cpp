@@ -109,7 +109,13 @@ UpstreamManager::ConnItem* UpstreamManager::findConnItem(const Output& output, s
         }
     }
 
-    output.makeUri( getUri(connItem, output.uri), ip_port, result_uri);
+    bool res = output.makeUri( getUri(connItem, output.uri), ip_port, result_uri, m_resolveCache);
+    if(!res)
+    {
+        std::ostringstream oss;
+        oss << "cannot resolve host with uri '" << getUri(connItem, output.uri) << "' host '" << output.host << "'";
+        throw std::runtime_error(oss.str());
+    }
     if(!connItem->m_keepAlive) ip_port.clear();
 
     return connItem;
@@ -118,7 +124,17 @@ UpstreamManager::ConnItem* UpstreamManager::findConnItem(const Output& output, s
 void UpstreamManager::send(BaseTaskPtr& bt)
 {
     std::string ip_port, uri;
-    ConnItem* connItem = findConnItem(bt->getOutput(), ip_port, uri);
+    ConnItem* connItem = nullptr;
+    try
+    {
+        connItem = findConnItem(bt->getOutput(), ip_port, uri);
+    }
+    catch(std::exception& e)
+    {
+        //uss reports error, and dies
+        UpstreamSender::Ptr uss = UpstreamSender::Create(bt, e.what(), m_onDoneCallback);
+        return;
+    }
 
     ConnItem::Bunch& bunch = connItem->getBunch(ip_port, true);
 
@@ -201,11 +217,17 @@ void UpstreamManager::createUpstreamSender(ConnItem* connItem, const std::string
     uss->send(m_mgr, m_http_callback_port, uri);
 }
 
-const std::string UpstreamManager::getUri(const std::string& inputUri)
+const std::string UpstreamManager::testGetUri(const Output& output)
 {
-    Output output; output.uri = inputUri;
     std::string ip_port, uri;
-    ConnItem* connItem = findConnItem(output, ip_port, uri);
+    try
+    {
+        ConnItem* connItem = findConnItem(output, ip_port, uri);
+    }
+    catch(std::exception&)
+    {
+        return getUri(&m_default, output.uri);
+    }
     return uri;
 }
 

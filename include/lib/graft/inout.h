@@ -207,9 +207,10 @@ namespace graft
          * \param default_uri - one of uri from lines in [upstream] of Config.ini.
          * \param ip_port - output of resulting "ip:port".
          * \param result_uri - output of resulting uri.
+         * \param resolve_cache - a cache with resolved host to ip map.
          * \return true on success or false otherwise
          */
-        bool makeUri(const std::string& default_uri, std::string& ip_port, std::string& result_uri) const;
+        bool makeUri(const std::string& default_uri, std::string& ip_port, std::string& result_uri, std::unordered_map<std::string,std::string>& resolve_cache) const;
 
         std::string port;
         std::string path;

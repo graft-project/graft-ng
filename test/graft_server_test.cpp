@@ -164,21 +164,28 @@ public:
         copts.uri_substitutions.insert({subst_name, {subst_uri, 0, false, 0}});
         graft::UpstreamManager::init(copts, nullptr, 0, nullptr);
     }
-    const std::string getUri(const std::string& inputUri)
+    const std::string testGetUri(const graft::Output& output)
     {
-        return graft::UpstreamManager::getUri(inputUri);
+        return graft::UpstreamManager::testGetUri(output);
+    }
+    std::unordered_map<std::string,std::string>& getResolveCache()
+    {
+        return m_resolveCache;
     }
 };
 
 } //namespace
 
-#if 0
 TEST(InOut, makeUri)
 {
     {
+        std::unordered_map<std::string,std::string> resolve_cache;
         graft::Output output;
         std::string default_uri = "http://123.123.123.123:1234";
-        std::string url = output.makeUri(default_uri);
+        std::string ip_port, url;
+        bool res = output.makeUri(default_uri, ip_port, url, resolve_cache);
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "123.123.123.123:1234");
         EXPECT_EQ(url, default_uri);
     }
     {
@@ -187,48 +194,67 @@ TEST(InOut, makeUri)
         output.proto = "https";
         output.port = "4321";
         output.uri = "$my_ip";
-        std::string url = output.makeUri(umt.getUri(output.uri));
+        std::string ip_port, url;
+        bool res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "1.2.3.4:" + output.port);
         EXPECT_EQ(url, output.proto + "://1.2.3.4:" + output.port);
     }
     {
         UpstreamManagerTest umt; umt.init("my_path", "http://site.com:1234/endpoint?q=1&n=2");
+        umt.getResolveCache().emplace("site.com","site.com");
         graft::Output output;
         output.proto = "https";
         output.port = "4321";
         output.uri = "$my_path";
-        std::string url = output.makeUri(umt.getUri(output.uri));
+        std::string ip_port, url;
+        bool res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "site.com:" + output.port);
         EXPECT_EQ(url, "https://site.com:4321/endpoint?q=1&n=2");
     }
     {
         UpstreamManagerTest umt; umt.init("my_path", "/endpoint?q=1&n=2");
+        umt.getResolveCache().emplace("mysite.com","mysite.com");
         graft::Output output;
         output.proto = "https";
         output.host = "mysite.com";
         output.port = "4321";
         output.uri = "$my_path";
-        std::string url = output.makeUri(umt.getUri(output.uri));
+        std::string ip_port, url;
+        bool res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "mysite.com:" + output.port);
         EXPECT_EQ(url, "https://mysite.com:4321/endpoint?q=1&n=2");
     }
     {
         UpstreamManagerTest umt; umt.init("something", "1.2.3.4", "localhost:28881");
+        umt.getResolveCache().emplace("aaa.bbb","aaa.bbb");
+
         graft::Output output;
         output.path = "json_rpc";
-        std::string url = output.makeUri(umt.getUri(output.uri));
-        EXPECT_EQ(url, "localhost:28881/json_rpc");
+        std::string ip_port, url;
+        bool res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "127.0.0.1:28881");
+        EXPECT_EQ(url, "127.0.0.1:28881/json_rpc");
 
         output.path = "/json_rpc";
         output.proto = "https";
-        url = output.makeUri(umt.getUri(output.uri));
-        EXPECT_EQ(url, "https://localhost:28881/json_rpc");
+        res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "127.0.0.1:28881");
+        EXPECT_EQ(url, "https://127.0.0.1:28881/json_rpc");
 
         output.path = "/json_rpc";
         output.proto = "https";
         output.uri = "http://aaa.bbb:12345/something";
-        url = output.makeUri(umt.getUri(output.uri));
+        res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "aaa.bbb:12345");
         EXPECT_EQ(url, "https://aaa.bbb:12345/json_rpc");
     }
 }
-#endif
 
 TEST(Context, simple)
 {

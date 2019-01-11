@@ -20,7 +20,8 @@ public:
 
     void send(BaseTaskPtr& bt);
 protected:
-    const std::string getUri(const std::string& inputUri);
+    //testGetUri for test only
+    const std::string testGetUri(const Output& output);
 private:
     class ConnItem
     {
@@ -86,6 +87,8 @@ private:
     Uri2ConnItem m_conn2item;
     mg_mgr* m_mgr = nullptr;
     int m_http_callback_port;
+protected:
+    std::unordered_map<std::string,std::string> m_resolveCache;
 };
 
 }//namespace graft

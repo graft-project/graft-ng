@@ -54,7 +54,7 @@ std::string InOutHttpBase::combine_headers()
     return s;
 }
 
-bool OutHttp::makeUri(const std::string& default_uri, std::string& ip_port, std::string& result_uri) const
+bool OutHttp::makeUri(const std::string& default_uri, std::string& ip_port, std::string& result_uri, std::unordered_map<std::string,std::string>& resolve_cache) const
 {
     result_uri.clear();
     std::string uri_ = default_uri;
@@ -86,16 +86,21 @@ bool OutHttp::makeUri(const std::string& default_uri, std::string& ip_port, std:
     if(!path.empty()) path_ = path;
 
     {//get ip by host_
-        char buf[0x100];
-        if(!mg_resolve(host_.c_str(), buf, sizeof(buf)))
+        auto it = resolve_cache.find(host_);
+        if(it == resolve_cache.end())
         {
-            LOG_PRINT_L1("cannot resolve host '") << host_ << "'";
-            return false;
-        }
-        {
+            char buf[0x100];
+            if(!mg_resolve(host_.c_str(), buf, sizeof(buf)))
+            {
+                LOG_PRINT_L1("cannot resolve host '") << host_ << "'";
+                return false;
+            }
             LOG_PRINT_L2("host '") << host_ << "' resolved as '" << buf << "'";
-            host_ = buf;
+            auto res = resolve_cache.emplace(host_, std::string(buf));
+            assert(res.second);
+            it = res.first;
         }
+        host_ = it->second;
     }
 
     std::string& url = result_uri;
