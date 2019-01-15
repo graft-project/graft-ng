@@ -181,6 +181,7 @@ add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
 ### graft library
 add_library(graft STATIC
     ${PROJECT_SOURCE_DIR}/src/lib/graft/common/utils.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/cryptmsg.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/backtrace.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/blacklist.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/connection.cpp
@@ -376,6 +377,7 @@ if (OPT_BUILD_TESTS)
             )
 
         add_executable(supernode_test
+            ${PROJECT_SOURCE_DIR}/test/cryptmsg_test.cpp
             ${PROJECT_SOURCE_DIR}/test/upstream_test.cpp
             ${PROJECT_SOURCE_DIR}/test/blacklist_test.cpp
             ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
