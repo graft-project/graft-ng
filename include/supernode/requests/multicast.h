@@ -31,5 +31,24 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(MulticastResponseToCryptonodeJsonRpc, Mult
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE(MulticastResponseFromCryptonodeJsonRpc, MulticastResponseFromCryptonode);
 
+bool createMulticastRequest(const std::vector<std::string> &receiver_addresses,
+                            const std::string &sender_address,
+                            const std::string &callback_uri,
+                            const std::string &data,
+                            const std::string &path,
+                            graft::Output& output)
+{
+    MulticastRequestJsonRpc req;
+    req.method = "multicast";
+    req.params.receiver_addresses = receiver_addresses;
+    req.params.sender_address = sender_address;
+    req.params.callback_uri = callback_uri;
+    req.params.data = data;
+    output.load(req);
+    output.path = path;
+    output.uri = DEFAULT_COMMUNICATION_PROTOCOL;
+    return true;
+}
+
 }
 

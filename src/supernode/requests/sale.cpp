@@ -110,21 +110,22 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     Output innerOut;
     innerOut.loadT<serializer::JSON_B64>(sdm);
 
-    MulticastRequestJsonRpc cryptonode_req;
-
-    for (const auto & sn : authSample) {
-        cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
+    std::vector<std::string> addresses;
+    for (const auto & sn : authSample)
+    {
+        addresses.push_back(sn->walletAddress());
     }
 
     MINFO("processed, payment_id: " << payment_id
            << ", block: " << data.BlockNumber
            << ", auth sample: [" << authSample << "]");
 
-    cryptonode_req.method = "multicast";
-    cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side
-    cryptonode_req.params.data = innerOut.data();
-    output.load(cryptonode_req);
-    output.path = "/json_rpc/rta";
+    if (createMulticastRequest(addresses, supernode->walletAddress(),
+                               "/cryptonode/sale", // "/method" appended on cryptonode side
+                               innerOut.data(), "/json_rpc/rta", output))
+    {
+        return errorInternalError(MESSAGE_CANT_CREATE_REQUEST, output);
+    }
     MDEBUG("multicasting: " << output.data());
     MDEBUG(__FUNCTION__ << " end");
 

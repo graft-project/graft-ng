@@ -198,6 +198,7 @@ public:
     TaskManager& operator = (const TaskManager&) = delete;
 
     void sendUpstream(BaseTaskPtr bt);
+    void sendRoute(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3,
             std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max());
 

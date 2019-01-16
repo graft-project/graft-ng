@@ -8,6 +8,10 @@
 
 #include <chrono>
 
+static const std::string CRYPTONOTE_BASED_PROTOCOL;
+static const std::string NEW_TEST_PROTOCOL("@graftprotocol");
+static const std::string DEFAULT_COMMUNICATION_PROTOCOL(NEW_TEST_PROTOCOL);
+
 GRAFT_DEFINE_IO_STRUCT(ErrorResponse,
     (int64, code),
     (std::string, message)

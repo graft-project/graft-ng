@@ -21,6 +21,7 @@ static const std::string MESSAGE_RTA_FAILED("Payment is already failed.");
 static const std::string MESSAGE_ADDRESS_INVALID("Address in invalid.");
 static const std::string MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE("Can't build auth sample.");
 static const std::string MESSAGE_INVALID_TRANSACTION("Can't parse transaction");
+static const std::string MESSAGE_CANT_CREATE_REQUEST("Can't create request to network.");
 
 //Context Keys
 static const std::string CONTEXT_KEY_SALE_DETAILS(":saledetails");

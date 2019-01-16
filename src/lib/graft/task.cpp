@@ -500,6 +500,12 @@ void TaskManager::sendUpstream(BaseTaskPtr bt)
     m_upstreamManager->send(bt);
 }
 
+void TaskManager::sendRoute(BaseTaskPtr bt)
+{
+//    assert(m_routeManager);
+//    m_routeManager->send(bt);
+}
+
 void TaskManager::onTimer(BaseTaskPtr bt)
 {
     assert(dynamic_cast<PeriodicTask*>(bt.get()));
@@ -783,7 +789,15 @@ void TaskManager::processForward(BaseTaskPtr bt)
 {
     assert(Status::Forward == bt->getLastStatus());
     LOG_PRINT_RQS_BT(3,bt,"Sending request to CryptoNode");
-    sendUpstream(bt);
+    const std::string& uri = bt->getOutput().uri;
+    if (uri.empty() || uri[0] == '$')
+    {
+        sendUpstream(bt);
+    }
+    else if (!uri.empty() && uri[0] == '@')
+    {
+        sendRoute(bt);
+    }
 }
 
 void TaskManager::processOk(BaseTaskPtr bt)
