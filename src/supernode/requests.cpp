@@ -3,6 +3,7 @@
 #include "supernode/requests/sale_status.h"
 #include "supernode/requests/reject_sale.h"
 #include "supernode/requests/get_info.h"
+#include "supernode/requests/get_wallet_address.h"
 
 #include "supernode/requests/sale_details.h"
 #include "supernode/requests/pay.h"
@@ -33,6 +34,7 @@ void registerRTARequests(graft::Router &router)
     registerRejectPayRequest(router);
     registerAuthorizeRtaTxRequests(router);
     registerSendSupernodeAnnounceRequest(router);
+    registerGetWalletAddressRequest(router);
 }
 
 void registerWalletApiRequests(graft::Router &router)
