@@ -16,11 +16,13 @@ class Supernode : public GraftServer
         // runtime parameters.
         // path to watch-only wallets (supernodes)
         std::string watchonly_wallets_path;
+        std::string wallet_public_address;
         // testnet flag
         bool testnet;
     };
 
     void prepareDataDirAndSupernodes();
+    void prepareWalletKey(std::string& w_str);
     void startSupernodePeriodicTasks();
     void setHttpRouters(ConnectionManager& httpcm);
     void setCoapRouters(ConnectionManager& coapcm);

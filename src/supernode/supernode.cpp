@@ -7,6 +7,10 @@
 #include "supernode/requests/send_supernode_announce.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+#include "lib/graft/graft_exception.h"
+#include "cryptonote_basic/cryptonote_basic_impl.h"
+#include "cryptonote_protocol/blobdatatype.h"
+#include "file_io_utils.h"
 
 #include <boost/property_tree/ini_parser.hpp>
 
@@ -50,8 +54,74 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     m_configEx.stake_wallet_name = server_conf.get<std::string>("stake-wallet-name", "stake-wallet");
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
+    m_configEx.wallet_public_address = server_conf.get<std::string>("wallet-public-address", "");
     m_configEx.testnet = server_conf.get<bool>("testnet", false);
     return res;
+}
+
+void Supernode::prepareWalletKey(std::string& w_str)
+{
+    w_str.clear();
+    if(m_configEx.wallet_public_address.empty()) return;
+
+    boost::filesystem::path data_path(m_configEx.data_dir);
+
+    cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
+    if(!cryptonote::get_account_address_from_str(acc, m_configEx.testnet, m_configEx.wallet_public_address))
+    {
+        std::ostringstream oss;
+        oss << "invalid wallet-public-address '" << m_configEx.wallet_public_address << "'";
+        throw graft::exit_error(oss.str());
+    }
+
+    crypto::secret_key w;
+    boost::filesystem::path wallet_keys_file = data_path / "wallet.keys";
+    if (!boost::filesystem::exists(wallet_keys_file))
+    {
+        LOG_PRINT_L0("file '") << wallet_keys_file << "' not found. Generating the keys";
+        crypto::public_key W;
+        crypto::generate_keys(W, w);
+        //save secret key
+        boost::filesystem::path wallet_keys_file_tmp = wallet_keys_file;
+        wallet_keys_file_tmp += ".tmp";
+        w_str = epee::string_tools::pod_to_hex(w);
+        bool r = epee::file_io_utils::save_string_to_file(wallet_keys_file_tmp.string(), w_str);
+        if(!r)
+        {
+            std::ostringstream oss;
+            oss << "Cannot write to file '" << wallet_keys_file_tmp << "'";
+            throw graft::exit_error(oss.str());
+        }
+        boost::system::error_code errcode;
+        boost::filesystem::rename(wallet_keys_file_tmp, wallet_keys_file, errcode);
+        assert(!errcode);
+    }
+    else
+    {
+        LOG_PRINT_L1(" Reading wallet keys file '") << wallet_keys_file << "'";
+        bool r = epee::file_io_utils::load_file_to_string(wallet_keys_file.string(), w_str);
+        if(!r)
+        {
+            std::ostringstream oss;
+            oss << "Cannot read file '" << wallet_keys_file << "'";
+            throw graft::exit_error(oss.str());
+        }
+
+        cryptonote::blobdata w_data;
+        bool ok = epee::string_tools::parse_hexstr_to_binbuff(w_str, w_data) || w_data.size() != sizeof(crypto::secret_key);
+        if(ok)
+        {
+            w = *reinterpret_cast<const crypto::secret_key*>(w_data.data());
+            crypto::public_key W;
+            ok = crypto::secret_key_to_public_key(w,W);
+        }
+        if(!ok)
+        {
+            std::ostringstream oss;
+            oss << "Corrupted data in the file '" << wallet_keys_file << "'";
+            throw graft::exit_error(oss.str());
+        }
+    }
 }
 
 void Supernode::prepareDataDirAndSupernodes()
@@ -112,6 +182,9 @@ void Supernode::prepareDataDirAndSupernodes()
     }
     LOG_PRINT_L0("supernode list loaded");
 
+    std::string w_str;
+    prepareWalletKey(w_str);
+
     // add our supernode as well, it wont be added from announce;
     fsl->add(supernode);
 
@@ -122,6 +195,8 @@ void Supernode::prepareDataDirAndSupernodes()
     ctx.global["testnet"] = m_configEx.testnet;
     ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
+    ctx.global["wallet_public_address"] = m_configEx.wallet_public_address;
+    ctx.global["wallet_private_key"] = w_str;
 }
 
 void Supernode::initMisc(ConfigOpts& configOpts)
