@@ -22,7 +22,7 @@ class Supernode : public GraftServer
     };
 
     void prepareDataDirAndSupernodes();
-    void prepareWalletKey(std::string& w_str);
+    void prepareWalletKey(std::string& id_key);
     void startSupernodePeriodicTasks();
     void setHttpRouters(ConnectionManager& httpcm);
     void setCoapRouters(ConnectionManager& coapcm);

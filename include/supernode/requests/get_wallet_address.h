@@ -36,7 +36,7 @@ namespace graft::supernode::request {
 GRAFT_DEFINE_IO_STRUCT_INITED(GetWalletAddressResponse,
                               (bool, testnet, false),
                               (std::string, wallet_public_address, ""),
-                              (std::string, private_key, "")
+                              (std::string, id_key, "")
                               );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(GetWalletAddressErrorResponse,

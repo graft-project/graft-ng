@@ -49,11 +49,11 @@ graft::Status getWalletAddressHandler(const Router::vars_t& vars, const graft::I
         output.load(res);
         return graft::Status::Ok;
     }
-    std::string w_str = ctx.global["wallet_private_key"];
+    std::string id_key = ctx.global["wallet_id_key"];
     GetWalletAddressResponse res;
     res.testnet = testnet;
     res.wallet_public_address = wallet_public_address;
-    res.private_key = w_str;
+    res.id_key = id_key;
     output.load(res);
     return graft::Status::Ok;
 }

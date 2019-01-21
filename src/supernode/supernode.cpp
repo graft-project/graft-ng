@@ -59,9 +59,9 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     return res;
 }
 
-void Supernode::prepareWalletKey(std::string& w_str)
+void Supernode::prepareWalletKey(std::string& id_key)
 {
-    w_str.clear();
+    id_key.clear();
     if(m_configEx.wallet_public_address.empty()) return;
 
     boost::filesystem::path data_path(m_configEx.data_dir);
@@ -74,17 +74,17 @@ void Supernode::prepareWalletKey(std::string& w_str)
         throw graft::exit_error(oss.str());
     }
 
-    crypto::secret_key w;
+    crypto::public_key W;
     boost::filesystem::path wallet_keys_file = data_path / "wallet.keys";
     if (!boost::filesystem::exists(wallet_keys_file))
     {
         LOG_PRINT_L0("file '") << wallet_keys_file << "' not found. Generating the keys";
-        crypto::public_key W;
+        crypto::secret_key w;
         crypto::generate_keys(W, w);
         //save secret key
         boost::filesystem::path wallet_keys_file_tmp = wallet_keys_file;
         wallet_keys_file_tmp += ".tmp";
-        w_str = epee::string_tools::pod_to_hex(w);
+        std::string w_str = epee::string_tools::pod_to_hex(w);
         bool r = epee::file_io_utils::save_string_to_file(wallet_keys_file_tmp.string(), w_str);
         if(!r)
         {
@@ -99,6 +99,7 @@ void Supernode::prepareWalletKey(std::string& w_str)
     else
     {
         LOG_PRINT_L1(" Reading wallet keys file '") << wallet_keys_file << "'";
+        std::string w_str;
         bool r = epee::file_io_utils::load_file_to_string(wallet_keys_file.string(), w_str);
         if(!r)
         {
@@ -107,12 +108,12 @@ void Supernode::prepareWalletKey(std::string& w_str)
             throw graft::exit_error(oss.str());
         }
 
+        crypto::secret_key w;
         cryptonote::blobdata w_data;
         bool ok = epee::string_tools::parse_hexstr_to_binbuff(w_str, w_data) || w_data.size() != sizeof(crypto::secret_key);
         if(ok)
         {
             w = *reinterpret_cast<const crypto::secret_key*>(w_data.data());
-            crypto::public_key W;
             ok = crypto::secret_key_to_public_key(w,W);
         }
         if(!ok)
@@ -122,6 +123,8 @@ void Supernode::prepareWalletKey(std::string& w_str)
             throw graft::exit_error(oss.str());
         }
     }
+
+    id_key = epee::string_tools::pod_to_hex(W);
 }
 
 void Supernode::prepareDataDirAndSupernodes()
@@ -182,8 +185,8 @@ void Supernode::prepareDataDirAndSupernodes()
     }
     LOG_PRINT_L0("supernode list loaded");
 
-    std::string w_str;
-    prepareWalletKey(w_str);
+    std::string id_key;
+    prepareWalletKey(id_key);
 
     // add our supernode as well, it wont be added from announce;
     fsl->add(supernode);
@@ -196,7 +199,7 @@ void Supernode::prepareDataDirAndSupernodes()
     ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
     ctx.global["wallet_public_address"] = m_configEx.wallet_public_address;
-    ctx.global["wallet_private_key"] = w_str;
+    ctx.global["wallet_id_key"] = id_key;
 }
 
 void Supernode::initMisc(ConfigOpts& configOpts)
