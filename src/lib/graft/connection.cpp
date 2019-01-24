@@ -87,15 +87,15 @@ void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
         if(it != output.headers.end())
         {
             std::ostringstream oss;
-            oss << "Warning, X-Callback header exists and will be overwritten. '" << it->second << "' will be replaced by '" << ss.str() << "'";
+            oss << "X-Callback header exists and will be overwritten. '" << it->second << "' will be replaced by '" << ss.str() << "'";
             if(ClientTask* ct = dynamic_cast<ClientTask*>(m_bt.get()))
             {
 
-                LOG_PRINT_CLN(1, ct->m_client, oss.str());
+                LOG_PRINT_CLN(0, ct->m_client, oss.str());
             }
             else
             {
-                LOG_PRINT_L1(oss.str());
+                LOG_PRINT_L0(oss.str());
             }
             it->second = ss.str();
         }
