@@ -82,7 +82,27 @@ void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
         }
         std::stringstream ss;
         ss << "http://0.0.0.0:" << mg_port << "/callback/" << boost::uuids::to_string(callback_uuid);
-        output.headers.emplace_back(std::make_pair("X-Callback", ss.str()));
+
+        auto it = std::find_if(output.headers.begin(), output.headers.end(), [](auto& v)->bool { v.first == "X-Callback"; } );
+        if(it != output.headers.end())
+        {
+            std::ostringstream oss;
+            oss << "Warning, X-Callback header exists and will be overwritten. '" << it->second << "' will be replaced by '" << ss.str() << "'";
+            if(ClientTask* ct = dynamic_cast<ClientTask*>(m_bt.get()))
+            {
+
+                LOG_PRINT_CLN(1, ct->m_client, oss.str());
+            }
+            else
+            {
+                LOG_PRINT_L1(oss.str());
+            }
+            it->second = ss.str();
+        }
+        else
+        {
+            output.headers.emplace_back(std::make_pair("X-Callback", ss.str()));
+        }
     }
     std::string extra_headers = output.combine_headers();
     if(extra_headers.empty())
