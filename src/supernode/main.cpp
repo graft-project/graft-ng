@@ -52,25 +52,14 @@ int main(int argc, const char** argv)
         bool res = supernode.run(argc, argv);
         if(!res) return -2;
     } catch (const graft::exit_error& e) {
-        std::ostringstream oss;
-        oss << "The program is terminated because of error: " << e.what();
-        LOG_PRINT_L0(oss.str());
-        std::cerr << oss.str() << std::endl;
+        LOG_ERROR("The program is terminated because of error: ") << e.what();
         return -1;
     } catch (const std::exception & e) {
-        std::ostringstream oss;
-        oss << "Exception thrown: " << e.what();
-        LOG_PRINT_L0(oss.str());
-        std::cerr << oss.str() << std::endl;
+        LOG_ERROR("Exception thrown: ") << e.what();
         throw;
-        return -1;
     } catch(...) {
-        std::ostringstream oss;
-        oss << "Exception of unknown type!";
-        LOG_PRINT_L0(oss.str());
-        std::cerr << oss.str() << std::endl;
+        LOG_ERROR("Exception of unknown type!");
         throw;
-        return -1;
     }
 
     return 0;

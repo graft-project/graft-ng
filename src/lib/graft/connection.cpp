@@ -380,7 +380,7 @@ void HttpConnectionManager::bind(Looper& looper)
     if(!nc_http)
     {
         std::ostringstream oss;
-        oss << "Cannot bind to " << opts.http_address << ". Please check that the address is valid and the port is not used.";
+        oss << "Cannot bind to " << opts.http_address << ". Please check if the address is valid and the port is not used.";
         throw exit_error(oss.str());
     }
     nc_http->user_data = this;
@@ -398,7 +398,7 @@ void CoapConnectionManager::bind(Looper& looper)
     if(!nc_coap)
     {
         std::ostringstream oss;
-        oss << "Cannot bind to " << opts.coap_address << ". Please check that the address is valid and the port is not used.";
+        oss << "Cannot bind to " << opts.coap_address << ". Please check if the address is valid and the port is not used.";
         throw exit_error(oss.str());
     }
     nc_coap->user_data = this;
