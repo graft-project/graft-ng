@@ -321,6 +321,8 @@ add_executable(supernode
     ${PROJECT_SOURCE_DIR}/src/supernode/main.cpp
     )
 
+set_target_properties(supernode PROPERTIES LINK_FLAGS "-Wl,-E")
+
 target_include_directories(supernode PRIVATE
     ${GRAFT_INCLUDE_DIRS}
     )
