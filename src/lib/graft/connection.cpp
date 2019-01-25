@@ -377,7 +377,12 @@ void HttpConnectionManager::bind(Looper& looper)
     const ConfigOpts& opts = looper.getCopts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
-    if(!nc_http) throw std::runtime_error("Cannot bind to " + opts.http_address);
+    if(!nc_http)
+    {
+        std::ostringstream oss;
+        oss << "Cannot bind to " << opts.http_address << ". Please check if the address is valid and the port is not used.";
+        throw exit_error(oss.str());
+    }
     nc_http->user_data = this;
     mg_set_protocol_http_websocket(nc_http);
 }
@@ -390,7 +395,12 @@ void CoapConnectionManager::bind(Looper& looper)
     const ConfigOpts& opts = looper.getCopts();
 
     mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
-    if(!nc_coap) throw std::runtime_error("Cannot bind to " + opts.coap_address);
+    if(!nc_coap)
+    {
+        std::ostringstream oss;
+        oss << "Cannot bind to " << opts.coap_address << ". Please check if the address is valid and the port is not used.";
+        throw exit_error(oss.str());
+    }
     nc_coap->user_data = this;
     mg_set_protocol_coap(nc_coap);
 }
