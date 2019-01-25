@@ -362,7 +362,10 @@ public:
     Local local;
     Global global;
 
-    void setCallback() const { getId(); }
+    void setCallback() { m_setXCallbackHeader = true; }
+    bool isCallbackSet() const { return m_setXCallbackHeader; }
+    void resetCallback() { m_setXCallbackHeader = false; }
+
     uuid_t getId(bool generateIfNil = true) const
     {
         if(generateIfNil && m_uuid.is_nil()) m_uuid = boost::uuids::random_generator()();
@@ -374,6 +377,7 @@ public:
     HandlerAPI* handlerAPI() { return GlobalFriend::handlerAPI(global); }
 
 private:
+    bool m_setXCallbackHeader = false;
     mutable uuid_t m_uuid;
     uuid_t m_nextUuid;
 };

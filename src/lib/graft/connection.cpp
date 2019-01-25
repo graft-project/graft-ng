@@ -69,9 +69,12 @@ void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
     Output& output = m_bt->getOutput();
     std::string url = output.makeUri(def_uri);
 
-    Context::uuid_t callback_uuid = m_bt->getCtx().getId(false);
-    if(!callback_uuid.is_nil())
-    {//add extra header
+    if(m_bt->getCtx().isCallbackSet())
+    {
+        m_bt->getCtx().resetCallback();
+        Context::uuid_t callback_uuid = m_bt->getCtx().getId();
+        assert(!callback_uuid.is_nil());
+        //add extra header
         unsigned int mg_port = 0;
         {
             std::string uri = opts.http_address;
