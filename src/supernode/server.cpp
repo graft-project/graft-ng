@@ -195,28 +195,30 @@ GraftServer::RunRes GraftServer::run()
     //shutdown
     int_handler = [this, &res](int sig_num)
     {
-        LOG_PRINT_L0("Stopping server");
         stop();
         res = RunRes::SignalShutdown;
     };
-
     //terminate
     term_handler = [this, &res](int sig_num)
     {
-        LOG_PRINT_L0("Force stopping server");
         stop(true);
         res = RunRes::SignalTerminate;
     };
-
     //restart
     hup_handler = [this, &res](int sig_num)
     {
-        LOG_PRINT_L0("Restarting server");
         stop();
         res = RunRes::SignalRestart;
     };
 
     serve();
+
+    switch(res)
+    {
+    case RunRes::SignalShutdown: LOG_PRINT_L0("Server shutdown"); break;
+    case RunRes::SignalTerminate: LOG_PRINT_L0("Server forced shutdown"); break;
+    case RunRes::SignalRestart: LOG_PRINT_L0("Restarting server"); break;
+    }
 
     return res;
 }
