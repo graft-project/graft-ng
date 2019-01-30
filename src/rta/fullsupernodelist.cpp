@@ -130,6 +130,8 @@ FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     , m_tp(new utils::ThreadPool())
 {
     m_refresh_counter = 0;
+
+    m_rpc_client.send_supernode_stake_txs();
 }
 
 FullSupernodeList::~FullSupernodeList()

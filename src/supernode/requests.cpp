@@ -15,6 +15,7 @@
 #include "supernode/requests/send_raw_tx.h"
 #include "supernode/requests/authorize_rta_tx.h"
 #include "supernode/requests/send_supernode_announce.h"
+#include "supernode/requests/send_supernode_stake_txs.h"
 
 namespace graft::supernode::request::debug { void __registerDebugRequests(Router& router); }
 namespace graft::request::system_info { void register_request(Router& router); }
@@ -33,6 +34,7 @@ void registerRTARequests(graft::Router &router)
     registerRejectPayRequest(router);
     registerAuthorizeRtaTxRequests(router);
     registerSendSupernodeAnnounceRequest(router);
+    registerSendSupernodeStakeTransactionsRequest(router);
 }
 
 void registerWalletApiRequests(graft::Router &router)

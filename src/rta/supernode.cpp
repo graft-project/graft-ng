@@ -449,8 +449,30 @@ bool Supernode::busy() const
     }
 }
 
+uint64_t Supernode::stakeTransactionBlockHeight() const
+{
+    return m_stake_transaction_block_height;
+}
+
+void Supernode::setStakeTransactionBlockHeight(uint64_t blockHeight)
+{
+    m_stake_transaction_block_height.store(blockHeight);
+}
+
+uint64_t Supernode::stakeTransactionUnlockTime() const
+{
+    return m_stake_transaction_unlock_time;
+}
+
+void Supernode::setStakeTransactionUnlockTime(uint64_t unlockTime)
+{
+    m_stake_transaction_unlock_time.store(unlockTime);
+}
+
 Supernode::Supernode(bool testnet)
 : m_wallet{ new tools::wallet2(testnet) }
+, m_stake_transaction_block_height()
+, m_stake_transaction_unlock_time()
 {
 
 }
