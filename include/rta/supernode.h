@@ -242,6 +242,29 @@ public:
      */
     bool busy() const;
 
+    /*!
+     * \brief stakeTransactionBlockHeight - height of block for stake transaction
+     * \return                            - height of block
+     */
+    uint64_t stakeTransactionBlockHeight() const;
+
+    /*!
+     * \brief setStakeTransactionBlock - set height of block for stake transaction
+     * \param                          - height of block
+     */
+    void setStakeTransactionBlockHeight(uint64_t blockHeight);
+
+    /*!
+     * \brief stakeTransactionUnlockTime - number of blocks for unlocking stake transaction
+     * \return
+     */
+    uint64_t stakeTransactionUnlockTime() const;
+
+    /*!
+     * \brief setStakeTransactionUnlockTime - set number of blocks for unlocking stake transaction
+     * \param                          - height of block
+     */
+    void setStakeTransactionUnlockTime(uint64_t unlockTime);
 
 private:
     Supernode(bool testnet = false);
@@ -255,6 +278,8 @@ private:
     std::atomic<int64_t>       m_last_update_time;
     mutable boost::shared_mutex m_wallet_guard;
 
+    std::atomic<uint64_t> m_stake_transaction_block_height;
+    std::atomic<uint64_t> m_stake_transaction_unlock_time;
 };
 
 using SupernodePtr = boost::shared_ptr<Supernode>;
