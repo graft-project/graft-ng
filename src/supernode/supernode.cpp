@@ -14,18 +14,9 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.supernode"
 
 namespace consts {
-   static const char * DATA_PATH = "supernode/data";
    static const char * STAKE_WALLET_PATH = "stake-wallet";
    static const char * WATCHONLY_WALLET_PATH = "stake-wallet";
    static const size_t DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS = 5 * 1000;
-}
-
-namespace tools {
-    // TODO: make it crossplatform
-    std::string getHomeDir()
-    {
-        return std::string(getenv("HOME"));
-    }
 }
 
 namespace graft
@@ -46,26 +37,17 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     boost::property_tree::ini_parser::read_ini(m_configEx.config_filename, config);
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
-    m_configEx.data_dir = server_conf.get<std::string>("data-dir");
     m_configEx.stake_wallet_name = server_conf.get<std::string>("stake-wallet-name", "stake-wallet");
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
-    m_configEx.testnet = server_conf.get<bool>("testnet", false);
     m_configEx.stake_wallet_refresh_interval_random_factor = server_conf.get<double>("stake-wallet-refresh-interval-random-factor", 0);
     return res;
 }
 
-void Supernode::prepareDataDir()
+void Supernode::prepareSupernode()
 {
-    if (m_configEx.data_dir.empty()) {
-        boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
-        p /= ".graft/";
-        p /= consts::DATA_PATH;
-        m_configEx.data_dir = p.string();
-    }
-
     // create data directory if not exists
-    boost::filesystem::path data_path(m_configEx.data_dir);
+    boost::filesystem::path data_path(m_configEx.common.data_dir);
     boost::filesystem::path stake_wallet_path = data_path / "stake-wallet";
     boost::filesystem::path watchonly_wallets_path = data_path / "watch-only-wallets";
 
@@ -96,22 +78,21 @@ void Supernode::prepareDataDir()
                     (stake_wallet_path / m_configEx.stake_wallet_name).string(),
                     "", // TODO
                     m_configEx.cryptonode_rpc_address,
-                    m_configEx.testnet
+                    m_configEx.common.testnet
                     );
 
     supernode->setNetworkAddress(m_configEx.http_address + "/dapi/v2.0");
 
     // create fullsupernode list instance and put it into global context
     graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
-                m_configEx.cryptonode_rpc_address, m_configEx.testnet);
-
+                m_configEx.cryptonode_rpc_address, m_configEx.common.testnet);
     fsl->add(supernode);
 
     //put fsl into global context
     Context ctx(getLooper().getGcm());
     ctx.global["supernode"] = supernode;
     ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
-    ctx.global["testnet"] = m_configEx.testnet;
+    ctx.global["testnet"] = m_configEx.common.testnet;
     ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
 }
@@ -120,7 +101,8 @@ void Supernode::initMisc(ConfigOpts& configOpts)
 {
     ConfigOptsEx& coptsex = static_cast<ConfigOptsEx&>(configOpts);
     assert(&m_configEx == &coptsex);
-    prepareDataDir();
+
+    prepareSupernode();
     startSupernodePeriodicTasks();
 
     std::chrono::milliseconds duration( 5000 );

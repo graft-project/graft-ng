@@ -44,8 +44,8 @@ void WalletServer::initMisc(ConfigOpts& configOpts)
 {
     Context ctx(getLooper().getGcm());
 
-    ctx.global["testnet"] = m_configEx.testnet;
-    ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
+    ctx.global["testnet"] = m_configOpts.common.testnet;
+    ctx.global["cryptonode_rpc_address"] = m_configOpts.cryptonode_rpc_address;
 
     initWalletManager();
 
@@ -56,7 +56,7 @@ bool WalletServer::run(int argc, const char** argv)
 {
     for(;;)
     {
-        if(!init(argc, argv, m_configEx))
+        if(!init(argc, argv, m_configOpts))
             return false;
 
         argc = 1;
@@ -73,13 +73,6 @@ bool WalletServer::initConfigOption(int argc, const char** argv, ConfigOpts& con
     if (!GraftServer::initConfigOption(argc, argv, configOpts))
         return false;
 
-    boost::property_tree::ptree config;
-    boost::property_tree::ini_parser::read_ini(m_configEx.config_filename, config);
-
-    const boost::property_tree::ptree& server_conf = config.get_child("server");
-
-    m_configEx.testnet = server_conf.get<bool>("testnet", false);
-
     return true;
 }
 
@@ -87,7 +80,7 @@ void WalletServer::initWalletManager()
 {
     assert(!m_walletManager);
 
-    m_walletManager = std::make_unique<WalletManager>(getLooper(), m_configEx.testnet);
+    m_walletManager = std::make_unique<WalletManager>(getLooper(), m_configOpts.common.testnet);
 }
 
 void WalletServer::initRouters()
