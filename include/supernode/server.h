@@ -49,6 +49,7 @@ protected:
 private:
     void initLog(int log_level);
     void initGlobalContext();
+    void prepareDataDir(ConfigOpts& configOpts);
     void addGenericCallbackRoute();
     void serve();
     static void initSignals();

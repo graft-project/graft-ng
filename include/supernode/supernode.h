@@ -9,18 +9,14 @@ class Supernode : public GraftServer
 {
     struct ConfigOptsEx : public ConfigOpts
     {
-        // data directory - base directory where supernode stake wallet and other supernodes wallets are located
-        std::string data_dir;
         std::string stake_wallet_name;
         size_t stake_wallet_refresh_interval_ms;
         // runtime parameters.
         // path to watch-only wallets (supernodes)
         std::string watchonly_wallets_path;
-        // testnet flag
-        bool testnet;
     };
 
-    void prepareDataDirAndSupernodes();
+    void prepareSupernodes();
     void startSupernodePeriodicTasks();
     void setHttpRouters(ConnectionManager& httpcm);
     void setCoapRouters(ConnectionManager& coapcm);
