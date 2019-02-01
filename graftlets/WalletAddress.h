@@ -36,15 +36,13 @@ namespace graft::supernode::request {
 GRAFT_DEFINE_IO_STRUCT_INITED(GetWalletAddressResponse,
                               (bool, testnet, false),
                               (std::string, wallet_public_address, ""),
-                              (std::string, id_key, "")
+                              (std::string, id_key, ""),
+                              (std::string, signature, "") //signature of wallet_public_address + ":" + id_key
                               );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(GetWalletAddressErrorResponse,
                               (bool, testnet, false),
                               (std::string, error, "The wallet public address is not set")
                               );
-
-void registerGetWalletAddressRequest(graft::Router& router);
-
-}
+} //namespace graft::supernode::request
 

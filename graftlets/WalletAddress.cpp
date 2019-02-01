@@ -47,21 +47,21 @@ class WalletAddressGraftlet: public IGraftlet
 public:
     WalletAddressGraftlet(const char* name) : IGraftlet(name) { }
 
-    graft::Status getWalletAddressHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
-    std::string prepareWalletKey(const graft::CommonOpts& opts);
-
     virtual void initOnce(const graft::CommonOpts& opts) override
     {
-        m_testnet = opts.testnet;
-        m_wallet_public_address = opts.wallet_public_address;
-        m_id_key = prepareWalletKey(opts);
+        makeGetWalletAddressResponse(opts);
 
         REGISTER_ENDPOINT("/dapi/v2.0/cryptonode/getwalletaddress", METHOD_GET | METHOD_POST, WalletAddressGraftlet, getWalletAddressHandler);
     }
 private:
-    bool m_testnet;
-    std::string m_wallet_public_address;
-    std::string m_id_key;
+    graft::Status getWalletAddressHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
+    void makeGetWalletAddressResponse(const graft::CommonOpts& opts);
+    void checkWalletPublicAddress(const graft::CommonOpts& opts);
+    void prepareIdKeys(const graft::CommonOpts& opts, crypto::public_key& W, crypto::secret_key& w);
+    bool verifySignature();
+
+    graft::supernode::request::GetWalletAddressResponse m_response;
+    graft::supernode::request::GetWalletAddressErrorResponse m_errorResponse;
 };
 
 GRAFTLET_EXPORTS_BEGIN("wallerAddress", GRAFTLET_MKVER(1,1));
@@ -70,33 +70,90 @@ GRAFTLET_EXPORTS_END
 
 GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(0,3))
 
+namespace
+{
+
+template<typename POD>
+bool parse_hexstr_to_pod(const std::string& s, POD& pod)
+{
+    cryptonote::blobdata data;
+    bool ok = epee::string_tools::parse_hexstr_to_binbuff(s, data)
+            && data.size() == sizeof(pod);
+    if(!ok) return false;
+    pod = *reinterpret_cast<const POD*>(data.data());
+}
+
+} //namespace
+
 graft::Status WalletAddressGraftlet::getWalletAddressHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
-    using namespace graft::supernode::request;
-
     LOG_PRINT_L2(__FUNCTION__);
     assert(ctx.local.getLastStatus() == graft::Status::None);
-    if(m_wallet_public_address.empty())
+    if(m_response.wallet_public_address.empty())
     {
-        GetWalletAddressErrorResponse res;
-        res.testnet = m_testnet;
-        output.load(res);
+        output.load(m_errorResponse);
         return graft::Status::Ok;
     }
-    GetWalletAddressResponse res;
-    res.testnet = m_testnet;
-    res.wallet_public_address = m_wallet_public_address;
-    res.id_key = m_id_key;
-    output.load(res);
+    output.load(m_response);
     return graft::Status::Ok;
 }
 
-std::string WalletAddressGraftlet::prepareWalletKey(const graft::CommonOpts& opts)
+/*!
+ * \brief makeGetWalletAddressResponse - fills and signs m_response
+ */
+void WalletAddressGraftlet::makeGetWalletAddressResponse(const graft::CommonOpts& opts)
 {
-    if(opts.wallet_public_address.empty()) return std::string();
+    m_errorResponse.testnet = opts.testnet;
 
-    boost::filesystem::path data_path(opts.data_dir);
+    if(opts.wallet_public_address.empty()) return;
+    checkWalletPublicAddress(opts);
 
+    crypto::public_key W;
+    crypto::secret_key w;
+    prepareIdKeys(opts, W, w);
+
+    m_response.testnet = opts.testnet;
+    m_response.wallet_public_address = opts.wallet_public_address;
+    m_response.id_key = epee::string_tools::pod_to_hex(W);
+
+    crypto::signature sign;
+    {//sign
+        std::string data = m_response.wallet_public_address + ":" + m_response.id_key;
+        crypto::hash hash;
+        crypto::cn_fast_hash(data.data(), data.size(), hash);
+        crypto::generate_signature(hash, W, w, sign);
+    }
+
+    m_response.signature = epee::string_tools::pod_to_hex(sign);
+
+    assert(verifySignature());
+}
+
+/*!
+ * \brief verifySignature - only for testing here, the code can be used on the other side
+ */
+bool WalletAddressGraftlet::verifySignature()
+{
+    crypto::public_key W;
+    bool ok = parse_hexstr_to_pod(m_response.id_key, W);
+    assert(ok);
+
+    crypto::signature sign;
+    bool ok1 = parse_hexstr_to_pod(m_response.signature, sign);
+    assert(ok1);
+
+    std::string data = m_response.wallet_public_address + ":" + m_response.id_key;
+    crypto::hash hash;
+    crypto::cn_fast_hash(data.data(), data.size(), hash);
+    return crypto::check_signature(hash, W, sign);
+}
+
+/*!
+ * \brief checkWalletPublicAddress - checks that opts.wallet_public_address is valid
+ * on error throws graft::exit_error exception
+ */
+void WalletAddressGraftlet::checkWalletPublicAddress(const graft::CommonOpts& opts)
+{
     cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
     if(!cryptonote::get_account_address_from_str(acc, opts.testnet, opts.wallet_public_address))
     {
@@ -104,13 +161,20 @@ std::string WalletAddressGraftlet::prepareWalletKey(const graft::CommonOpts& opt
         oss << "invalid wallet-public-address '" << opts.wallet_public_address << "'";
         throw graft::exit_error(oss.str());
     }
+}
 
-    crypto::public_key W;
+/*!
+ * \brief prepareIdKeys - gets id keys, generates them if required
+ * on errors throws graft::exit_error exception
+ */
+void WalletAddressGraftlet::prepareIdKeys(const graft::CommonOpts& opts, crypto::public_key& W, crypto::secret_key& w)
+{
+    boost::filesystem::path data_path(opts.data_dir);
+
     boost::filesystem::path wallet_keys_file = data_path / "wallet.keys";
     if (!boost::filesystem::exists(wallet_keys_file))
     {
         LOG_PRINT_L0("file '") << wallet_keys_file << "' not found. Generating the keys";
-        crypto::secret_key w;
         crypto::generate_keys(W, w);
         //save secret key
         boost::filesystem::path wallet_keys_file_tmp = wallet_keys_file;
@@ -139,12 +203,9 @@ std::string WalletAddressGraftlet::prepareWalletKey(const graft::CommonOpts& opt
             throw graft::exit_error(oss.str());
         }
 
-        crypto::secret_key w;
-        cryptonote::blobdata w_data;
-        bool ok = epee::string_tools::parse_hexstr_to_binbuff(w_str, w_data) || w_data.size() != sizeof(crypto::secret_key);
+        bool ok = parse_hexstr_to_pod(w_str, w);
         if(ok)
         {
-            w = *reinterpret_cast<const crypto::secret_key*>(w_data.data());
             ok = crypto::secret_key_to_public_key(w,W);
         }
         if(!ok)
@@ -154,8 +215,6 @@ std::string WalletAddressGraftlet::prepareWalletKey(const graft::CommonOpts& opt
             throw graft::exit_error(oss.str());
         }
     }
-
-    return epee::string_tools::pod_to_hex(W);
 }
 
 namespace
