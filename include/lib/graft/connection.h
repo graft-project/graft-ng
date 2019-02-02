@@ -72,11 +72,19 @@ public:
         : m_bt(bt), m_onDone(onDone), m_keepAlive(true), m_connectioId(connectionId), m_upstream(upstream), m_timeout(timeout)
     { }
 
+    UpstreamSender(const BaseTaskPtr& bt, std::string error, std::function<void(UpstreamSender& uss)> onDoneError) : m_bt(bt)
+    {
+        setError(Status::Error, error);
+        onDoneError(*this);
+        releaseItself();
+    }
+
     BaseTaskPtr& getTask() { return m_bt; }
 
-    void send(TaskManager& manager, const std::string& uri);
+    void send(mg_mgr* mgr, int http_callback_port, const std::string& uri);
     Status getStatus() const { return m_status; }
     const std::string& getError() const { return m_error; }
+    size_t getRequestSize() const { return m_requestSize; }
 
     void ev_handler(mg_connection* upstream, int ev, void *ev_data);
 private:
@@ -94,6 +102,7 @@ private:
     mg_connection* m_upstream = nullptr;
     Status m_status = Status::None;
     std::string m_error;
+    size_t m_requestSize = 0;
 };
 
 class ConnectionBase;
@@ -101,7 +110,7 @@ class ConnectionBase;
 class Looper final : public TaskManager
 {
 public:
-    Looper(const ConfigOpts& copts, ConnectionBase& connectionBase);
+    Looper(const ConfigOpts& copts, UpstreamManager& upstreamManager, ConnectionBase& connectionBase);
     virtual ~Looper();
 
     void serve();
@@ -193,6 +202,7 @@ private:
     std::unique_ptr<SysInfoCounter> m_sysInfo;
     std::atomic_bool m_looperReady{false};
     std::unique_ptr<Looper> m_looper;
+    std::unique_ptr<UpstreamManager> m_upstreamManager;
     std::map<ConnectionManager::Proto, std::unique_ptr<ConnectionManager>> m_conManagers;
 };
 

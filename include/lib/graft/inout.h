@@ -204,14 +204,16 @@ namespace graft
          * Set uri, proto, host, port, path members if you need.
          * The function forms real URI substituting absent parts according to Config.ini.
          * It is public to be accessed from tests and other classes.
-         * \param default_uri - this parameter always comes from [cryptonode]rpc-address of Config.ini.
-         * \return
+         * \param default_uri - one of uri from lines in [upstream] of Config.ini.
+         * \param ip_port - output of resulting "ip:port".
+         * \param result_uri - output of resulting uri.
+         * \param resolve_cache - a cache with resolved host to ip map.
+         * \return true on success or false otherwise
          */
-        std::string makeUri(const std::string& default_uri) const;
+        bool makeUri(const std::string& default_uri, std::string& ip_port, std::string& result_uri, std::unordered_map<std::string,std::string>& resolve_cache) const;
 
         std::string port;
         std::string path;
-        static std::unordered_map<std::string, std::tuple<std::string,int,bool,double>> uri_substitutions;
     };
 
     class InHttp final : public InOutHttpBase

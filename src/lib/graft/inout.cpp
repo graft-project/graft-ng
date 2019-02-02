@@ -1,10 +1,10 @@
 
 #include "lib/graft/inout.h"
 #include "lib/graft/mongoosex.h"
+#include <misc_log_ex.h>
 
 namespace graft
 {
-std::unordered_map<std::string, std::tuple<std::string,int,bool,double>> OutHttp::uri_substitutions;
 
 void InOutHttpBase::set_str_field(const http_message& hm, const mg_str& str_fld, std::string& fld)
 {
@@ -54,8 +54,9 @@ std::string InOutHttpBase::combine_headers()
     return s;
 }
 
-std::string OutHttp::makeUri(const std::string& default_uri) const
+bool OutHttp::makeUri(const std::string& default_uri, std::string& ip_port, std::string& result_uri, std::unordered_map<std::string,std::string>& resolve_cache) const
 {
+    result_uri.clear();
     std::string uri_ = default_uri;
 
     std::string port_;
@@ -71,7 +72,8 @@ std::string OutHttp::makeUri(const std::string& default_uri) const
         int res = mg_parse_uri(mg_uri, &mg_scheme, &mg_user_info, &mg_host, &mg_port, &mg_path, &mg_query, &mg_fragment);
         if(res<0) break;
         if(mg_port)
-        port_ = std::to_string(mg_port);
+            port_ = std::to_string(mg_port);
+
 #define V(n) n##_ = std::string(mg_##n.p, mg_##n.len)
         V(scheme); V(user_info); V(host); V(path); V(query); V(fragment);
 #undef V
@@ -83,14 +85,33 @@ std::string OutHttp::makeUri(const std::string& default_uri) const
     if(!port.empty()) port_ = port;
     if(!path.empty()) path_ = path;
 
-    std::string url;
+    {//get ip by host_
+        auto it = resolve_cache.find(host_);
+        if(it == resolve_cache.end())
+        {
+            char buf[0x100];
+            if(!mg_resolve(host_.c_str(), buf, sizeof(buf)))
+            {
+                LOG_PRINT_L1("cannot resolve host '") << host_ << "'";
+                return false;
+            }
+            LOG_PRINT_L2("host '") << host_ << "' resolved as '" << buf << "'";
+            auto res = resolve_cache.emplace(host_, std::string(buf));
+            assert(res.second);
+            it = res.first;
+        }
+        host_ = it->second;
+    }
+
+    std::string& url = result_uri;
     if(!scheme_.empty())
     {
         url += scheme_ + "://";
         if(!user_info_.empty()) url += user_info_ + '@';
     }
-    url += host_;
-    if(!port_.empty()) url += ':' + port_;
+    ip_port = host_;
+    if(!port_.empty()) ip_port += ':' + port_;
+    url += ip_port;
     if(!path_.empty())
     {
         if(path_[0]!='/') path_ = '/' + path_;
@@ -98,7 +119,7 @@ std::string OutHttp::makeUri(const std::string& default_uri) const
     }
     if(!query_.empty()) url += '?' + query_;
     if(!fragment_.empty()) url += '#' + fragment_;
-    return url;
+    return true;
 }
 
 } //namespace graft

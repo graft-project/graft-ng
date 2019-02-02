@@ -64,9 +64,12 @@ protected:
         int poll_timeout_ms = 1000;
         bool keepAlive = false;
 
-        using on_http_t = bool (const http_message *hm, int& status_code, std::string& headers, std::string& data);
+        using on_http_t = bool (mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data);
         std::function<on_http_t> on_http = nullptr;
         static std::function<on_http_t> http_echo;
+
+        using on_poll_t = bool (mg_connection* client, int& status_code, std::string& headers, std::string& data);
+        std::function<on_poll_t> on_poll = nullptr;
 
         void run()
         {
@@ -83,13 +86,22 @@ protected:
             stop = true;
             th.join();
         }
+
     protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data)
+        virtual bool onHttpRequest(mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data)
         {
             assert(on_http);
-            return on_http(hm, status_code, headers, data);
+            return on_http(client, hm, status_code, headers, data);
         }
         virtual void onClose() { }
+        virtual bool onPoll(mg_connection* client)
+        {
+            if(!on_poll) return false;
+            int status_code = 200;
+            std::string headers, data;
+            bool res = on_poll(client, status_code, headers, data);
+            if(res) sendResponse(client, status_code, headers, data);
+        }
     private:
         std::thread th;
         std::atomic_bool ready;
@@ -107,6 +119,16 @@ protected:
                 if(stop) break;
             }
             mg_mgr_free(&mgr);
+        }
+
+        void sendResponse(mg_connection* client, int& status_code, std::string& headers, std::string& data)
+        {
+            mg_send_head(client, status_code, data.size(), headers.c_str());
+            mg_send(client, data.c_str(), data.size());
+            if(!keepAlive)
+            {
+                client->flags |= MG_F_SEND_AND_CLOSE;
+            }
         }
 
         static void ev_handler_empty_s(mg_connection *client, int ev, void *ev_data)
@@ -128,14 +150,13 @@ protected:
                 struct http_message *hm = (struct http_message *) ev_data;
                 int status_code = 200;
                 std::string headers, data;
-                bool res = onHttpRequest(hm, status_code, headers, data);
+                bool res = onHttpRequest(client, hm, status_code, headers, data);
                 if(!res) break;
-                mg_send_head(client, status_code, data.size(), headers.c_str());
-                mg_send(client, data.c_str(), data.size());
-                if(!keepAlive)
-                {
-                    client->flags |= MG_F_SEND_AND_CLOSE;
-                }
+                sendResponse(client, status_code, headers, data);
+            } break;
+            case MG_EV_POLL:
+            {
+                onPoll(client);
             } break;
             case MG_EV_CLOSE:
             {

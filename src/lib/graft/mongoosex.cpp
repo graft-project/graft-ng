@@ -1,5 +1,6 @@
 
 #include "lib/graft/mongoosex.h"
+#include <iostream>
 
 extern "C" {
 
@@ -35,8 +36,8 @@ mg_connection *mg_send_http_opt_x(mg_connection *nc,
     else
     {
         //TODO: excessive parse second time
-        mg_parse_uri(mg_mk_str(url), NULL, &user, &host, NULL, &path, NULL, NULL);
-        nc = nc;
+        unsigned int port;
+        mg_parse_uri(mg_mk_str(url), NULL, &user, &host, &port, &path, NULL, NULL);
     }
 
     mbuf_init(&auth, 0);

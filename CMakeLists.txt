@@ -190,6 +190,7 @@ add_library(graft STATIC
     ${PROJECT_SOURCE_DIR}/src/lib/graft/mongoosex.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/router.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/task.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/upstream_manager.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/supernode/server.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/supernode.cpp
@@ -217,7 +218,7 @@ set_target_properties(graft PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/libgraft
     )
 
-target_compile_definitions(graft PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
+target_compile_definitions(graft PRIVATE MG_ENABLE_SYNC_RESOLVER MG_ENABLE_COAP -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
 if(ENABLE_SYSLOG)
     target_compile_definitions(graft PRIVATE -DELPP_SYSLOG)
 endif()
@@ -308,7 +309,7 @@ set_target_properties(supernode_common PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/BUILD/supernode_common
     )
 
-target_compile_definitions(supernode_common PRIVATE MG_ENABLE_COAP=1 -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
+target_compile_definitions(supernode_common PRIVATE -DMONERO_DEFAULT_LOG_CATEGORY="supernode")
 if(ENABLE_SYSLOG)
     target_compile_definitions(supernode_common PRIVATE -DELPP_SYSLOG)
 endif()
@@ -404,7 +405,6 @@ if (OPT_BUILD_TESTS)
             )
 
 
-        target_compile_definitions(supernode_test PRIVATE MG_ENABLE_COAP=1)
         add_dependencies(supernode_test graft supernode_common googletest)
         set_target_properties(supernode_test PROPERTIES LINK_FLAGS "-Wl,-E")
         if(ENABLE_SYSLOG)
