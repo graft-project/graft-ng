@@ -8,7 +8,6 @@
 
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-#include <regex>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
@@ -371,36 +370,6 @@ void initGraftletDirs(int argc, const char** argv, const std::string& dirs_opt, 
     }
 }
 
-void parseSubstitutionItem(const std::string& name, const std::string& val, std::string& uri, int& cnt, bool& keepAlive, double& timeout)
-{
-    std::string s = trim_comments(val);
-    std::regex regex(R"(^\s*([^,\s]+)\s*(,\s*(\d+\.?\d*)\s*(,\s*(\d+|(keepAlive\s*(:\s*(\d+))?)))?)?\s*$)");
-    std::smatch m;
-    if(!std::regex_match(s, m, regex))
-    {
-        std::ostringstream oss;
-        oss << "invalid [upstream] format line with name '" << name << "' : '" << val << "'";
-        throw graft::exit_error(oss.str());
-    }
-    assert(7 < m.size());
-    assert(m[1].matched);
-    uri = m[1];
-    cnt = 0; keepAlive = false; timeout = 0;
-    if(!m[3].matched) return;
-    timeout = std::stod(m[3]);
-    if(!m[4].matched) return;
-    assert(m[5].matched);
-    if(!m[6].matched)
-    {
-        cnt = std::stoi(m[5]);
-        return;
-    }
-    keepAlive = true;
-    if(!m[7].matched) return;
-    assert(m[8].matched);
-    cnt = std::stoi(m[8]);
-}
-
 } //namespace details
 
 void usage(const boost::program_options::options_description& desc)
@@ -539,17 +508,52 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     boost::optional<int> log_trunc_to_size  = log_conf.get_optional<int>("trunc-to-size");
     configOpts.log_trunc_to_size = (log_trunc_to_size)? log_trunc_to_size.get() : -1;
 
+    //[upstream]
     const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
     configOpts.uri_substitutions.clear();
-    std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf, &configOpts](auto it)
+    std::vector<std::pair<std::string, std::string>> name_uris;
+    std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf, &configOpts, &name_uris](auto it)
     {
-        std::string name(it.first);
-        std::string val(uri_subst_conf.get<std::string>(name));
+        static std::string uri_suff("-uri");
+        const std::string& name_uri(it.first);
 
-        std::string uri; int cnt; bool keepAlive; double timeout;
-        details::parseSubstitutionItem(name, val, uri, cnt, keepAlive, timeout);
-        configOpts.uri_substitutions.emplace(std::move(name), std::make_tuple(std::move(uri), cnt, keepAlive, timeout));
+        if(name_uri.size() <= uri_suff.size()) return; //Note, empty names skipped
+        if(name_uri.substr(name_uri.size() - uri_suff.size()) != uri_suff) return;
+
+        std::string name = name_uri.substr(0, name_uri.size() - uri_suff.size());
+        std::string uri(details::trim_comments(uri_subst_conf.get<std::string>(name_uri)));
+
+        name_uris.emplace_back( std::make_pair(name, uri) );
     });
+    for(auto& item : name_uris)
+    {
+        const std::string& name = item.first;
+        const std::string& uri = item.second;
+
+        double timeout = uri_subst_conf.get<double>(name + "-timeout", 0);
+        int conn_upstream = uri_subst_conf.get<int>(name + "-max-conns-upstream", 0);
+        int conn_address = uri_subst_conf.get<int>(name + "-max-conns-address", 0);
+        bool keep_alive = uri_subst_conf.get<bool>(name + "-keep-alive", false);
+        if(!keep_alive && conn_address!=0)
+        {
+            std::ostringstream oss;
+            oss << config_filename << " [upstream] " << name
+                << "-max-conns-address other than 0 is not supported when "
+                << name << "-keep-alive is false";
+            throw graft::exit_error(oss.str());
+        }
+        if(keep_alive && conn_upstream!=0)
+        {
+            std::ostringstream oss;
+            oss << config_filename << " [upstream] " << name
+                << "-max-conns-upstream other than 0 is not supported when "
+                << name <<  "-keep-alive is true";
+            throw graft::exit_error(oss.str());
+        }
+        int cnt = keep_alive? conn_address : conn_upstream;
+        configOpts.uri_substitutions.emplace(name, std::make_tuple(uri, cnt, keep_alive, timeout));
+    }
+
     if(configOpts.cryptonode_rpc_address[0] == '$')
     {
         std::string def_subst_name = configOpts.cryptonode_rpc_address.substr(1);
