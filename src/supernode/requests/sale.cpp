@@ -86,7 +86,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
 
     // generate auth sample
     std::vector<SupernodePtr> authSample;
-    if (!fsl->buildAuthSample(data.BlockNumber, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
+    if (!fsl->buildAuthSample(data.BlockNumber, payment_id, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
         return errorCustomError(MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE, ERROR_INVALID_PARAMS, output);
     }
 

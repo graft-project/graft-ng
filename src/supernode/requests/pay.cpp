@@ -119,7 +119,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
     }
 
     std::vector<SupernodePtr> authSample;
-    if (!fsl->buildAuthSample(in.BlockNumber, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
+    if (!fsl->buildAuthSample(in.BlockNumber, in.PaymentID, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
         return errorBuildAuthSample(output);
     }
 
@@ -209,7 +209,7 @@ Status handleWaitingTxReply(const Router::vars_t& vars, const graft::Input& inpu
     }
 
     std::vector<SupernodePtr> authSample;
-    if (!fsl->buildAuthSample(payData.BlockNumber, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
+    if (!fsl->buildAuthSample(payData.BlockNumber, payData.PaymentID, authSample) || authSample.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
         return errorBuildAuthSample(output);
     }
 

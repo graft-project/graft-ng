@@ -83,16 +83,18 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
     std::vector<SupernodePtr> sample;
 
     uint64_t height;
+    std::string payment_id;
     try
     {
         height = stoull(vars.find("height")->second);
+        payment_id = vars.find("payment_id")->second;
     }
     catch(...)
     {
         return errorInternalError("invalid input", output);
     }
 
-    const bool ok = fsl->buildAuthSample(height, sample);
+    const bool ok = fsl->buildAuthSample(height, payment_id, sample);
     if(!ok)
     {
         return errorInternalError("failed to build auth sample", output);
@@ -139,7 +141,7 @@ void __registerDebugRequests(Router &router)
     router.addRoute("/debug/supernode_list/{all:[0-1]}", METHOD_GET, _HANDLER(getSupernodeList));
     router.addRoute("/debug/announce", METHOD_POST, _HANDLER(doAnnounce));
     router.addRoute("/debug/close_wallets/", METHOD_POST, _HANDLER(closeStakeWallets));
-    router.addRoute("/debug/auth_sample/{height:[0-9]+}", METHOD_GET, _HANDLER(getAuthSample));
+    router.addRoute("/debug/auth_sample/{height:[0-9]+}/{payment_id:[0-9a-zA-Z]+}", METHOD_GET, _HANDLER(getAuthSample));
 }
 
 }

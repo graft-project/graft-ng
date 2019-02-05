@@ -93,10 +93,11 @@ public:
     /*!
      * \brief buildAuthSample - builds auth sample (8 supernodes) for given block height
      * \param height          - block height used to perform selection
+     * \param payment_id      - payment id which is used for building auth sample
      * \param out             - vector of supernode pointers
      * \return                - true on success
      */
-    bool buildAuthSample(uint64_t height, std::vector<SupernodePtr> &out);
+    bool buildAuthSample(uint64_t height, const std::string& payment_id, std::vector<SupernodePtr> &out);
 
     /*!
      * \brief items - returns address list of known supernodes
@@ -142,6 +143,21 @@ public:
      * \return
      */
     void updateStakeTransactions(const stake_transaction_array& stake_txs);
+    
+    typedef std::vector<SupernodePtr>   SupernodeArray;
+    typedef std::vector<SupernodeArray> SupernodeTierArray;
+
+    /*!
+     * \brief setBlockchainBasedList - updates full list of supernodes
+     * \return
+     */
+    void setBlockchainBasedList(uint64_t block_number, const SupernodeTierArray& tiers);
+
+    /*!
+     * \brief blockchainBasedListBlockNumber - number of block which blockchain list is built for
+     * \return
+     */
+    uint64_t blockchainBasedListBlockNumber() const;
 
     /*!
      * \brief refreshedStakeTransactions - request stake transactions from cryptonode
@@ -151,6 +167,7 @@ public:
 
 private:
     bool loadWallet(const std::string &wallet_path);
+    void selectSupernodes(const std::string& payment_id, const SupernodeArray& src_array, SupernodeArray& dst_array);
 
 private:
     std::unordered_map<std::string, SupernodePtr> m_list;
@@ -160,6 +177,8 @@ private:
     mutable boost::shared_mutex m_access;
     std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
+    uint64_t m_blockchain_based_list_block_number;
+    SupernodeTierArray m_blockchain_based_list; //TODO: lifetime of supernodes, should this be an array of weak pointers?
 };
 
 using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;
