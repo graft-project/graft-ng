@@ -100,7 +100,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
-    if (!fsl->buildAuthSample(in.BlockNumber, authSample)) {
+    if (!fsl->buildAuthSample(in.BlockNumber, in.PaymentID, authSample)) {
         return  errorBuildAuthSample(output);
     }
     // we have sale details locally, easy way
@@ -290,7 +290,7 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
            << ", payment: " << sdr.PaymentID
            << ", block: " << sdr.BlockNumber);
 
-    if (!fsl->buildAuthSample(sdr.BlockNumber, authSample)) {
+    if (!fsl->buildAuthSample(sdr.BlockNumber, sdr.PaymentID, authSample)) {
         LOG_ERROR("failed to build auth sample for block: " << sdr.BlockNumber
                   << ", payment: " << sdr.PaymentID);
         return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
