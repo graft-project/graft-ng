@@ -56,6 +56,11 @@ public:
         return graft::Status::Ok;
     }
 
+    std::string testRouting(const std::string& s)
+    {
+        return s;
+    }
+
     virtual void initOnce()
     {
 //        REGISTER_ACTION(TestGraftlet, testUndefined);
@@ -63,6 +68,7 @@ public:
         REGISTER_ACTION(TestGraftlet, testInt2);
         REGISTER_ACTION(TestGraftlet, testString1);
         REGISTER_ACTION(TestGraftlet, testString2);
+        REGISTER_ACTION(TestGraftlet, testRouting);
 
         REGISTER_ENDPOINT("/URI/test/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler);
         REGISTER_ENDPOINT("/URI/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler1);

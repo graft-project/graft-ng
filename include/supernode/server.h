@@ -9,6 +9,8 @@ namespace graft::request::system_info { class Counter; }
 
 namespace graft {
 
+class UpstreamRoutingManager;
+
 using SysInfoCounter = request::system_info::Counter;
 
 class GraftServer
@@ -53,7 +55,7 @@ private:
     void serve();
     static void initSignals();
     void addGlobalCtxCleaner();
-    void initGraftlets();
+    void initGraftlets(const ConfigOpts& copts);
     void initGraftletRouters();
 
     ConfigOpts& getCopts();

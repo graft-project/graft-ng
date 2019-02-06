@@ -3,6 +3,7 @@
 #include "fixture.h"
 #define INCLUDE_DEPENDENCY_GRAPH
 #include "lib/graft/GraftletLoader.h"
+#include "lib/graft/upstream_manager.h"
 
 TEST(DependencyGraph, dependencies)
 {
@@ -255,6 +256,21 @@ TEST(Graftlets, calls)
 
     IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
     EXPECT_EQ(endpoints.size(), 4);
+}
+
+TEST(Graftlets, routing)
+{
+    graftlet::GraftletLoader loader;
+
+    loader.findGraftletsInDirectory("./", "so");
+    loader.findGraftletsInDirectory("./graftlets", "so");
+
+    graft::UpstreamRoutingManager upstreamRoutingManager(loader);
+
+    std::string route = "#myGraftlet.testGL.testRouting:my_value";
+    bool res = upstreamRoutingManager.route(route, route);
+    EXPECT_EQ(res, true);
+    EXPECT_EQ(route, "my_value");
 }
 
 TEST(Graftlets, exceptionList)

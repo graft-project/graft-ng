@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <cassert>
 
 namespace graft {
@@ -30,6 +31,8 @@ struct ConfigOpts
     std::vector<std::string> graftlet_dirs;
     int lru_timeout_ms;
     IPFilterOpts ipfilter;
+    std::unordered_map<std::string, std::tuple<std::string,int,bool,double>> uri_substitutions;
+    std::string default_uri_substitution_name;
 
     void check_asserts() const
     {

@@ -5,6 +5,8 @@
 #include "lib/graft/inout.h"
 #include "lib/graft/handler_api.h"
 #include "lib/graft/expiring_list.h"
+#include "lib/graft/upstream_manager.h"
+#include "lib/graft/GraftletLoader.h"
 #include "supernode/requests.h"
 #include "supernode/requests/sale.h"
 #include "supernode/requests/sale_status.h"
@@ -150,58 +152,108 @@ TEST(InOut, serialization)
     output.loadT<serializer::Nothing>(a);
 }
 
+namespace
+{
+
+class UpstreamManagerTest : public graft::UpstreamManager
+{
+public:
+    void init(const std::string& subst_name, const std::string& subst_uri, const std::string& cryptonode_rpc_address = "")
+    {
+        graft::ConfigOpts copts;
+        copts.cryptonode_rpc_address = cryptonode_rpc_address;
+        copts.uri_substitutions.insert({subst_name, {subst_uri, 0, false, 0}});
+        graftlet::GraftletLoader gl;
+        graft::UpstreamManager::init(gl, copts, nullptr, 0, nullptr);
+    }
+    const std::string testGetUri(const graft::Output& output)
+    {
+        return graft::UpstreamManager::testGetUri(output);
+    }
+    std::unordered_map<std::string,std::string>& getResolveCache()
+    {
+        return m_resolveCache;
+    }
+};
+
+} //namespace
+
 TEST(InOut, makeUri)
 {
     {
+        std::unordered_map<std::string,std::string> resolve_cache;
         graft::Output output;
         std::string default_uri = "http://123.123.123.123:1234";
-        std::string url = output.makeUri(default_uri);
+        std::string ip_port, url;
+        bool res = output.makeUri(default_uri, ip_port, url, resolve_cache);
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "123.123.123.123:1234");
         EXPECT_EQ(url, default_uri);
     }
     {
+        UpstreamManagerTest umt; umt.init("my_ip", "1.2.3.4");
         graft::Output output;
-        graft::Output::uri_substitutions.insert({"my_ip", {"1.2.3.4", 0, false, 0}});
         output.proto = "https";
         output.port = "4321";
         output.uri = "$my_ip";
-        std::string url = output.makeUri("");
+        std::string ip_port, url;
+        bool res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "1.2.3.4:" + output.port);
         EXPECT_EQ(url, output.proto + "://1.2.3.4:" + output.port);
     }
     {
+        UpstreamManagerTest umt; umt.init("my_path", "http://site.com:1234/endpoint?q=1&n=2");
+        umt.getResolveCache().emplace("site.com","site.com");
         graft::Output output;
-        graft::Output::uri_substitutions.insert({"my_path", {"http://site.com:1234/endpoint?q=1&n=2", 0, false, 0}});
         output.proto = "https";
         output.port = "4321";
         output.uri = "$my_path";
-        std::string url = output.makeUri("");
+        std::string ip_port, url;
+        bool res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "site.com:" + output.port);
         EXPECT_EQ(url, "https://site.com:4321/endpoint?q=1&n=2");
     }
     {
+        UpstreamManagerTest umt; umt.init("my_path", "/endpoint?q=1&n=2");
+        umt.getResolveCache().emplace("mysite.com","mysite.com");
         graft::Output output;
-        graft::Output::uri_substitutions.insert({"my_path", {"endpoint?q=1&n=2", 0, false, 0}});
         output.proto = "https";
         output.host = "mysite.com";
         output.port = "4321";
         output.uri = "$my_path";
-        std::string url = output.makeUri("");
+        std::string ip_port, url;
+        bool res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "mysite.com:" + output.port);
         EXPECT_EQ(url, "https://mysite.com:4321/endpoint?q=1&n=2");
     }
     {
+        UpstreamManagerTest umt; umt.init("something", "1.2.3.4", "localhost:28881");
+        umt.getResolveCache().emplace("aaa.bbb","aaa.bbb");
+
         graft::Output output;
-        std::string default_uri = "localhost:28881";
         output.path = "json_rpc";
-        std::string url = output.makeUri(default_uri);
-        EXPECT_EQ(url, "localhost:28881/json_rpc");
+        std::string ip_port, url;
+        bool res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "127.0.0.1:28881");
+        EXPECT_EQ(url, "127.0.0.1:28881/json_rpc");
 
         output.path = "/json_rpc";
         output.proto = "https";
-        url = output.makeUri(default_uri);
-        EXPECT_EQ(url, "https://localhost:28881/json_rpc");
+        res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "127.0.0.1:28881");
+        EXPECT_EQ(url, "https://127.0.0.1:28881/json_rpc");
 
         output.path = "/json_rpc";
         output.proto = "https";
         output.uri = "http://aaa.bbb:12345/something";
-        url = output.makeUri(default_uri);
+        res = output.makeUri(umt.testGetUri(output), ip_port, url, umt.getResolveCache());
+        EXPECT_EQ(res, true);
+        EXPECT_EQ(ip_port, "aaa.bbb:12345");
         EXPECT_EQ(url, "https://aaa.bbb:12345/json_rpc");
     }
 }
@@ -519,7 +571,7 @@ TEST(ExpiringList, common)
 /////////////////////////////////
 
 std::function<GraftServerTestBase::TempCryptoNodeServer::on_http_t> GraftServerTestBase::TempCryptoNodeServer::http_echo =
-        [] (const http_message *hm, int& status_code, std::string& headers, std::string& data) -> bool
+        [] (mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data) -> bool
 {
     data = std::string(hm->body.p, hm->body.len);
     std::string method(hm->method.p, hm->method.len);
@@ -536,7 +588,7 @@ private:
     class TempCryptoN : public TempCryptoNodeServer
     {
     protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        virtual bool onHttpRequest(mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             data = std::string(hm->uri.p, hm->uri.len);
             graft::Context ctx(mainServer.getGcm());
@@ -1055,7 +1107,7 @@ public:
     public:
         bool do_callback = true;
     protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        virtual bool onHttpRequest(mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             data = std::string(hm->body.p, hm->body.len);
             std::string method(hm->method.p, hm->method.len);
@@ -1279,7 +1331,7 @@ TEST_F(GraftServerTest, genericCallback)
 
     graft::supernode::request::registerForwardRequests(m_httpRouter);
     m_httpRouter.addRoute("/api/{forward:create_account|restore_account|wallet_balance|prepare_transfer|transaction_history}",METHOD_POST,{nullptr,pretend_walletnode_echo,nullptr});
-    graft::Output::uri_substitutions.emplace("walletnode", std::make_tuple("http://localhost:28690/", 0, false, 0));
+    m_copts.uri_substitutions.emplace("walletnode", std::make_tuple("http://127.0.0.1:28690/", 0, false, 0));
     run();
 
     std::string post_data = "some data";
@@ -1305,7 +1357,7 @@ public:
         std::string answer;
         std::string body;
     protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
+        virtual bool onHttpRequest(mg_connection* client, const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             body = std::string(hm->body.p, hm->body.len);
             std::string method(hm->method.p, hm->method.len);

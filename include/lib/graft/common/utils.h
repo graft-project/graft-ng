@@ -18,5 +18,8 @@ T random_number(T startRange, T endRange)
     return dist(mt);
 }
 
+bool split(const std::string_view& in, char delim, std::string_view& first, std::string_view& second);
+bool split(const std::string_view& in, char delim, std::string& first, std::string& second);
+
 }
 

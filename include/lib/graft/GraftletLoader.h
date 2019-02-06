@@ -22,7 +22,9 @@
 
 #include "lib/graft/IGraftlet.h"
 #include "lib/graft/GraftletRegistry.h"
+#include "lib/graft/routing.h"
 #include "lib/graft/router.h"
+#include "lib/graft/common/utils.h"
 
 #include <map>
 #include <vector>
@@ -66,18 +68,9 @@ private:
     {
         ClsName_ cls;
         std::string method;
-        {
-            int pos = cls_method.find('.');
-            if(pos != std::string::npos)
-            {
-                cls = cls_method.substr(0, pos);
-                method = cls_method.substr(pos+1);
-            }
-            else
-            {
-                cls = cls_method;
-            }
-        }
+        bool res = graft::utils::split(cls_method, '.', cls, method);
+        if(!res) cls = cls_method;
+
         auto it = m_cls2any.find(cls);
         if(it == m_cls2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
         std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
@@ -122,6 +115,18 @@ public:
     typename IGraftlet::EndpointsVec getEndpoints()
     {
         return getEndpointsT<IGraftlet>();
+    }
+
+    template <class BaseT = IGraftlet>
+    std::string Routing(const std::string& gr_cls_method_ver, const std::string& value)
+    {
+        std::string_view grname;
+        std::string_view cls_method_ver;
+        graft::utils::split(gr_cls_method_ver, '.', grname, cls_method_ver);
+        if(grname.empty()) throw "cannot find graftlet name in " + gr_cls_method_ver;
+
+        GraftletHandlerT<BaseT> handler = buildAndResolveGraftletT<BaseT>( std::string(grname) );
+        return handler.template invoke<graft::RoutingFunctionSignature>( std::string(cls_method_ver), value );
     }
 
     class DependencyGraph;
@@ -263,7 +268,7 @@ private:
     std::map<DllName, std::tuple<boost::dll::shared_library, Version, DllPath, Dependencies>> m_name2lib;
     //dll name -> registry
     std::map<DllName, GraftletRegistry*> m_name2registries;
-    //dll (name, type_index of BaseT) -> (class name, any of BaseT)
+    //dll (name, type_index of BaseT) -> (class name -> any of BaseT)
     //it makes no sense to hold std::shared_ptr<IGraftlet> until the shared_ptr is returned from resolveGraftlet
     std::map< std::pair<DllName, std::type_index>, std::map<ClsName, std::any> > m_name2gls;
 };

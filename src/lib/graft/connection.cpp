@@ -3,6 +3,7 @@
 #include "lib/graft/mongoosex.h"
 #include "lib/graft/sys_info.h"
 #include "lib/graft/graft_exception.h"
+#include "lib/graft/upstream_manager.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.connection"
@@ -21,6 +22,16 @@ std::string client_host(mg_connection* client)
 {
     if(!client) return "disconnected";
     return inet_ntoa(client->sa.sin.sin_addr);
+}
+
+unsigned int port_from_uri(const std::string& uri)
+{
+    assert(!uri.empty());
+    mg_str mg_uri{uri.c_str(), uri.size()};
+    unsigned int mg_port = 0;
+    int res = mg_parse_uri(mg_uri, 0, 0, 0, &mg_port, 0, 0, 0);
+    assert(0<=res);
+    return mg_port;
 }
 
 void* getUserData(mg_mgr* mgr) { return mgr->user_data; }
@@ -60,28 +71,18 @@ void UpstreamStub::ev_handler(mg_connection *upstream, int ev, void *ev_data)
 }
 
 
-void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
+void UpstreamSender::send(mg_mgr* mgr, int http_callback_port, const std::string& def_uri)
 {
     assert(m_bt);
 
-    const ConfigOpts& opts = manager.getCopts();
-
     Output& output = m_bt->getOutput();
-    std::string url = output.makeUri(def_uri);
+    std::string url = def_uri;
 
     Context::uuid_t callback_uuid = m_bt->getCtx().getId(false);
     if(!callback_uuid.is_nil())
     {//add extra header
-        unsigned int mg_port = 0;
-        {
-            std::string uri = opts.http_address;
-            assert(!uri.empty());
-            mg_str mg_uri{uri.c_str(), uri.size()};
-            int res = mg_parse_uri(mg_uri, 0, 0, 0, &mg_port, 0, 0, 0);
-            assert(0<=res);
-        }
         std::stringstream ss;
-        ss << "http://0.0.0.0:" << mg_port << "/callback/" << boost::uuids::to_string(callback_uuid);
+        ss << "http://0.0.0.0:" << http_callback_port << "/callback/" << boost::uuids::to_string(callback_uuid);
         output.headers.emplace_back(std::make_pair("X-Callback", ss.str()));
     }
     std::string extra_headers = output.combine_headers();
@@ -95,7 +96,8 @@ void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
         m_upstream->user_data = this;
         m_upstream->handler = static_ev_handler<UpstreamSender>;
     }
-    mg_connection* upstream = mg::mg_connect_http_x(m_upstream, manager.getMgMgr(), static_ev_handler<UpstreamSender>, url.c_str(),
+    LOG_PRINT_L2("connecting to url '") << url <<"'";
+    mg_connection* upstream = mg::mg_connect_http_x(m_upstream, mgr, static_ev_handler<UpstreamSender>, url.c_str(),
                              extra_headers.c_str(),
                              body); //body.empty() means GET
     assert(upstream != nullptr && (m_upstream == nullptr || m_upstream == upstream));
@@ -106,9 +108,7 @@ void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
     }
     mg_set_timer(m_upstream, mg_time() + m_timeout);
 
-    auto& rsi = manager.runtimeSysInfo();
-    rsi.count_upstrm_http_req();
-    rsi.count_upstrm_http_req_bytes_raw(url.size() + extra_headers.size() + body.size());
+    m_requestSize = url.size() + extra_headers.size() + body.size();
 }
 
 void UpstreamSender::ev_handler(mg_connection *upstream, int ev, void *ev_data)
@@ -238,10 +238,14 @@ void ConnectionBase::createSystemInfoCounter()
     m_sysInfo = std::make_unique<SysInfoCounter>();
 }
 
-void ConnectionBase::createLooper(ConfigOpts& configOpts)
+void ConnectionBase::createLooper(graftlet::GraftletLoader& graftletLoader, ConfigOpts& configOpts)
 {
-    assert(m_sysInfo && !m_looper);
-    m_looper = std::make_unique<Looper>(configOpts, *this);
+    assert(m_sysInfo && !m_looper && !m_upstreamManager);
+    m_upstreamManager = std::make_unique<UpstreamManager>();
+
+    m_looper = std::make_unique<Looper>(configOpts, *m_upstreamManager, *this);
+    m_upstreamManager->init(graftletLoader, configOpts, m_looper->getMgMgr(), port_from_uri(configOpts.http_address),
+                            [this](UpstreamSender& uss){ m_looper->onUpstreamDone(uss); });
     m_looperReady = true;
 }
 
@@ -290,8 +294,8 @@ void ConnectionBase::checkRoutes(graft::ConnectionManager& cm)
 }
 
 
-Looper::Looper(const ConfigOpts& copts, ConnectionBase& connectionBase)
-    : TaskManager(copts, connectionBase.getSysInfoCounter())
+Looper::Looper(const ConfigOpts& copts, UpstreamManager& upstreamManager, ConnectionBase& connectionBase)
+    : TaskManager(copts, upstreamManager, connectionBase.getSysInfoCounter())
     , m_mgr(std::make_unique<mg_mgr>())
 {
     mg_mgr_init(m_mgr.get(), &connectionBase, cb_event);
