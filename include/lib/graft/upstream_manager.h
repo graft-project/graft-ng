@@ -1,17 +1,32 @@
 #pragma once
 #include "lib/graft/connection.h"
-
+#include "lib/graft/routing.h"
 
 namespace graft
 {
+
+class UpstreamRoutingManager
+{
+public:
+    UpstreamRoutingManager(graftlet::GraftletLoader& graftletLoader)
+        : m_graftletLoader(graftletLoader)
+    { }
+
+    void add(const std::string& name, RoutingFunction converter);
+    bool route(const std::string& in, std::string& out);
+private:
+    std::map<std::string, RoutingFunction> m_converters;
+    graftlet::GraftletLoader& m_graftletLoader;
+};
 
 class UpstreamManager
 {
 public:
     using OnDoneCallback = std::function<void(UpstreamSender& uss)>;
+
     UpstreamManager() = default;
 
-    void init(const ConfigOpts& copts, mg_mgr* mgr, int http_callback_port, OnDoneCallback onDoneCallback);
+    void init(graftlet::GraftletLoader& graftletLoader, const ConfigOpts& copts, mg_mgr* mgr, int http_callback_port, OnDoneCallback onDoneCallback);
 
     bool busy() const
     {
@@ -77,6 +92,7 @@ private:
     void createUpstreamSender(ConnItem* connItem, const std::string& ip_port, BaseTaskPtr bt, const std::string& uri);
     ConnItem* findConnItem(const Output& output, std::string& ip_port, std::string& result_uri);
     const std::string& getUri(ConnItem* connItem, const std::string& inputUri);
+    void initUpstreamRoutingManager(graftlet::GraftletLoader& graftletLoader);
 
     using Uri2ConnItem = std::map<std::string, ConnItem>;
 
@@ -87,6 +103,7 @@ private:
     Uri2ConnItem m_conn2item;
     mg_mgr* m_mgr = nullptr;
     int m_http_callback_port;
+    std::unique_ptr<UpstreamRoutingManager> m_upstreamRoutingManager;
 protected:
     std::unordered_map<std::string,std::string> m_resolveCache;
 };

@@ -4,6 +4,8 @@
 #include "lib/graft/task.h"
 #include "lib/graft/blacklist.h"
 
+namespace graftlet { class GraftletLoader; }
+
 namespace graft {
 
 namespace details
@@ -169,6 +171,8 @@ private:
     Proto m_proto;
 };
 
+class UpstreamRoutingManager;
+
 class ConnectionBase final
 {
 public:
@@ -180,7 +184,7 @@ public:
     void setSysInfoCounter(std::unique_ptr<SysInfoCounter>& counter);
     void createSystemInfoCounter();
     void loadBlacklist(const ConfigOpts& copts);
-    void createLooper(ConfigOpts& configOpts);
+    void createLooper(graftlet::GraftletLoader& graftletLoader,  ConfigOpts& configOpts);
     void initConnectionManagers();
     void bindConnectionManagers();
 

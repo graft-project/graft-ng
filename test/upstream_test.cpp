@@ -104,6 +104,14 @@ TEST_F(UpstreamTest, upstream)
     run("$crypton", maxConn);
 }
 
+TEST_F(UpstreamTest, upstreamWithSharp)
+{
+    const int maxConn = 0;
+    m_mainServer.m_copts.uri_substitutions.insert({"crypton", {"127.0.0.1:1234", maxConn, false, 300}});
+    m_mainServer.m_copts.graftlet_dirs.emplace_back("graftlets");
+    run("#myGraftlet.testGL.testRouting:$crypton", maxConn);
+}
+
 TEST_F(UpstreamTest, upstreamDefault)
 {
     const int maxConn = 0;

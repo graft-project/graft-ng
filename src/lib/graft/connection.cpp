@@ -238,13 +238,13 @@ void ConnectionBase::createSystemInfoCounter()
     m_sysInfo = std::make_unique<SysInfoCounter>();
 }
 
-void ConnectionBase::createLooper(ConfigOpts& configOpts)
+void ConnectionBase::createLooper(graftlet::GraftletLoader& graftletLoader, ConfigOpts& configOpts)
 {
     assert(m_sysInfo && !m_looper && !m_upstreamManager);
     m_upstreamManager = std::make_unique<UpstreamManager>();
 
     m_looper = std::make_unique<Looper>(configOpts, *m_upstreamManager, *this);
-    m_upstreamManager->init(configOpts, m_looper->getMgMgr(), port_from_uri(configOpts.http_address),
+    m_upstreamManager->init(graftletLoader, configOpts, m_looper->getMgMgr(), port_from_uri(configOpts.http_address),
                             [this](UpstreamSender& uss){ m_looper->onUpstreamDone(uss); });
     m_looperReady = true;
 }

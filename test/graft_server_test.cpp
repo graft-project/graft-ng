@@ -6,6 +6,7 @@
 #include "lib/graft/handler_api.h"
 #include "lib/graft/expiring_list.h"
 #include "lib/graft/upstream_manager.h"
+#include "lib/graft/GraftletLoader.h"
 #include "supernode/requests.h"
 #include "supernode/requests/sale.h"
 #include "supernode/requests/sale_status.h"
@@ -162,7 +163,8 @@ public:
         graft::ConfigOpts copts;
         copts.cryptonode_rpc_address = cryptonode_rpc_address;
         copts.uri_substitutions.insert({subst_name, {subst_uri, 0, false, 0}});
-        graft::UpstreamManager::init(copts, nullptr, 0, nullptr);
+        graftlet::GraftletLoader gl;
+        graft::UpstreamManager::init(gl, copts, nullptr, 0, nullptr);
     }
     const std::string testGetUri(const graft::Output& output)
     {

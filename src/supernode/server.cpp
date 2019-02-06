@@ -62,12 +62,12 @@ void GraftServer::getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledW
     m_connectionBase->getLooper().getThreadPoolInfo(activeWorkers, expelledWorkers);
 }
 
-void GraftServer::initGraftlets()
+void GraftServer::initGraftlets(const ConfigOpts& copts)
 {
     if(m_graftletLoader) return;
     m_graftletLoader = std::make_unique<graftlet::GraftletLoader>();
     LOG_PRINT_L1("Searching graftlets");
-    for(auto& it : getCopts().graftlet_dirs)
+    for(auto& it : copts.graftlet_dirs)
     {
         LOG_PRINT_L1("Searching graftlets in directory '") << it << "'";
         m_graftletLoader->findGraftletsInDirectory(it, "so");
@@ -146,9 +146,12 @@ bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
     bool res = initConfigOption(argc, argv, configOpts);
     if(!res) return false;
 
+    initGraftlets(configOpts);
+    assert(m_graftletLoader);
+
     m_connectionBase->loadBlacklist(configOpts);
-    m_connectionBase->createLooper(configOpts);
-    initGraftlets();
+    m_connectionBase->createLooper(*m_graftletLoader, configOpts);
+
     addGlobalCtxCleaner();
 
     initGlobalContext();

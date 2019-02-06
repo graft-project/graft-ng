@@ -1,7 +1,46 @@
 #include "lib/graft/upstream_manager.h"
+#include "lib/graft/GraftletLoader.h"
 
 namespace graft
 {
+
+void UpstreamRoutingManager::add(const std::string& name, RoutingFunction converter)
+{
+    auto res = m_converters.emplace(name, converter);
+    assert(res.second);
+}
+
+/*!
+ * \brief route - make routing.
+ * \param in - it expects "#function:data". it finds and calls function(data),
+ * and place the result back to the route.
+ * for graftlets the function is "graftletName.ClassName.method"
+ * \return false if the function not found
+ */
+bool UpstreamRoutingManager::route(const std::string& in, std::string& out)
+{
+    if(in[0] != '#') return false;
+    size_t pos = in.find(':', 1);
+    if(pos == std::string::npos) return false;
+    std::string name = in.substr(1, pos-1);
+    std::string val = in.substr(pos+1);
+    auto it = m_converters.find(name);
+    if(it != m_converters.end())
+    {
+        out = it->second(val);
+        return true;
+    }
+    //try call graftlet method
+    try
+    {
+        out = m_graftletLoader.Routing(name, val);
+    }
+    catch(...)
+    {
+        return false;
+    }
+    return true;
+}
 
 UpstreamManager::ConnItem::Bunch& UpstreamManager::ConnItem::getBunch(const IpPort& ip_port, bool createIfNotExists)
 {
@@ -95,7 +134,21 @@ UpstreamManager::ConnItem* UpstreamManager::findConnItem(const Output& output, s
 {
     ConnItem* connItem = &m_default;
     {//find connItem
-        const std::string& uri = output.uri;
+        std::string uri = output.uri;
+        if(!uri.empty() && uri[0] == '#')
+        {
+            std::string out;
+            bool res = m_upstreamRoutingManager->route(uri, out);
+            if(res)
+            {
+                LOG_PRINT_L2("routing '") << uri << "' -> '" << out << "'";
+                uri = out;
+            }
+            else
+            {
+                LOG_PRINT_L2("routing '") << uri << "' failed";
+            }
+        }
         if(!uri.empty() && uri[0] == '$')
         {//substitutions
             auto it = m_conn2item.find(uri.substr(1));
@@ -160,8 +213,16 @@ void UpstreamManager::onDone(UpstreamSender& uss, ConnItem* connItem, const std:
     createUpstreamSender(connItem, ip_port_v, bt, uri);
 }
 
-void UpstreamManager::init(const ConfigOpts& copts, mg_mgr* mgr, int http_callback_port, OnDoneCallback onDoneCallback)
+void UpstreamManager::initUpstreamRoutingManager(graftlet::GraftletLoader& graftletLoader)
 {
+    assert(!m_upstreamRoutingManager);
+    m_upstreamRoutingManager = std::make_unique<UpstreamRoutingManager>(graftletLoader);
+}
+
+void UpstreamManager::init(graftlet::GraftletLoader& graftletLoader, const ConfigOpts& copts, mg_mgr* mgr, int http_callback_port, OnDoneCallback onDoneCallback)
+{
+    initUpstreamRoutingManager(graftletLoader);
+
     m_mgr = mgr;
     m_http_callback_port = http_callback_port;
     m_onDoneCallback = onDoneCallback;
