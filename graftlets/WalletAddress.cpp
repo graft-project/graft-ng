@@ -70,21 +70,6 @@ GRAFTLET_EXPORTS_END
 
 GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(0,3))
 
-namespace
-{
-
-template<typename POD>
-bool parse_hexstr_to_pod(const std::string& s, POD& pod)
-{
-    cryptonote::blobdata data;
-    bool ok = epee::string_tools::parse_hexstr_to_binbuff(s, data)
-            && data.size() == sizeof(pod);
-    if(!ok) return false;
-    pod = *reinterpret_cast<const POD*>(data.data());
-}
-
-} //namespace
-
 graft::Status WalletAddressGraftlet::getWalletAddressHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
     LOG_PRINT_L2(__FUNCTION__);
@@ -135,11 +120,11 @@ void WalletAddressGraftlet::makeGetWalletAddressResponse(const graft::CommonOpts
 bool WalletAddressGraftlet::verifySignature()
 {
     crypto::public_key W;
-    bool ok = parse_hexstr_to_pod(m_response.id_key, W);
+    bool ok = epee::string_tools::hex_to_pod(m_response.id_key, W);
     assert(ok);
 
     crypto::signature sign;
-    bool ok1 = parse_hexstr_to_pod(m_response.signature, sign);
+    bool ok1 = epee::string_tools::hex_to_pod(m_response.signature, sign);
     assert(ok1);
 
     std::string data = m_response.wallet_public_address + ":" + m_response.id_key;
@@ -203,7 +188,7 @@ void WalletAddressGraftlet::prepareIdKeys(const graft::CommonOpts& opts, crypto:
             throw graft::exit_error(oss.str());
         }
 
-        bool ok = parse_hexstr_to_pod(w_str, w);
+        bool ok = epee::string_tools::hex_to_pod(w_str, w);
         if(ok)
         {
             ok = crypto::secret_key_to_public_key(w,W);
