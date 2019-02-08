@@ -64,8 +64,8 @@ private:
     graft::supernode::request::GetWalletAddressErrorResponse m_errorResponse;
 };
 
-GRAFTLET_EXPORTS_BEGIN("wallerAddress", GRAFTLET_MKVER(1,1));
-GRAFTLET_PLUGIN(WalletAddressGraftlet, IGraftlet, "wallerAddressGL");
+GRAFTLET_EXPORTS_BEGIN("walletAddress", GRAFTLET_MKVER(1,1));
+GRAFTLET_PLUGIN(WalletAddressGraftlet, IGraftlet, "walletAddressGL");
 GRAFTLET_EXPORTS_END
 
 GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(0,3))
