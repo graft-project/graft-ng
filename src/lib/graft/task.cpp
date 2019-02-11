@@ -6,6 +6,7 @@
 #include "lib/graft/handler_api.h"
 #include "lib/graft/expiring_list.h"
 #include "lib/graft/sys_info.h"
+#include "lib/graft/common/utils.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -981,8 +982,9 @@ std::chrono::milliseconds PeriodicTask::getTimeout()
         return m_initial_timeout_ms;
     }
     if(m_random_factor < 0.0001) return m_timeout_ms;
-
-    return std::chrono::milliseconds( int(m_timeout_ms.count() * (1.0 + std::rand()*m_random_factor/RAND_MAX) ));
+    using i_type = decltype(m_timeout_ms.count());
+    i_type v = graft::utils::random_number(m_timeout_ms.count(), (i_type)(m_timeout_ms.count()*(1.0 + m_random_factor)));
+    return std::chrono::milliseconds(v);
 }
 
 ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)

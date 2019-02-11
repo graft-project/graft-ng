@@ -12,8 +12,7 @@ std::string base64_encode(const std::string &data);
 template <typename T>
 T random_number(T startRange, T endRange)
 {
-    std::random_device rd;
-    std::mt19937 mt(rd());
+    static std::mt19937 mt(std::random_device{}());
     std::uniform_int_distribution<T> dist(startRange, endRange);
     return dist(mt);
 }
