@@ -420,6 +420,7 @@ if (OPT_BUILD_TESTS)
             )
 
         add_executable(supernode_test
+            ${PROJECT_SOURCE_DIR}/test/expiring_set_test.cpp
             ${PROJECT_SOURCE_DIR}/test/upstream_test.cpp
             ${PROJECT_SOURCE_DIR}/test/blacklist_test.cpp
             ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
