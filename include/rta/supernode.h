@@ -3,6 +3,7 @@
 
 #include <crypto/crypto.h>
 #include <cryptonote_config.h>
+#include <cryptonote_core/stake_transaction_processor.h>
 #include <boost/scoped_ptr.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/asio/io_service.hpp>
@@ -28,14 +29,10 @@ class Supernode
 public:
     using SignedKeyImage = std::pair<crypto::key_image, crypto::signature>;
 
-    //  50,000 GRFT –  tier 1
-    //  90,000 GRFT –  tier 2
-    //  150,000 GRFT – tier 3
-    //  250,000 GRFT – tier 4
-    static constexpr uint64_t TIER1_STAKE_AMOUNT = COIN *  50000;
-    static constexpr uint64_t TIER2_STAKE_AMOUNT = COIN *  90000;
-    static constexpr uint64_t TIER3_STAKE_AMOUNT = COIN * 150000;
-    static constexpr uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
+    static constexpr uint64_t TIER1_STAKE_AMOUNT = cryptonote::StakeTransactionProcessor::TIER1_STAKE_AMOUNT;
+    static constexpr uint64_t TIER2_STAKE_AMOUNT = cryptonote::StakeTransactionProcessor::TIER1_STAKE_AMOUNT;
+    static constexpr uint64_t TIER3_STAKE_AMOUNT = cryptonote::StakeTransactionProcessor::TIER1_STAKE_AMOUNT;
+    static constexpr uint64_t TIER4_STAKE_AMOUNT = cryptonote::StakeTransactionProcessor::TIER1_STAKE_AMOUNT;
 
     /*!
      * \brief Supernode - constructs supernode
@@ -74,6 +71,13 @@ public:
      * \return            - stake amount in atomic units
      */
     uint64_t stakeAmount() const;
+
+    /*!
+     * \brief setStakeAmount - set stake amount
+     * \param                - amount
+     */
+    void setStakeAmount(uint64_t amount);
+
     /*!
      * \brief tier - returns the tier of this supernode based on its stake amount
      * \return     - the tier (1-4) of the supernode or 0 if the verified stake amount is below tier 1
@@ -278,6 +282,7 @@ private:
     std::atomic<int64_t>       m_last_update_time;
     mutable boost::shared_mutex m_wallet_guard;
 
+    std::atomic<uint64_t> m_stake_amount;
     std::atomic<uint64_t> m_stake_transaction_block_height;
     std::atomic<uint64_t> m_stake_transaction_unlock_time;
 };

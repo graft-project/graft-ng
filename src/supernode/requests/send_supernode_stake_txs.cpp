@@ -46,28 +46,6 @@ namespace graft::supernode::request {
 namespace
 {
 
-bool verifySignature(const std::string& id_key, const std::string& wallet_public_address, const std::string& signature)
-{
-    crypto::public_key W;
-    if (!epee::string_tools::hex_to_pod(id_key, W))
-    {
-        LOG_ERROR("Invalid supernode public identifier '" << id_key << "'");
-        return false;
-    }
-
-    crypto::signature sign;
-    if (!epee::string_tools::hex_to_pod(signature, sign))
-    {
-        LOG_ERROR("Invalid supernode signature '" << signature << "'");
-        return false;
-    }
-
-    std::string data = wallet_public_address + ":" + id_key;
-    crypto::hash hash;
-    crypto::cn_fast_hash(data.data(), data.size(), hash);
-    return crypto::check_signature(hash, W, sign);
-}
-
 Status supernodeStakeTransactionsHandler
  (const Router::vars_t& vars,
   const graft::Input& input,
@@ -99,31 +77,26 @@ Status supernodeStakeTransactionsHandler
     }
 
     //  handle stake Transactions
-    const std::vector<SupernodeStakeTransaction>& stake_txs = req.params.stake_txs;
+    const std::vector<SupernodeStakeTransaction>& src_stake_txs = req.params.stake_txs;
+    FullSupernodeList::stake_transaction_array dst_stake_txs;
 
-    for (const SupernodeStakeTransaction& tx : stake_txs)
+    dst_stake_txs.reserve(src_stake_txs.size());
+
+    for (const SupernodeStakeTransaction& src_tx : src_stake_txs)
     {
-        if (!fsl->exists(tx.supernode_public_address))
-            continue;
+        FullSupernodeList::stake_transaction dst_tx;
 
-        // check if supernode currently busy
-        SupernodePtr sn = fsl->get(tx.supernode_public_address);
+        dst_tx.amount                   = src_tx.amount;
+        dst_tx.block_height             = src_tx.block_height;
+        dst_tx.unlock_time              = src_tx.unlock_time;
+        dst_tx.supernode_public_id      = src_tx.supernode_public_id;
+        dst_tx.supernode_public_address = src_tx.supernode_public_address;
+        dst_tx.supernode_signature      = src_tx.supernode_signature;
 
-        if (sn->busy()) {
-            MWARNING("Unable to update supernode with new stake transactions: " << tx.supernode_public_address << ", BUSY");
-            return Status::Error;
-        }
-
-        if (!verifySignature(tx.supernode_public_id, tx.supernode_public_address, tx.supernode_signature))
-        {
-           LOG_ERROR("Supernode signature failed for supernode_public_id='" << tx.supernode_public_id <<"', supernode_public_address='" <<
-               tx.supernode_public_address << "', signature='" << tx.supernode_signature << "'");
-           return Status::Error;
-        }
-
-        sn->setStakeTransactionBlockHeight(tx.block_height);
-        sn->setStakeTransactionUnlockTime(tx.unlock_time);
+        dst_stake_txs.emplace_back(std::move(dst_tx));
     }
+
+    fsl->updateStakeTransactions(dst_stake_txs);
 
     return Status::Ok;
 }
