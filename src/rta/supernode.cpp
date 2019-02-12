@@ -80,8 +80,12 @@ Supernode::~Supernode()
 
 uint64_t Supernode::stakeAmount() const
 {
-    boost::shared_lock<boost::shared_mutex> readLock(m_wallet_guard);
-    return m_wallet->unspent_balance();
+    return m_stake_amount;
+}
+
+void Supernode::setStakeAmount(uint64_t amount)
+{
+    m_stake_amount = amount;
 }
 
 uint32_t Supernode::tier() const

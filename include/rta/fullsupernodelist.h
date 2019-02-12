@@ -126,6 +126,23 @@ public:
      */
     size_t refreshedItems() const;
 
+    struct stake_transaction
+    {
+      uint64_t amount = 0;
+      uint64_t block_height = 0;
+      uint64_t unlock_time = 0;
+      std::string supernode_public_id;
+      std::string supernode_public_address;
+      std::string supernode_signature;
+    };
+    typedef std::vector<stake_transaction> stake_transaction_array;
+
+    /*!
+     * \brief updateStakeTransactions - update stake transactions
+     * \param                         - array of stake transactions
+     * \return
+     */
+    void updateStakeTransactions(const stake_transaction_array& stake_txs);
 
 private:
     bool loadWallet(const std::string &wallet_path);

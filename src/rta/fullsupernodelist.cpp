@@ -372,6 +372,72 @@ bool FullSupernodeList::loadWallet(const std::string &wallet_path)
     return result;
 }
 
+namespace
+{
+
+bool verifySignature(const std::string& id_key, const std::string& wallet_public_address, const std::string& signature)
+{
+    crypto::public_key W;
+    if (!epee::string_tools::hex_to_pod(id_key, W))
+    {
+        LOG_ERROR("Invalid supernode public identifier '" << id_key << "'");
+        return false;
+    }
+
+    crypto::signature sign;
+    if (!epee::string_tools::hex_to_pod(signature, sign))
+    {
+        LOG_ERROR("Invalid supernode signature '" << signature << "'");
+        return false;
+    }
+
+    std::string data = wallet_public_address + ":" + id_key;
+    crypto::hash hash;
+    crypto::cn_fast_hash(data.data(), data.size(), hash);
+    return crypto::check_signature(hash, W, sign);
+}
+
+}
+
+void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& stake_txs)
+{
+    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+
+      //reset current stake transactions state
+
+    for (const std::unordered_map<std::string, SupernodePtr>::value_type& sn_desc : m_list)
+    {
+        SupernodePtr sn = sn_desc.second;
+
+        if (!sn)
+            continue;
+
+        sn->setStakeAmount(0);
+        sn->setStakeTransactionBlockHeight(0);
+        sn->setStakeTransactionUnlockTime(0);
+    }
+
+      //apply new stake transactions state
+
+    for (const stake_transaction& tx : stake_txs)
+    {
+        SupernodePtr sn = get(tx.supernode_public_address);
+
+        if (!sn)
+            continue;
+
+        if (!verifySignature(tx.supernode_public_id, tx.supernode_public_address, tx.supernode_signature))
+        {
+            LOG_ERROR("Supernode signature failed for supernode_public_id='" << tx.supernode_public_id << "', supernode_public_address='" <<
+                tx.supernode_public_address << "', signature='" << tx.supernode_signature << "'");
+            continue;
+        }
+
+        sn->setStakeAmount(tx.amount);
+        sn->setStakeTransactionBlockHeight(tx.block_height);
+        sn->setStakeTransactionUnlockTime(tx.unlock_time);
+    }
+}
 
 std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes)
 {
