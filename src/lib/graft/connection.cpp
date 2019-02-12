@@ -3,6 +3,7 @@
 #include "lib/graft/mongoosex.h"
 #include "lib/graft/sys_info.h"
 #include "lib/graft/graft_exception.h"
+#include "lib/graft/expiring_list.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.connection"
@@ -426,6 +427,19 @@ CoapConnectionManager* CoapConnectionManager::from_accepted(mg_connection* cn)
     return static_cast<CoapConnectionManager*>(cm);
 }
 
+class IdFilter : public detail::ExpiringSet
+{
+    static constexpr int lifetime = 30000;
+public:
+    IdFilter() : detail::ExpiringSet(lifetime) { }
+};
+
+HttpConnectionManager::HttpConnectionManager()
+    : ConnectionManager("HTTP")
+    , m_idFilter(std::make_unique<IdFilter>())
+{
+}
+
 void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 {
     ConnectionBase* conBase = ConnectionBase::from(client->mgr);
@@ -441,6 +455,34 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         struct http_message *hm = (struct http_message *) ev_data;
 
         conBase->getLooper().runtimeSysInfo().count_http_req_bytes_raw(hm->message.len);
+
+        {//find X-Id header, and check if its value in IdFilter
+            std::string_view id;
+            for(int i = 0; i < MG_MAX_HTTP_HEADERS; ++i)
+            {
+                const mg_str& h_n = hm->header_names[i];
+                if(h_n.p == nullptr) break;
+                std::string_view name(h_n.p, h_n.len);
+                if(name != "X-Id") continue;
+                const mg_str& h_v = hm->header_values[i];
+                id = std::string_view(h_v.p, h_v.len);
+            }
+            if(!id.empty())
+            {
+                HttpConnectionManager* httpCM = dynamic_cast<HttpConnectionManager*>( conBase->getConMgr("HTTP") );
+                assert(httpCM);
+                bool res = httpCM->m_idFilter->emplace(std::string(id));
+                if(!res)
+                {
+                    conBase->getLooper().runtimeSysInfo().count_http_request_unrouted();
+
+                    LOG_PRINT_CLN(2,client,"X-Id header found '") << id << "'; closing connection";
+                    mg_http_send_error(client, 409, "duplicate request found");
+                    client->flags |= MG_F_SEND_AND_CLOSE;
+                    break;
+                }
+            }
+        }
 
         std::string uri(hm->uri.p, hm->uri.len);
 
