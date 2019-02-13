@@ -6,6 +6,7 @@
 #include "lib/graft/handler_api.h"
 #include "lib/graft/expiring_list.h"
 #include "lib/graft/sys_info.h"
+#include "lib/graft/common/utils.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
@@ -419,17 +420,18 @@ inline size_t TaskManager::next_pow2(size_t val)
 }
 
 bool TaskManager::addPeriodicTask(const Router::Handler& h_worker,
-                             std::chrono::milliseconds interval_ms,
-                             std::chrono::milliseconds initial_interval_ms)
+                                  std::chrono::milliseconds interval_ms,
+                                  std::chrono::milliseconds initial_interval_ms,
+                                  double random_factor)
 {
     if(io_thread)
     {//it is called from pre_action or post_action, and we can call requestAddPeriodicTask directly
-        addPeriodicTask({nullptr, h_worker, nullptr}, interval_ms, initial_interval_ms);
+        addPeriodicTask({nullptr, h_worker, nullptr}, interval_ms, initial_interval_ms, random_factor);
         return true;
     }
     else
     {
-        PeridicTaskItem item = std::make_tuple(Router::Handler3(nullptr, h_worker, nullptr), interval_ms, initial_interval_ms);
+        PeridicTaskItem item = std::make_tuple(Router::Handler3(nullptr, h_worker, nullptr), interval_ms, initial_interval_ms, random_factor);
         bool ok = m_periodicTaskQueue->push( std::move(item) );
         if(!ok) return false;
         notifyJobReady();
@@ -457,7 +459,8 @@ void TaskManager::checkPeriodicTaskIO()
         Router::Handler3& h3 = std::get<0>(pti);
         std::chrono::milliseconds& interval_ms = std::get<1>(pti);
         std::chrono::milliseconds& initial_interval_ms = std::get<2>(pti);
-        addPeriodicTask(h3, interval_ms, initial_interval_ms);
+        double& random_factor = std::get<3>(pti);
+        addPeriodicTask(h3, interval_ms, initial_interval_ms, random_factor);
     }
 }
 
@@ -816,11 +819,11 @@ void TaskManager::processOk(BaseTaskPtr bt)
 }
 
 void TaskManager::addPeriodicTask(
-        const Router::Handler3& h3, std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms)
+        const Router::Handler3& h3, std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms, double random_factor)
 {
     if(initial_interval_ms == std::chrono::milliseconds::max()) initial_interval_ms = interval_ms;
 
-    BaseTask* bt = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms, initial_interval_ms).get();
+    BaseTask* bt = BaseTask::Create<PeriodicTask>(*this, h3, interval_ms, initial_interval_ms, random_factor).get();
     PeriodicTask* pt = dynamic_cast<PeriodicTask*>(bt);
     assert(pt);
     schedule(pt);
@@ -976,9 +979,15 @@ void PeriodicTask::finalize()
 
 std::chrono::milliseconds PeriodicTask::getTimeout()
 {
-    auto ret = (m_initial_run) ? m_initial_timeout_ms : m_timeout_ms;
-    m_initial_run = false;
-    return ret;
+    if(m_initial_run)
+    {
+        m_initial_run = false;
+        return m_initial_timeout_ms;
+    }
+    if(m_random_factor < 0.0001) return m_timeout_ms;
+    using i_type = decltype(m_timeout_ms.count());
+    i_type v = graft::utils::random_number(m_timeout_ms.count(), (i_type)(m_timeout_ms.count()*(1.0 + m_random_factor)));
+    return std::chrono::milliseconds(v);
 }
 
 ClientTask::ClientTask(ConnectionManager* connectionManager, mg_connection *client, Router::JobParams& prms)
