@@ -1,4 +1,3 @@
-
 #include "supernode/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "supernode/requests/send_supernode_announce.h"
@@ -18,12 +17,19 @@ using namespace std;
 
 namespace graft {
 
+
 using graft::supernode::request::SignedKeyImageStr;
 using graft::supernode::request::SupernodeAnnounce;
 
+boost::shared_ptr<boost::asio::io_service> Supernode::m_ioservice { new boost::asio::io_service() };
+
+#ifndef __cpp_inline_variables
+constexpr uint64_t Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT;
+#endif
+
 Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
                      const string &seed_language)
-    : m_wallet{new tools::wallet2(testnet)}
+    : m_wallet{new tools::wallet2(testnet, false, Supernode::m_ioservice)}
     , m_last_update_time {0}
 {
     bool keys_file_exists;
@@ -31,25 +37,36 @@ Supernode::Supernode(const string &wallet_path, const string &wallet_password, c
 
     tools::wallet2::wallet_exists(wallet_path, keys_file_exists, wallet_file_exists);
 
-    LOG_PRINT_L3("keys_file_exists: " << boolalpha << keys_file_exists << noboolalpha
+    MDEBUG("daemon address: " << daemon_address << ", keys_file_exists: " << boolalpha << keys_file_exists << noboolalpha
                  << "  wallet_file_exists: " << boolalpha << wallet_file_exists << noboolalpha);
 
+    // wallet needs to be initialized with the daemon address first.
+    // Otherwize, wallet will get wrong "refresh_from_blockheight" value
+    m_wallet->init(daemon_address);
+
     // existing wallet, open it
-    if(keys_file_exists)
-    {
+    if (keys_file_exists) {
         m_wallet->load(wallet_path, wallet_password);
     // new wallet, generating it
-    }
-    else
-    {
+    } else {
         if(!seed_language.empty())
             m_wallet->set_seed_language(seed_language);
         crypto::secret_key recovery_val, secret_key;
         recovery_val = m_wallet->generate(wallet_path, wallet_password, secret_key, false, false);
     }
-    m_wallet->init(daemon_address);
+
+    // new wallet. in case we don't have a connection to a daemon at the moment wallet created
+    // it may happen wallet get "refresh from block height" parameter in the future
+    if (!keys_file_exists) {
+        std::string error;
+        uint64 daemon_height = m_wallet->get_daemon_blockchain_height(error);
+        // daemon_height will be 0 in case no daemon
+        if (daemon_height == 0)
+            m_wallet->set_refresh_from_block_height(0);
+    }
     m_wallet->store();
-    LOG_PRINT_L0("supernode created: " << "[" << this << "] " <<  this->walletAddress());
+    MDEBUG("refresh from block height: " << m_wallet->get_refresh_from_block_height());
+    MINFO("supernode created: " << "[" << this << "] " <<  this->walletAddress());
 }
 
 Supernode::~Supernode()
@@ -65,6 +82,16 @@ uint64_t Supernode::stakeAmount() const
 {
     boost::shared_lock<boost::shared_mutex> readLock(m_wallet_guard);
     return m_wallet->unspent_balance();
+}
+
+uint32_t Supernode::tier() const
+{
+    auto stake = stakeAmount();
+    return 0 +
+        (stake >= TIER1_STAKE_AMOUNT) +
+        (stake >= TIER2_STAKE_AMOUNT) +
+        (stake >= TIER3_STAKE_AMOUNT) +
+        (stake >= TIER4_STAKE_AMOUNT);
 }
 
 uint64_t Supernode::walletBalance() const
@@ -224,10 +251,11 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
 
     // TODO: check self amount vs announced amount
     setNetworkAddress(announce.network_address);
-    m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
+    m_last_update_time  = static_cast<int64_t>(std::time(nullptr));
+    uint64 stake_amount = stakeAmount();
     MDEBUG("update from announce done for: " << walletAddress() <<
             "; last update time updated to: " << m_last_update_time <<
-            "; stake amount: " << stakeAmount());
+            "; stake amount: " << stake_amount);
     return true;
 }
 
@@ -400,13 +428,13 @@ bool Supernode::validateAddress(const string &address, bool testnet)
     return address.size() > 0 && cryptonote::get_account_address_from_str(acc, testnet, address);
 }
 
-uint64_t Supernode::lastUpdateTime() const
+int64_t Supernode::lastUpdateTime() const
 {
 
     return m_last_update_time;
 }
 
-void Supernode::setLastUpdateTime(uint64_t time)
+void Supernode::setLastUpdateTime(int64_t time)
 {
     m_last_update_time.store(time);
 }

@@ -69,9 +69,12 @@ void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
     Output& output = m_bt->getOutput();
     std::string url = output.makeUri(def_uri);
 
-    Context::uuid_t callback_uuid = m_bt->getCtx().getId(false);
-    if(!callback_uuid.is_nil())
-    {//add extra header
+    if(m_bt->getCtx().isCallbackSet())
+    {
+        m_bt->getCtx().resetCallback();
+        Context::uuid_t callback_uuid = m_bt->getCtx().getId();
+        assert(!callback_uuid.is_nil());
+        //add extra header
         unsigned int mg_port = 0;
         {
             std::string uri = opts.http_address;
@@ -82,7 +85,27 @@ void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
         }
         std::stringstream ss;
         ss << "http://0.0.0.0:" << mg_port << "/callback/" << boost::uuids::to_string(callback_uuid);
-        output.headers.emplace_back(std::make_pair("X-Callback", ss.str()));
+
+        auto it = std::find_if(output.headers.begin(), output.headers.end(), [](auto& v)->bool { v.first == "X-Callback"; } );
+        if(it != output.headers.end())
+        {
+            std::ostringstream oss;
+            oss << "X-Callback header exists and will be overwritten. '" << it->second << "' will be replaced by '" << ss.str() << "'";
+            if(ClientTask* ct = dynamic_cast<ClientTask*>(m_bt.get()))
+            {
+
+                LOG_PRINT_CLN(0, ct->m_client, oss.str());
+            }
+            else
+            {
+                LOG_PRINT_L0(oss.str());
+            }
+            it->second = ss.str();
+        }
+        else
+        {
+            output.headers.emplace_back(std::make_pair("X-Callback", ss.str()));
+        }
     }
     std::string extra_headers = output.combine_headers();
     if(extra_headers.empty())
@@ -377,7 +400,12 @@ void HttpConnectionManager::bind(Looper& looper)
     const ConfigOpts& opts = looper.getCopts();
 
     mg_connection *nc_http = mg_bind(mgr, opts.http_address.c_str(), ev_handler_http);
-    if(!nc_http) throw std::runtime_error("Cannot bind to " + opts.http_address);
+    if(!nc_http)
+    {
+        std::ostringstream oss;
+        oss << "Cannot bind to " << opts.http_address << ". Please check if the address is valid and the port is not used.";
+        throw exit_error(oss.str());
+    }
     nc_http->user_data = this;
     mg_set_protocol_http_websocket(nc_http);
 }
@@ -390,7 +418,12 @@ void CoapConnectionManager::bind(Looper& looper)
     const ConfigOpts& opts = looper.getCopts();
 
     mg_connection *nc_coap = mg_bind(mgr, opts.coap_address.c_str(), ev_handler_coap);
-    if(!nc_coap) throw std::runtime_error("Cannot bind to " + opts.coap_address);
+    if(!nc_coap)
+    {
+        std::ostringstream oss;
+        oss << "Cannot bind to " << opts.coap_address << ". Please check if the address is valid and the port is not used.";
+        throw exit_error(oss.str());
+    }
     nc_coap->user_data = this;
     mg_set_protocol_coap(nc_coap);
 }

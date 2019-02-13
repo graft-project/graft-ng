@@ -519,10 +519,13 @@ void TaskManager::respondAndDie(BaseTaskPtr bt, const std::string& s, bool die)
         assert( dynamic_cast<PeriodicTask*>(bt.get()) );
     }
 
-    Context::uuid_t uuid = bt->getCtx().getId();
-    auto it = m_postponedTasks.find(uuid);
-    if (it != m_postponedTasks.end())
-        m_postponedTasks.erase(it);
+    Context::uuid_t uuid = bt->getCtx().getId(false);
+    if(!uuid.is_nil())
+    {
+        auto it = m_postponedTasks.find(uuid);
+        if (it != m_postponedTasks.end())
+            m_postponedTasks.erase(it);
+    }
 
     if(die)
         bt->finalize();

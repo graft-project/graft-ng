@@ -48,6 +48,7 @@ endif()
 find_package(Threads REQUIRED)
 
 include(ExternalProject)
+include(version.cmake)
 
 set(ExternalProjectCMakeArgs
     -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
@@ -153,7 +154,7 @@ endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 # cryptonode dependencies
 # TODO: modify cryptonode CMakeLists.txt so it installs all required headers/libs
-include_directories(${CRYPTONODE_INCLUDE_DIRS})
+include_directories(${CRYPTONODE_INCLUDE_DIRS} "${CMAKE_BINARY_DIR}/version")
 link_directories(${CRYPTONODE_LIB_DIRS})
 
 ### graftlet_lib

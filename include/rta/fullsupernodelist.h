@@ -24,10 +24,11 @@ namespace utils {
 class FullSupernodeList
 {
 public:
-    static const uint8_t  AUTH_SAMPLE_SIZE = 4;
-    static const size_t   ITEMS_PER_TIER = 1;
-    static const uint64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
-    static const uint64_t ANNOUNCE_TTL_SECONDS = 60 * 60; // if more than ANNOUNCE_TTL_SECONDS passed from last annouce - supernode excluded from auth sample selection
+    static constexpr int32_t TIERS = 4;
+    static constexpr int32_t ITEMS_PER_TIER = 1;
+    static constexpr int32_t AUTH_SAMPLE_SIZE = TIERS * ITEMS_PER_TIER;
+    static constexpr int64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
+    static constexpr int64_t ANNOUNCE_TTL_SECONDS = 60 * 60; // if more than ANNOUNCE_TTL_SECONDS passed from last annouce - supernode excluded from auth sample selection
 
     FullSupernodeList(const std::string &daemon_address, bool testnet = false);
     ~FullSupernodeList();
@@ -127,11 +128,6 @@ public:
 
 
 private:
-    void selectTierSupernodes(const crypto::hash &block_hash, uint64_t tier_min_stake, uint64_t tier_max_stake,
-                              std::vector<SupernodePtr> &output, const std::vector<SupernodePtr> &selected_items,
-                              size_t max_items);
-    bool bestSupernode(std::vector<SupernodePtr> &arg, const crypto::hash &block_hash, SupernodePtr &result);
-
     bool loadWallet(const std::string &wallet_path);
 
 private:

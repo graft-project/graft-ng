@@ -20,10 +20,11 @@ class Supernode : public GraftServer
         bool testnet;
     };
 
-    void prepareDataDirAndSupernodes();
+    void prepareDataDir();
     void startSupernodePeriodicTasks();
     void setHttpRouters(ConnectionManager& httpcm);
     void setCoapRouters(ConnectionManager& coapcm);
+    void loadStakeWallets();
 
     ConfigOptsEx m_configEx;
 protected:

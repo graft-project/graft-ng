@@ -54,7 +54,7 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     return res;
 }
 
-void Supernode::prepareDataDirAndSupernodes()
+void Supernode::prepareDataDir()
 {
     if (m_configEx.data_dir.empty()) {
         boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
@@ -103,16 +103,7 @@ void Supernode::prepareDataDirAndSupernodes()
     // create fullsupernode list instance and put it into global context
     graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
                 m_configEx.cryptonode_rpc_address, m_configEx.testnet);
-    size_t found_wallets = 0;
-    MINFO("loading supernodes wallets from: " << watchonly_wallets_path.string());
-    size_t loaded_wallets = fsl->loadFromDirThreaded(watchonly_wallets_path.string(), found_wallets);
 
-    if (found_wallets != loaded_wallets) {
-        LOG_ERROR("found wallets: " << found_wallets << ", loaded wallets: " << loaded_wallets);
-    }
-    LOG_PRINT_L0("supernode list loaded");
-
-    // add our supernode as well, it wont be added from announce;
     fsl->add(supernode);
 
     //put fsl into global context
@@ -128,8 +119,13 @@ void Supernode::initMisc(ConfigOpts& configOpts)
 {
     ConfigOptsEx& coptsex = static_cast<ConfigOptsEx&>(configOpts);
     assert(&m_configEx == &coptsex);
-    prepareDataDirAndSupernodes();
+    prepareDataDir();
     startSupernodePeriodicTasks();
+
+    std::chrono::milliseconds duration( 5000 );
+    auto deferred_task = [duration, this] () { std::this_thread::sleep_for(duration); this->loadStakeWallets(); };
+    std::thread t(deferred_task);
+    t.detach();
 }
 
 void Supernode::startSupernodePeriodicTasks()
@@ -197,6 +193,25 @@ void Supernode::setCoapRouters(ConnectionManager& coapcm)
     coap_router.addRoute("/test2", METHOD_GET, h3_test);
 
     coapcm.addRouter(coap_router);
+}
+
+void Supernode::loadStakeWallets()
+{
+
+    Context ctx(getLooper().getGcm());
+    std::string watchonly_wallets_path = ctx.global.get("watchonly_wallets_path", std::string());
+
+    FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
+    size_t found_wallets = 0;
+    MDEBUG("loading supernodes wallets from: " << watchonly_wallets_path);
+    size_t loaded_wallets = fsl->loadFromDirThreaded(watchonly_wallets_path, found_wallets);
+
+    if (found_wallets != loaded_wallets) {
+        LOG_ERROR("found wallets: " << found_wallets << ", loaded wallets: " << loaded_wallets);
+    }
+    LOG_PRINT_L0("supernode list loaded");
+
+    // add our supernode as well, it wont be added from announce;
 }
 
 void Supernode::initRouters()

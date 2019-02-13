@@ -4,6 +4,7 @@
 #include "lib/graft/GraftletLoader.h"
 #include "lib/graft/sys_info.h"
 #include "lib/graft/graft_exception.h"
+#include "version.h"
 
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -167,7 +168,8 @@ bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
 
 void GraftServer::serve()
 {
-    LOG_PRINT_L0("Starting server on: [http] " << getCopts().http_address << ", [coap] " << getCopts().coap_address);
+    LOG_PRINT_L0("Starting server on: [http] " << getCopts().http_address << ", [coap] " << getCopts().coap_address
+                 << ", version: " << GRAFT_SUPERNODE_VERSION_FULL);
 
     m_connectionBase->getLooper().serve();
 }
@@ -405,6 +407,11 @@ void usage(const boost::program_options::options_description& desc)
     std::cout << desc << "\n" << sigmsg << "\n";
 }
 
+void print_version()
+{
+    std::cout << "Graft supernode version: " << GRAFT_SUPERNODE_VERSION_FULL << "\n";
+}
+
 bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& configOpts)
 {
     namespace po = boost::program_options;
@@ -416,6 +423,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         po::options_description desc("Allowed options");
         desc.add_options()
                 ("help", "produce help message")
+                ("version", "print version and exit")
                 ("config-file", po::value<std::string>(), "config filename (config.ini by default)")
                 ("log-level", po::value<std::string>(), "log-level. (3 by default), e.g. --log-level=2,supernode.task:INFO,supernode.server:DEBUG")
                 ("log-console", po::value<bool>(), "log to console. 1 or true or 0 or false. (true by default)")
@@ -431,7 +439,12 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 
         if (vm.count("help")) {
             usage(desc);
-            return false;
+            exit(EXIT_SUCCESS);
+        }
+
+        if (vm.count("version")) {
+            print_version();
+            exit(EXIT_SUCCESS);
         }
 
         if (vm.count("config-file")) {
@@ -480,6 +493,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     // dirs <string:string:...>
 
     details::init_log(config, vm);
+    //
 
     configOpts.config_filename = config_filename;
 
