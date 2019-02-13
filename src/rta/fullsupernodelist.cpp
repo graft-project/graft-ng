@@ -123,10 +123,10 @@ constexpr int32_t FullSupernodeList::TIERS, FullSupernodeList::ITEMS_PER_TIER, F
 constexpr int64_t FullSupernodeList::AUTH_SAMPLE_HASH_HEIGHT, FullSupernodeList::ANNOUNCE_TTL_SECONDS;
 #endif
 
-FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
+FullSupernodeList::FullSupernodeList(const string &daemon_address, boost::shared_ptr<boost::asio::io_service> ios, bool testnet)
     : m_daemon_address(daemon_address)
     , m_testnet(testnet)
-    , m_rpc_client(daemon_address, "", "")
+    , m_rpc_client(daemon_address, "", "", ios)
     , m_tp(new utils::ThreadPool())
 {
     m_refresh_counter = 0;

@@ -103,7 +103,8 @@ void Supernode::prepareDataDir()
 
     // create fullsupernode list instance and put it into global context
     graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
-                m_configEx.cryptonode_rpc_address, m_configEx.testnet);
+                m_configEx.cryptonode_rpc_address, graft::Supernode::getIoService(),
+                m_configEx.testnet);
 
     fsl->add(supernode);
 
