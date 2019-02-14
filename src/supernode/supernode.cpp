@@ -51,6 +51,7 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
     m_configEx.testnet = server_conf.get<bool>("testnet", false);
+    m_configEx.stake_wallet_refresh_interval_random_factor = server_conf.get<double>("stake-wallet-refresh-interval-random-factor", 0);
     return res;
 }
 
@@ -137,7 +138,8 @@ void Supernode::startSupernodePeriodicTasks()
         getLooper().addPeriodicTask(
                     graft::Router::Handler3(nullptr, graft::supernode::request::sendAnnounce, nullptr),
                     std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
-                    std::chrono::milliseconds(initial_interval_ms)
+                    std::chrono::milliseconds(initial_interval_ms),
+                    m_configEx.stake_wallet_refresh_interval_random_factor
                     );
     }
 }

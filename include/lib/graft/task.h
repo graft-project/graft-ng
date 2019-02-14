@@ -153,19 +153,23 @@ class PeriodicTask : public BaseTask
     PeriodicTask(
             TaskManager& manager, const Router::Handler3& h3,
             std::chrono::milliseconds timeout_ms,
-            std::chrono::milliseconds initial_timeout_ms
+            std::chrono::milliseconds initial_timeout_ms,
+            double random_factor = 0
     ) : BaseTask(manager, Router::JobParams({Input(), Router::vars_t(), h3}))
       , m_timeout_ms(timeout_ms), m_initial_timeout_ms(initial_timeout_ms)
+      , m_random_factor(random_factor)
     {
     }
 
-    PeriodicTask(TaskManager& manager, const Router::Handler3& h3, std::chrono::milliseconds timeout_ms)
-        : PeriodicTask(manager, h3, timeout_ms, timeout_ms)
+    PeriodicTask(TaskManager& manager, const Router::Handler3& h3,
+                 std::chrono::milliseconds timeout_ms, double random_factor = 0)
+        : PeriodicTask(manager, h3, timeout_ms, timeout_ms, random_factor)
     {
     }
 
     std::chrono::milliseconds m_timeout_ms;
     std::chrono::milliseconds m_initial_timeout_ms;
+    double m_random_factor;
     bool m_initial_run {true};
 
 public:
@@ -199,7 +203,9 @@ public:
 
     void sendUpstream(BaseTaskPtr bt);
     void addPeriodicTask(const Router::Handler3& h3,
-            std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max());
+                         std::chrono::milliseconds interval_ms,
+                         std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max(),
+                         double random_factor = 0);
 
     ////getters
     virtual mg_mgr* getMgMgr()  = 0;
@@ -220,7 +226,8 @@ public:
     virtual void sendUpstreamBlocking(Output& output, Input& input, std::string& err) override;
     virtual bool addPeriodicTask(const Router::Handler& h_worker,
                                  std::chrono::milliseconds interval_ms,
-                                 std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max()) override;
+                                 std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max(),
+                                 double random_factor = 0 ) override;
     virtual request::system_info::Counter& runtimeSysInfo() override;
     virtual const ConfigOpts& configOpts() const override;
 
@@ -282,7 +289,7 @@ private:
     using PromiseItem = UpstreamTask::PromiseItem;
     using PromiseQueue = tp::MPMCBoundedQueue<PromiseItem>;
 
-    using PeridicTaskItem = std::tuple<Router::Handler3, std::chrono::milliseconds, std::chrono::milliseconds>;
+    using PeridicTaskItem = std::tuple<Router::Handler3, std::chrono::milliseconds, std::chrono::milliseconds, double>;
     using PeriodicTaskQueue = tp::MPMCBoundedQueue<PeridicTaskItem>;
 
     std::unique_ptr<PromiseQueue> m_promiseQueue;

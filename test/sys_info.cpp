@@ -151,8 +151,9 @@ class HandlerAPIImpl : public graft::HandlerAPI
 public:
     virtual void sendUpstreamBlocking(Output& output, Input& input, std::string& err) override { }
     virtual bool addPeriodicTask(const Router::Handler& h_worker,
-                                        std::chrono::milliseconds interval_ms,
-                                 std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max()) override { }
+                                 std::chrono::milliseconds interval_ms,
+                                 std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max(),
+                                 double random_factor = 0) override { }
     virtual graft::request::system_info::Counter& runtimeSysInfo() override
     {
         return m_sic;
