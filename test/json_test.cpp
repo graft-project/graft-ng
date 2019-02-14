@@ -26,11 +26,11 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "inout.h"
-#include "jsonrpc.h"
+#include "lib/graft/inout.h"
+#include "lib/graft/jsonrpc.h"
+
 #include <gtest/gtest.h>
 #include <string>
-
 
 using namespace std;
 using namespace graft;
@@ -77,3 +77,4 @@ TEST(JsonParseTest, malformed_source)
     EXPECT_ANY_THROW(in.get<JsonRpcErrorResponse>());
     EXPECT_FALSE(in.get(resp));
 }
+

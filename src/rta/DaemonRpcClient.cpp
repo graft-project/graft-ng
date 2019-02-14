@@ -27,7 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "DaemonRpcClient.h"
+#include "rta/DaemonRpcClient.h"
 #include <rpc/core_rpc_server_commands_defs.h>
 #include <storages/http_abstract_invoke.h>
 #include <cryptonote_basic/cryptonote_format_utils.h>

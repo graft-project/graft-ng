@@ -27,22 +27,19 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-#include <misc_log_ex.h>
 #include <gtest/gtest.h>
-#include <inout.h>
-#include <jsonrpc.h>
-#include <connection.h>
-#include <router.h>
-
+#include "lib/graft/inout.h"
+#include "lib/graft/jsonrpc.h"
+#include "lib/graft/context.h"
+#include "lib/graft/sys_info.h"
+#include "fixture.h"
+#include "misc_log_ex.h"
 #include <string>
 #include <thread>
 #include <chrono>
 
-
-
 using namespace graft;
 using namespace std::chrono_literals;
-
 
 GRAFT_DEFINE_IO_STRUCT_INITED(Payment1,
      (uint64, amount, 0),
@@ -160,16 +157,15 @@ struct JsonRpcTest : public ::testing::Test
 
     void startServer()
     {
-        ConfigOpts sopts {"localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, "localhost:28281/sendrawtransaction", 1000};
+        ConfigOpts sopts {"", "localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, 1000, "localhost:28281/sendrawtransaction", 1000, -1, {}, 60000};
         Router router;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
-        Looper looper(sopts);
-        httpcm.addRouter(router);
-        httpcm.enableRouting();
-        this->looper = &looper;
-        httpcm.bind(looper);
-        looper.serve();
+
+        detail::GSTest gserver(router, true);
+        gserver.init(start_args.argc, start_args.argv, sopts);
+        this->m_gserver = &gserver;
+        gserver.run();
     }
 
     void stopServer()
@@ -182,11 +178,11 @@ struct JsonRpcTest : public ::testing::Test
         mlog_configure("", true);
         mlog_set_log_level(1);
 
-        server_thread = std::thread([this]() {
+        m_serverThread = std::thread([this]() {
             this->startServer();
         });
         LOG_PRINT_L0("Server thread started..");
-        while (!looper || !looper->ready()) {
+        while (!m_gserver || !m_gserver.load()->ready()) {
             LOG_PRINT_L0("waiting for server");
             std::this_thread::sleep_for(1s);
         }
@@ -246,9 +242,8 @@ struct JsonRpcTest : public ::testing::Test
     virtual void TearDown() override
     { }
 
-    HttpConnectionManager httpcm;
-    Looper   * looper{nullptr};
-    std::thread server_thread;
+    std::atomic<detail::GSTest*> m_gserver{nullptr};
+    std::thread m_serverThread;
 };
 
 
@@ -281,9 +276,9 @@ TEST_F(JsonRpcTest, common)
     EXPECT_TRUE(response_error.error.code == -1);
 
     LOG_PRINT_L0("Stopping server..");
-    looper->stop();
+    m_gserver.load()->stop();
     LOG_PRINT_L0("Waiting for a server thread done...");
-    server_thread.join();
+    m_serverThread.join();
     LOG_PRINT_L0("Server thread done...");
 }
 

@@ -1,12 +1,12 @@
-#include "supernode.h"
-#include "fullsupernodelist.h"
-#include "requests/sendsupernodeannouncerequest.h"
-
+#include "supernode/supernode.h"
+#include "rta/fullsupernodelist.h"
+#include "supernode/requests/send_supernode_announce.h"
 
 #include <misc_log_ex.h>
 #include <wallet/wallet2.h>
 #include <cryptonote_basic/cryptonote_basic_impl.h>
 #include <boost/filesystem.hpp>
+#include <boost/thread/locks.hpp>
 #include <iostream>
 #include <ctime>
 
@@ -17,9 +17,19 @@ using namespace std;
 
 namespace graft {
 
+
+using graft::supernode::request::SignedKeyImageStr;
+using graft::supernode::request::SupernodeAnnounce;
+
+boost::shared_ptr<boost::asio::io_service> Supernode::m_ioservice { new boost::asio::io_service() };
+
+#ifndef __cpp_inline_variables
+constexpr uint64_t Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT;
+#endif
+
 Supernode::Supernode(const string &wallet_path, const string &wallet_password, const string &daemon_address, bool testnet,
                      const string &seed_language)
-    : m_wallet{new tools::wallet2(testnet)}
+    : m_wallet{new tools::wallet2(testnet, false, Supernode::m_ioservice)}
     , m_last_update_time {0}
 {
     bool keys_file_exists;
@@ -27,32 +37,66 @@ Supernode::Supernode(const string &wallet_path, const string &wallet_password, c
 
     tools::wallet2::wallet_exists(wallet_path, keys_file_exists, wallet_file_exists);
 
-    LOG_PRINT_L3("keys_file_exists: " << boolalpha << keys_file_exists << noboolalpha
+    MDEBUG("daemon address: " << daemon_address << ", keys_file_exists: " << boolalpha << keys_file_exists << noboolalpha
                  << "  wallet_file_exists: " << boolalpha << wallet_file_exists << noboolalpha);
+
+    // wallet needs to be initialized with the daemon address first.
+    // Otherwize, wallet will get wrong "refresh_from_blockheight" value
+    m_wallet->init(daemon_address);
 
     // existing wallet, open it
     if (keys_file_exists) {
         m_wallet->load(wallet_path, wallet_password);
     // new wallet, generating it
     } else {
-        if (!seed_language.empty())
+        if(!seed_language.empty())
             m_wallet->set_seed_language(seed_language);
         crypto::secret_key recovery_val, secret_key;
         recovery_val = m_wallet->generate(wallet_path, wallet_password, secret_key, false, false);
     }
-    m_wallet->init(daemon_address);
+
+    // new wallet. in case we don't have a connection to a daemon at the moment wallet created
+    // it may happen wallet get "refresh from block height" parameter in the future
+    if (!keys_file_exists) {
+        std::string error;
+        uint64 daemon_height = m_wallet->get_daemon_blockchain_height(error);
+        // daemon_height will be 0 in case no daemon
+        if (daemon_height == 0)
+            m_wallet->set_refresh_from_block_height(0);
+    }
     m_wallet->store();
-    LOG_PRINT_L0("supernode created: " << "[" << this << "] " <<  this->walletAddress());
+    MDEBUG("refresh from block height: " << m_wallet->get_refresh_from_block_height());
+    MINFO("supernode created: " << "[" << this << "] " <<  this->walletAddress());
 }
 
 Supernode::~Supernode()
 {
     LOG_PRINT_L0("destroying supernode: " << "[" << this << "] " <<  this->walletAddress());
-    m_wallet->store();
+    {
+        boost::unique_lock<boost::shared_mutex> writeLock(m_wallet_guard);
+        m_wallet->store();
+    }
 }
 
 uint64_t Supernode::stakeAmount() const
 {
+    boost::shared_lock<boost::shared_mutex> readLock(m_wallet_guard);
+    return m_wallet->unspent_balance();
+}
+
+uint32_t Supernode::tier() const
+{
+    auto stake = stakeAmount();
+    return 0 +
+        (stake >= TIER1_STAKE_AMOUNT) +
+        (stake >= TIER2_STAKE_AMOUNT) +
+        (stake >= TIER3_STAKE_AMOUNT) +
+        (stake >= TIER4_STAKE_AMOUNT);
+}
+
+uint64_t Supernode::walletBalance() const
+{
+    boost::shared_lock<boost::shared_mutex> readLock(m_wallet_guard);
     return m_wallet->balance();
 }
 
@@ -65,6 +109,7 @@ uint64_t Supernode::daemonHeight() const
 {
     uint64_t result = 0;
     std::string err;
+    boost::shared_lock<boost::shared_mutex> readLock(m_wallet_guard);
     result = m_wallet->get_daemon_blockchain_height(err);
     if (!result) {
         LOG_ERROR(err);
@@ -74,6 +119,7 @@ uint64_t Supernode::daemonHeight() const
 
 bool Supernode::exportKeyImages(vector<Supernode::SignedKeyImage> &key_images) const
 {
+    boost::shared_lock<boost::shared_mutex> readLock(m_wallet_guard);
     try {
         key_images = m_wallet->export_key_images();
         return !key_images.empty();
@@ -88,15 +134,23 @@ bool Supernode::exportKeyImages(vector<Supernode::SignedKeyImage> &key_images) c
 
 bool Supernode::importKeyImages(const vector<Supernode::SignedKeyImage> &key_images, uint64_t &height)
 {
+    uint64_t spent = 0;
+    uint64_t unspent = 0;
 
-    uint64_t spent = 0, unspent = 0;
-    try {
+    try
+    {
+        // shared_mutex isn't recursive, we need to unlock it before daemonHeight() called
+        boost::unique_lock<boost::shared_mutex> writeLock(m_wallet_guard);
         m_wallet->import_key_images(key_images, spent, unspent);
         m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
-    } catch (const std::exception &e) {
+    }
+    catch(const std::exception& e)
+    {
         LOG_ERROR("wallet exception: " << e.what());
         return false;
-    } catch (...) {
+    }
+    catch (...)
+    {
         LOG_ERROR("unknown exception");
         return false;
     }
@@ -153,6 +207,7 @@ Supernode *Supernode::load(const string &wallet_path, const string &wallet_passw
 
 bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
 {
+
     // check if address match
     MDEBUG("updating supernode from announce: " << announce.address);
     if (this->walletAddress() != announce.address) {
@@ -161,6 +216,7 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
     }
 
     // update wallet's blockchain first
+    // refresh is protected by mutex
     if (!this->refresh())
         return false;
 
@@ -192,10 +248,14 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
         LOG_ERROR("key images imported but height is 0");
         return false;
     }
+
     // TODO: check self amount vs announced amount
     setNetworkAddress(announce.network_address);
-    m_last_update_time  = static_cast<uint64_t>(std::time(nullptr));
-    MDEBUG("update from announce done for: " << this->walletAddress() <<  ": last update time updated to: " << m_last_update_time);
+    m_last_update_time  = static_cast<int64_t>(std::time(nullptr));
+    uint64 stake_amount = stakeAmount();
+    MDEBUG("update from announce done for: " << walletAddress() <<
+            "; last update time updated to: " << m_last_update_time <<
+            "; stake amount: " << stake_amount);
     return true;
 }
 
@@ -212,14 +272,11 @@ Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnno
 
     try {
         result = Supernode::createFromViewOnlyWallet(path, announce.address, viewkey, testnet);
-
-
-        // XXX before importing key images, wallet needs to be connected to daemon and syncrhonized
+        // before importing key images, wallet needs to be connected to daemon and syncrhonized
         if (result) {
             result->setDaemonAddress(daemon_address);
             result->updateFromAnnounce(announce);
         }
-
     } catch (...) {
         LOG_ERROR("wallet exception");
         delete result;
@@ -231,21 +288,29 @@ Supernode *Supernode::createFromAnnounce(const string &path, const SupernodeAnno
 
 bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
 {
-    announce.timestamp = time(nullptr);
-    announce.secret_viewkey = epee::string_tools::pod_to_hex(this->exportViewkey());
-    announce.height = m_wallet->get_blockchain_current_height();
+    {
+        boost::shared_lock<boost::shared_mutex> lock(m_wallet_guard);
+        if (!m_wallet->is_synced()) {
+            MWARNING("Wallet is not synced");
+            return false;
+        }
 
-    vector<Supernode::SignedKeyImage> signed_key_images;
-    if (!exportKeyImages(signed_key_images)) {
-        LOG_ERROR("Failed to export key images");
-        return false;
-    }
+        announce.timestamp = time(nullptr);
+        announce.secret_viewkey = epee::string_tools::pod_to_hex(this->exportViewkey());
+        announce.height = m_wallet->get_blockchain_current_height();
 
-    for (const SignedKeyImage &ski : signed_key_images) {
-        SignedKeyImageStr skis;
-        skis.key_image = epee::string_tools::pod_to_hex(ski.first);
-        skis.signature = epee::string_tools::pod_to_hex(ski.second);
-        announce.signed_key_images.push_back(skis);
+        vector<Supernode::SignedKeyImage> signed_key_images;
+        if (!exportKeyImages(signed_key_images)) {
+            LOG_ERROR("Failed to export key images");
+            return false;
+        }
+
+        for (const SignedKeyImage &ski : signed_key_images) {
+            SignedKeyImageStr skis;
+            skis.key_image = epee::string_tools::pod_to_hex(ski.first);
+            skis.signature = epee::string_tools::pod_to_hex(ski.second);
+            announce.signed_key_images.push_back(std::move(skis));
+        }
     }
 
     announce.stake_amount = this->stakeAmount();
@@ -257,6 +322,7 @@ bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
 
 crypto::secret_key Supernode::exportViewkey() const
 {
+    boost::shared_lock<boost::shared_mutex> readLock(m_wallet_guard);
     return m_wallet->get_account().get_keys().m_view_secret_key;
 }
 
@@ -289,7 +355,6 @@ bool Supernode::verifySignature(const string &msg, const string &address, const 
 
 bool Supernode::verifyHash(const crypto::hash &hash, const string &address, const crypto::signature &signature) const
 {
-
     cryptonote::account_public_address wallet_addr;
     if (!cryptonote::get_account_address_from_str(wallet_addr, m_wallet->testnet(), address)) {
         LOG_ERROR("Error parsing address");
@@ -302,18 +367,23 @@ bool Supernode::verifyHash(const crypto::hash &hash, const string &address, cons
 
 bool Supernode::setDaemonAddress(const string &address)
 {
+    // boost::unique_lock<boost::shared_mutex> writeLock(m_wallet_guard);
     return m_wallet->init(address);
 }
 
 bool Supernode::refresh()
 {
+    MDEBUG("about to refresh account: " << this->walletAddress());
+    boost::unique_lock<boost::shared_mutex> writeLock(m_wallet_guard);
     try {
         m_wallet->refresh();
+        m_wallet->rescan_unspent();
         m_wallet->store();
     } catch (...) {
         LOG_ERROR("Failed to refresh supernode wallet: " << this->walletAddress());
         return false;
     }
+    MDEBUG("account refreshed: " << this->walletAddress());
     return true;
 }
 
@@ -324,6 +394,7 @@ bool Supernode::testnet() const
 
 void Supernode::getScoreHash(const crypto::hash &block_hash, crypto::hash &result) const
 {
+    // address wont be changed during object lifetime, not need to lock
     cryptonote::blobdata data = m_wallet->get_account().get_public_address_str(testnet());
     data += epee::string_tools::pod_to_hex(block_hash);
     crypto::cn_fast_hash(data.c_str(), data.size(), result);
@@ -331,6 +402,7 @@ void Supernode::getScoreHash(const crypto::hash &block_hash, crypto::hash &resul
 
 string Supernode::networkAddress() const
 {
+    // boost::shared_lock<boost::shared_mutex> readLock(m_wallet_guard);
     return m_network_address;
 }
 
@@ -356,22 +428,32 @@ bool Supernode::validateAddress(const string &address, bool testnet)
     return address.size() > 0 && cryptonote::get_account_address_from_str(acc, testnet, address);
 }
 
-uint64_t Supernode::lastUpdateTime() const
+int64_t Supernode::lastUpdateTime() const
 {
+
     return m_last_update_time;
 }
 
-void Supernode::setLastUpdateTime(uint64_t time)
+void Supernode::setLastUpdateTime(int64_t time)
 {
-    m_last_update_time = time;
+    m_last_update_time.store(time);
+}
+
+bool Supernode::busy() const
+{
+    if (m_wallet_guard.try_lock_shared()) {
+        m_wallet_guard.unlock_shared();
+        return false;
+    } else {
+        return true;
+    }
 }
 
 Supernode::Supernode(bool testnet)
-    : m_wallet{ new tools::wallet2(testnet) }
+: m_wallet{ new tools::wallet2(testnet) }
 {
 
 }
 
+}
 
-
-} // namespace graft

@@ -1,20 +1,24 @@
 #include <gtest/gtest.h>
-#include "context.h"
-#include "connection.h"
-#include "mongoosex.h"
-#include "requests.h"
-#include "salerequest.h"
-#include "salestatusrequest.h"
-#include "rejectsalerequest.h"
-#include "saledetailsrequest.h"
-#include "payrequest.h"
-#include "paystatusrequest.h"
-#include "rejectpayrequest.h"
-#include "requestdefines.h"
-#include "inout.h"
+
+#include "lib/graft/jsonrpc.h"
+#include "lib/graft/context.h"
+#include "lib/graft/inout.h"
+#include "lib/graft/handler_api.h"
+#include "lib/graft/expiring_list.h"
+#include "supernode/requests.h"
+#include "supernode/requests/sale.h"
+#include "supernode/requests/sale_status.h"
+#include "supernode/requests/reject_sale.h"
+#include "supernode/requests/sale_details.h"
+#include "supernode/requests/pay.h"
+#include "supernode/requests/pay_status.h"
+#include "supernode/requests/reject_pay.h"
+#include "supernode/requestdefines.h"
+#include "fixture.h"
+
+#include <misc_log_ex.h>
+
 #include <deque>
-#include <jsonrpc.h>
-#include <boost/uuid/uuid_io.hpp>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -156,7 +160,7 @@ TEST(InOut, makeUri)
     }
     {
         graft::Output output;
-        graft::Output::uri_substitutions.insert({"my_ip", "1.2.3.4"});
+        graft::Output::uri_substitutions.insert({"my_ip", {"1.2.3.4", 0, false, 0}});
         output.proto = "https";
         output.port = "4321";
         output.uri = "$my_ip";
@@ -165,7 +169,7 @@ TEST(InOut, makeUri)
     }
     {
         graft::Output output;
-        graft::Output::uri_substitutions.insert({"my_path", "http://site.com:1234/endpoint?q=1&n=2"});
+        graft::Output::uri_substitutions.insert({"my_path", {"http://site.com:1234/endpoint?q=1&n=2", 0, false, 0}});
         output.proto = "https";
         output.port = "4321";
         output.uri = "$my_path";
@@ -174,7 +178,7 @@ TEST(InOut, makeUri)
     }
     {
         graft::Output output;
-        graft::Output::uri_substitutions.insert({"my_path", "endpoint?q=1&n=2"});
+        graft::Output::uri_substitutions.insert({"my_path", {"endpoint?q=1&n=2", 0, false, 0}});
         output.proto = "https";
         output.host = "mysite.com";
         output.port = "4321";
@@ -409,273 +413,110 @@ TEST(Context, multithreaded)
     EXPECT_EQ(sum, g_count-main_count);
 }
 
-/////////////////////////////////
-// GraftServerTestBase fixture
-
-class GraftServerTestBase : public ::testing::Test
+TEST(Context, expiration)
 {
-protected:
-    //Server to simulate CryptoNode (its object is created in non-main thread)
-    class TempCryptoNodeServer
-    {
-    public:
-        std::string port = "1234";
-        int connect_timeout_ms = 1000;
-        int poll_timeout_ms = 1000;
+    graft::GlobalContextMap m;
+    graft::Context ctx(m);
 
-        using on_http_t = bool (const http_message *hm, int& status_code, std::string& headers, std::string& data);
-        std::function<on_http_t> on_http = nullptr;
-        static std::function<on_http_t> http_echo;
-    public:
-        void run()
-        {
-            ready = false;
-            stop = false;
-            th = std::thread([this]{ x_run(); });
-            while(!ready)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-        }
-        void stop_and_wait_for()
-        {
-            stop = true;
-            th.join();
-        }
-    protected:
-        virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data)
-        {
-            assert(on_http);
-            return on_http(hm, status_code, headers, data);
-        }
-        virtual void onClose() { }
-    private:
-        std::thread th;
-        std::atomic_bool ready;
-        std::atomic_bool stop;
-    private:
-        void x_run()
-        {
-            mg_mgr mgr;
-            mg_mgr_init(&mgr, this, 0);
-            mg_connection *nc = mg_bind(&mgr, port.c_str(), ev_handler_http_s);
-            mg_set_protocol_http_websocket(nc);
-            ready = true;
-            for (;;) {
-                mg_mgr_poll(&mgr, poll_timeout_ms);
-                if(stop) break;
-            }
-            mg_mgr_free(&mgr);
-        }
-    private:
-        static void ev_handler_empty_s(mg_connection *client, int ev, void *ev_data)
-        {
-        }
-        static void ev_handler_http_s(mg_connection *client, int ev, void *ev_data)
-        {
-            TempCryptoNodeServer* This = static_cast<TempCryptoNodeServer*>(client->mgr->user_data);
-            assert(dynamic_cast<TempCryptoNodeServer*>(This));
-            This->ev_handler_http(client, ev, ev_data);
-        }
-        void ev_handler_http(mg_connection *client, int ev, void *ev_data)
-        {
-            switch(ev)
-            {
-            case MG_EV_HTTP_REQUEST:
-            {
-                mg_set_timer(client, 0);
-                struct http_message *hm = (struct http_message *) ev_data;
-                int status_code = 200;
-                std::string headers, data;
-                bool res = onHttpRequest(hm, status_code, headers, data);
-                if(!res) break;
-                mg_send_head(client, status_code, data.size(), headers.c_str());
-                mg_send(client, data.c_str(), data.size());
-                client->flags |= MG_F_SEND_AND_CLOSE;
-            } break;
-            case MG_EV_CLOSE:
-            {
-                onClose();
-            } break;
-            case MG_EV_ACCEPT:
-            {
-                mg_set_timer(client, mg_time() + connect_timeout_ms);
-            } break;
-            case MG_EV_TIMER:
-            {
-                mg_set_timer(client, 0);
-                client->handler = ev_handler_empty_s; //without this we will get MG_EV_HTTP_REQUEST
-                client->flags |= MG_F_CLOSE_IMMEDIATELY;
-             } break;
-            default:
-                break;
-            }
-        }
+    int res = 0;
+    auto onExpired = [&res](std::pair<std::string, std::any>& v)->void
+    {
+        int i = std::any_cast<int>(v.second);
+        res += i;
     };
 
-public:
-    class MainServer
+    int cmp_res = 0;
+    for(int i = 1; i<100; ++i)
     {
-    public:
-        graft::ConfigOpts copts;
-        graft::Router router;
-    public:
-        MainServer()
-        {
-            copts.http_address = "127.0.0.1:9084";
-            copts.coap_address = "127.0.0.1:9086";
-            copts.http_connection_timeout = 1;
-            copts.upstream_request_timeout = 1;
-            copts.workers_count = 0;
-            copts.worker_queue_len = 0;
-            copts.cryptonode_rpc_address = "127.0.0.1:1234";
-            copts.timer_poll_interval_ms = 50;
-        }
-    public:
-        void run()
-        {
-            th = std::thread([this]{ x_run(); });
-            while(!plooper || !plooper.load()->ready())
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-        }
-        void stop_and_wait_for()
-        {
-            plooper.load()->stop();
-            th.join();
-        }
-    public:
-        std::atomic<graft::Looper*> plooper{nullptr};
-        std::atomic<graft::HttpConnectionManager*> phttpcm{nullptr};
-    private:
-        std::thread th;
-    private:
-        void x_run()
-        {
-            graft::Looper looper(copts);
-            plooper = &looper;
-            graft::HttpConnectionManager httpcm;
-            phttpcm = &httpcm;
+        std::string key = std::to_string(i);
+        int v = (i*7)%17;
+        cmp_res += v;
+        ctx.global.set(key, v, std::chrono::seconds(1), onExpired);
+    }
 
-            httpcm.addRouter(router);
-            bool res = httpcm.enableRouting();
-            EXPECT_EQ(res, true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+    graft::Context::GlobalFriend::cleanup(ctx.global, true);
+    EXPECT_EQ(res, cmp_res);
+}
 
-            httpcm.bind(looper);
-            looper.serve();
-        }
-    };
-public:
-    //http client (its objects are created in the main thread)
-    class Client
+TEST(Context, groupSimple)
+{
+    graft::GlobalContextMap m;
+    graft::Context ctx(m);
+
+    ctx.global["a"] = 1;
+    ctx.global["b"] = 2;
+    ctx.global["c"] = 3;
+
+    EXPECT_EQ(ctx.global.createGroup("A"), true);
+    EXPECT_EQ(ctx.global.createGroup("A"), false);
+
+    EXPECT_EQ(ctx.global.groupAddKey("A","a"), true);
+    EXPECT_EQ(ctx.global.groupAddKey("A","b"), true);
+    EXPECT_EQ(ctx.global.groupAddKey("A","c"), true);
+    EXPECT_EQ(ctx.global.groupAddKey("A","d"), false);
+
+    EXPECT_EQ(ctx.global.groupHasKey("A","a"), true);
+    EXPECT_EQ(ctx.global.groupHasKey("A","d"), false);
+    EXPECT_EQ(ctx.global.groupRemoveKey("A","a"), true);
+    EXPECT_EQ(ctx.global.groupHasKey("A","a"), false);
+
+    EXPECT_EQ(ctx.global.groupGet<int>("A","a",0), 0);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 2);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","c",0), 3);
+
+    EXPECT_EQ(ctx.global.groupSet<int>("A","a",10), false);
+    EXPECT_EQ(ctx.global.groupSet<int>("A","b",20), true);
+    EXPECT_EQ(ctx.global.groupSet<int>("A","c",30), true);
+
+    EXPECT_EQ(ctx.global.groupGet<int>("A","a",0), 0);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 20);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","c",0), 30);
+
+    std::map<std::string,int> map;
+    auto f = [&map](const std::string& key, std::any& val)->bool
     {
-    public:
-        Client()
-        {
-            mg_mgr_init(&m_mgr, nullptr, nullptr);
-        }
-
-        void serve(const std::string& url, const std::string& extra_headers = std::string(), const std::string& post_data = std::string(), int timeout_ms = 0)
-        {
-            m_exit = false; m_closed = false;
-            client = mg_connect_http(&m_mgr, graft::static_ev_handler<Client>, url.c_str(),
-                                     (extra_headers.empty())? nullptr : extra_headers.c_str(),
-                                     (post_data.empty())? nullptr : post_data.c_str()); //last nullptr means GET
-            assert(client);
-            client->user_data = this;
-
-            int poll_time_ms = 1000;
-            if(0 < timeout_ms)
-            {
-                poll_time_ms = timeout_ms/4;
-                if(poll_time_ms == 0) ++poll_time_ms;
-            }
-            auto end = std::chrono::steady_clock::now()
-                    + std::chrono::duration<int,std::milli>(timeout_ms);
-            while(!m_exit)
-            {
-                mg_mgr_poll(&m_mgr, poll_time_ms);
-                if(0 < timeout_ms && end <= std::chrono::steady_clock::now())
-                {
-                    client->flags |= MG_F_CLOSE_IMMEDIATELY;
-                }
-            }
-        }
-
-        std::string serve_json_res(const std::string& url, const std::string& json_data)
-        {
-            serve(url, "Content-Type: application/json\r\n", json_data);
-            EXPECT_EQ(false, get_closed());
-            return get_body();
-        }
-
-        bool get_closed(){ return m_closed; }
-        std::string get_body(){ return m_body; }
-        std::string get_message(){ return m_message; }
-        int get_resp_code(){ return m_resp_code; }
-
-        ~Client()
-        {
-            mg_mgr_free(&m_mgr);
-        }
-    public:
-        void ev_handler(mg_connection* client, int ev, void *ev_data)
-        {
-            assert(client == this->client);
-            switch(ev)
-            {
-            case MG_EV_CONNECT:
-            {
-                int& err = *static_cast<int*>(ev_data);
-                if(err != 0)
-                {
-                    std::ostringstream s;
-                    s << "connect() failed: " << strerror(err);
-                    m_message = s.str();
-                    m_exit = true;
-                }
-            } break;
-            case MG_EV_HTTP_REPLY:
-            {
-                http_message* hm = static_cast<http_message*>(ev_data);
-                m_resp_code = hm->resp_code;
-                m_body = std::string(hm->body.p, hm->body.len);
-                client->flags |= MG_F_CLOSE_IMMEDIATELY;
-                client->handler = graft::static_empty_ev_handler;
-                m_exit = true;
-            } break;
-            case MG_EV_RECV:
-            {
-                int cnt = *static_cast<int*>(ev_data);
-                mbuf& buf = client->recv_mbuf;
-                m_message = std::string(buf.buf, buf.len);
-            } break;
-            case MG_EV_CLOSE:
-            {
-                client->handler = graft::static_empty_ev_handler;
-                m_closed = true;
-                m_exit = true;
-            } break;
-            }
-        }
-    private:
-        bool m_exit = false;
-        bool m_closed = false;
-        mg_mgr m_mgr;
-        mg_connection* client = nullptr;
-        int m_resp_code = 0;
-        std::string m_body;
-        std::string m_message;
+        int v = std::any_cast<int>(val);
+        map.emplace(key, v);
+        return true;
     };
 
-protected:
-    virtual void SetUp() override
-    { }
-    virtual void TearDown() override
-    { }
+    ctx.global.groupForEach("A", f);
+    EXPECT_EQ(map.size(), 2);
+    EXPECT_EQ(map["b"], 20);
+    EXPECT_EQ(map["c"], 30);
 
-};
+    ctx.global.remove("b");
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 0);
+    EXPECT_EQ(ctx.global.groupSet<int>("A","b",21), false);
+    ctx.global["b"] = 22;
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 0);
+    EXPECT_EQ(ctx.global.groupHasKey("A","b"), false);
+    EXPECT_EQ(ctx.global.groupAddKey("A","b"), true);
+    EXPECT_EQ(ctx.global.groupGet<int>("A","b",0), 22);
+}
+
+TEST(ExpiringList, common)
+{
+    graft::detail::ExpiringListT<int> el(200); //lifetime 200 ms
+    for(int i = 0; i< 5; ++i)
+    {
+        el.add(i); //0ms - 200ms
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //100ms
+    for(int i = 5; i< 10; ++i)
+    {
+        el.add(i); //100ms - 300ms
+    }
+    EXPECT_EQ(el.remove(3), true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //200ms
+    EXPECT_EQ(el.remove(2), false);
+    EXPECT_EQ(el.remove(7), true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //300ms
+    EXPECT_EQ(el.remove(8), false);
+}
+
+/////////////////////////////////
 
 std::function<GraftServerTestBase::TempCryptoNodeServer::on_http_t> GraftServerTestBase::TempCryptoNodeServer::http_echo =
         [] (const http_message *hm, int& status_code, std::string& headers, std::string& data) -> bool
@@ -698,7 +539,7 @@ private:
         virtual bool onHttpRequest(const http_message *hm, int& status_code, std::string& headers, std::string& data) override
         {
             data = std::string(hm->uri.p, hm->uri.len);
-            graft::Context ctx(mainServer.plooper.load()->getGcm());
+            graft::Context ctx(mainServer.getGcm());
             int method = ctx.global["method"];
             if(method == METHOD_GET)
             {
@@ -736,28 +577,6 @@ private:
 
     };
 public:
-    static std::string run_cmdline_read(const std::string& cmdl)
-    {
-        FILE* fp = popen(cmdl.c_str(), "r");
-        assert(fp);
-        std::string res;
-        char path[1035];
-        while(fgets(path, sizeof(path)-1, fp))
-        {
-            res += path;
-        }
-        return res;
-    }
-
-    static std::string send_request(const std::string &url, const std::string &json_data)
-    {
-        std::ostringstream s;
-        s << "curl --data \"" << json_data << "\" " << url;
-        std::string ss = s.str();
-        return run_cmdline_read(ss.c_str());
-    }
-
-public:
     static bool skip_ctx_check;
     static std::string iocheck;
     static std::deque<graft::Status> res_que_action;
@@ -771,12 +590,12 @@ private:
     static void init_server(graft::Router::Handler3 h3_test)
     {
         assert(h3_test.worker_action);
-        graft::Router& http_router = mainServer.router;
+        graft::Router& http_router = mainServer.m_router;
         {
             http_router.addRoute("/root/r{id:\\d+}", METHOD_GET, h3_test);
             http_router.addRoute("/root/r{id:\\d+}", METHOD_POST, h3_test);
             http_router.addRoute("/root/aaa/{s1}/bbb/{s2}", METHOD_GET, h3_test);
-            graft::registerRTARequests(http_router);
+            graft::supernode::request::registerRTARequests(http_router);
         }
 
         graft::ConfigOpts copts;
@@ -786,10 +605,12 @@ private:
         copts.upstream_request_timeout = .005;
         copts.workers_count = 0;
         copts.worker_queue_len = 0;
+        copts.workers_expelling_interval_ms = 1000;
         copts.cryptonode_rpc_address = "127.0.0.1:1234";
         copts.timer_poll_interval_ms = 50;
+        copts.lru_timeout_ms = 60000;
 
-        mainServer.copts = copts;
+        mainServer.m_copts = copts;
         mainServer.run();
     }
 
@@ -913,7 +734,7 @@ bool GraftServerCommonTest::crypton_ready = false;
 
 TEST_F(GraftServerCommonTest, GETtp)
 {//GET -> threadPool
-    graft::Context ctx(mainServer.plooper.load()->getGcm());
+    graft::Context ctx(mainServer.getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -947,11 +768,47 @@ TEST_F(GraftServerTestBase, clientTimeout)
     };
 
     MainServer server;
-    server.router.addRoute("/timeout", METHOD_POST, {nullptr, action, nullptr});
+    server.m_router.addRoute("/timeout", METHOD_POST, {nullptr, action, nullptr});
     server.run();
 
     Client client;
     client.serve("http://127.0.0.1:9084/timeout", "", "post data", 200);
+
+    server.stop_and_wait_for();
+}
+
+//This test requires comparing logging output, their categories with expected.
+TEST_F(GraftServerTestBase, logging)
+{
+    const std::string cat = "handler";
+
+    auto pre = [cat](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        EXPECT_EQ(mlog_current_log_category, cat);
+        LOG_PRINT_L0("This is pre");
+        return graft::Status::Ok;
+    };
+
+    auto worker = [cat](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        EXPECT_EQ(mlog_current_log_category, cat);
+        LOG_PRINT_L0("This is worker");
+        return graft::Status::Ok;
+    };
+
+    auto post = [cat](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        EXPECT_EQ(mlog_current_log_category, cat);
+        LOG_PRINT_L0("This is post");
+        return graft::Status::Ok;
+    };
+
+    MainServer server;
+    server.m_router.addRoute("/logging", METHOD_GET, {pre, worker, post, cat.c_str()});
+    server.run();
+
+    Client client;
+    client.serve("http://127.0.0.1:9084/logging");
 
     server.stop_and_wait_for();
 }
@@ -1013,7 +870,7 @@ TEST_F(GraftServerTestBase, Again)
     crypton.on_http = crypton.http_echo;
     crypton.run();
     MainServer server;
-    server.router.addRoute("/again", METHOD_POST, {nullptr, action, nullptr});
+    server.m_router.addRoute("/again", METHOD_POST, {nullptr, action, nullptr});
     server.run();
 
     Client client;
@@ -1029,10 +886,9 @@ TEST_F(GraftServerTestBase, Again)
     EXPECT_EQ(step,5);
 }
 
-
 TEST_F(GraftServerCommonTest, cryptonTimeout)
 {//GET -> threadPool -> CryptoNode -> timeout
-    graft::Context ctx(mainServer.plooper.load()->getGcm());
+    graft::Context ctx(mainServer.getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -1068,7 +924,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
             ++cntrs_all[i];
             if(ctx.local.getLastStatus() == graft::Status::Forward)
                 return graft::Status::Ok;
-            EXPECT_TRUE(cntrs[i]==0 && ctx.local.getLastStatus() == graft::Status::None
+            EXPECT_TRUE(ctx.local.getLastStatus() == graft::Status::None
                         || ctx.local.getLastStatus() == graft::Status::Ok);
             if(finish < std::chrono::steady_clock::now()) return graft::Status::Stop;
             ++cntrs[i];
@@ -1077,7 +933,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
             return graft::Status::Forward;
         };
 
-        mainServer.plooper.load()->addPeriodicTask(
+        mainServer.getLooper().addPeriodicTask(
                     graft::Router::Handler3(nullptr, action, nullptr),
                     std::chrono::milliseconds(ms)
                     );
@@ -1093,7 +949,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
     for(int i=0; i<N; ++i)
     {
         int n = ms_all/((i+1)*ms_step);
-        n -= (mainServer.plooper.load()->getCopts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
+        n -= (mainServer.getLooper().getCopts().upstream_request_timeout*1000*n)/((i+1)*ms_step);
         EXPECT_LE(n-2, cntrs[i]);
         EXPECT_LE(cntrs[i], n+1);
         EXPECT_EQ(cntrs_all[i]-1, 2*cntrs[i]);
@@ -1102,7 +958,7 @@ TEST_F(GraftServerCommonTest, timerEvents)
 
 TEST_F(GraftServerCommonTest, GETtpCNtp)
 {//GET -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.plooper.load()->getGcm());
+    graft::Context ctx(mainServer.getGcm());
     ctx.global["method"] = METHOD_GET;
     ctx.global["requestPath"] = std::string("0");
     iocheck = "0"; skip_ctx_check = true;
@@ -1118,7 +974,7 @@ TEST_F(GraftServerCommonTest, GETtpCNtp)
 
 TEST_F(GraftServerCommonTest, POSTtp)
 {//POST -> threadPool
-    graft::Context ctx(mainServer.plooper.load()->getGcm());
+    graft::Context ctx(mainServer.getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1134,7 +990,7 @@ TEST_F(GraftServerCommonTest, POSTtp)
 
 TEST_F(GraftServerCommonTest, POSTtpCNtp)
 {//POST -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.plooper.load()->getGcm());
+    graft::Context ctx(mainServer.getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\"s\":\"0\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1153,7 +1009,7 @@ TEST_F(GraftServerCommonTest, POSTtpCNtp)
 
 TEST_F(GraftServerCommonTest, clPOSTtp)
 {//POST cmdline -> threadPool
-    graft::Context ctx(mainServer.plooper.load()->getGcm());
+    graft::Context ctx(mainServer.getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1170,7 +1026,7 @@ TEST_F(GraftServerCommonTest, clPOSTtp)
 
 TEST_F(GraftServerCommonTest, clPOSTtpCNtp)
 {//POST cmdline -> threadPool -> CryptoNode -> threadPool
-    graft::Context ctx(mainServer.plooper.load()->getGcm());
+    graft::Context ctx(mainServer.getGcm());
     ctx.global["method"] = METHOD_POST;
     std::string jsonx = "{\\\"s\\\":\\\"0\\\"}";
     iocheck = "0"; skip_ctx_check = true;
@@ -1186,451 +1042,6 @@ TEST_F(GraftServerCommonTest, clPOSTtpCNtp)
         EXPECT_EQ("01234123", test_response.s);
         EXPECT_EQ("01234123", iocheck);
     }
-}
-
-TEST_F(GraftServerCommonTest, testSaleRequest)
-{
-    std::string sale_url(dapi_url + "/sale");
-    graft::Input response;
-    std::string res;
-    ErrorResponse error_response;
-    Client client;
-
-    std::string wallet_address("F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz");
-
-    std::string empty_data_request("{\"Address\":\"\",\"SaleDetails\":\"\",\"Amount\":\"10.0\"}");
-    res = client.serve_json_res(sale_url, empty_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_INVALID_PARAMS, error_response.code);
-    EXPECT_EQ(MESSAGE_INVALID_PARAMS, error_response.message);
-
-    std::string error_balance_request("{\"Address\":\"" + wallet_address
-                                      + "\",\"SaleDetails\":\"\",\"Amount\":\"fffffffff\"}");
-    res = client.serve_json_res(sale_url, error_balance_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_AMOUNT_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_AMOUNT_INVALID, error_response.message);
-
-    std::string custom_pid("test");
-
-    std::string custom_pid_request("{\"Address\":\"" + wallet_address
-                                   + "\",\"SaleDetails\":\"\",\"PaymentID\":\""
-                                   + custom_pid + "\",\"Amount\":\"10.0\"}");
-    res = client.serve_json_res(sale_url, custom_pid_request);
-    response.load(res.data(), res.length());
-    graft::SaleResponse sale_response = response.get<graft::SaleResponse>();
-    EXPECT_EQ(custom_pid, sale_response.PaymentID);
-}
-
-TEST_F(GraftServerCommonTest, testSaleStatusRequest)
-{
-    std::string sale_status_url(dapi_url + "/sale_status");
-    graft::Input response;
-    std::string res;
-    ErrorResponse error_response;
-    Client client;
-
-    std::string empty_data_request("{\"PaymentID\":\"\"}");
-    res = client.serve_json_res(sale_status_url, empty_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-
-    std::string wrong_data_request("{\"PaymentID\":\"zzzzzzzzzzzzzzzzzzz\"}");
-    res = client.serve_json_res(sale_status_url, wrong_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-}
-
-TEST_F(GraftServerCommonTest, testRejectSaleRequest)
-{
-    std::string reject_sale_url(dapi_url + "/reject_sale");
-    graft::Input response;
-    std::string res;
-    ErrorResponse error_response;
-    Client client;
-
-    std::string empty_data_request("{\"PaymentID\":\"\"}");
-    res = client.serve_json_res(reject_sale_url, empty_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-
-    std::string wrong_data_request("{\"PaymentID\":\"zzzzzzzzzzzzzzzzzzz\"}");
-    res = client.serve_json_res(reject_sale_url, wrong_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-}
-
-TEST_F(GraftServerCommonTest, testSaleDetailsRequest)
-{
-    std::string sale_details_url(dapi_url + "/sale_details");
-    graft::Input response;
-    std::string res;
-    ErrorResponse error_response;
-    Client client;
-
-    std::string empty_data_request("{\"PaymentID\":\"\"}");
-    res = client.serve_json_res(sale_details_url, empty_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-
-    std::string wrong_data_request("{\"PaymentID\":\"zzzzzzzzzzzzzzzzzzz\"}");
-    res = client.serve_json_res(sale_details_url, wrong_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-}
-
-TEST_F(GraftServerCommonTest, testPayRequest)
-{
-    std::string pay_url(dapi_url + "/pay");
-    graft::Input response;
-    std::string res;
-    ErrorResponse error_response;
-    Client client;
-
-    std::string amount("10.0");
-
-    std::string empty_wallet_address("");
-    std::string empty_payment_id("");
-    std::string empty_data_request("{\"Address\":\"" + empty_wallet_address
-                                   + "\",\"BlockNumber\":0,\"PaymentID\":\"" + empty_payment_id
-                                   + "\",\"Amount\":\"" + amount + "\"}");
-    res = client.serve_json_res(pay_url, empty_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_INVALID_PARAMS, error_response.code);
-    EXPECT_EQ(MESSAGE_INVALID_PARAMS, error_response.message);
-
-    std::string wallet_address("F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz");
-    std::string payment_id("22222222222222222222");
-
-    std::string empty_amount("");
-    std::string empty_balance_request("{\"Address\":\"" + wallet_address
-                                      + "\",\"BlockNumber\":0,\"PaymentID\":\"" + payment_id
-                                      + "\",\"Amount\":\"" + empty_amount + "\"}");
-    res = client.serve_json_res(pay_url, empty_balance_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_INVALID_PARAMS, error_response.code);
-    EXPECT_EQ(MESSAGE_INVALID_PARAMS, error_response.message);
-
-    std::string sale_url(dapi_url + "/sale");
-    graft::SaleResponse sale_response;
-    std::string correct_sale_request("{\"Address\":\"" + wallet_address
-                                     + "\",\"SaleDetails\":\"dddd\",\"Amount\":\"10.0\"}");
-    res = client.serve_json_res(sale_url, correct_sale_request);
-    response.load(res.data(), res.length());
-    sale_response = response.get<graft::SaleResponse>();
-    EXPECT_EQ(36, sale_response.PaymentID.length());
-    ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
-
-    std::string error_amount("ggggg");
-    std::string error_balance_request("{\"Address\":\"" + wallet_address
-                                      + "\",\"BlockNumber\":0,\"PaymentID\":\"" + sale_response.PaymentID
-                                      + "\",\"Amount\":\"" + error_amount + "\"}");
-    res = client.serve_json_res(pay_url, error_balance_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_AMOUNT_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_AMOUNT_INVALID, error_response.message);
-}
-
-TEST_F(GraftServerCommonTest, testPayStatusRequest)
-{
-    std::string pay_status_url(dapi_url + "/pay_status");
-    graft::Input response;
-    std::string res;
-    ErrorResponse error_response;
-    Client client;
-
-    std::string empty_data_request("{\"PaymentID\":\"\"}");
-    res = client.serve_json_res(pay_status_url, empty_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-
-    std::string wrong_data_request("{\"PaymentID\":\"zzzzzzzzzzzzzzzzzzz\"}");
-    res = client.serve_json_res(pay_status_url, wrong_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-}
-
-TEST_F(GraftServerCommonTest, testRejectPayRequest)
-{
-    std::string reject_pay_url(dapi_url + "/reject_pay");
-    graft::Input response;
-    std::string res;
-    ErrorResponse error_response;
-    Client client;
-
-    std::string empty_data_request("{\"PaymentID\":\"\"}");
-    res = client.serve_json_res(reject_pay_url, empty_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-
-    std::string wrong_data_request("{\"PaymentID\":\"zzzzzzzzzzzzzzzzzzz\"}");
-    res = client.serve_json_res(reject_pay_url, wrong_data_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_PAYMENT_ID_INVALID, error_response.code);
-    EXPECT_EQ(MESSAGE_PAYMENT_ID_INVALID, error_response.message);
-}
-
-TEST_F(GraftServerCommonTest, testRTARejectSaleFlow)
-{
-    graft::Input response;
-    std::string res;
-    Client client;
-
-    std::string sale_url(dapi_url + "/sale");
-    graft::SaleResponse sale_response;
-    std::string correct_sale_request("{\"Address\":\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\",\"SaleDetails\":\"dddd\",\"Amount\":\"10.0\"}");
-    res = client.serve_json_res(sale_url, correct_sale_request);
-    response.load(res.data(), res.length());
-    sale_response = response.get<graft::SaleResponse>();
-    EXPECT_EQ(36, sale_response.PaymentID.length());
-    ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
-
-    std::string sale_status_url(dapi_url + "/sale_status");
-    graft::SaleStatusResponse sale_status_response;
-    std::string sale_status_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(sale_status_url, sale_status_request);
-    response.load(res.data(), res.length());
-    sale_status_response = response.get<graft::SaleStatusResponse>();
-    EXPECT_EQ(static_cast<int>(graft::RTAStatus::Waiting), sale_status_response.Status);
-
-    std::string reject_sale_url(dapi_url + "/reject_sale");
-    graft::RejectSaleResponse reject_sale_response;
-    std::string reject_sale_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(reject_sale_url, reject_sale_request);
-    response.load(res.data(), res.length());
-    reject_sale_response = response.get<graft::RejectSaleResponse>();
-    EXPECT_EQ(STATUS_OK, reject_sale_response.Result);
-
-    res = client.serve_json_res(sale_status_url, sale_status_request);
-    response.load(res.data(), res.length());
-    sale_status_response = response.get<graft::SaleStatusResponse>();
-    EXPECT_EQ(static_cast<int>(graft::RTAStatus::RejectedByPOS), sale_status_response.Status);
-}
-
-TEST_F(GraftServerCommonTest, testRTARejectPayFlow)
-{
-    graft::Input response;
-    std::string res;
-    Client client;
-
-    std::string wallet_address("F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz");
-    std::string details("22222222222222222222");
-    std::string amount("10.0");
-
-    std::string sale_url(dapi_url + "/sale");
-    std::string correct_sale_request("{\"Address\":\"" + wallet_address
-                                     + "\",\"SaleDetails\":\"" + details
-                                     + "\",\"Amount\":\"" + amount + "\"}");
-    res = client.serve_json_res(sale_url, correct_sale_request);
-    response.load(res.data(), res.length());
-    graft::SaleResponse sale_response = response.get<graft::SaleResponse>();
-    EXPECT_EQ(36, sale_response.PaymentID.length());
-    ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
-
-    std::string sale_status_url(dapi_url + "/sale_status");
-    graft::SaleStatusResponse sale_status_response;
-    std::string sale_status_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(sale_status_url, sale_status_request);
-    response.load(res.data(), res.length());
-    sale_status_response = response.get<graft::SaleStatusResponse>();
-    EXPECT_EQ(static_cast<int>(graft::RTAStatus::Waiting), sale_status_response.Status);
-
-    std::string sale_details_url(dapi_url + "/sale_details");
-    std::string sale_details_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(sale_details_url, sale_details_request);
-    response.load(res.data(), res.length());
-    graft::SaleDetailsResponse sale_details_response = response.get<graft::SaleDetailsResponse>();
-    EXPECT_EQ(details, sale_details_response.Details);
-
-    std::string reject_pay_url(dapi_url + "/reject_pay");
-    graft::RejectPayResponse reject_pay_response;
-    std::string reject_sale_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(reject_pay_url, reject_sale_request);
-    response.load(res.data(), res.length());
-    reject_pay_response = response.get<graft::RejectPayResponse>();
-    EXPECT_EQ(STATUS_OK, reject_pay_response.Result);
-
-    std::string pay_status_url(dapi_url + "/pay_status");
-    graft::PayStatusResponse pay_status_response;
-    std::string pay_status_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(pay_status_url, pay_status_request);
-    response.load(res.data(), res.length());
-    pay_status_response = response.get<graft::PayStatusResponse>();
-    EXPECT_EQ(static_cast<int>(graft::RTAStatus::RejectedByWallet), pay_status_response.Status);
-}
-
-TEST_F(GraftServerCommonTest, testRTAFailedPayment)
-{
-    graft::Input response;
-    std::string res;
-    ErrorResponse error_response;
-    Client client;
-
-    std::string sale_url(dapi_url + "/sale");
-    graft::SaleResponse sale_response;
-    std::string correct_sale_request("{\"Address\":\"F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz\",\"SaleDetails\":\"dddd\",\"Amount\":\"10.0\"}");
-    res = client.serve_json_res(sale_url, correct_sale_request);
-    response.load(res.data(), res.length());
-    sale_response = response.get<graft::SaleResponse>();
-    EXPECT_EQ(36, sale_response.PaymentID.length());
-    ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
-
-    std::string reject_sale_url(dapi_url + "/reject_sale");
-    graft::RejectSaleResponse reject_sale_response;
-    std::string reject_sale_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(reject_sale_url, reject_sale_request);
-    response.load(res.data(), res.length());
-    reject_sale_response = response.get<graft::RejectSaleResponse>();
-    EXPECT_EQ(STATUS_OK, reject_sale_response.Result);
-
-    std::string sale_details_url(dapi_url + "/sale_details");
-    std::string sale_details_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(sale_details_url, sale_details_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_RTA_FAILED, error_response.code);
-    EXPECT_EQ(MESSAGE_RTA_FAILED, error_response.message);
-
-    std::string pay_url(dapi_url + "/pay");
-    std::string wallet_address("F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz");
-    std::string amount("10.0");
-    std::string pay_request("{\"Address\":\"" + wallet_address
-                            + "\",\"BlockNumber\":0,\"PaymentID\":\""
-                            + sale_response.PaymentID
-                            + "\",\"Amount\":\"" + amount + "\"}");
-    res = client.serve_json_res(pay_url, pay_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_RTA_FAILED, error_response.code);
-    EXPECT_EQ(MESSAGE_RTA_FAILED, error_response.message);
-}
-
-TEST_F(GraftServerCommonTest, testRTACompletedPayment)
-{
-    graft::Input response;
-    std::string res;
-    ErrorResponse error_response;
-    Client client;
-
-    std::string wallet_address("F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz");
-    std::string details("22222222222222222222");
-    std::string amount("10.0");
-
-    std::string sale_url(dapi_url + "/sale");
-    std::string correct_sale_request("{\"Address\":\"" + wallet_address
-                                     + "\",\"SaleDetails\":\"" + details
-                                     + "\",\"Amount\":\"" + amount + "\"}");
-    res = client.serve_json_res(sale_url, correct_sale_request);
-    response.load(res.data(), res.length());
-    graft::SaleResponse sale_response = response.get<graft::SaleResponse>();
-    EXPECT_EQ(36, sale_response.PaymentID.length());
-    ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
-
-    std::string pay_url(dapi_url + "/pay");
-    std::string pay_request("{\"Address\":\"" + wallet_address
-                            + "\",\"BlockNumbe\":0,\"PaymentID\":\""
-                            + sale_response.PaymentID
-                            + "\",\"Amount\":\"" + amount + "\"}");
-    res = client.serve_json_res(pay_url, pay_request);
-    response.load(res.data(), res.length());
-    graft::PayResponse pay_response = response.get<graft::PayResponse>();
-    EXPECT_EQ(STATUS_OK, pay_response.Result);
-
-    std::string sale_details_url(dapi_url + "/sale_details");
-    std::string sale_details_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(sale_details_url, sale_details_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_RTA_COMPLETED, error_response.code);
-    EXPECT_EQ(MESSAGE_RTA_COMPLETED, error_response.message);
-
-    res = client.serve_json_res(pay_url, pay_request);
-    response.load(res.data(), res.length());
-    error_response = response.get<ErrorResponse>();
-    EXPECT_EQ(ERROR_RTA_COMPLETED, error_response.code);
-    EXPECT_EQ(MESSAGE_RTA_COMPLETED, error_response.message);
-}
-
-TEST_F(GraftServerCommonTest, testRTAFullFlow)
-{
-    graft::Input response;
-    std::string res;
-    Client client;
-
-    std::string wallet_address("F4TD8JVFx2xWLeL3qwSmxLWVcPbmfUM1PanF2VPnQ7Ep2LjQCVncxqH3EZ3XCCuqQci5xi5GCYR7KRoytradoJg71DdfXpz");
-    std::string details("22222222222222222222");
-    std::string amount("10.0");
-
-    std::string sale_url(dapi_url + "/sale");
-    std::string correct_sale_request("{\"Address\":\"" + wallet_address
-                                     + "\",\"SaleDetails\":\"" + details
-                                     + "\",\"Amount\":\"" + amount + "\"}");
-    res = client.serve_json_res(sale_url, correct_sale_request);
-    response.load(res.data(), res.length());
-    graft::SaleResponse sale_response = response.get<graft::SaleResponse>();
-    EXPECT_EQ(36, sale_response.PaymentID.length());
-    ASSERT_FALSE(sale_response.BlockNumber < 0); //TODO: Change to `BlockNumber <= 0`
-
-    std::string sale_status_url(dapi_url + "/sale_status");
-    std::string sale_status_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(sale_status_url, sale_status_request);
-    response.load(res.data(), res.length());
-    graft::SaleStatusResponse sale_status_response = response.get<graft::SaleStatusResponse>();
-    EXPECT_EQ(static_cast<int>(graft::RTAStatus::Waiting), sale_status_response.Status);
-
-    std::string sale_details_url(dapi_url + "/sale_details");
-    std::string sale_details_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(sale_details_url, sale_details_request);
-    response.load(res.data(), res.length());
-    graft::SaleDetailsResponse sale_details_response = response.get<graft::SaleDetailsResponse>();
-    EXPECT_EQ(details, sale_details_response.Details);
-
-    std::string pay_url(dapi_url + "/pay");
-    std::string pay_request("{\"Address\":\"" + wallet_address
-                            + "\",\"BlockNumber\":0,\"PaymentID\":\""
-                            + sale_response.PaymentID
-                            + "\",\"Amount\":\"" + amount + "\"}");
-    res = client.serve_json_res(pay_url, pay_request);
-    response.load(res.data(), res.length());
-    graft::PayResponse pay_response = response.get<graft::PayResponse>();
-    EXPECT_EQ(STATUS_OK, pay_response.Result);
-
-    std::string pay_status_url(dapi_url + "/pay_status");
-    graft::PayStatusResponse pay_status_response;
-    std::string pay_status_request("{\"PaymentID\":\"" + sale_response.PaymentID + "\"}");
-    res = client.serve_json_res(pay_status_url, pay_status_request);
-    response.load(res.data(), res.length());
-    pay_status_response = response.get<graft::PayStatusResponse>();
-    EXPECT_EQ(static_cast<int>(graft::RTAStatus::Success), pay_status_response.Status);
-
-    res = client.serve_json_res(sale_status_url, sale_status_request);
-    response.load(res.data(), res.length());
-    sale_status_response = response.get<graft::SaleStatusResponse>();
-    EXPECT_EQ(static_cast<int>(graft::RTAStatus::Success), sale_status_response.Status);
 }
 
 /////////////////////////////////
@@ -1659,7 +1070,7 @@ public:
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 Client callback_client;
-                std::string url = "http://127.0.0.1:9084/callback/" + uuid_str;
+                std::string url = "http://127.0.0.1:9084/test_callback/" + uuid_str;
                 std::string post_data = "it is callback post data";
                 callback_client.serve(url,"",post_data);
 
@@ -1678,7 +1089,9 @@ public:
 
 TEST_F(GraftServerPostponeTest, common)
 {
-    auto callback_action = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    std::atomic<bool> callbacked;
+
+    auto callback_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
         output.body = input.data();
         assert(vars.count("id") == 1);
@@ -1687,10 +1100,12 @@ TEST_F(GraftServerPostponeTest, common)
         boost::uuids::uuid uuid = sg(id);
 
         ctx.setNextTaskId(uuid);
+        callbacked = true;
         return graft::Status::Ok;
     };
 
     std::string postpone_result = "this is postpone result";
+    std::atomic<bool> pause{false};
 
     auto action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
     {
@@ -1706,6 +1121,14 @@ TEST_F(GraftServerPostponeTest, common)
         case graft::Status::Forward:
         {
             boost::uuids::uuid uuid = ctx.getId();
+            if(pause)
+            {
+                while(!callbacked)
+                {
+                    std::this_thread::sleep_for(std::chrono::microseconds(1));
+                }
+                std::this_thread::sleep_for(std::chrono::microseconds(10));
+            }
             return graft::Status::Postpone;
         } break;
         case graft::Status::Postpone:
@@ -1717,24 +1140,46 @@ TEST_F(GraftServerPostponeTest, common)
         }
     };
 
-    TempCryptoN crypton;
-    crypton.run();
+    std::atomic<bool> stop_crypton{false};
+    TempCryptoN* cryptonPtr = nullptr;
+    std::thread th_crypton{
+      [&]()
+        {
+            TempCryptoN crypton;
+            cryptonPtr = &crypton;
+            crypton.run();
+            while(!stop_crypton) std::this_thread::sleep_for(std::chrono::microseconds(1));
+            crypton.stop_and_wait_for();
+        }
+    };
+
+    //wait, we need the crypton is ready
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
+    assert(cryptonPtr);
+
     MainServer mainServer;
-    mainServer.router.addRoute("/json_rpc",METHOD_POST,{nullptr,action,nullptr});
-    mainServer.router.addRoute("/callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,callback_action,nullptr});
+    mainServer.m_router.addRoute("/json_rpc",METHOD_POST,{nullptr,action,nullptr});
+    mainServer.m_router.addRoute("/test_callback/{id:[0-9a-fA-F-]+}",METHOD_POST,{nullptr,callback_action,nullptr});
     mainServer.run();
 
     std::string post_data = "some data";
     Client client;
-    client.serve("http://localhost:9084/json_rpc", "", post_data);
 
-    EXPECT_EQ(false, client.get_closed());
-    EXPECT_EQ(200, client.get_resp_code());
-    std::string s = client.get_body();
-    EXPECT_EQ(s, postpone_result);
+    for(int i = 0; i < 10; ++i)
+    {
+        callbacked = false;
+        pause = (i%2)? 0 : 2000;
+
+        client.serve("http://localhost:9084/json_rpc", "", post_data);
+
+        EXPECT_EQ(false, client.get_closed());
+        EXPECT_EQ(200, client.get_resp_code());
+        std::string s = client.get_body();
+        EXPECT_EQ(s, postpone_result);
+    }
 
     //make hang postpones
-    crypton.do_callback = false;
+    cryptonPtr->do_callback = false;
     client.serve("http://localhost:9084/json_rpc", "", post_data);
     EXPECT_EQ(false, client.get_closed());
     EXPECT_EQ(500, client.get_resp_code());
@@ -1742,7 +1187,9 @@ TEST_F(GraftServerPostponeTest, common)
     EXPECT_EQ(body, "Postpone task response timeout");
 
     mainServer.stop_and_wait_for();
-    crypton.stop_and_wait_for();
+
+    stop_crypton = true;
+    th_crypton.join();
 }
 
 TEST_F(GraftServerTestBase, forward)
@@ -1751,7 +1198,7 @@ TEST_F(GraftServerTestBase, forward)
     crypton.on_http = crypton.http_echo;
     crypton.run();
     MainServer mainServer;
-    graft::registerForwardRequests(mainServer.router);
+    graft::supernode::request::registerForwardRequests(mainServer.m_router);
     mainServer.run();
 
     std::string post_data = "some data";
@@ -1779,8 +1226,8 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(JRResponseResult, GetVersionResp);
 TEST_F(GraftServerTestBase, DISABLED_getVersion)
 {
     MainServer mainServer;
-    mainServer.copts.cryptonode_rpc_address = "localhost:38281";
-    graft::registerForwardRequests(mainServer.router);
+    mainServer.m_copts.cryptonode_rpc_address = "localhost:38281";
+    graft::supernode::request::registerForwardRequests(mainServer.m_router);
     mainServer.run();
 
     graft::JsonRpcRequestHeader request;
@@ -1797,6 +1244,52 @@ TEST_F(GraftServerTestBase, DISABLED_getVersion)
     EXPECT_NO_THROW( JRResponseResult result = in.get<JRResponseResult>() );
 
     mainServer.stop_and_wait_for();
+}
+
+//It uses registerForwardRequests to check generic callback functionality using existing walletnode forward request.
+TEST_F(GraftServerTest, genericCallback)
+{
+    auto pretend_walletnode_echo = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        switch(ctx.local.getLastStatus())
+        {
+        case graft::Status::None:
+        {
+            //find webhook endpoint
+            auto it = std::find_if(input.headers.begin(), input.headers.end(), [](auto& v)->bool { return v.first == "X-Callback"; } );
+            assert(it != input.headers.end());
+            std::string path = it->second; //"http://0.0.0.0:port/callback/<uuid>"
+
+            //make answer uri
+            const std::string _0_0 = "0.0.0.0";
+            std::string::size_type pos = path.find(_0_0);
+            assert( pos != std::string::npos );
+            path.replace(pos, _0_0.size(), input.host);
+
+            output.uri = path;
+            output.body = input.body;
+            return graft::Status::Forward;
+        } break;
+        case graft::Status::Forward:
+        {
+            return graft::Status::Ok;
+        } break;
+        }
+    };
+
+    graft::supernode::request::registerForwardRequests(m_httpRouter);
+    m_httpRouter.addRoute("/api/{forward:create_account|restore_account|wallet_balance|prepare_transfer|transaction_history}",METHOD_POST,{nullptr,pretend_walletnode_echo,nullptr});
+    graft::Output::uri_substitutions.emplace("walletnode", std::make_tuple("http://localhost:28690/", 0, false, 0));
+    run();
+
+    std::string post_data = "some data";
+    GraftServerTestBase::Client client;
+    client.serve("http://localhost:28690/walletapi/restore_account", "", post_data);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    EXPECT_EQ(post_data, client.get_body());
+
+    stop_and_wait_for();
 }
 
 /////////////////////////////////
@@ -1824,6 +1317,51 @@ public:
     };
 };
 
+TEST_F(GraftServerTestBase, addPeriodicTask)
+{
+    std::chrono::milliseconds ms(50);
+    int timer_count = 0;
+    auto timer_action = [&timer_count](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        ++timer_count;
+        return graft::Status::Stop;
+    };
+
+    auto run_timer_action = [&](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        ctx.handlerAPI()->addPeriodicTask(timer_action, ms);
+        return graft::Status::Ok;
+    };
+
+    MainServer mainServer;
+    mainServer.m_router.addRoute("/timer_pre", METHOD_POST|METHOD_GET, {run_timer_action, nullptr, nullptr});
+    mainServer.m_router.addRoute("/timer_worker", METHOD_POST|METHOD_GET, {nullptr, run_timer_action, nullptr});
+    mainServer.m_router.addRoute("/timer_post", METHOD_POST|METHOD_GET, {nullptr, nullptr, run_timer_action});
+    mainServer.run();
+
+    std::string post_data = "some data";
+    Client client;
+    client.serve("http://localhost:9084/timer_pre", "", post_data);
+    std::this_thread::sleep_for(1.5*ms);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    EXPECT_EQ(timer_count, 1);
+
+    client.serve("http://localhost:9084/timer_worker", "", post_data);
+    std::this_thread::sleep_for(1.5*ms);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    EXPECT_EQ(timer_count, 2);
+
+    client.serve("http://localhost:9084/timer_post", "", post_data);
+    std::this_thread::sleep_for(1.5*ms);
+    EXPECT_EQ(false, client.get_closed());
+    EXPECT_EQ(200, client.get_resp_code());
+    EXPECT_EQ(timer_count, 3);
+
+    mainServer.stop_and_wait_for();
+}
+
 TEST_F(GraftServerBlockingTest, common)
 {
     TempCryptoN crypton;
@@ -1839,7 +1377,7 @@ TEST_F(GraftServerBlockingTest, common)
         int state = 0;
         try
         {
-            graft::TaskManager::sendUpstreamBlocking(out, res, err);
+            ctx.handlerAPI()->sendUpstreamBlocking(out, res, err);
             state = 1;
         }
         catch(std::exception& ex)
@@ -1857,19 +1395,19 @@ TEST_F(GraftServerBlockingTest, common)
         crypton.answer = "crypton answer";
         graft::Input res;
         std::string err;
-        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        ctx.handlerAPI()->sendUpstreamBlocking(out, res, err);
         EXPECT_EQ(res.body, crypton.answer);
         EXPECT_EQ(err.empty(), true);
         //with error
         res.body.clear();
         crypton.ignore = true;
-        graft::TaskManager::sendUpstreamBlocking(out, res, err);
+        ctx.handlerAPI()->sendUpstreamBlocking(out, res, err);
         EXPECT_EQ(err.empty(), false);
         return graft::Status::Ok;
     };
 
     MainServer mainServer;
-    mainServer.router.addRoute("/json_block", METHOD_POST|METHOD_GET,
+    mainServer.m_router.addRoute("/json_block", METHOD_POST|METHOD_GET,
                                graft::Router::Handler3(pre_action, action, nullptr));
     mainServer.run();
 
