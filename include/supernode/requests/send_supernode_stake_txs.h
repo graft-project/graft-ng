@@ -14,8 +14,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeStakeTransaction,
                               (uint64_t, unlock_time, 0),
                               (std::string, supernode_public_id, std::string()),
                               (std::string, supernode_public_address, std::string()),
-                              (std::string, supernode_signature, std::string()),
-                              (std::string, tx_secret_key, std::string())
+                              (std::string, supernode_signature, std::string())
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeStakeTransactions,
