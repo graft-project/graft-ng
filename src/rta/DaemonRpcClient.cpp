@@ -38,8 +38,10 @@ using namespace std;
 
 namespace graft {
 
-DaemonRpcClient::DaemonRpcClient(const std::string &daemon_addr, const std::string &daemon_login, const std::string &daemon_pass)
-    :  m_rpc_timeout(std::chrono::seconds(30))
+DaemonRpcClient::DaemonRpcClient(const std::string &daemon_addr, const std::string &daemon_login, const std::string &daemon_pass,
+                                 boost::shared_ptr<boost::asio::io_service> ios)
+    : m_http_client(ios)
+    , m_rpc_timeout(std::chrono::seconds(30))
 {
 
     boost::shared_mutex mutex;
