@@ -91,7 +91,6 @@ Status supernodeStakeTransactionsHandler
         dst_tx.unlock_time              = src_tx.unlock_time;
         dst_tx.supernode_public_id      = src_tx.supernode_public_id;
         dst_tx.supernode_public_address = src_tx.supernode_public_address;
-        dst_tx.supernode_signature      = src_tx.supernode_signature;
 
         dst_stake_txs.emplace_back(std::move(dst_tx));
     }

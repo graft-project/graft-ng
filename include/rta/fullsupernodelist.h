@@ -133,7 +133,6 @@ public:
       uint64_t unlock_time = 0;
       std::string supernode_public_id;
       std::string supernode_public_address;
-      std::string supernode_signature;
     };
     typedef std::vector<stake_transaction> stake_transaction_array;
 
