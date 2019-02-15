@@ -45,7 +45,8 @@ namespace graft {
 class DaemonRpcClient
 {
 public:
-    DaemonRpcClient(const std::string &daemon_addr, const std::string &daemon_login, const std::string &daemon_pass);
+    DaemonRpcClient(const std::string &daemon_addr, const std::string &daemon_login, const std::string &daemon_pass,
+                    boost::shared_ptr<boost::asio::io_service> ios);
     virtual ~DaemonRpcClient();
     bool get_tx_from_pool(const std::string &hash_str, cryptonote::transaction &out_tx);
     bool get_tx(const std::string &hash_str, cryptonote::transaction &out_tx, uint64_t &block_num, bool &mined);

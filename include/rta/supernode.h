@@ -243,6 +243,8 @@ public:
     bool busy() const;
 
 
+    static boost::shared_ptr<boost::asio::io_service> getIoService() { return  m_ioservice; }
+
 private:
     Supernode(bool testnet = false);
 
