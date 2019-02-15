@@ -42,16 +42,16 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "graftlet.WalletAddress"
 
-class WalletAddressGraftlet: public IGraftlet
+class WalletAddress: public IGraftlet
 {
 public:
-    WalletAddressGraftlet(const char* name) : IGraftlet(name) { }
+    WalletAddress(const char* name) : IGraftlet(name) { }
 
     virtual void initOnce(const graft::CommonOpts& opts) override
     {
         makeGetWalletAddressResponse(opts);
 
-        REGISTER_ENDPOINT("/dapi/v2.0/cryptonode/getwalletaddress", METHOD_GET | METHOD_POST, WalletAddressGraftlet, getWalletAddressHandler);
+        REGISTER_ENDPOINT("/dapi/v2.0/cryptonode/getwalletaddress", METHOD_GET | METHOD_POST, WalletAddress, getWalletAddressHandler);
     }
 private:
     graft::Status getWalletAddressHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
@@ -65,12 +65,12 @@ private:
 };
 
 GRAFTLET_EXPORTS_BEGIN("walletAddress", GRAFTLET_MKVER(1,1));
-GRAFTLET_PLUGIN(WalletAddressGraftlet, IGraftlet, "walletAddressGL");
+GRAFTLET_PLUGIN(WalletAddress, IGraftlet, "walletAddressGL");
 GRAFTLET_EXPORTS_END
 
 GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(0,3))
 
-graft::Status WalletAddressGraftlet::getWalletAddressHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+graft::Status WalletAddress::getWalletAddressHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
     LOG_PRINT_L2(__FUNCTION__);
     assert(ctx.local.getLastStatus() == graft::Status::None);
@@ -86,7 +86,7 @@ graft::Status WalletAddressGraftlet::getWalletAddressHandler(const graft::Router
 /*!
  * \brief makeGetWalletAddressResponse - fills and signs m_response
  */
-void WalletAddressGraftlet::makeGetWalletAddressResponse(const graft::CommonOpts& opts)
+void WalletAddress::makeGetWalletAddressResponse(const graft::CommonOpts& opts)
 {
     m_errorResponse.testnet = opts.testnet;
 
@@ -117,7 +117,7 @@ void WalletAddressGraftlet::makeGetWalletAddressResponse(const graft::CommonOpts
 /*!
  * \brief verifySignature - only for testing here, the code can be used on the other side
  */
-bool WalletAddressGraftlet::verifySignature()
+bool WalletAddress::verifySignature()
 {
     crypto::public_key W;
     bool ok = epee::string_tools::hex_to_pod(m_response.id_key, W);
@@ -137,7 +137,7 @@ bool WalletAddressGraftlet::verifySignature()
  * \brief checkWalletPublicAddress - checks that opts.wallet_public_address is valid
  * on error throws graft::exit_error exception
  */
-void WalletAddressGraftlet::checkWalletPublicAddress(const graft::CommonOpts& opts)
+void WalletAddress::checkWalletPublicAddress(const graft::CommonOpts& opts)
 {
     cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
     if(!cryptonote::get_account_address_from_str(acc, opts.testnet, opts.wallet_public_address))
@@ -152,7 +152,7 @@ void WalletAddressGraftlet::checkWalletPublicAddress(const graft::CommonOpts& op
  * \brief prepareIdKeys - gets id keys, generates them if required
  * on errors throws graft::exit_error exception
  */
-void WalletAddressGraftlet::prepareIdKeys(const graft::CommonOpts& opts, crypto::public_key& W, crypto::secret_key& w)
+void WalletAddress::prepareIdKeys(const graft::CommonOpts& opts, crypto::public_key& W, crypto::secret_key& w)
 {
     boost::filesystem::path data_path(opts.data_dir);
 
