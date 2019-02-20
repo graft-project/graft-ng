@@ -191,6 +191,7 @@ add_library(graft STATIC
     ${PROJECT_SOURCE_DIR}/src/lib/graft/router.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/task.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/upstream_manager.cpp
+#    ${PROJECT_SOURCE_DIR}/src/lib/graft/upstream_routing.cpp
     ${PROJECT_SOURCE_DIR}/modules/mongoose/mongoose.c
     ${PROJECT_SOURCE_DIR}/src/supernode/server.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/supernode.cpp
@@ -321,6 +322,8 @@ add_executable(supernode
     ${PROJECT_SOURCE_DIR}/src/supernode/main.cpp
     )
 
+set_target_properties(supernode PROPERTIES LINK_FLAGS "-Wl,-E")
+
 target_include_directories(supernode PRIVATE
     ${GRAFT_INCLUDE_DIRS}
     )
@@ -377,6 +380,7 @@ if (OPT_BUILD_TESTS)
             )
 
         add_executable(supernode_test
+            ${PROJECT_SOURCE_DIR}/test/coap_test.cpp
             ${PROJECT_SOURCE_DIR}/test/upstream_test.cpp
             ${PROJECT_SOURCE_DIR}/test/blacklist_test.cpp
             ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
@@ -404,6 +408,8 @@ if (OPT_BUILD_TESTS)
             supernode_common
             )
 
+
+        target_compile_definitions(supernode_test PRIVATE MG_ENABLE_SYNC_RESOLVER MG_ENABLE_COAP)
 
         add_dependencies(supernode_test graft supernode_common googletest)
         set_target_properties(supernode_test PROPERTIES LINK_FLAGS "-Wl,-E")

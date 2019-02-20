@@ -70,7 +70,8 @@ struct CryptonodeHandlersTest : public ::testing::Test
         registerSendRawTxRequest(router);
         registerAuthorizeRtaTxRequests(router);
 
-        m_gserver = std::make_unique<detail::GSTest>(router, true);
+        Router coapRouter;
+        m_gserver = std::make_unique<detail::GSTest>(router, coapRouter, true);
 
         m_server_thread = std::thread([this, &copts]() {
             m_gserver->init(start_args.argc, start_args.argv, copts);

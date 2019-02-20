@@ -17,8 +17,9 @@ namespace detail
 class GSTest : public graft::GraftServer
 {
 public:
-    GSTest(graft::Router& httpRouter, bool ignoreInitConfig)
+    GSTest(graft::Router& httpRouter, graft::Router& coapRouter, bool ignoreInitConfig)
         : m_httpRouter(httpRouter)
+        , m_coapRouter(coapRouter)
         , m_ignoreInitConfig(ignoreInitConfig)
     { }
     bool ready() const { return graft::GraftServer::ready(); }
@@ -36,9 +37,12 @@ protected:
     {
         graft::ConnectionManager* httpcm = getConMgr("HTTP");
         httpcm->addRouter(m_httpRouter);
+        graft::ConnectionManager* coapcm = getConMgr("COAP");
+        coapcm->addRouter(m_coapRouter);
     }
 private:
     graft::Router& m_httpRouter;
+    graft::Router& m_coapRouter;
     bool m_ignoreInitConfig;
 };
 
@@ -184,6 +188,7 @@ public:
     public:
         graft::ConfigOpts m_copts;
         graft::Router m_router;
+        graft::Router m_coapRouter;
 
         graft::Looper& getLooper() const { assert(m_gserver); return m_gserver->getLooper(); }
         graft::GlobalContextMap& getGcm() const { assert(m_gserver); return m_gserver->getContext(); }
@@ -225,7 +230,7 @@ public:
 
         void x_run()
         {
-            m_gserver = std::make_unique<detail::GSTest>(m_router, true);
+            m_gserver = std::make_unique<detail::GSTest>(m_router, m_coapRouter, true);
             m_gserver_created = true;
             m_gserver->init(start_args.argc, start_args.argv, m_copts);
             m_gserver->run();
@@ -386,12 +391,13 @@ public:
     bool m_ignoreConfigIni = true;
     graft::ConfigOpts m_copts;
     graft::Router m_httpRouter;
+    graft::Router m_coapRouter;
 
     void run()
     {
         m_th = std::thread([this]
         {
-            m_gserver = std::make_unique<detail::GSTest>(m_httpRouter, m_ignoreConfigIni);
+            m_gserver = std::make_unique<detail::GSTest>(m_httpRouter, m_coapRouter, m_ignoreConfigIni);
             m_serverCreated = true;
             m_gserver->init(start_args.argc, start_args.argv, m_copts);
             m_gserver->run();

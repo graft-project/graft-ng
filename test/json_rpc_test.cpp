@@ -159,10 +159,11 @@ struct JsonRpcTest : public ::testing::Test
     {
         ConfigOpts sopts {"", "localhost:8855", "localhost:8856", 5.0, 5.0, 0, 0, 1000, "localhost:28281/sendrawtransaction", 1000, -1, {}, 60000};
         Router router;
+        Router coapRouter;
         Router::Handler3 h3(nullptr, jsonRpcHandler, nullptr);
         router.addRoute("/jsonrpc/test", METHOD_POST, h3);
 
-        detail::GSTest gserver(router, true);
+        detail::GSTest gserver(router, coapRouter, true);
         gserver.init(start_args.argc, start_args.argv, sopts);
         this->m_gserver = &gserver;
         gserver.run();
