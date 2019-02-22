@@ -21,7 +21,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeStakeTransactions,
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SendSupernodeStakeTransactionsResponse,
-                              (int, Status, 0)
+                              (int, status, 0)
                               );
 
 GRAFT_DEFINE_JSON_RPC_REQUEST(SendSupernodeStakeTransactionsJsonRpcRequest, SupernodeStakeTransactions);

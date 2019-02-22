@@ -22,6 +22,7 @@ class Supernode : public GraftServer
     void setHttpRouters(ConnectionManager& httpcm);
     void setCoapRouters(ConnectionManager& coapcm);
     void loadStakeWallets();
+    void requestStakeTransactions();
 
     ConfigOptsEx m_configEx;
 protected:

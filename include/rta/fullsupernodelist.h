@@ -143,6 +143,12 @@ public:
      */
     void updateStakeTransactions(const stake_transaction_array& stake_txs);
 
+    /*!
+     * \brief refreshedStakeTransactions - request stake transactions from cryptonode
+     * \return
+     */
+    void refreshStakeTransactions(const char* supernode_network_address, const char* supernode_address);
+
 private:
     bool loadWallet(const std::string &wallet_path);
 

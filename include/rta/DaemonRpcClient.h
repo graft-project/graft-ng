@@ -51,7 +51,7 @@ public:
     bool get_tx(const std::string &hash_str, cryptonote::transaction &out_tx, uint64_t &block_num, bool &mined);
     bool get_height(uint64_t &height);
     bool get_block_hash(uint64_t height, std::string &hash);
-    bool send_supernode_stake_txs();
+    bool send_supernode_stake_txs(const char* network_address, const char* address);
 
 protected:
     bool init(const std::string &daemon_address, boost::optional<epee::net_utils::http::login> daemon_login);
