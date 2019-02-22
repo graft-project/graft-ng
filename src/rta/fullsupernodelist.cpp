@@ -130,8 +130,6 @@ FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     , m_tp(new utils::ThreadPool())
 {
     m_refresh_counter = 0;
-
-    m_rpc_client.send_supernode_stake_txs();
 }
 
 FullSupernodeList::~FullSupernodeList()
@@ -403,6 +401,11 @@ void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& s
         sn->setStakeTransactionBlockHeight(tx.block_height);
         sn->setStakeTransactionUnlockTime(tx.unlock_time);
     }
+}
+
+void FullSupernodeList::refreshStakeTransactions(const char* network_address, const char* address)
+{
+    m_rpc_client.send_supernode_stake_txs(network_address, address);
 }
 
 std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes)
