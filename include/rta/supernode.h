@@ -3,7 +3,7 @@
 
 #include <crypto/crypto.h>
 #include <cryptonote_config.h>
-#include <cryptonote_core/stake_transaction_processor.h>
+#include <graft_rta_config.h>
 #include <boost/scoped_ptr.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/asio/io_service.hpp>
@@ -29,10 +29,10 @@ class Supernode
 public:
     using SignedKeyImage = std::pair<crypto::key_image, crypto::signature>;
 
-    static constexpr uint64_t TIER1_STAKE_AMOUNT = cryptonote::StakeTransactionProcessor::TIER1_STAKE_AMOUNT;
-    static constexpr uint64_t TIER2_STAKE_AMOUNT = cryptonote::StakeTransactionProcessor::TIER1_STAKE_AMOUNT;
-    static constexpr uint64_t TIER3_STAKE_AMOUNT = cryptonote::StakeTransactionProcessor::TIER1_STAKE_AMOUNT;
-    static constexpr uint64_t TIER4_STAKE_AMOUNT = cryptonote::StakeTransactionProcessor::TIER1_STAKE_AMOUNT;
+    static constexpr uint64_t TIER1_STAKE_AMOUNT = config::graft::TIER1_STAKE_AMOUNT;
+    static constexpr uint64_t TIER2_STAKE_AMOUNT = config::graft::TIER2_STAKE_AMOUNT;
+    static constexpr uint64_t TIER3_STAKE_AMOUNT = config::graft::TIER3_STAKE_AMOUNT;
+    static constexpr uint64_t TIER4_STAKE_AMOUNT = config::graft::TIER4_STAKE_AMOUNT;
 
     /*!
      * \brief Supernode - constructs supernode
