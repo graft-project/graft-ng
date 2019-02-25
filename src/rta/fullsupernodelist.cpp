@@ -1,4 +1,5 @@
 #include "rta/fullsupernodelist.h"
+#include "supernode/requestdefines.h"
 
 #include <wallet/api/wallet_manager.h>
 #include <cryptonote_basic/cryptonote_basic_impl.h>
@@ -123,19 +124,29 @@ constexpr int32_t FullSupernodeList::TIERS, FullSupernodeList::ITEMS_PER_TIER, F
 constexpr int64_t FullSupernodeList::AUTH_SAMPLE_HASH_HEIGHT, FullSupernodeList::ANNOUNCE_TTL_SECONDS;
 #endif
 
-FullSupernodeList::FullSupernodeList(const string &daemon_address, boost::shared_ptr<boost::asio::io_service> ios, bool testnet)
+FullSupernodeList::FullSupernodeList(const string &daemon_address, boost::shared_ptr<boost::asio::io_service> ios,
+                                     graft::GlobalContextMap &ctxMap, bool testnet)
     : m_daemon_address(daemon_address)
     , m_testnet(testnet)
     , m_rpc_client(daemon_address, "", "", ios)
     , m_tp(new utils::ThreadPool())
+    , m_ctx(ctxMap)
 {
     m_refresh_counter = 0;
 }
 
 FullSupernodeList::~FullSupernodeList()
 {
-    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
-    m_list.clear();
+
+}
+
+void FullSupernodeList::close()
+{
+    std::function f = [&](FullSupernodeListPtr &) {
+        m_list.clear();
+        return true;
+    };
+    m_ctx.global.apply(CONTEXT_KEY_FULLSUPERNODELIST, f);
 }
 
 bool FullSupernodeList::add(Supernode *item)
@@ -149,9 +160,12 @@ bool FullSupernodeList::add(SupernodePtr item)
         LOG_ERROR("item already exists: " << item->walletAddress());
         return false;
     }
+    std::function f =  [&](FullSupernodeListPtr &)->bool {
+        m_list.insert(std::make_pair(item->walletAddress(), item));
+        return true;
+    };
+    m_ctx.global.apply("fsl", f);
 
-    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
-    m_list.insert(std::make_pair(item->walletAddress(), item));
     LOG_PRINT_L1("added supernode: " << item->walletAddress());
     LOG_PRINT_L1("list size: " << m_list.size());
     return true;
@@ -188,42 +202,63 @@ size_t FullSupernodeList::loadFromDirThreaded(const string &base_dir, size_t &fo
 
 bool FullSupernodeList::remove(const string &address)
 {
-    boost::unique_lock<boost::shared_mutex> readerLock(m_access);
-    return m_list.erase(address) > 0;
+    bool result = false;
+    std::function f =  [&](FullSupernodeListPtr &)->bool {
+        result = m_list.erase(address) > 0;
+        return true;
+    };
+    m_ctx.global.apply(CONTEXT_KEY_FULLSUPERNODELIST, f);
+    return result;
 }
 
 size_t FullSupernodeList::size() const
 {
-    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
-    return m_list.size();
+    size_t result = 0;
+    std::function f =  [&](FullSupernodeListPtr &)->bool {
+        result = m_list.size();
+        return true;
+    };
+    m_ctx.global.apply(CONTEXT_KEY_FULLSUPERNODELIST, f);
+    return result;
 }
 
 bool FullSupernodeList::exists(const string &address) const
 {
-
-    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
-    return m_list.find(address) != m_list.end();
+    bool result = false;
+    std::function f =  [&](FullSupernodeListPtr &)->bool {
+        result = m_list.find(address) != m_list.end();
+        return true;
+    };
+    m_ctx.global.apply(CONTEXT_KEY_FULLSUPERNODELIST, f);
+    return result;
 }
 
 bool FullSupernodeList::update(const string &address, const vector<Supernode::SignedKeyImage> &key_images)
 {
-
-    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
-    auto it = m_list.find(address);
-    if (it != m_list.end()) {
-        uint64_t height = 0;
-        return it->second->importKeyImages(key_images, height);
-    }
-    return false;
+    bool result = false;
+    std::function f =  [&](FullSupernodeListPtr &)->bool {
+        auto it = m_list.find(address);
+        if (it != m_list.end()) {
+            uint64_t height = 0;
+            result = it->second->importKeyImages(key_images, height);
+        }
+        return true;
+    };
+    m_ctx.global.apply(CONTEXT_KEY_FULLSUPERNODELIST, f);
+    return result;
 }
 
 SupernodePtr FullSupernodeList::get(const string &address) const
 {
-    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
-    auto it = m_list.find(address);
-    if (it != m_list.end())
-        return it->second;
-    return SupernodePtr(nullptr);
+    SupernodePtr result(nullptr);
+    std::function f =  [&](FullSupernodeListPtr &)->bool {
+        auto it = m_list.find(address);
+        if (it != m_list.end())
+            result = it->second;
+        return true;
+    };
+    m_ctx.global.apply(CONTEXT_KEY_FULLSUPERNODELIST, f);
+    return result;
 }
 
 bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &out)
@@ -242,17 +277,21 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
 
     std::array<std::vector<SupernodePtr>, TIERS> tier_supernodes;
     {
-        boost::shared_lock<boost::shared_mutex> readerLock(m_access);
-        int64_t now = static_cast<int64_t>(std::time(nullptr));
-        int64_t cutoff_time = now - ANNOUNCE_TTL_SECONDS;
-        for (const auto &sn_pair : m_list) {
-            const auto &sn = sn_pair.second;
-            const auto tier = sn->tier();
-            MTRACE("checking supernode " << sn_pair.first << ", updated: " << (now - sn->lastUpdateTime()) << "s ago"
-                   << ", tier: " << tier);
-            if (tier > 0 && sn->lastUpdateTime() >= cutoff_time)
-                tier_supernodes[tier - 1].push_back(sn);
-        }
+        std::function f = [&](FullSupernodeListPtr &)->bool {
+            int64_t now = static_cast<int64_t>(std::time(nullptr));
+            int64_t cutoff_time = now - ANNOUNCE_TTL_SECONDS;
+            for (const auto &sn_pair : m_list) {
+                const auto &sn = sn_pair.second;
+                const auto tier = sn->tier();
+                MTRACE("checking supernode " << sn_pair.first << ", updated: " << (now - sn->lastUpdateTime()) << "s ago"
+                       << ", tier: " << tier);
+                if (tier > 0 && sn->lastUpdateTime() >= cutoff_time)
+                    tier_supernodes[tier - 1].push_back(sn);
+            }
+            return true;
+        };
+
+        m_ctx.global.apply(CONTEXT_KEY_FULLSUPERNODELIST, f);
     }
 
     array<int, TIERS> select;
@@ -315,10 +354,14 @@ vector<string> FullSupernodeList::items() const
 {
     vector<string> result;
     result.reserve(m_list.size());
-    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
-    for (auto const& it: m_list)
-        result.push_back(it.first);
 
+    std::function f =  [&](FullSupernodeListPtr &)->bool {
+        for (auto const& it: m_list)
+            result.push_back(it.first);
+        return true;
+    };
+
+    m_ctx.global.apply(CONTEXT_KEY_FULLSUPERNODELIST, f);
     return result;
 }
 

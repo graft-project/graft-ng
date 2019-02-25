@@ -112,6 +112,8 @@ public:
     bool stopped() const { return m_stop; }
 
     virtual mg_mgr* getMgMgr() override { return m_mgr.get(); }
+    void setOnStopHandler(std::function<void (void)> handler);
+
 protected:
     std::unique_ptr<mg_mgr> m_mgr;
 private:
@@ -121,6 +123,7 @@ private:
     std::atomic_bool m_ready {false};
     std::atomic_bool m_stop {false};
     std::atomic_bool m_forceStop {false};
+    std::function<void (void)> m_onStopHandler;
 };
 
 class ConnectionManager
