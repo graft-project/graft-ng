@@ -31,6 +31,11 @@
 #include "supernode/requestdefines.h"
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
+#include "supernode/requests/broadcast.h"
+#include "rta/fullsupernodelist.h"
+
+#include "lib/graft/common/utils.h"
+#include <boost/endian/conversion.hpp>
 
 #include <misc_log_ex.h>
 #include <boost/shared_ptr.hpp>
@@ -149,14 +154,6 @@ Status sendSupernodeAnnounceHandler(const Router::vars_t& vars, const graft::Inp
 
 }
 
-void registerSendSupernodeAnnounceRequest(graft::Router &router)
-{
-    Router::Handler3 h3(nullptr, sendSupernodeAnnounceHandler, nullptr);
-
-    router.addRoute(PATH, METHOD_POST, h3);
-    LOG_PRINT_L0("route " << PATH << " registered");
-}
-
 Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
         graft::Output& output)
 {
@@ -216,7 +213,238 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
         LOG_ERROR("Unknown exception thrown");
     }
     return Status::Ok;
-};
-
 }
+
+std::string prepareMyIpBroadcast(graft::Context& ctx)
+{
+    using IdSet = std::vector<std::string>;
+    IdSet allSupernodesWithStake;
+    {
+        boost::shared_ptr<graft::FullSupernodeList> fsl = ctx.global.get("fsl", boost::shared_ptr<graft::FullSupernodeList>());
+        if(!fsl) return std::string();
+        std::vector<std::string> items = fsl->items();
+        for(auto& item : items)
+        {
+            graft::SupernodePtr sptr = fsl->get(item);
+            if(!sptr->stakeAmount()) continue;
+            allSupernodesWithStake.emplace_back(item);
+        }
+
+        std::sort(allSupernodesWithStake.begin(), allSupernodesWithStake.end());
+    }
+
+    if(allSupernodesWithStake.empty()) return std::string();
+
+    const size_t selectedCount = 10;
+    boost::shared_ptr<IdSet> selectedSupernodes = ctx.global.get("selectedSupernodes", boost::shared_ptr<IdSet>());
+    if(!selectedSupernodes) selectedSupernodes = boost::make_shared<IdSet>();
+
+    {//remove from selectedSupernodes that are not in allSupernodesWithStake
+        IdSet intersection; intersection.reserve(std::min(selectedSupernodes->size(), allSupernodesWithStake.size()));
+        std::set_intersection(selectedSupernodes->begin(), selectedSupernodes->end(),
+                              allSupernodesWithStake.begin(), allSupernodesWithStake.end(),
+                              std::back_inserter(intersection)
+                              );
+        selectedSupernodes->swap(intersection);
+    }
+
+    if(selectedSupernodes->size() < selectedCount)
+    {
+        {//remove from allSupernodesWithStake that are in selectedSupernodes
+            IdSet diff; diff.reserve(selectedSupernodes->size());
+            std::set_difference(allSupernodesWithStake.begin(), allSupernodesWithStake.end(),
+                                selectedSupernodes->begin(), selectedSupernodes->end(),
+                                std::back_inserter(diff)
+                                );
+            allSupernodesWithStake.swap(diff);
+        }
+
+        //make random subset(add) from allSupernodesWithStake
+        IdSet add;
+        size_t cnt = selectedCount - selectedSupernodes->size();
+        if(cnt <= allSupernodesWithStake.size())
+        {
+            add.swap(allSupernodesWithStake);
+        }
+        else
+        {
+            size_t c = std::min(cnt, allSupernodesWithStake.size() - cnt);
+            for(size_t i=0; i<c; ++i)
+            {
+                size_t idx = graft::utils::random_number(size_t(0), allSupernodesWithStake.size()-1);
+                auto it = allSupernodesWithStake.begin() + idx;
+                add.push_back(*it); allSupernodesWithStake.erase(it);
+            }
+            if(c<=cnt)
+            {
+                add.swap(allSupernodesWithStake);
+            }
+            else
+            {
+                std::sort(add.begin(), add.end());
+            }
+        }
+
+        //merge (add) into selectedSupernodes
+        size_t middle = selectedSupernodes->size();
+        selectedSupernodes->insert(selectedSupernodes->end(), add.begin(), add.end());
+        std::inplace_merge(selectedSupernodes->begin(), selectedSupernodes->begin()+middle, selectedSupernodes->end());
+    }
+
+    if(selectedSupernodes->empty()) return std::string();
+}
+
+graft::Status updateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+        graft::Output& output)
+{
+    try {
+        switch (ctx.local.getLastStatus()) {
+        case graft::Status::Forward: // reply from cryptonode
+        {
+            int x = ctx.local["updateRedirectIdsState"];
+            if(!x)
+            {
+                ctx.local["updateRedirectIdsState"] = 1;
+
+                // send payload
+                BroadcastRequestJsonRpc cryptonode_req;
+                cryptonode_req.method = "broadcast";
+                cryptonode_req.params.callback_uri = "/cryptonode/update_redirect_ids";
+                cryptonode_req.params.data = "OOOUUU";
+                output.load(cryptonode_req);
+                output.path = "/json_rpc/rta";
+                output.load(cryptonode_req);
+                return graft::Status::Forward;
+            }
+            if(x==1)
+            {
+                ctx.local["updateRedirectIdsState"] = 2;
+
+                output.host = "192.168.5.1";
+                return graft::Status::Forward;
+            }
+            if(x==2)
+            {
+                ctx.local["updateRedirectIdsState"] = 3;
+
+                output.host = "192.168.5.2";
+                return graft::Status::Forward;
+            }
+
+            return sendOkResponseToCryptonode(output);
+        }
+        case graft::Status::Error: // failed to send redirect id
+            LOG_ERROR("Failed to send announce");
+            return graft::Status::Ok;
+        case graft::Status::Ok:
+        case graft::Status::None:
+        {
+            ctx.local["updateRedirectIdsState"] = int(0);
+
+            SupernodeRedirectIdsJsonRpcRequest req;
+
+            req.params.cmd = 0; //add
+            req.params.id = "AAABBB";
+
+            req.method = "redirect_supernode_id";
+            req.id = 0;
+            output.load(req);
+
+            output.path = "/json_rpc/rta";
+            // DBG: without cryptonode
+            // output.path = "/dapi/v2.0/redirect_supernode_id";
+
+            MDEBUG("sending redirect_supernode_id for: ") << req.params.id;
+            return graft::Status::Forward;
+        }
+/*
+            graft::SupernodePtr supernode;
+
+            supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
+
+            if (!supernode.get()) {
+                LOG_ERROR("supernode is not set in global context");
+                return graft::Status::Error;
+            }
+
+            MDEBUG("about to refresh supernode: " << supernode->walletAddress());
+
+            if (!supernode->refresh()) {
+                return errorCustomError(string("failed to refresh supernode: ") + supernode->walletAddress(),
+                                        ERROR_INTERNAL_ERROR, output);
+            }
+
+            supernode->setLastUpdateTime(static_cast<int64_t>(std::time(nullptr)));
+
+            SendSupernodeAnnounceJsonRpcRequest req;
+            if (!supernode->prepareAnnounce(req.params)) {
+                return errorCustomError(string("failed to prepare announce: ") + supernode->walletAddress(),
+                                        ERROR_INTERNAL_ERROR, output);
+            }
+
+
+            req.method = "send_supernode_announce";
+            req.id = 0;
+            output.load(req);
+
+            output.path = "/json_rpc/rta";
+            // DBG: without cryptonode
+            // output.path = "/dapi/v2.0/send_supernode_announce";
+
+            MDEBUG("sending announce for address: " << supernode->walletAddress()
+                   << ", stake amount: " << supernode->stakeAmount());
+            return graft::Status::Forward;
+*/
+        }
+    }
+    catch(const std::exception &e)
+    {
+        LOG_ERROR("Exception in updateRedirectIds thrown: " << e.what());
+    }
+    catch(...)
+    {
+        LOG_ERROR("Unknown exception in updateRedirectIds thrown");
+    }
+    return graft::Status::Ok;
+}
+
+graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+        graft::Output& output)
+{
+    try {
+        switch (ctx.local.getLastStatus()) {
+        case graft::Status::Ok:
+        case graft::Status::None:
+        {
+            BroadcastRequestJsonRpc req;
+            input.get(req);
+            MDEBUG("got redirect_supernode_id for: ") << req.params.data;
+            return graft::Status::Ok;
+        }
+        }
+    }
+    catch(const std::exception &e)
+    {
+        LOG_ERROR("Exception in onUpdateRedirectIds thrown: " << e.what());
+    }
+    catch(...)
+    {
+        LOG_ERROR("Unknown exception in onUpdateRedirectIds thrown");
+    }
+    return graft::Status::Ok;
+}
+
+void registerSendSupernodeAnnounceRequest(graft::Router &router)
+{
+    std::string endpoint = "/cryptonode/update_redirect_ids";
+//    std::string endpoint = "/update_redirect_ids";
+    router.addRoute(endpoint, METHOD_POST, {nullptr, onUpdateRedirectIds, nullptr});
+
+    Router::Handler3 h3(nullptr, sendSupernodeAnnounceHandler, nullptr);
+
+    router.addRoute(PATH, METHOD_POST, h3);
+    LOG_PRINT_L0("route " << PATH << " registered");
+}
+
+} //namespace graft::supernode::request
 

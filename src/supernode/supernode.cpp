@@ -160,6 +160,13 @@ void Supernode::startSupernodePeriodicTasks()
                     std::chrono::milliseconds(initial_interval_ms),
                     m_configEx.stake_wallet_refresh_interval_random_factor
                     );
+        getLooper().addPeriodicTask(
+                    graft::Router::Handler3(nullptr, graft::supernode::request::updateRedirectIds, nullptr),
+//                    std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
+                    std::chrono::milliseconds(initial_interval_ms*5),
+                    std::chrono::milliseconds(initial_interval_ms),
+                    m_configEx.stake_wallet_refresh_interval_random_factor
+                    );
     }
 }
 
