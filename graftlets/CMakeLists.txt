@@ -25,6 +25,14 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/../modules/libr3/include
 )
 
+
+add_library(graftlet_walletAddress SHARED
+    WalletAddress.cpp
+)
+set_target_properties(graftlet_walletAddress PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode
+)
+
 if (OPT_BUILD_TESTS)
     message("==> Test graftlets included")
 
@@ -36,11 +44,4 @@ if (OPT_BUILD_TESTS)
         TestGraftlet1.cpp
     )
 
-    add_library(graftlet_walletAddress SHARED
-        WalletAddress.cpp
-    )
-    set_target_properties(graftlet_walletAddress PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode
-    )
 endif()
-
