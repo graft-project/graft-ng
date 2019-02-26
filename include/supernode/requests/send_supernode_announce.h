@@ -57,7 +57,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIdsResponse,
 GRAFT_DEFINE_JSON_RPC_REQUEST(SupernodeRedirectIdsJsonRpcRequest, SupernodeRedirectIds);
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SupernodeRedirectIdsJsonRpcResponse, SupernodeRedirectIdsResponse);
 
-Status updateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
         graft::Output& output);
 
 } //namespace graft::supernode::request

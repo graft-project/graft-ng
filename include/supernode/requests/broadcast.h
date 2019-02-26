@@ -9,6 +9,7 @@
 namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT(BroadcastRequest,
+                       (std::vector<std::string>, receiver_addresses),
                        (std::string, sender_address),
                        (std::string, callback_uri),
                        (std::string, data)

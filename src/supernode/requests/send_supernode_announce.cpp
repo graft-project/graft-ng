@@ -32,6 +32,7 @@
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
 #include "supernode/requests/broadcast.h"
+#include "supernode/requests/unicast.h"
 #include "rta/fullsupernodelist.h"
 
 #include "lib/graft/common/utils.h"
@@ -236,6 +237,7 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
     if(allSupernodesWithStake.empty()) return std::string();
 
     const size_t selectedCount = 10;
+    //TODO: selectedSupernodes should be accessed by apply
     boost::shared_ptr<IdSet> selectedSupernodes = ctx.global.get("selectedSupernodes", boost::shared_ptr<IdSet>());
     if(!selectedSupernodes) selectedSupernodes = boost::make_shared<IdSet>();
 
@@ -292,9 +294,10 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
     }
 
     if(selectedSupernodes->empty()) return std::string();
+    //TODO: call encryptMessage
 }
 
-graft::Status updateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
         graft::Output& output)
 {
     try {
@@ -302,20 +305,39 @@ graft::Status updateRedirectIds(const graft::Router::vars_t& vars, const graft::
         case graft::Status::Forward: // reply from cryptonode
         {
             int x = ctx.local["updateRedirectIdsState"];
-            if(!x)
+            if(false && !x)
             {
                 ctx.local["updateRedirectIdsState"] = 1;
 
-                // send payload
                 BroadcastRequestJsonRpc cryptonode_req;
                 cryptonode_req.method = "broadcast";
                 cryptonode_req.params.callback_uri = "/cryptonode/update_redirect_ids";
-                cryptonode_req.params.data = "OOOUUU";
-                output.load(cryptonode_req);
+                static int i = 0;
+                cryptonode_req.params.data = std::string("uuuOOO") + std::to_string(++i);
+//                output.load(cryptonode_req);
                 output.path = "/json_rpc/rta";
                 output.load(cryptonode_req);
                 return graft::Status::Forward;
             }
+            if(true && !x)
+            {
+                ctx.local["updateRedirectIdsState"] = 1;
+
+                UnicastRequestJsonRpc req;
+                //req.params.sender_address
+                req.params.receiver_address = "127.0.0.1";
+                req.params.callback_uri = "/my_unicast";
+                static int id = graft::utils::random_number(0,100);
+                static int i = 0;
+                req.params.data = "unicast data " + std::to_string(id) + " " + std::to_string(++i);
+                req.params.wait_answer = false;
+
+                req.method = "unicast";
+                output.path = "/json_rpc/rta";
+                output.load(req);
+                return graft::Status::Forward;
+            }
+/*
             if(x==1)
             {
                 ctx.local["updateRedirectIdsState"] = 2;
@@ -330,7 +352,7 @@ graft::Status updateRedirectIds(const graft::Router::vars_t& vars, const graft::
                 output.host = "192.168.5.2";
                 return graft::Status::Forward;
             }
-
+*/
             return sendOkResponseToCryptonode(output);
         }
         case graft::Status::Error: // failed to send redirect id
@@ -344,7 +366,7 @@ graft::Status updateRedirectIds(const graft::Router::vars_t& vars, const graft::
             SupernodeRedirectIdsJsonRpcRequest req;
 
             req.params.cmd = 0; //add
-            req.params.id = "AAABBB";
+            req.params.id = "AAABBB"; //my ID
 
             req.method = "redirect_supernode_id";
             req.id = 0;
@@ -418,9 +440,24 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
         {
             BroadcastRequestJsonRpc req;
             input.get(req);
-            MDEBUG("got redirect_supernode_id for: ") << req.params.data;
+            MDEBUG("got 111 redirect_supernode_id from '") << input.host << ":" << input.port << "' : " << req.params.data;
+
+            //register others IDs
+            SupernodeRedirectIdsJsonRpcRequest sreq;
+            sreq.params.cmd = 0; //add
+            sreq.params.id = "anOtherID";
+
+            sreq.method = "redirect_supernode_id";
+            sreq.id = 0;
+            output.load(sreq);
+            output.path = "/json_rpc/rta";
+
+            return graft::Status::Forward;
+        } break;
+        case graft::Status::Forward:
+        {
             return graft::Status::Ok;
-        }
+        } break;
         }
     }
     catch(const std::exception &e)
@@ -434,16 +471,30 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
     return graft::Status::Ok;
 }
 
+graft::Status onMyUnicast_test(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+{
+    switch (ctx.local.getLastStatus()) {
+    case graft::Status::Ok:
+    case graft::Status::None:
+        MDEBUG("==> onMyUnicast_test");
+        return graft::Status::Ok;
+    }
+}
+
+
 void registerSendSupernodeAnnounceRequest(graft::Router &router)
 {
     std::string endpoint = "/cryptonode/update_redirect_ids";
 //    std::string endpoint = "/update_redirect_ids";
     router.addRoute(endpoint, METHOD_POST, {nullptr, onUpdateRedirectIds, nullptr});
 
+    router.addRoute("/my_unicast", METHOD_POST|METHOD_GET, {nullptr, onMyUnicast_test, nullptr});
+/*
     Router::Handler3 h3(nullptr, sendSupernodeAnnounceHandler, nullptr);
 
     router.addRoute(PATH, METHOD_POST, h3);
     LOG_PRINT_L0("route " << PATH << " registered");
+*/
 }
 
 } //namespace graft::supernode::request
