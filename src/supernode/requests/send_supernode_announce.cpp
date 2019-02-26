@@ -216,85 +216,116 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
     return Status::Ok;
 }
 
-std::string prepareMyIpBroadcast(graft::Context& ctx)
+namespace
 {
-    using IdSet = std::vector<std::string>;
-    IdSet allSupernodesWithStake;
+
+using IdSet = std::vector<std::string>;
+
+void getSupernodesWithStake(graft::Context& ctx, IdSet& allWithStake)
+{
+    allWithStake.clear();
+    ctx.global.apply<boost::shared_ptr<graft::FullSupernodeList>>("fsl",
+        [&allWithStake](boost::shared_ptr<graft::FullSupernodeList>& fsl)->bool
     {
-        boost::shared_ptr<graft::FullSupernodeList> fsl = ctx.global.get("fsl", boost::shared_ptr<graft::FullSupernodeList>());
-        if(!fsl) return std::string();
+        if(!fsl) return false;
         std::vector<std::string> items = fsl->items();
         for(auto& item : items)
         {
             graft::SupernodePtr sptr = fsl->get(item);
             if(!sptr->stakeAmount()) continue;
-            allSupernodesWithStake.emplace_back(item);
+            allWithStake.emplace_back(item);
         }
-
-        std::sort(allSupernodesWithStake.begin(), allSupernodesWithStake.end());
     }
+    );
 
-    if(allSupernodesWithStake.empty()) return std::string();
+    std::sort(allWithStake.begin(), allWithStake.end());
+}
 
-    const size_t selectedCount = 10;
-    //TODO: selectedSupernodes should be accessed by apply
-    boost::shared_ptr<IdSet> selectedSupernodes = ctx.global.get("selectedSupernodes", boost::shared_ptr<IdSet>());
-    if(!selectedSupernodes) selectedSupernodes = boost::make_shared<IdSet>();
-
-    {//remove from selectedSupernodes that are not in allSupernodesWithStake
-        IdSet intersection; intersection.reserve(std::min(selectedSupernodes->size(), allSupernodesWithStake.size()));
-        std::set_intersection(selectedSupernodes->begin(), selectedSupernodes->end(),
-                              allSupernodesWithStake.begin(), allSupernodesWithStake.end(),
+//both can be modified
+void fillSubsetFromAll(IdSet& all, IdSet& subset, size_t required)
+{
+    {//remove from subset that are not in all
+        IdSet intersection; intersection.reserve(std::min(subset.size(), all.size()));
+        std::set_intersection(subset.begin(), subset.end(),
+                              all.begin(), all.end(),
                               std::back_inserter(intersection)
                               );
-        selectedSupernodes->swap(intersection);
+        subset.swap(intersection);
     }
 
-    if(selectedSupernodes->size() < selectedCount)
-    {
-        {//remove from allSupernodesWithStake that are in selectedSupernodes
-            IdSet diff; diff.reserve(selectedSupernodes->size());
-            std::set_difference(allSupernodesWithStake.begin(), allSupernodesWithStake.end(),
-                                selectedSupernodes->begin(), selectedSupernodes->end(),
-                                std::back_inserter(diff)
-                                );
-            allSupernodesWithStake.swap(diff);
-        }
+    assert(subset.size() <= required);
+    if(required <= subset.size()) return;
 
-        //make random subset(add) from allSupernodesWithStake
-        IdSet add;
-        size_t cnt = selectedCount - selectedSupernodes->size();
-        if(cnt <= allSupernodesWithStake.size())
+    {//remove from all that are in selectedSupernodes
+        IdSet diff; diff.reserve(subset.size());
+        std::set_difference(all.begin(), all.end(),
+                            subset.begin(), subset.end(),
+                            std::back_inserter(diff)
+                            );
+        all.swap(diff);
+    }
+
+    //make random subset(add) from all
+    IdSet add;
+    size_t cnt = required - subset.size();
+    if(cnt <= all.size())
+    {
+        add.swap(all);
+    }
+    else
+    {
+        size_t c = std::min(cnt, all.size() - cnt);
+        for(size_t i=0; i<c; ++i)
         {
-            add.swap(allSupernodesWithStake);
+            size_t idx = graft::utils::random_number(size_t(0), all.size()-1);
+            auto it = all.begin() + idx;
+            add.push_back(*it); all.erase(it);
+        }
+        if(c<=cnt)
+        {
+            add.swap(all);
         }
         else
         {
-            size_t c = std::min(cnt, allSupernodesWithStake.size() - cnt);
-            for(size_t i=0; i<c; ++i)
-            {
-                size_t idx = graft::utils::random_number(size_t(0), allSupernodesWithStake.size()-1);
-                auto it = allSupernodesWithStake.begin() + idx;
-                add.push_back(*it); allSupernodesWithStake.erase(it);
-            }
-            if(c<=cnt)
-            {
-                add.swap(allSupernodesWithStake);
-            }
-            else
-            {
-                std::sort(add.begin(), add.end());
-            }
+            std::sort(add.begin(), add.end());
         }
-
-        //merge (add) into selectedSupernodes
-        size_t middle = selectedSupernodes->size();
-        selectedSupernodes->insert(selectedSupernodes->end(), add.begin(), add.end());
-        std::inplace_merge(selectedSupernodes->begin(), selectedSupernodes->begin()+middle, selectedSupernodes->end());
     }
+
+    //merge (add) into selectedSupernodes
+    size_t middle = subset.size();
+    subset.insert(subset.end(), add.begin(), add.end());
+    std::inplace_merge(subset.begin(), subset.begin()+middle, subset.end());
+}
+
+} // namespace
+
+std::string prepareMyIpBroadcast(graft::Context& ctx)
+{
+    const size_t selectedCount = 10;
+
+    using IdSet = std::vector<std::string>;
+    IdSet allWithStake;
+    //get sorted list of all supernodes with stake
+    getSupernodesWithStake(ctx, allWithStake);
+
+    if(allWithStake.empty()) return std::string();
+
+    //It is expected that this is the only function that accesses selectedSupernodes
+    if(!ctx.global.hasKey("selectedSupernodes")) ctx.global["selectedSupernodes"] = boost::make_shared<IdSet>();
+    boost::shared_ptr<IdSet> selectedSupernodes = ctx.global.get("selectedSupernodes", boost::shared_ptr<IdSet>());
+
+    fillSubsetFromAll(allWithStake, *selectedSupernodes, selectedCount);
 
     if(selectedSupernodes->empty()) return std::string();
     //TODO: call encryptMessage
+/*
+    //make supernode ID:host:port
+    std::string
+
+    void encryptMessage(const std::string& input, const std::vector<crypto::public_key>& Bkeys, std::string& output);
+
+    graft::crypto_tools::encryptMessage()
+*/
 }
 
 graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
