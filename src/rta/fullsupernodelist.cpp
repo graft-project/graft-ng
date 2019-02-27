@@ -154,6 +154,7 @@ bool FullSupernodeList::add(SupernodePtr item)
     m_list.insert(std::make_pair(item->walletAddress(), item));
     LOG_PRINT_L1("added supernode: " << item->walletAddress());
     LOG_PRINT_L1("list size: " << m_list.size());
+    updateStakeTransactionsImpl();
     return true;
 }
 
@@ -313,9 +314,9 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, vector<SupernodePtr> &o
 
 vector<string> FullSupernodeList::items() const
 {
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     vector<string> result;
     result.reserve(m_list.size());
-    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     for (auto const& it: m_list)
         result.push_back(it.first);
 
@@ -373,7 +374,10 @@ bool FullSupernodeList::loadWallet(const std::string &wallet_path)
 void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& stake_txs)
 {
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+
       //reset current stake transactions state
+
+    m_stake_txs.clear();
 
     for (const std::unordered_map<std::string, SupernodePtr>::value_type& sn_desc : m_list)
     {
@@ -389,11 +393,22 @@ void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& s
 
       //apply new stake transactions state
 
-    for (const stake_transaction& tx : stake_txs)
+    m_stake_txs = stake_txs;
+
+    updateStakeTransactionsImpl();
+}
+
+void FullSupernodeList::updateStakeTransactionsImpl()
+{
+    MDEBUG("update stake transactions");
+
+    for (const stake_transaction& tx : m_stake_txs)
     {
         auto it = m_list.find(tx.supernode_public_address);
+
         if (it == m_list.end())
             continue;
+
         SupernodePtr sn = it->second;
 
         sn->setStakeAmount(tx.amount);

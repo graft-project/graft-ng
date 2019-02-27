@@ -151,9 +151,11 @@ public:
 
 private:
     bool loadWallet(const std::string &wallet_path);
+    void updateStakeTransactionsImpl();
 
 private:
     std::unordered_map<std::string, SupernodePtr> m_list;
+    stake_transaction_array m_stake_txs;
     std::string m_daemon_address;
     bool m_testnet;
     DaemonRpcClient m_rpc_client;
