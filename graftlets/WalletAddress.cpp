@@ -47,12 +47,23 @@ class WalletAddress: public IGraftlet
 public:
     WalletAddress(const char* name) : IGraftlet(name) { }
 
+    bool getIdKeys(crypto::public_key& pub, crypto::secret_key& sec)
+    {
+        if(!keys_valid) return false;
+        pub = m_pubIdKey;
+        sec = m_secIdKey;
+        return true;
+    }
+
     virtual void initOnce(const graft::CommonOpts& opts) override
     {
         makeGetWalletAddressResponse(opts);
 
         REGISTER_ENDPOINT("/dapi/v2.0/cryptonode/getwalletaddress", METHOD_GET | METHOD_POST, WalletAddress, getWalletAddressHandler);
+
+        REGISTER_ACTION(WalletAddress, getIdKeys);
     }
+
 private:
     graft::Status getWalletAddressHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
     void makeGetWalletAddressResponse(const graft::CommonOpts& opts);
@@ -62,6 +73,10 @@ private:
 
     graft::supernode::request::GetWalletAddressResponse m_response;
     graft::supernode::request::GetWalletAddressErrorResponse m_errorResponse;
+
+    bool keys_valid = false;
+    crypto::public_key m_pubIdKey;
+    crypto::secret_key m_secIdKey;
 };
 
 GRAFTLET_EXPORTS_BEGIN("walletAddress", GRAFTLET_MKVER(1,1));
@@ -93,20 +108,19 @@ void WalletAddress::makeGetWalletAddressResponse(const graft::CommonOpts& opts)
     if(opts.wallet_public_address.empty()) return;
     checkWalletPublicAddress(opts);
 
-    crypto::public_key W;
-    crypto::secret_key w;
-    prepareIdKeys(opts, W, w);
+    prepareIdKeys(opts, m_pubIdKey, m_secIdKey);
+    keys_valid = true;
 
     m_response.testnet = opts.testnet;
     m_response.wallet_public_address = opts.wallet_public_address;
-    m_response.id_key = epee::string_tools::pod_to_hex(W);
+    m_response.id_key = epee::string_tools::pod_to_hex(m_pubIdKey);
 
     crypto::signature sign;
     {//sign
         std::string data = m_response.wallet_public_address + ":" + m_response.id_key;
         crypto::hash hash;
         crypto::cn_fast_hash(data.data(), data.size(), hash);
-        crypto::generate_signature(hash, W, w, sign);
+        crypto::generate_signature(hash, m_pubIdKey, m_secIdKey, sign);
     }
 
     m_response.signature = epee::string_tools::pod_to_hex(sign);
