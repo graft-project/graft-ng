@@ -373,7 +373,6 @@ bool FullSupernodeList::loadWallet(const std::string &wallet_path)
 void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& stake_txs)
 {
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
-
       //reset current stake transactions state
 
     for (const std::unordered_map<std::string, SupernodePtr>::value_type& sn_desc : m_list)
@@ -392,10 +391,10 @@ void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& s
 
     for (const stake_transaction& tx : stake_txs)
     {
-        SupernodePtr sn = get(tx.supernode_public_address);
-
-        if (!sn)
+        auto it = m_list.find(tx.supernode_public_address);
+        if (it == m_list.end())
             continue;
+        SupernodePtr sn = it->second;
 
         sn->setStakeAmount(tx.amount);
         sn->setStakeTransactionBlockHeight(tx.block_height);
