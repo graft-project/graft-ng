@@ -405,10 +405,19 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
 
                 std::string message = prepareMyIpBroadcast(ctx);
                 if(message.empty()) return graft::Status::Ok;
-
+/*
+                std::string a = epee::string_tools::buff_to_hex_nodelimer(message);
+                {
+                    std::string b;
+                    bool res = epee::string_tools::parse_hexstr_to_binbuff(a, b);
+                    assert(res);
+                    assert(message == b);
+                }
                 InnerMessage im; im.msg = message;
                 graft::Output innerOut;
                 innerOut.loadT<serializer::JSON_B64>(im);
+*/
+//                epee::string_tools::buff_to_hex_nodelimer(
 /*
                 Output data;
                 data.loadT<serializer::JSON_B64>(message);
@@ -416,7 +425,8 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
                 BroadcastRequestJsonRpc req;
                 req.params.callback_uri = "/cryptonode/update_redirect_ids";
 //                req.params.data = std::string("uuuOOO") + std::to_string(++i);
-                req.params.data = innerOut.data(); // data.data(); message;
+//                req.params.data = innerOut.data(); // data.data(); message;
+                req.params.data = epee::string_tools::buff_to_hex_nodelimer(message);
 
                 req.method = "broadcast";
                 static int i = 0;
@@ -594,11 +604,20 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
 
             std::string ID_ip_port;
             {
+/*
                 graft::Input innerIn;
                 innerIn.load(ireq.params.data);
                 InnerMessage im;
                 innerIn.getT<serializer::JSON_B64>(im);
                 std::string message = im.msg;
+*/
+                std::string message;
+                bool res = epee::string_tools::parse_hexstr_to_binbuff(ireq.params.data, message);
+                if(!res)
+                {
+                    MDEBUG("Invalid conversion.");
+                    return graft::Status::Ok;
+                }
 
 //                std::string message = ireq.params.data;
 
@@ -608,8 +627,8 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
                     return graft::Status::Ok;
                 }
                 crypto::secret_key secID = ctx.global["my_secID"];
-                bool res = graft::crypto_tools::decryptMessage(message, secID, ID_ip_port);
-                if(!res)
+                bool res1 = graft::crypto_tools::decryptMessage(message, secID, ID_ip_port);
+                if(!res1)
                 {
                     MDEBUG("The message is not for me.");
                     return graft::Status::Ok;
