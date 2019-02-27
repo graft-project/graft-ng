@@ -3,6 +3,7 @@
 
 #include "rta/supernode.h"
 #include "rta/DaemonRpcClient.h"
+#include "lib/graft/context.h"
 
 #include <cryptonote_config.h>
 #include <string>
@@ -30,8 +31,9 @@ public:
     static constexpr int64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
     static constexpr int64_t ANNOUNCE_TTL_SECONDS = 60 * 60; // if more than ANNOUNCE_TTL_SECONDS passed from last annouce - supernode excluded from auth sample selection
 
-    FullSupernodeList(const std::string &daemon_address, boost::shared_ptr<boost::asio::io_service> ios, bool testnet = false);
+    FullSupernodeList(const std::string &daemon_address, boost::shared_ptr<boost::asio::io_service> ios, graft::GlobalContextMap & ctxMap, bool testnet = false);
     ~FullSupernodeList();
+    void close();
     /**
      * @brief add - adds supernode object to a list and owns it. caller doesn't need to delete an object
      * @param item - pointer to a Supernode object
@@ -135,9 +137,9 @@ private:
     std::string m_daemon_address;
     bool m_testnet;
     DaemonRpcClient m_rpc_client;
-    mutable boost::shared_mutex m_access;
     std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
+    mutable graft::Context m_ctx;
 };
 
 using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;

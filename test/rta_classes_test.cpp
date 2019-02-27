@@ -167,10 +167,12 @@ struct FullSupernodeListTest : public ::testing::Test
     }
 };
 
-
+#if 0
 TEST_F(FullSupernodeListTest, basic)
 {
+
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
+
 
     const std::string wallet_path1 = "supernode_tier1_1";
     const std::string wallet_path2 = "supernode_tier1_2";
@@ -211,6 +213,7 @@ TEST_F(FullSupernodeListTest, basic)
     EXPECT_TRUE(sn_list.remove(sn1.walletAddress()));
 
     EXPECT_TRUE(sn_list.size() == 0);
+
 }
 
 
@@ -544,4 +547,4 @@ TEST_F(FullSupernodeListTest, announce1)
     ASSERT_TRUE(watch_only_sn2.get() == nullptr);
 
 }
-
+#endif

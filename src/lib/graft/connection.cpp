@@ -342,7 +342,13 @@ void Looper::serve()
         if( stopped() && (m_forceStop || canStop()) ) break;
     }
 
+    if (m_onStopHandler) {
+        m_onStopHandler();
+    }
+
     setIOThread(false);
+
+
 
     LOG_PRINT_L0("Server shutdown.");
 }
@@ -352,6 +358,11 @@ void Looper::stop(bool force)
     assert(!m_stop && !m_forceStop);
     m_stop = true;
     if(force) m_forceStop = true;
+}
+
+void Looper::setOnStopHandler(std::function<void ()> handler)
+{
+    m_onStopHandler = handler;
 }
 
 void Looper::notifyJobReady()

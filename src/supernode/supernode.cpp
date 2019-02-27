@@ -100,21 +100,30 @@ void Supernode::prepareDataDir()
                     );
 
     supernode->setNetworkAddress(m_configEx.http_address + "/dapi/v2.0");
+    //put fsl into global context
+
 
     // create fullsupernode list instance and put it into global context
+    // TODO: doesn't really need to be a shared_ptr here, could be raw pointer
     graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
                 m_configEx.cryptonode_rpc_address, graft::Supernode::getIoService(),
+                getLooper().getGcm(),
                 m_configEx.testnet);
 
-    fsl->add(supernode);
-
-    //put fsl into global context
+    getLooper().setOnStopHandler([fsl]() {
+        fsl->close();
+    });
     Context ctx(getLooper().getGcm());
     ctx.global["supernode"] = supernode;
     ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
     ctx.global["testnet"] = m_configEx.testnet;
     ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
+
+    fsl->add(supernode);
+
+
+
 }
 
 void Supernode::initMisc(ConfigOpts& configOpts)
