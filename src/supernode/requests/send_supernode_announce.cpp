@@ -224,6 +224,9 @@ namespace
 
 using IdSet = std::vector<std::string>;
 
+using Id2Ip = std::map<std::string,std::string>;
+using Id2IpShared = std::shared_ptr<std::map<std::string,std::string>>;
+
 void getSupernodesWithStake(graft::Context& ctx, IdSet& allWithStake)
 {
     allWithStake.clear();
@@ -340,23 +343,33 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
 
     if(selectedSupernodes->empty()) return std::string();
 
-    //get ID keys
-    crypto::secret_key secID;
-    crypto::public_key pubID;
-    try
+    if(!ctx.global.hasKey("my_secID"))
     {
-        graftlet::GraftletLoader* gloader = ctx.global["graftletLoader"];
-        assert(gloader);
-        graftlet::GraftletHandler plugin = gloader->buildAndResolveGraftlet("walletAddress");
-        using Sign = bool (crypto::public_key& pub, crypto::secret_key& sec);
-        bool res = plugin.invoke<Sign>("walletAddressGL.getIdKeys", pubID, secID);
-        if(!res) return std::string();
+        //get ID keys
+        crypto::secret_key secID;
+        crypto::public_key pubID;
+        try
+        {
+            graftlet::GraftletLoader* gloader = ctx.global["graftletLoader"];
+            assert(gloader);
+            graftlet::GraftletHandler plugin = gloader->buildAndResolveGraftlet("walletAddress");
+            using Sign = bool (crypto::public_key& pub, crypto::secret_key& sec);
+            bool res = plugin.invoke<Sign>("walletAddressGL.getIdKeys", pubID, secID);
+            if(!res) return std::string();
+        }
+        catch(...)
+        {
+            MDEBUG("Cannot find keys graftlet walletAddress walletAddressGL.getIdKeys");
+            return std::string();
+        }
+        ctx.global["my_secID"] = secID;
+        ctx.global["my_pubID"] = pubID;
+
+        ctx.global["ID:IP:port map"] = std::make_shared<Id2Ip>();
     }
-    catch(...)
-    {
-        MDEBUG("Cannot find keys graftlet walletAddress walletAddressGL.getIdKeys");
-        return std::string();
-    }
+
+//    crypto::secret_key& secID = ctx.global.get_ref<crypto::secret_key&>("my_secID");
+    crypto::public_key pubID = ctx.global["my_pubID"];
 
     std::string ID = epee::string_tools::pod_to_hex(pubID);
     std::string external_address = ctx.global["external_address"];
@@ -393,10 +406,17 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
                 std::string message = prepareMyIpBroadcast(ctx);
                 if(message.empty()) return graft::Status::Ok;
 
+                InnerMessage im; im.msg = message;
+                graft::Output innerOut;
+                innerOut.loadT<serializer::JSON_B64>(im);
+/*
+                Output data;
+                data.loadT<serializer::JSON_B64>(message);
+*/
                 BroadcastRequestJsonRpc req;
                 req.params.callback_uri = "/cryptonode/update_redirect_ids";
 //                req.params.data = std::string("uuuOOO") + std::to_string(++i);
-                req.params.data = message;
+                req.params.data = innerOut.data(); // data.data(); message;
 
                 req.method = "broadcast";
                 static int i = 0;
@@ -517,6 +537,7 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
     return graft::Status::Ok;
 }
 
+/*
 graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
         graft::Output& output)
 {
@@ -537,6 +558,83 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
             sreq.method = "redirect_supernode_id";
             sreq.id = 0;
             output.load(sreq);
+            output.path = "/json_rpc/rta";
+
+            return graft::Status::Forward;
+        } break;
+        case graft::Status::Forward:
+        {
+            return graft::Status::Ok;
+        } break;
+        }
+    }
+    catch(const std::exception &e)
+    {
+        LOG_ERROR("Exception in onUpdateRedirectIds thrown: " << e.what());
+    }
+    catch(...)
+    {
+        LOG_ERROR("Unknown exception in onUpdateRedirectIds thrown");
+    }
+    return graft::Status::Ok;
+}
+*/
+
+graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+        graft::Output& output)
+{
+    try {
+        switch (ctx.local.getLastStatus()) {
+        case graft::Status::Ok:
+        case graft::Status::None:
+        {
+            BroadcastRequestJsonRpc ireq;
+            input.get(ireq);
+            MDEBUG("got 111 redirect_supernode_id from '") << input.host << ":" << input.port << "' : " << ireq.params.data;
+
+            std::string ID_ip_port;
+            {
+                graft::Input innerIn;
+                innerIn.load(ireq.params.data);
+                InnerMessage im;
+                innerIn.getT<serializer::JSON_B64>(im);
+                std::string message = im.msg;
+
+//                std::string message = ireq.params.data;
+
+                if(!ctx.global.hasKey("my_secID"))
+                {
+                    MDEBUG("Secret key not found.");
+                    return graft::Status::Ok;
+                }
+                crypto::secret_key secID = ctx.global["my_secID"];
+                bool res = graft::crypto_tools::decryptMessage(message, secID, ID_ip_port);
+                if(!res)
+                {
+                    MDEBUG("The message is not for me.");
+                    return graft::Status::Ok;
+                }
+            }
+
+            MDEBUG(" ID:IP:port decrypted. ") << ID_ip_port;
+
+            std::string ID, ip_port;
+            {
+                size_t pos = ID_ip_port.find(':');
+                ID = ID_ip_port.substr(0,pos);
+                ip_port = ID_ip_port.substr(pos+1);
+            }
+            Id2IpShared map = ctx.global["ID:IP:port map"];
+            map->at(ID) = ip_port;
+
+            //register ID of another supernode to redirect
+            SupernodeRedirectIdsJsonRpcRequest oreq;
+            oreq.params.cmd = 0; //add
+            oreq.params.id = ID;
+
+            oreq.method = "redirect_supernode_id";
+            oreq.id = 0;
+            output.load(oreq);
             output.path = "/json_rpc/rta";
 
             return graft::Status::Forward;

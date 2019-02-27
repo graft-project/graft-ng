@@ -44,6 +44,10 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
         graft::Output& output);
 
 
+GRAFT_DEFINE_IO_STRUCT(InnerMessage,
+                              (std::string, msg)
+                       );
+
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIds,
                               (uint32_t, cmd, 0),
                               (std::string, id, std::string()),
