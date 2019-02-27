@@ -31,6 +31,9 @@ Supernode::Supernode(const string &wallet_path, const string &wallet_password, c
                      const string &seed_language)
     : m_wallet{new tools::wallet2(testnet, false, Supernode::m_ioservice)}
     , m_last_update_time {0}
+    , m_stake_amount()
+    , m_stake_transaction_block_height()
+    , m_stake_transaction_unlock_time()
 {
     bool keys_file_exists;
     bool wallet_file_exists;
