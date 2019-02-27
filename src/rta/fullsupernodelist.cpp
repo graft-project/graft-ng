@@ -228,7 +228,7 @@ SupernodePtr FullSupernodeList::get(const string &address) const
     return SupernodePtr(nullptr);
 }
 
-void FullSupernodeList::selectSupernodes(const std::string& payment_id, const SupernodeArray& src_array, SupernodeArray& dst_array)
+void FullSupernodeList::selectSupernodes(const std::string& payment_id, const SupernodeIdArray& src_array, SupernodeArray& dst_array)
 {
     const char*  it               = payment_id.c_str();
     const size_t supernodes_count = src_array.size();
@@ -254,8 +254,13 @@ void FullSupernodeList::selectSupernodes(const std::string& payment_id, const Su
                 break; //all supernodes have been selected
             }
 
-            size_t       supernode_index  = (offset + base_index) % supernodes_count;
-            SupernodePtr supernode        = src_array[supernode_index];
+            size_t supernode_index = (offset + base_index) % supernodes_count;
+            auto   supernode_it    = m_list.find(src_array[supernode_index]);
+            
+            if (supernode_it == m_list.end())
+              continue;
+ 
+            SupernodePtr supernode        = supernode_it->second;
             bool         already_selected = false;
 
             for (const SupernodePtr& supernode_it : dst_array)
@@ -295,8 +300,8 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
 
         for (size_t i=0; i<tier_supernodes.size() && i<m_blockchain_based_list.size(); i++)
         {
-            const SupernodeArray& src_array = m_blockchain_based_list[i];
-            SupernodeArray&       dst_array = tier_supernodes[i];
+            const SupernodeIdArray& src_array = m_blockchain_based_list[i];
+            SupernodeArray&         dst_array = tier_supernodes[i];
             
             dst_array.reserve(AUTH_SAMPLE_SIZE);
 
@@ -457,12 +462,13 @@ void FullSupernodeList::updateStakeTransactionsImpl()
     }
 }
 
-void FullSupernodeList::refreshStakeTransactions(const char* network_address, const char* address)
+void FullSupernodeList::refreshStakeTransactionsAndBlockchainBasedList(const char* network_address, const char* address)
 {
     m_rpc_client.send_supernode_stake_txs(network_address, address);
+    m_rpc_client.send_supernode_blockchain_based_list(network_address, address);
 }
 
-void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const SupernodeTierArray& tiers)
+void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const SupernodeIdTierArray& tiers)
 {
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 

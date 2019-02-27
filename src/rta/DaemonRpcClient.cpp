@@ -190,6 +190,24 @@ bool DaemonRpcClient::send_supernode_stake_txs(const char* network_address, cons
     return true;
 }
 
+bool DaemonRpcClient::send_supernode_blockchain_based_list(const char* network_address, const char* address)
+{
+    epee::json_rpc::request<cryptonote::COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::request> req = AUTO_VAL_INIT(req);
+    epee::json_rpc::response<cryptonote::COMMAND_RPC_SUPERNODE_GET_BLOCKCHAIN_BASED_LIST::response, std::string> res = AUTO_VAL_INIT(res);
+    req.jsonrpc = "2.0";
+    req.id = epee::serialization::storage_entry(0);
+    req.method = "send_supernode_blockchain_based_list";
+    req.params.network_address = network_address;
+    req.params.address = address;
+    bool r = epee::net_utils::invoke_http_json("/json_rpc/rta", req, res, m_http_client, m_rpc_timeout);
+    if (!r) {
+        LOG_ERROR("/json_rpc/rta/send_supernode_blockchain_based_list error");
+        return false;
+    }
+
+    return true;
+}
+
 bool DaemonRpcClient::init(const string &daemon_address, boost::optional<epee::net_utils::http::login> daemon_login)
 {
     return m_http_client.set_server(daemon_address, daemon_login);

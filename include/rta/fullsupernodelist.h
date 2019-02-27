@@ -144,14 +144,14 @@ public:
      */
     void updateStakeTransactions(const stake_transaction_array& stake_txs);
     
-    typedef std::vector<SupernodePtr>   SupernodeArray;
-    typedef std::vector<SupernodeArray> SupernodeTierArray;
+    typedef std::vector<std::string>      SupernodeIdArray;
+    typedef std::vector<SupernodeIdArray> SupernodeIdTierArray;
 
     /*!
      * \brief setBlockchainBasedList - updates full list of supernodes
      * \return
      */
-    void setBlockchainBasedList(uint64_t block_number, const SupernodeTierArray& tiers);
+    void setBlockchainBasedList(uint64_t block_number, const SupernodeIdTierArray& tiers);
 
     /*!
      * \brief blockchainBasedListBlockNumber - number of block which blockchain list is built for
@@ -163,12 +163,13 @@ public:
      * \brief refreshedStakeTransactions - request stake transactions from cryptonode
      * \return
      */
-    void refreshStakeTransactions(const char* supernode_network_address, const char* supernode_address);
+    void refreshStakeTransactionsAndBlockchainBasedList(const char* supernode_network_address, const char* supernode_address);
 
 private:
     bool loadWallet(const std::string &wallet_path);
     void updateStakeTransactionsImpl();
-    void selectSupernodes(const std::string& payment_id, const SupernodeArray& src_array, SupernodeArray& dst_array);
+    typedef std::vector<SupernodePtr> SupernodeArray;
+    void selectSupernodes(const std::string& payment_id, const SupernodeIdArray& src_array, SupernodeArray& dst_array);
 
 private:
     std::unordered_map<std::string, SupernodePtr> m_list;
@@ -180,7 +181,7 @@ private:
     std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
     uint64_t m_blockchain_based_list_block_number;
-    SupernodeTierArray m_blockchain_based_list; //TODO: lifetime of supernodes, should this be an array of weak pointers?
+    SupernodeIdTierArray m_blockchain_based_list;
 };
 
 using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;

@@ -78,13 +78,13 @@ Status blockchainBasedListHandler
 
       //handle tiers
 
-    FullSupernodeList::SupernodeTierArray tiers;
+    FullSupernodeList::SupernodeIdTierArray tiers;
 
     for (const BlockchainBasedListTier& tier : req.params.tiers)
     {
         const std::vector<BlockchainBasedListTierEntry>& supernode_descs = tier.supernodes;
 
-        std::vector<SupernodePtr> supernodes;
+        std::vector<std::string> supernodes;
 
         supernodes.reserve(supernode_descs.size());
 
@@ -92,12 +92,7 @@ Status blockchainBasedListHandler
         {
             const std::string& supernode_public_id = supernode_desc.supernode_public_id;
 
-            if (!fsl->exists(supernode_public_id))
-                continue;
-
-            SupernodePtr sn = fsl->get(supernode_public_id);
-
-            supernodes.push_back(sn);
+            supernodes.push_back(supernode_public_id);
         }
 
         tiers.emplace_back(std::move(supernodes));

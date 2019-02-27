@@ -126,7 +126,7 @@ void Supernode::requestStakeTransactions()
 
         if (FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr()))
         {
-            fsl->refreshStakeTransactions(supernode->networkAddress().c_str(), supernode->walletAddress().c_str());
+            fsl->refreshStakeTransactionsAndBlockchainBasedList(supernode->networkAddress().c_str(), supernode->walletAddress().c_str());
         }
 
         return graft::Status::Stop;
