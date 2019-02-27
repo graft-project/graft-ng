@@ -44,6 +44,7 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
     m_configEx.stake_wallet_refresh_interval_random_factor = server_conf.get<double>("stake-wallet-refresh-interval-random-factor", 0);
+    m_configEx.external_address = server_conf.get<std::string>("external-address", "");
 
     if(m_configEx.common.wallet_public_address.empty())
     {
@@ -110,6 +111,7 @@ void Supernode::prepareSupernode()
     ctx.global["testnet"] = m_configEx.common.testnet;
     ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
+    ctx.global["external_address"] = m_configEx.external_address;
 }
 
 void Supernode::initMisc(ConfigOpts& configOpts)
