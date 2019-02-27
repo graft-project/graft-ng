@@ -123,6 +123,7 @@ void GraftServer::initGlobalContext()
 //    ctx.global["testnet"] = copts.testnet;
 //    ctx.global["watchonly_wallets_path"] = copts.watchonly_wallets_path;
 //    ctx.global["cryptonode_rpc_address"] = copts.cryptonode_rpc_address;
+    ctx.global["graftletLoader"] = m_graftletLoader.get();
 }
 
 void GraftServer::initMisc(ConfigOpts& configOpts)
