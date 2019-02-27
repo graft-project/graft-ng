@@ -7,6 +7,7 @@
 #include "supernode/requests/send_supernode_announce.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+#include "lib/graft/graft_exception.h"
 
 #include <boost/property_tree/ini_parser.hpp>
 
@@ -41,6 +42,12 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
     m_configEx.stake_wallet_refresh_interval_random_factor = server_conf.get<double>("stake-wallet-refresh-interval-random-factor", 0);
+
+    m_configEx.external_address = server_conf.get<std::string>("external-address", "");
+    if(m_configEx.external_address.empty() != m_configEx.common.wallet_public_address.empty())
+    {
+        throw graft::exit_error("wallet-public-address and external-address must be both set or both empty.");
+    }
     return res;
 }
 
@@ -95,6 +102,7 @@ void Supernode::prepareSupernode()
     ctx.global["testnet"] = m_configEx.common.testnet;
     ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
+    ctx.global["external_address"] = m_configEx.external_address;
 }
 
 void Supernode::initMisc(ConfigOpts& configOpts)
