@@ -1,6 +1,8 @@
 #ifndef FULLSUPERNODELIST_H
 #define FULLSUPERNODELIST_H
 
+#include <random>
+
 #include "rta/supernode.h"
 #include "rta/DaemonRpcClient.h"
 
@@ -169,7 +171,7 @@ private:
     bool loadWallet(const std::string &wallet_path);
     void updateStakeTransactionsImpl();
     typedef std::vector<SupernodePtr> SupernodeArray;
-    void selectSupernodes(const std::string& payment_id, const SupernodeIdArray& src_array, SupernodeArray& dst_array);
+    void selectSupernodes(size_t items_count, const std::string& payment_id, const SupernodeIdArray& src_array, SupernodeArray& dst_array);
 
 private:
     std::unordered_map<std::string, SupernodePtr> m_list;
@@ -182,6 +184,7 @@ private:
     std::atomic_size_t m_refresh_counter;
     uint64_t m_blockchain_based_list_block_number;
     SupernodeIdTierArray m_blockchain_based_list;
+    std::mt19937_64 m_rng;
 };
 
 using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;

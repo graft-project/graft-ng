@@ -228,57 +228,30 @@ SupernodePtr FullSupernodeList::get(const string &address) const
     return SupernodePtr(nullptr);
 }
 
-void FullSupernodeList::selectSupernodes(const std::string& payment_id, const SupernodeIdArray& src_array, SupernodeArray& dst_array)
+void FullSupernodeList::selectSupernodes(size_t items_count, const std::string& payment_id, const SupernodeIdArray& src_array, SupernodeArray& dst_array)
 {
-    const char*  it               = payment_id.c_str();
-    const size_t supernodes_count = src_array.size();
+    size_t src_array_size = src_array.size();
 
-    for (bool loop=true; loop && it[0] && it[1];)
+    if (items_count > src_array_size)
+        items_count = src_array_size;
+
+    for (size_t i=0; i<src_array_size; i++)
     {
-        if (*it == '-')
-        {
-            it++;
-            continue;
-        }
-
-        char   buffer[]   = {it[0], it[1], 0};
-        size_t base_index = strtoul(buffer, nullptr, 16);
-
-        it += 2;
-
-        for (size_t offset=0;; offset++)
-        {    
-            if (offset == supernodes_count)
-            {
-                loop = false;
-                break; //all supernodes have been selected
-            }
-
-            size_t supernode_index = (offset + base_index) % supernodes_count;
-            auto   supernode_it    = m_list.find(src_array[supernode_index]);
+        auto supernode_it = m_list.find(src_array[i]);
             
-            if (supernode_it == m_list.end())
-              continue;
+        if (supernode_it == m_list.end())
+            continue;
  
-            SupernodePtr supernode        = supernode_it->second;
-            bool         already_selected = false;
+        SupernodePtr supernode = supernode_it->second;    
+        
+        size_t random_value = m_rng() % (src_array_size - i);
 
-            for (const SupernodePtr& supernode_it : dst_array)
-            {
-                if (supernode_it == supernode)
-                {
-                    already_selected = true;
-                    break;
-                }
-            }
+        if (random_value >= items_count)
+            continue;
 
-            if (already_selected)
-                continue;
+        dst_array.push_back(supernode);
 
-            dst_array.push_back(supernode);
-
-            break;
-        }
+        items_count--;
     }
 }
 
@@ -289,7 +262,7 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
     std::array<SupernodeArray, TIERS> tier_supernodes;
 
     {
-        boost::shared_lock<boost::shared_mutex> readerLock(m_access);
+        boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
         if (height != m_blockchain_based_list_block_number)
         {
@@ -298,6 +271,15 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
             return false;
         }
 
+           //seed RNG
+ 
+        std::seed_seq seed(reinterpret_cast<const unsigned char*>(payment_id.c_str()),
+                           reinterpret_cast<const unsigned char*>(payment_id.c_str() + payment_id.size()));
+ 
+        m_rng.seed(seed);
+ 
+            //select supernodes for a full supernode list
+
         for (size_t i=0; i<tier_supernodes.size() && i<m_blockchain_based_list.size(); i++)
         {
             const SupernodeIdArray& src_array = m_blockchain_based_list[i];
@@ -305,7 +287,7 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
             
             dst_array.reserve(AUTH_SAMPLE_SIZE);
 
-            selectSupernodes(payment_id, src_array, dst_array);
+            selectSupernodes(AUTH_SAMPLE_SIZE, payment_id, src_array, dst_array);
         }
     }
 
