@@ -36,7 +36,10 @@
 #include "rta/fullsupernodelist.h"
 
 #include "lib/graft/common/utils.h"
-#include <boost/endian/conversion.hpp>
+#include "lib/graft/GraftletLoader.h"
+#include <utils/cryptmsg.h>
+
+//#include <boost/endian/conversion.hpp>
 
 #include <misc_log_ex.h>
 #include <boost/shared_ptr.hpp>
@@ -268,7 +271,7 @@ void fillSubsetFromAll(IdSet& all, IdSet& subset, size_t required)
     //make random subset(add) from all
     IdSet add;
     size_t cnt = required - subset.size();
-    if(cnt <= all.size())
+    if(all.size() <= cnt)
     {
         add.swap(all);
     }
@@ -281,7 +284,7 @@ void fillSubsetFromAll(IdSet& all, IdSet& subset, size_t required)
             auto it = all.begin() + idx;
             add.push_back(*it); all.erase(it);
         }
-        if(c<=cnt)
+        if(c<cnt)
         {
             add.swap(all);
         }
@@ -308,7 +311,26 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
     //get sorted list of all supernodes with stake
     getSupernodesWithStake(ctx, allWithStake);
 
+    if(false)
+    {
     if(allWithStake.empty()) return std::string();
+
+    }
+    else
+//    static bool first = true;
+    {//fiction
+//        first = false;
+//        prepareMyIpBroadcast(ctx);
+//        boost::shared_ptr<IdSet> selectedSupernodes = ctx.global.get("selectedSupernodes", boost::shared_ptr<IdSet>());
+        for(int i=0; i<3; ++i)
+        {
+            crypto::secret_key b;
+            crypto::public_key B;
+            crypto::generate_keys(B, b);
+            allWithStake.push_back( epee::string_tools::pod_to_hex(B) );
+            std::sort(allWithStake.begin(), allWithStake.end());
+        }
+    }
 
     //It is expected that this is the only function that accesses selectedSupernodes
     if(!ctx.global.hasKey("selectedSupernodes")) ctx.global["selectedSupernodes"] = boost::make_shared<IdSet>();
@@ -317,15 +339,43 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
     fillSubsetFromAll(allWithStake, *selectedSupernodes, selectedCount);
 
     if(selectedSupernodes->empty()) return std::string();
-    //TODO: call encryptMessage
-/*
-    //make supernode ID:host:port
-    std::string
 
-    void encryptMessage(const std::string& input, const std::vector<crypto::public_key>& Bkeys, std::string& output);
+    //get ID keys
+    crypto::secret_key secID;
+    crypto::public_key pubID;
+    try
+    {
+        graftlet::GraftletLoader* gloader = ctx.global["graftletLoader"];
+        assert(gloader);
+        graftlet::GraftletHandler plugin = gloader->buildAndResolveGraftlet("walletAddress");
+        using Sign = bool (crypto::public_key& pub, crypto::secret_key& sec);
+        bool res = plugin.invoke<Sign>("walletAddressGL.getIdKeys", pubID, secID);
+        if(!res) return std::string();
+    }
+    catch(...)
+    {
+        MDEBUG("Cannot find keys graftlet walletAddress walletAddressGL.getIdKeys");
+        return std::string();
+    }
 
-    graft::crypto_tools::encryptMessage()
-*/
+    std::string ID = epee::string_tools::pod_to_hex(pubID);
+    std::string external_address = ctx.global["external_address"];
+    std::string plain = ID + ':' + external_address;
+
+    //encrypt
+    std::string message;
+    {
+        std::vector<crypto::public_key> Bkeys;
+        for(auto& Bstr : *selectedSupernodes)
+        {
+            crypto::public_key B;
+            epee::string_tools::hex_to_pod(Bstr, B);
+            Bkeys.emplace_back(std::move(B));
+        }
+        graft::crypto_tools::encryptMessage(plain, Bkeys, message);
+    }
+
+    return message;
 }
 
 graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
@@ -336,21 +386,27 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
         case graft::Status::Forward: // reply from cryptonode
         {
             int x = ctx.local["updateRedirectIdsState"];
-            if(false && !x)
+            if(true && !x)
             {
                 ctx.local["updateRedirectIdsState"] = 1;
 
-                BroadcastRequestJsonRpc cryptonode_req;
-                cryptonode_req.method = "broadcast";
-                cryptonode_req.params.callback_uri = "/cryptonode/update_redirect_ids";
+                std::string message = prepareMyIpBroadcast(ctx);
+                if(message.empty()) return graft::Status::Ok;
+
+                BroadcastRequestJsonRpc req;
+                req.params.callback_uri = "/cryptonode/update_redirect_ids";
+//                req.params.data = std::string("uuuOOO") + std::to_string(++i);
+                req.params.data = message;
+
+                req.method = "broadcast";
                 static int i = 0;
-                cryptonode_req.params.data = std::string("uuuOOO") + std::to_string(++i);
-//                output.load(cryptonode_req);
+                req.id = ++i;
+//                output.load(req);
                 output.path = "/json_rpc/rta";
-                output.load(cryptonode_req);
+                output.load(req);
                 return graft::Status::Forward;
             }
-            if(true && !x)
+            if(false && !x)
             {
                 ctx.local["updateRedirectIdsState"] = 1;
 
