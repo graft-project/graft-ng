@@ -228,7 +228,7 @@ SupernodePtr FullSupernodeList::get(const string &address) const
     return SupernodePtr(nullptr);
 }
 
-void FullSupernodeList::selectSupernodes(size_t items_count, const std::string& payment_id, const SupernodeIdArray& src_array, SupernodeArray& dst_array)
+void FullSupernodeList::selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array)
 {
     size_t src_array_size = src_array.size();
 
@@ -237,7 +237,7 @@ void FullSupernodeList::selectSupernodes(size_t items_count, const std::string& 
 
     for (size_t i=0; i<src_array_size; i++)
     {
-        auto supernode_it = m_list.find(src_array[i]);
+        auto supernode_it = m_list.find(src_array[i].supernode_public_address); //TODO: change to public_id
             
         if (supernode_it == m_list.end())
             continue;
@@ -255,11 +255,11 @@ void FullSupernodeList::selectSupernodes(size_t items_count, const std::string& 
     }
 }
 
-bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, vector<SupernodePtr> &out)
+bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out)
 {
     MDEBUG("building auth sample for height " << height << " and PaymentID " << payment_id);
 
-    std::array<SupernodeArray, TIERS> tier_supernodes;
+    std::array<supernode_array, TIERS> tier_supernodes;
 
     {
         boost::unique_lock<boost::shared_mutex> writerLock(m_access);
@@ -282,8 +282,8 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
 
         for (size_t i=0; i<tier_supernodes.size() && i<m_blockchain_based_list.size(); i++)
         {
-            const SupernodeIdArray& src_array = m_blockchain_based_list[i];
-            SupernodeArray&         dst_array = tier_supernodes[i];
+            const blockchain_based_list_tier& src_array = m_blockchain_based_list[i];
+            supernode_array&                  dst_array = tier_supernodes[i];
             
             dst_array.reserve(AUTH_SAMPLE_SIZE);
 
@@ -431,7 +431,7 @@ void FullSupernodeList::updateStakeTransactionsImpl()
 
     for (const stake_transaction& tx : m_stake_txs)
     {
-        auto it = m_list.find(tx.supernode_public_address);
+        auto it = m_list.find(tx.supernode_public_address); //TODO: change to public_id
 
         if (it == m_list.end())
             continue;
@@ -450,7 +450,7 @@ void FullSupernodeList::refreshStakeTransactionsAndBlockchainBasedList(const cha
     m_rpc_client.send_supernode_blockchain_based_list(network_address, address);
 }
 
-void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const SupernodeIdTierArray& tiers)
+void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const blockchain_based_list& tiers)
 {
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 

@@ -92,6 +92,8 @@ public:
      */
     SupernodePtr get(const std::string &address) const;
 
+    typedef std::vector<SupernodePtr> supernode_array;
+
     /*!
      * \brief buildAuthSample - builds auth sample (8 supernodes) for given block height
      * \param height          - block height used to perform selection
@@ -99,7 +101,7 @@ public:
      * \param out             - vector of supernode pointers
      * \return                - true on success
      */
-    bool buildAuthSample(uint64_t height, const std::string& payment_id, std::vector<SupernodePtr> &out);
+    bool buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out);
 
     /*!
      * \brief items - returns address list of known supernodes
@@ -145,15 +147,21 @@ public:
      * \return
      */
     void updateStakeTransactions(const stake_transaction_array& stake_txs);
+
+    struct blockchain_based_list_entry
+    {
+      std::string supernode_public_id;
+      std::string supernode_public_address;
+    };
     
-    typedef std::vector<std::string>      SupernodeIdArray;
-    typedef std::vector<SupernodeIdArray> SupernodeIdTierArray;
+    typedef std::vector<blockchain_based_list_entry> blockchain_based_list_tier;
+    typedef std::vector<blockchain_based_list_tier>  blockchain_based_list;
 
     /*!
      * \brief setBlockchainBasedList - updates full list of supernodes
      * \return
      */
-    void setBlockchainBasedList(uint64_t block_number, const SupernodeIdTierArray& tiers);
+    void setBlockchainBasedList(uint64_t block_number, const blockchain_based_list& tiers);
 
     /*!
      * \brief blockchainBasedListBlockNumber - number of block which blockchain list is built for
@@ -170,8 +178,7 @@ public:
 private:
     bool loadWallet(const std::string &wallet_path);
     void updateStakeTransactionsImpl();
-    typedef std::vector<SupernodePtr> SupernodeArray;
-    void selectSupernodes(size_t items_count, const std::string& payment_id, const SupernodeIdArray& src_array, SupernodeArray& dst_array);
+    void selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);
 
 private:
     std::unordered_map<std::string, SupernodePtr> m_list;
@@ -183,7 +190,7 @@ private:
     std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
     uint64_t m_blockchain_based_list_block_number;
-    SupernodeIdTierArray m_blockchain_based_list;
+    blockchain_based_list m_blockchain_based_list;
     std::mt19937_64 m_rng;
 };
 

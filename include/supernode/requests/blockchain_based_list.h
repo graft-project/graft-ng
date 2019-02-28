@@ -7,7 +7,8 @@
 namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT_INITED(BlockchainBasedListTierEntry,
-                              (std::string, supernode_public_id, std::string())
+                              (std::string, supernode_public_id, std::string()),
+                              (std::string, supernode_public_address, std::string())
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(BlockchainBasedListTier,
