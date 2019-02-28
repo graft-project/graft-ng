@@ -13,6 +13,7 @@ class Supernode : public GraftServer
         std::string data_dir;
         std::string stake_wallet_name;
         size_t stake_wallet_refresh_interval_ms;
+        double stake_wallet_refresh_interval_random_factor;
         // runtime parameters.
         // path to watch-only wallets (supernodes)
         std::string watchonly_wallets_path;
