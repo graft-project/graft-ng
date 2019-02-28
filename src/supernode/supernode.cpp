@@ -66,8 +66,6 @@ void Supernode::prepareSupernode()
         }
     }
 
-
-
     m_configEx.watchonly_wallets_path = watchonly_wallets_path.string();
 
     MINFO("data path: " << data_path.string());
@@ -75,11 +73,20 @@ void Supernode::prepareSupernode()
 
     // create supernode instance and put it into global context
     graft::SupernodePtr supernode = boost::make_shared<graft::Supernode>(
-                    (stake_wallet_path / m_configEx.stake_wallet_name).string(),
-                    "", // TODO
+                    m_configEx.common.wallet_public_address,
+                    crypto::public_key(),
                     m_configEx.cryptonode_rpc_address,
                     m_configEx.common.testnet
                     );
+    std::string keyfilename = (data_path / "supernode.keys").string();
+    if (!supernode->loadKeys(keyfilename)) {
+        // supernode is not initialized, generating key
+        supernode->initKeys();
+        if (!supernode->saveKeys(keyfilename)) {
+            MERROR("Failed to save keys");
+            throw std::runtime_error("Failed to save keys");
+        }
+    }
 
     supernode->setNetworkAddress(m_configEx.http_address + "/dapi/v2.0");
 
@@ -90,7 +97,7 @@ void Supernode::prepareSupernode()
 
     //put fsl into global context
     Context ctx(getLooper().getGcm());
-    ctx.global["supernode"] = supernode;
+    ctx.global[CONTEXT_KEY_SUPERNODE] = supernode;
     ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
     ctx.global["testnet"] = m_configEx.common.testnet;
     ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
@@ -126,7 +133,7 @@ void Supernode::requestStakeTransactions()
 
         if (FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr()))
         {
-            fsl->refreshStakeTransactionsAndBlockchainBasedList(supernode->networkAddress().c_str(), supernode->walletAddress().c_str());
+            fsl->refreshStakeTransactionsAndBlockchainBasedList(supernode->networkAddress().c_str(), supernode->idKeyAsString().c_str());
         }
 
         return graft::Status::Stop;

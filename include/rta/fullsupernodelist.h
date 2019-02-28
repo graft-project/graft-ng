@@ -59,7 +59,7 @@ public:
     
     /*!
      * \brief remove  - removes Supernode from list. closes it's wallet and frees memory
-     * \param address - supernode address
+     * \param id      - supernode id
      * \return        - true if supernode removed
      */
     bool remove(const std::string &address);
@@ -72,25 +72,17 @@ public:
 
     /*!
      * \brief exists  - checks if supernode with given address exists in list
-     * \param address - supernode address
+     * \param id      - supernode id
      * \return        - true if exists
      */
-    bool exists(const std::string &address) const;
-
-    /*!
-     * \brief update     - updates supernode's key images. this will probably cause stake amount change
-     * \param address    - supernode's address
-     * \param key_images - list of key images
-     * \return           - true of successfully updated
-     */
-    bool update(const std::string &address, const std::vector<Supernode::SignedKeyImage> &key_images);
+    bool exists(const std::string &id) const;
 
     /*!
      * \brief get      - returns supernode instance (pointer)
-     * \param address  - supernode's address
+     * \param id       - supernode's public id
      * \return         - shared pointer to supernode or empty pointer (nullptr) is no such address
      */
-    SupernodePtr get(const std::string &address) const;
+    SupernodePtr get(const std::string &id) const;
 
     typedef std::vector<SupernodePtr> supernode_array;
 
@@ -176,11 +168,12 @@ public:
     void refreshStakeTransactionsAndBlockchainBasedList(const char* supernode_network_address, const char* supernode_address);
 
 private:
-    bool loadWallet(const std::string &wallet_path);
+    // bool loadWallet(const std::string &wallet_path);
     void updateStakeTransactionsImpl();
     void selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);
 
 private:
+    // key is public id as a string
     std::unordered_map<std::string, SupernodePtr> m_list;
     stake_transaction_array m_stake_txs;
     std::string m_daemon_address;

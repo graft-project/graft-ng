@@ -152,8 +152,8 @@ bool FullSupernodeList::add(SupernodePtr item)
     }
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
-    m_list.insert(std::make_pair(item->walletAddress(), item));
-    LOG_PRINT_L1("added supernode: " << item->walletAddress());
+    m_list.insert(std::make_pair(item->idKeyAsString(), item));
+    LOG_PRINT_L1("added supernode: " << item->idKeyAsString());
     LOG_PRINT_L1("list size: " << m_list.size());
     updateStakeTransactionsImpl();
     return true;
@@ -161,12 +161,12 @@ bool FullSupernodeList::add(SupernodePtr item)
 
 size_t FullSupernodeList::loadFromDir(const string &base_dir)
 {
-    vector<string> wallets = findWallets(base_dir);
-    size_t result = 0;
-    LOG_PRINT_L1("found wallets: " << wallets.size());
-    for (const auto &wallet_path : wallets) {
-        loadWallet(wallet_path);
-    }
+//    vector<string> wallets = findWallets(base_dir);
+//    size_t result = 0;
+//    LOG_PRINT_L1("found wallets: " << wallets.size());
+//    for (const auto &wallet_path : wallets) {
+//        loadWallet(wallet_path);
+//    }
     return this->size();
 }
 
@@ -174,24 +174,24 @@ size_t FullSupernodeList::loadFromDir(const string &base_dir)
 
 size_t FullSupernodeList::loadFromDirThreaded(const string &base_dir, size_t &found_wallets)
 {
-    vector<string> wallets = findWallets(base_dir);
-    LOG_PRINT_L1("found wallets: " << wallets.size());
-    found_wallets = wallets.size();
+//    vector<string> wallets = findWallets(base_dir);
+//    LOG_PRINT_L1("found wallets: " << wallets.size());
+//    found_wallets = wallets.size();
 
-    utils::ThreadPool tp;
+//    utils::ThreadPool tp;
 
-    for (const auto &wallet_path : wallets) {
-        tp.enqueue(boost::bind<void>(&FullSupernodeList::loadWallet, this, wallet_path));
-    }
+//    for (const auto &wallet_path : wallets) {
+//        tp.enqueue(boost::bind<void>(&FullSupernodeList::loadWallet, this, wallet_path));
+//    }
 
-    tp.run();
+//    tp.run();
     return this->size();
 }
 
-bool FullSupernodeList::remove(const string &address)
+bool FullSupernodeList::remove(const string &id)
 {
     boost::unique_lock<boost::shared_mutex> readerLock(m_access);
-    return m_list.erase(address) > 0;
+    return m_list.erase(id) > 0;
 }
 
 size_t FullSupernodeList::size() const
@@ -200,24 +200,24 @@ size_t FullSupernodeList::size() const
     return m_list.size();
 }
 
-bool FullSupernodeList::exists(const string &address) const
+bool FullSupernodeList::exists(const string &id) const
 {
 
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
-    return m_list.find(address) != m_list.end();
+    return m_list.find(id) != m_list.end();
 }
 
-bool FullSupernodeList::update(const string &address, const vector<Supernode::SignedKeyImage> &key_images)
-{
+//bool FullSupernodeList::update(const string &address, const vector<Supernode::SignedKeyImage> &key_images)
+//{
 
-    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
-    auto it = m_list.find(address);
-    if (it != m_list.end()) {
-        uint64_t height = 0;
-        return it->second->importKeyImages(key_images, height);
-    }
-    return false;
-}
+//    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+//    auto it = m_list.find(address);
+//    if (it != m_list.end()) {
+//        uint64_t height = 0;
+//        return it->second->importKeyImages(key_images, height);
+//    }
+//    return false;
+//}
 
 SupernodePtr FullSupernodeList::get(const string &address) const
 {
@@ -380,23 +380,23 @@ size_t FullSupernodeList::refreshedItems() const
     return m_refresh_counter;
 }
 
-bool FullSupernodeList::loadWallet(const std::string &wallet_path)
-{
-    bool result = false;
+//bool FullSupernodeList::loadWallet(const std::string &wallet_path)
+//{
+//    bool result = false;
 
-    MDEBUG("loading wallet from: " << wallet_path);
-    Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
-    if (sn)  {
-        if (!this->add(sn)) {
-            LOG_ERROR("Can't add supernode " << sn->walletAddress() << ", already exists");
-            delete sn;
-        } else {
-            MINFO("Added supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
-            result = true;
-        }
-    }
-    return result;
-}
+//    MDEBUG("loading wallet from: " << wallet_path);
+//    Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
+//    if (sn)  {
+//        if (!this->add(sn)) {
+//            LOG_ERROR("Can't add supernode " << sn->walletAddress() << ", already exists");
+//            delete sn;
+//        } else {
+//            MINFO("Added supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
+//            result = true;
+//        }
+//    }
+//    return result;
+//}
 
 void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& stake_txs)
 {
@@ -431,7 +431,7 @@ void FullSupernodeList::updateStakeTransactionsImpl()
 
     for (const stake_transaction& tx : m_stake_txs)
     {
-        auto it = m_list.find(tx.supernode_public_address); //TODO: change to public_id
+        auto it = m_list.find(tx.supernode_public_id);
 
         if (it == m_list.end())
             continue;

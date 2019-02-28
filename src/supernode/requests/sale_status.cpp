@@ -129,7 +129,10 @@ bool checkSaleStatusUpdateSignature(const string &payment_id, int status, const 
     }
 
     std::string msg = payment_id + ":" + to_string(status);
-    return supernode->verifySignature(msg, address, sign);
+    // TODO: address -> id_key
+    crypto::public_key id_key;
+
+    return supernode->verifySignature(msg, id_key, sign);
 }
 
 }

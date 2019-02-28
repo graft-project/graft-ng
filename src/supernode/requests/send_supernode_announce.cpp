@@ -60,16 +60,17 @@ Status handleSupernodeAnnounce(const Router::vars_t& vars, const graft::Input& i
     LOG_PRINT_L1(PATH << " called with payload: " << input.data());
     // TODO: implement DOS protection, ignore too frequent requests
 
-    boost::shared_ptr<FullSupernodeList> fsl = ctx.global.get("fsl", boost::shared_ptr<FullSupernodeList>());
-    SupernodePtr supernode = ctx.global.get("supernode", SupernodePtr());
+    boost::shared_ptr<FullSupernodeList> fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST,
+                                                              boost::shared_ptr<FullSupernodeList>());
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
 
-    if (!fsl.get()) {
+    if (!fsl) {
         LOG_ERROR("Internal error. Supernode list object missing");
         return Status::Error;
     }
 
-    if (!supernode.get()) {
+    if (!supernode) {
        LOG_ERROR("Internal error. Supernode object missing");
        return Status::Error;
     }
@@ -83,42 +84,36 @@ Status handleSupernodeAnnounce(const Router::vars_t& vars, const graft::Input& i
 
     //  handle announce
     const SupernodeAnnounce & announce = req.params;
-    MINFO("received announce for address: " << announce.address);
+    MINFO("received announce for id: " << announce.supernode_public_id);
 
-    if (fsl->exists(announce.address)) {
+    if (fsl->exists(announce.supernode_public_id)) {
         // check if supernode currently busy
-        SupernodePtr sn = fsl->get(announce.address);
+        SupernodePtr sn = fsl->get(announce.supernode_public_id);
         if (sn->busy()) {
-            MWARNING("Unable to update supernode with announce: " << announce.address << ", BUSY");
+            MWARNING("Unable to update supernode with announce: " << announce.supernode_public_id << ", BUSY");
             return Status::Error; // we don't care about reply here, already replied to the client
         }
-        if (!fsl->get(announce.address)->updateFromAnnounce(announce)) {
-            LOG_ERROR("Failed to update supernode with announce: " << announce.address);
+        if (!fsl->get(announce.supernode_public_id)->updateFromAnnounce(announce)) {
+            LOG_ERROR("Failed to update supernode with announce: " << announce.supernode_public_id);
             return Status::Error; // we don't care about reply here, already replied to the client
         }
     } else {
-        std::string watchonly_wallets_path = ctx.global["watchonly_wallets_path"];
-        assert(!watchonly_wallets_path.empty());
-        boost::filesystem::path p(watchonly_wallets_path);
-        p /= announce.address;
-        std::string wallet_path = p.string();
         std::string cryptonode_rpc_address = ctx.global["cryptonode_rpc_address"];
         bool testnet = ctx.global["testnet"];
-        MINFO("creating wallet in: " << p.string());
 
-        Supernode * s  = Supernode::createFromAnnounce(wallet_path, announce,
+        Supernode * s  = Supernode::createFromAnnounce(announce,
                                                        cryptonode_rpc_address,
                                                        testnet);
         if (!s) {
-            LOG_ERROR("Cant create watch-only supernode wallet for address: " << announce.address);
+            LOG_ERROR("Cant create watch-only supernode wallet for id: " << announce.supernode_public_id);
             return Status::Error;
 
         }
 
-        MINFO("About to add supernode to list [" << s << "]: " << s->walletAddress());
+        MINFO("About to add supernode to list [" << s << "]: " << s->idKeyAsString());
         if (!fsl->add(s)) {
             // DO NOT delete "s" here, it will be deleted by smart pointer;
-            LOG_ERROR("Can't add new supernode to list [" << s << "]" << s->walletAddress());
+            LOG_ERROR("Can't add new supernode to list [" << s << "]" << s->idKeyAsString());
         }
     }
     return Status::Ok;
@@ -178,10 +173,10 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
                 return graft::Status::Error;
             }
 
-            MDEBUG("about to refresh supernode: " << supernode->walletAddress());
+            MDEBUG("about to refresh supernode: " << supernode->idKeyAsString());
 
             if (!supernode->refresh()) {
-                return errorCustomError(string("failed to refresh supernode: ") + supernode->walletAddress(),
+                return errorCustomError(string("failed to refresh supernode: ") + supernode->idKeyAsString(),
                                         ERROR_INTERNAL_ERROR, output);
             }
 
@@ -189,7 +184,7 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
 
             SendSupernodeAnnounceJsonRpcRequest req;
             if (!supernode->prepareAnnounce(req.params)) {
-                return errorCustomError(string("failed to prepare announce: ") + supernode->walletAddress(),
+                return errorCustomError(string("failed to prepare announce: ") + supernode->idKeyAsString(),
                                         ERROR_INTERNAL_ERROR, output);
             }
 
@@ -201,9 +196,8 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
             output.path = "/json_rpc/rta";
             // DBG: without cryptonode
             // output.path = "/dapi/v2.0/send_supernode_announce";
-
-            MDEBUG("sending announce for address: " << supernode->walletAddress()
-                   << ", stake amount: " << supernode->stakeAmount());
+            MDEBUG("sending announce for id: " << supernode->idKeyAsString());
+            MDEBUG(output.data());
             return graft::Status::Forward;
         }
     }

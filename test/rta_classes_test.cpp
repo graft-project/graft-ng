@@ -53,6 +53,7 @@ struct SupernodeTest : public ::testing::Test
     }
 };
 
+#if 0
 TEST_F(SupernodeTest, open)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode RPC on localhost:28881. If not running, test will fail ***");
@@ -544,4 +545,5 @@ TEST_F(FullSupernodeListTest, announce1)
     ASSERT_TRUE(watch_only_sn2.get() == nullptr);
 
 }
+#endif
 
