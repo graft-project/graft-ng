@@ -104,17 +104,11 @@ Supernode *Supernode::createFromAnnounce(const SupernodeAnnounce &announce, cons
         return nullptr;
     }
 
-    crypto::hash hash;
     string msg = announce.supernode_public_id + to_string(announce.height);
-    crypto::cn_fast_hash(msg.c_str(), msg.length(), hash);
-
-
-
-    if (crypto::check_signature(hash, id_key, sign)) {
+    if (!Supernode::verifySignature(msg, id_key, sign)) {
         MERROR("Signature check failed ");
         return nullptr;
     }
-
 
     Supernode * result = new Supernode("",  id_key, daemon_address, testnet);
     // TODO: get stake amount here?
@@ -156,14 +150,14 @@ bool Supernode::signHash(const crypto::hash &hash, crypto::signature &signature)
     return true;
 }
 
-bool Supernode::verifySignature(const string &msg, const crypto::public_key &pkey, const crypto::signature &signature) const
+bool Supernode::verifySignature(const string &msg, const crypto::public_key &pkey, const crypto::signature &signature)
 {
     crypto::hash hash;
     crypto::cn_fast_hash(msg.data(), msg.size(), hash);
     return verifyHash(hash, pkey, signature);
 }
 
-bool Supernode::verifyHash(const crypto::hash &hash, const crypto::public_key &pkey, const crypto::signature &signature) const
+bool Supernode::verifyHash(const crypto::hash &hash, const crypto::public_key &pkey, const crypto::signature &signature)
 {
     return crypto::check_signature(hash, pkey, signature);
 }
