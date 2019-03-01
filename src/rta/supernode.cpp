@@ -111,6 +111,7 @@ Supernode *Supernode::createFromAnnounce(const SupernodeAnnounce &announce, cons
     }
 
     Supernode * result = new Supernode("",  id_key, daemon_address, testnet);
+    result->setLastUpdateTime(time(nullptr));
     // TODO: get stake amount here?
     return result;
 }
