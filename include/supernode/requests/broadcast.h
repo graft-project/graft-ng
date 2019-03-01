@@ -15,6 +15,11 @@ GRAFT_DEFINE_IO_STRUCT(BroadcastRequest,
                        (std::string, data)
                        );
 
+GRAFT_DEFINE_IO_STRUCT(RedirectBroadcast,
+                       (std::string, receiver_id),
+                       (BroadcastRequest, request)
+                       );
+
 GRAFT_DEFINE_JSON_RPC_REQUEST(BroadcastRequestJsonRpc, BroadcastRequest);
 
 

@@ -410,10 +410,23 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
                 LOG_PRINT_L0("ID keys are not used. The supernode will not participate in IP redirection.");
                 return graft::Status::Stop;
             }
-            ctx.local["updateRedirectIdsState"] = int(0);
 
             crypto::public_key my_pubID = ctx.global["my_pubID"];
+            std::string supernode_url = ctx.global["supernode_url"]; //[config.ini][server]http_address + "/dapi/v2.0";
 
+            RegisterSupernodeJsonRpcRequest req;
+
+            req.params.supernode_id = epee::string_tools::pod_to_hex(my_pubID);
+            req.params.supernode_url = supernode_url;
+            req.params.redirect_uri = "/redirect_broadcast";
+
+            req.method = "register_supernode";
+            req.id = 0;
+
+            output.load(req);
+
+            output.path = "/json_rpc/rta";
+/*
             SupernodeRedirectIdsJsonRpcRequest req;
 
             req.params.cmd = 0; //add
@@ -428,6 +441,9 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
             // output.path = "/dapi/v2.0/redirect_supernode_id";
 
             MDEBUG("sending redirect_supernode_id for: ") << req.params.id;
+*/
+            MDEBUG("registering supernode in cryptonode ");
+            ctx.local["updateRedirectIdsState"] = int(0);
             return graft::Status::Forward;
         }
         case graft::Status::Forward: // reply from cryptonode
@@ -591,6 +607,11 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
             {
                 size_t pos = ID_ip_port.find(':');
                 ID = ID_ip_port.substr(0,pos);
+                if(pos != std::string::npos)
+                {
+                    LOG_ERROR("Invalid format ID:IP:port expected in '") << ID_ip_port << "'";
+                    return graft::Status::Error;
+                }
                 ip_port = ID_ip_port.substr(pos+1);
             }
             Id2IpShared map = ctx.global["ID:IP:port map"];
@@ -625,6 +646,48 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
     return graft::Status::Ok;
 }
 
+graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+{
+    switch (ctx.local.getLastStatus()) {
+    case graft::Status::Ok:
+    case graft::Status::None:
+    {
+        RedirectBroadcast req;
+        input.get(req);
+
+        Id2IpShared map = ctx.global["ID:IP:port map"];
+        auto it = map->find(req.receiver_id);
+        if(it == map->end())
+        {
+            LOG_ERROR("Cannot find supernode IP:port to redirect by ID:'") << req.receiver_id << "'";
+            return graft::Status::Error;
+        }
+        std::string ip_port = it->second;
+
+        output.load(req.request);
+
+        {//set output.host, output.port
+            int pos = ip_port.find(':');
+            output.host = ip_port.substr(0, pos);
+            if(pos != std::string::npos)
+            {
+                output.port = ip_port.substr(pos+1);
+            }
+        }
+
+        output.path = req.request.callback_uri;
+
+        MDEBUG("Redirect broadcast for supernode id '") << req.receiver_id << "' uri:'"
+            << output.host << ":" << output.port << "/" + output.path;
+        return graft::Status::Forward;
+    }
+    case graft::Status::Forward:
+    {
+        return graft::Status::Ok;
+    }
+    }
+}
+
 graft::Status onMyUnicast_test(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
     switch (ctx.local.getLastStatus()) {
@@ -641,6 +704,8 @@ void registerSendSupernodeAnnounceRequest(graft::Router &router)
     std::string endpoint = "/cryptonode/update_redirect_ids";
 //    std::string endpoint = "/update_redirect_ids";
     router.addRoute(endpoint, METHOD_POST, {nullptr, onUpdateRedirectIds, nullptr});
+    router.addRoute("/redirect_broadcast", METHOD_POST, {nullptr, onRedirectBroadcast, nullptr});
+
 
     router.addRoute("/my_unicast", METHOD_POST|METHOD_GET, {nullptr, onMyUnicast_test, nullptr});
 /*

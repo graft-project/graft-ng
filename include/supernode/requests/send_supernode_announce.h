@@ -43,10 +43,33 @@ void registerSendSupernodeAnnounceRequest(graft::Router &router);
 Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
         graft::Output& output);
 
-
+/*
 GRAFT_DEFINE_IO_STRUCT(InnerMessage,
                               (std::string, msg)
                        );
+*/
+/*
+{
+    "jsonrpc":"2.0",
+    "id":"0",
+    "method":"register_supernode",
+    "params": {
+        "supernode_id":"<supernode public identification key>",
+        "supernode_url":"<base URL for forwarding requests to supernode>",
+        "redirect_uri": "<special uri for UDHT protocol redirection mechanism>"
+    }
+}
+*/
+
+GRAFT_DEFINE_IO_STRUCT(RegisterSupernode,
+                       (std::string, supernode_id), //supernode public identification key
+                       (std::string, supernode_url), //base URL for forwarding requests to supernode
+                       (std::string, redirect_uri) //special uri for UDHT protocol redirection mechanism
+                       );
+
+GRAFT_DEFINE_JSON_RPC_REQUEST(RegisterSupernodeJsonRpcRequest, RegisterSupernode);
+
+//////
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIds,
                               (uint32_t, cmd, 0),
