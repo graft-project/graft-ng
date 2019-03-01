@@ -23,6 +23,7 @@ namespace graft::supernode::request::debug {
 
 GRAFT_DEFINE_IO_STRUCT(DbSupernode,
     (std::string, Address),
+    (std::string, PublicId),
     (uint64, StakeAmount),
     (uint64, LastUpdateAge)
 );
@@ -67,6 +68,7 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
         DbSupernode dbSupernode;
         dbSupernode.LastUpdateAge = lastUpdateAge;
         dbSupernode.Address = sPtr->walletAddress();
+        dbSupernode.PublicId = sPtr->idKeyAsString();
         dbSupernode.StakeAmount = sPtr->stakeAmount();
         resp.result.items.push_back(dbSupernode);
     }
