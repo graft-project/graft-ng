@@ -1256,7 +1256,7 @@ TEST_F(GraftServerTest, genericCallback)
         case graft::Status::None:
         {
             //find webhook endpoint
-            auto it = std::find_if(input.headers.begin(), input.headers.end(), [](auto& v)->bool { v.first == "X-Callback"; } );
+            auto it = std::find_if(input.headers.begin(), input.headers.end(), [](auto& v)->bool { return v.first == "X-Callback"; } );
             assert(it != input.headers.end());
             std::string path = it->second; //"http://0.0.0.0:port/callback/<uuid>"
 
