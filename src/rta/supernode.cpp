@@ -125,6 +125,7 @@ bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
     if (!signMessage(announce.supernode_public_id + to_string(announce.height), sign))
         return false;
     announce.signature = epee::string_tools::pod_to_hex(sign);
+    announce.network_address = this->networkAddress();
 
     return true;
 }
