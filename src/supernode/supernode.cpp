@@ -43,12 +43,17 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
     m_configEx.stake_wallet_refresh_interval_random_factor = server_conf.get<double>("stake-wallet-refresh-interval-random-factor", 0);
-
     m_configEx.external_address = server_conf.get<std::string>("external-address", "");
     if(m_configEx.external_address.empty() != m_configEx.common.wallet_public_address.empty())
     {
         throw graft::exit_error("wallet-public-address and external-address must be both set or both empty.");
     }
+    m_configEx.jump_node_coefficient = server_conf.get<double>("jump-node-coefficient", .3);
+    if(m_configEx.jump_node_coefficient < .0001 || 1.0001 < m_configEx.jump_node_coefficient)
+    {
+        throw graft::exit_error("invalid value of jump-node-coefficient.");
+    }
+    m_configEx.redirect_timeout_ms = server_conf.get<uint32_t>("redirect-timeout-ms", 50*60*1000);
     return res;
 }
 
@@ -105,6 +110,8 @@ void Supernode::prepareSupernode()
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
     ctx.global["supernode_url"] = m_configEx.http_address + "/dapi/v2.0";
     ctx.global["external_address"] = m_configEx.external_address;
+    ctx.global["jump_node_coefficient"] = m_configEx.jump_node_coefficient;
+    ctx.global["redirect_timeout_ms"] = m_configEx.redirect_timeout_ms;
 }
 
 void Supernode::initMisc(ConfigOpts& configOpts)
