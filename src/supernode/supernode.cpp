@@ -5,6 +5,7 @@
 #include "lib/graft/sys_info.h"
 #include "supernode/requestdefines.h"
 #include "supernode/requests/send_supernode_announce.h"
+#include "supernode/requests/redirect.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "lib/graft/graft_exception.h"
@@ -109,6 +110,7 @@ void Supernode::prepareSupernode()
     ctx.global["testnet"] = m_configEx.common.testnet;
     ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
+    ctx.global["supernode_url"] = m_configEx.http_address + "/dapi/v2.0";
     ctx.global["external_address"] = m_configEx.external_address;
 }
 
@@ -132,12 +134,42 @@ void Supernode::startSupernodePeriodicTasks()
 
     if (m_configEx.stake_wallet_refresh_interval_ms > 0) {
         size_t initial_interval_ms = 1000;
+/*
         getLooper().addPeriodicTask(
                     graft::Router::Handler3(nullptr, graft::supernode::request::sendAnnounce, nullptr),
                     std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
                     std::chrono::milliseconds(initial_interval_ms),
                     m_configEx.stake_wallet_refresh_interval_random_factor
                     );
+*/
+        getLooper().addPeriodicTask(
+                    graft::Router::Handler3(nullptr, graft::supernode::request::periodicRegisterSupernode, nullptr),
+#if tst
+                    std::chrono::milliseconds(5*initial_interval_ms),
+#else
+                    std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
+#endif
+                    std::chrono::milliseconds(initial_interval_ms),
+                    m_configEx.stake_wallet_refresh_interval_random_factor
+                    );
+        getLooper().addPeriodicTask(
+                    graft::Router::Handler3(nullptr, graft::supernode::request::periodicUpdateRedirectIds, nullptr),
+#if tst
+                    std::chrono::milliseconds(10*initial_interval_ms),
+#else
+                    std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
+#endif
+                    std::chrono::milliseconds(initial_interval_ms),
+                    m_configEx.stake_wallet_refresh_interval_random_factor
+                    );
+#if tst
+        getLooper().addPeriodicTask(
+                    graft::Router::Handler3(nullptr, graft::supernode::request::test_startBroadcast, nullptr),
+                    std::chrono::milliseconds(15*initial_interval_ms),
+                    std::chrono::milliseconds(initial_interval_ms),
+                    m_configEx.stake_wallet_refresh_interval_random_factor
+                    );
+#endif
     }
 
     // sync with cryptonode

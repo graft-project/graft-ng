@@ -309,6 +309,7 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_stakes.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/blockchain_based_list.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/redirect.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
