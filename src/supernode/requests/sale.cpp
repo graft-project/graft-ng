@@ -1,6 +1,5 @@
 
 #include "supernode/requests/sale.h"
-#include "supernode/requests/multicast.h"
 #include "supernode/requests/broadcast.h"
 #include "supernode/requests/sale_status.h"
 
@@ -110,7 +109,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     Output innerOut;
     innerOut.loadT<serializer::JSON_B64>(sdm);
 
-    MulticastRequestJsonRpc cryptonode_req;
+    BroadcastRequestJsonRpc cryptonode_req;
 
     for (const auto & sn : authSample) {
         cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
@@ -120,7 +119,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
            << ", block: " << data.BlockNumber
            << ", auth sample: [" << authSample << "]");
 
-    cryptonode_req.method = "multicast";
+    cryptonode_req.method = "broadcast";
     cryptonode_req.params.callback_uri =  "/cryptonode/sale"; // "/method" appended on cryptonode side
     cryptonode_req.params.data = innerOut.data();
     output.load(cryptonode_req);
@@ -137,7 +136,7 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
 {
     // check cryptonode reply
     MDEBUG(__FUNCTION__ << " begin");
-    MulticastResponseFromCryptonodeJsonRpc resp;
+    BroadcastResponseFromCryptonodeJsonRpc resp;
 
     JsonRpcErrorResponse error;
     if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
@@ -233,7 +232,7 @@ Status saleClientHandler(const Router::vars_t& vars, const graft::Input& input,
 Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& input,
                              graft::Context& ctx, graft::Output& output)
 {
-    MulticastRequestJsonRpc req;
+    BroadcastRequestJsonRpc req;
     if (!input.get(req)) {
         return errorInvalidParams(output);
     }
@@ -263,7 +262,7 @@ Status saleCryptonodeHandler(const Router::vars_t& vars, const graft::Input& inp
         MWARNING("payment " << payment_id << " already known");
     }
 
-    MulticastResponseToCryptonodeJsonRpc resp;
+    BroadcastResponseToCryptonodeJsonRpc resp;
     resp.result.status = "OK";
     output.load(resp);
 

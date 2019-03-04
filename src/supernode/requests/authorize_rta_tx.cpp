@@ -30,7 +30,6 @@
 #include "supernode/requestdefines.h"
 #include "lib/graft/jsonrpc.h"
 #include "supernode/requests/send_raw_tx.h"
-#include "supernode/requests/multicast.h"
 #include "supernode/requests/broadcast.h"
 #include "rta/supernode.h"
 #include <misc_log_ex.h>
@@ -189,7 +188,7 @@ Status storeRequestAndReplyOk(const Router::vars_t& vars, const graft::Input& in
     ctx.local["request"] = input.data();
 
     // here request parsed for the logging purposes. normally we don't need to parse it here;
-    MulticastRequestJsonRpc req;
+    BroadcastRequestJsonRpc req;
     if (!input.get(req)) { // can't parse request
         return errorCustomError(string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
     }
@@ -239,7 +238,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
     string body = ctx.local["request"];
     input.body = body;
 
-    MulticastRequestJsonRpc req;
+    BroadcastRequestJsonRpc req;
     if (!input.get(req)) { // can't parse request
         return errorCustomError(string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
     }
@@ -290,11 +289,11 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
     }
 
    // TODO: read payment id from transaction, map tx_id to payment_id
-    MulticastRequestJsonRpc authResponseMulticast;
-    authResponseMulticast.method = "multicast";
-    authResponseMulticast.params.sender_address = supernode->walletAddress();
-    authResponseMulticast.params.receiver_addresses = req.params.receiver_addresses;
-    authResponseMulticast.params.callback_uri = PATH_RESPONSE;
+    BroadcastRequestJsonRpc authResponseBroadcast;
+    authResponseBroadcast.method = "broadcast";
+    authResponseBroadcast.params.sender_address = supernode->walletAddress();
+    authResponseBroadcast.params.receiver_addresses = req.params.receiver_addresses;
+    authResponseBroadcast.params.callback_uri = PATH_RESPONSE;
     AuthorizeRtaTxResponse authResponse;
     authResponse.tx_id = tx_id_str;
     authResponse.result = static_cast<int>(amount > 0 && tx.type == cryptonote::transaction::tx_type_rta ?
@@ -313,8 +312,8 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
 
     Output innerOut;
     innerOut.loadT<serializer::JSON_B64>(authResponse);
-    authResponseMulticast.params.data = innerOut.data();
-    output.load(authResponseMulticast);
+    authResponseBroadcast.params.data = innerOut.data();
+    output.load(authResponseBroadcast);
     output.path = "/json_rpc/rta";
     MDEBUG("payment: " << authReq.payment_id << ", validate result: " << authResponse.result);
 
@@ -340,7 +339,7 @@ Status handleCryptonodeMulticastStatus(const Router::vars_t& vars, const graft::
 
     // check cryptonode reply
     MDEBUG(__FUNCTION__ << " begin");
-    MulticastResponseFromCryptonodeJsonRpc resp;
+    BroadcastResponseFromCryptonodeJsonRpc resp;
 
     JsonRpcErrorResponse error;
     if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
@@ -370,7 +369,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
 
     try {
 
-        MulticastRequestJsonRpc req;
+        BroadcastRequestJsonRpc req;
         MDEBUG(__FUNCTION__ << " begin");
 
         if (!input.get(req)) { // can't parse request
