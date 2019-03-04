@@ -146,7 +146,7 @@ bool FullSupernodeList::add(Supernode *item)
 
 bool FullSupernodeList::add(SupernodePtr item)
 {
-    if (exists(item->walletAddress())) {
+    if (exists(item->idKeyAsString())) {
         LOG_ERROR("item already exists: " << item->walletAddress());
         return false;
     }
@@ -237,11 +237,11 @@ void FullSupernodeList::selectSupernodes(size_t items_count, const std::string& 
 
     for (size_t i=0; i<src_array_size; i++)
     {
-        auto supernode_it = m_list.find(src_array[i].supernode_public_address); //TODO: change to public_id
-            
+        auto supernode_it = m_list.find(src_array[i].supernode_public_id);
+
         if (supernode_it == m_list.end())
             continue;
- 
+
         SupernodePtr supernode = supernode_it->second;    
         
         size_t random_value = m_rng() % (src_array_size - i);
@@ -280,7 +280,7 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
  
             //select supernodes for a full supernode list
 
-        for (size_t i=0; i<tier_supernodes.size() && i<m_blockchain_based_list.size(); i++)
+        for (size_t i=0; i<TIERS && i<m_blockchain_based_list.size(); i++)
         {
             const blockchain_based_list_tier& src_array = m_blockchain_based_list[i];
             supernode_array&                  dst_array = tier_supernodes[i];
