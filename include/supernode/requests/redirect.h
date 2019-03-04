@@ -12,6 +12,8 @@ namespace graft::supernode::request {
 void registerRedirectRequests(graft::Router &router);
 
 GRAFT_DEFINE_IO_STRUCT(RegisterSupernode,
+                       (uint32_t, broadcast_hops),
+                       (uint32_t, redirect_timeout_ms),
                        (std::string, supernode_id), //supernode public identification key
                        (std::string, supernode_url), //base URL for forwarding requests to supernode
                        (std::string, redirect_uri) //special uri for UDHT protocol redirection mechanism

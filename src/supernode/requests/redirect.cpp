@@ -142,6 +142,13 @@ bool initializeIDs(graft::Context& ctx)
 
     ctx.global["my_ID_initialized"] = false;
 
+    assert(ctx.global.hasKey("jump_node_coefficient"));
+    assert(ctx.global.hasKey("redirect_timeout_ms"));
+
+    double jump_node_coefficient = ctx.global["jump_node_coefficient"];
+    uint32_t broadcast_hops = 1 + std::lround(1./jump_node_coefficient);
+    ctx.global["broadcast_hops"] = broadcast_hops;
+
     //get ID keys
     crypto::secret_key secID;
     crypto::public_key pubID;
@@ -177,12 +184,13 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
 {
     assert((bool)ctx.global["my_ID_initialized"] == true);
 
-    const size_t selectedCount = 10;
-
     using IdSet = std::vector<std::string>;
     IdSet allWithStake;
     //get sorted list of all supernodes with stake
     getSupernodesWithStake(ctx, allWithStake);
+
+    double jump_node_coefficient = ctx.global["jump_node_coefficient"];
+    size_t selectedCount = std::lround(allWithStake.size() * jump_node_coefficient);
 
 #if tst
     //temporarily, to test
@@ -297,6 +305,8 @@ graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const
 
             RegisterSupernodeJsonRpcRequest req;
 
+            req.params.broadcast_hops = ctx.global["broadcast_hops"];
+            req.params.redirect_timeout_ms = ctx.global["redirect_timeout_ms"];
             req.params.supernode_id = my_pubIDstr; //can be empty if not set
             req.params.supernode_url = supernode_url;
             req.params.redirect_uri = "/redirect_broadcast";
@@ -349,7 +359,7 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
             req.params.callback_uri = "/cryptonode/update_redirect_ids";
             req.params.data = epee::string_tools::buff_to_hex_nodelimer(message);
 
-            req.method = "broadcast";
+            req.method = "wide_broadcast";
             //TODO: do we need unique id?
             static int i = 0;
             req.id = ++i;
