@@ -9,13 +9,20 @@
 namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT(BroadcastRequest,
+                       (std::vector<std::string>, receiver_addresses),
                        (std::string, sender_address),
                        (std::string, callback_uri),
                        (std::string, data)
                        );
 
+GRAFT_DEFINE_IO_STRUCT(RedirectBroadcast,
+                       (std::string, receiver_id),
+                       (BroadcastRequest, request)
+                       );
+
 GRAFT_DEFINE_JSON_RPC_REQUEST(BroadcastRequestJsonRpc, BroadcastRequest);
 
+GRAFT_DEFINE_JSON_RPC_REQUEST(RedirectBroadcastJsonRpc, RedirectBroadcast);
 
 GRAFT_DEFINE_IO_STRUCT_INITED(BroadcastResponseToCryptonode,
                        (std::string, status, "OK"));
