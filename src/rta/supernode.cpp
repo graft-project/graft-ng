@@ -130,7 +130,23 @@ bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
     return true;
 }
 
+Supernode* Supernode::createFromStakeTransaction(const stake_transaction& transaction, const std::string &daemon_address, bool testnet)
+{
+    crypto::public_key id_key;
+    if (!epee::string_tools::hex_to_pod(transaction.supernode_public_id, id_key)) {
+        MERROR("Failed to parse id key from stake transaction: " << transaction.supernode_public_id);
+        return nullptr;
+    }
 
+    std::unique_ptr<Supernode> result (new Supernode(transaction.supernode_public_address, id_key, daemon_address, testnet));
+
+    result->setLastUpdateTime(time(nullptr));
+    result->setStakeAmount(transaction.amount);
+    result->setStakeTransactionBlockHeight(transaction.block_height);
+    result->setStakeTransactionUnlockTime(transaction.unlock_time);
+
+    return result.release();
+}
 
 bool Supernode::signMessage(const string &msg, crypto::signature &signature) const
 {

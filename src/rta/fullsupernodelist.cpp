@@ -152,11 +152,15 @@ bool FullSupernodeList::add(SupernodePtr item)
     }
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+    addImpl(item);
+    return true;
+}
+
+void FullSupernodeList::addImpl(SupernodePtr item)
+{
     m_list.insert(std::make_pair(item->idKeyAsString(), item));
     LOG_PRINT_L1("added supernode: " << item->idKeyAsString());
     LOG_PRINT_L1("list size: " << m_list.size());
-    updateStakeTransactionsImpl();
-    return true;
 }
 
 size_t FullSupernodeList::loadFromDir(const string &base_dir)
@@ -288,6 +292,8 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
             dst_array.reserve(AUTH_SAMPLE_SIZE);
 
             selectSupernodes(AUTH_SAMPLE_SIZE, payment_id, src_array, dst_array);
+
+            MDEBUG("..." << dst_array.size() << " supernodes has been selected for tier " << i << " from blockchain based list with " << src_array.size() << " supernodes");
         }
     }
 
@@ -335,6 +341,11 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
         MDEBUG("selected " << tier_sample_str << " supernodes of " << size() << " for auth sample");
         MTRACE("auth sample: \n" << auth_sample_str);
     }
+
+    if (out.size() > AUTH_SAMPLE_SIZE)
+      out.resize(AUTH_SAMPLE_SIZE);
+
+    MDEBUG("..." << out.size() << " supernodes has been selected");
 
     return out.size() == AUTH_SAMPLE_SIZE;
 }
@@ -398,13 +409,13 @@ size_t FullSupernodeList::refreshedItems() const
 //    return result;
 //}
 
-void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& stake_txs)
+void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& stake_txs, const std::string& cryptonode_rpc_address, bool testnet)
 {
+    MDEBUG("update stake transactions");
+
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
-      //reset current stake transactions state
-
-    m_stake_txs.clear();
+      //clear supernode data
 
     for (const std::unordered_map<std::string, SupernodePtr>::value_type& sn_desc : m_list)
     {
@@ -418,29 +429,34 @@ void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& s
         sn->setStakeTransactionUnlockTime(0);
     }
 
-      //apply new stake transactions state
+      //update supernodes
 
-    m_stake_txs = stake_txs;
-
-    updateStakeTransactionsImpl();
-}
-
-void FullSupernodeList::updateStakeTransactionsImpl()
-{
-    MDEBUG("update stake transactions");
-
-    for (const stake_transaction& tx : m_stake_txs)
+    for (const stake_transaction& tx : stake_txs)
     {
         auto it = m_list.find(tx.supernode_public_id);
 
-        if (it == m_list.end())
-            continue;
+        if (it != m_list.end())
+        {
+            SupernodePtr sn = it->second;
 
-        SupernodePtr sn = it->second;
+            sn->setStakeAmount(tx.amount);
+            sn->setStakeTransactionBlockHeight(tx.block_height);
+            sn->setStakeTransactionUnlockTime(tx.unlock_time);
+        }
+        else
+        {
+            SupernodePtr sn (Supernode::createFromStakeTransaction(tx, cryptonode_rpc_address, testnet));
 
-        sn->setStakeAmount(tx.amount);
-        sn->setStakeTransactionBlockHeight(tx.block_height);
-        sn->setStakeTransactionUnlockTime(tx.unlock_time);
+            if (!sn)
+            {
+                LOG_ERROR("Cant create watch-only supernode wallet for id: " << tx.supernode_public_id);
+                continue;
+            }
+
+            MINFO("About to add supernode to list [" << sn << "]: " << sn->idKeyAsString());
+
+            addImpl(sn);
+        }
     }
 }
 

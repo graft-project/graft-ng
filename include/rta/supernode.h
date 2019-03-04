@@ -21,6 +21,19 @@ namespace cryptonote {
 namespace graft::supernode::request { struct SupernodeAnnounce; }
 
 namespace graft {
+
+/*!
+ * \brief Stake transaction description
+ */
+struct stake_transaction
+{
+  uint64_t amount = 0;
+  uint64_t block_height = 0;
+  uint64_t unlock_time = 0;
+  std::string supernode_public_id;
+  std::string supernode_public_address;
+};
+
 /*!
  * \brief The Supernode class - Representing supernode instance
  */
@@ -90,7 +103,6 @@ public:
 
     /*!
      * \brief createFromAnnounce - creates new Supernode instance from announce
-     * \param path               - wallet file path
      * \param announce           - announce object
      * \param testnet            - testnet flag
      * \return                   - Supernode pointer on success
@@ -98,6 +110,16 @@ public:
     static Supernode * createFromAnnounce(const graft::supernode::request::SupernodeAnnounce& announce,
                                           const std::string &daemon_address,
                                           bool testnet);
+
+    /*!
+     * \brief createFromStakeTransaction - creates new Supernode instance from stake transaction
+     * \param transaction        - stake transaction
+     * \param testnet            - testnet flag
+     * \return                   - Supernode pointer on success
+     */
+    static Supernode * createFromStakeTransaction(const stake_transaction& transaction,
+                                                  const std::string &daemon_address,
+                                                  bool testnet);
 
     bool prepareAnnounce(graft::supernode::request::SupernodeAnnounce& announce);
 

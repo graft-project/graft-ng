@@ -84,7 +84,7 @@ Status supernodeStakeTransactionsHandler
 
     for (const SupernodeStakeTransaction& src_tx : src_stake_txs)
     {
-        FullSupernodeList::stake_transaction dst_tx;
+        stake_transaction dst_tx;
 
         dst_tx.amount                   = src_tx.amount;
         dst_tx.block_height             = src_tx.block_height;
@@ -95,7 +95,10 @@ Status supernodeStakeTransactionsHandler
         dst_stake_txs.emplace_back(std::move(dst_tx));
     }
 
-    fsl->updateStakeTransactions(dst_stake_txs);
+    std::string cryptonode_rpc_address = ctx.global["cryptonode_rpc_address"];
+    bool testnet = ctx.global["testnet"];
+
+    fsl->updateStakeTransactions(dst_stake_txs, cryptonode_rpc_address, testnet);
 
     return Status::Ok;
 }

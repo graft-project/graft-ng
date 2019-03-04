@@ -123,14 +123,6 @@ public:
      */
     size_t refreshedItems() const;
 
-    struct stake_transaction
-    {
-      uint64_t amount = 0;
-      uint64_t block_height = 0;
-      uint64_t unlock_time = 0;
-      std::string supernode_public_id;
-      std::string supernode_public_address;
-    };
     typedef std::vector<stake_transaction> stake_transaction_array;
 
     /*!
@@ -138,7 +130,7 @@ public:
      * \param                         - array of stake transactions
      * \return
      */
-    void updateStakeTransactions(const stake_transaction_array& stake_txs);
+    void updateStakeTransactions(const stake_transaction_array& stake_txs, const std::string& cryptonode_rpc_address, bool testnet);
 
     struct blockchain_based_list_entry
     {
@@ -169,13 +161,12 @@ public:
 
 private:
     // bool loadWallet(const std::string &wallet_path);
-    void updateStakeTransactionsImpl();
+    void addImpl(SupernodePtr item);
     void selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);
 
 private:
     // key is public id as a string
     std::unordered_map<std::string, SupernodePtr> m_list;
-    stake_transaction_array m_stake_txs;
     std::string m_daemon_address;
     bool m_testnet;
     DaemonRpcClient m_rpc_client;
