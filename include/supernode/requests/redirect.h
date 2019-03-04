@@ -24,7 +24,6 @@ GRAFT_DEFINE_JSON_RPC_REQUEST(RegisterSupernodeJsonRpcRequest, RegisterSupernode
 ///////
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIds,
-                              (uint32_t, cmd, 0),
                               (std::string, id, std::string())
                        );
 
