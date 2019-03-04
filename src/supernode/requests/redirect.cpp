@@ -468,7 +468,6 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
 
             //register ID of another supernode to redirect
             SupernodeRedirectIdsJsonRpcRequest oreq;
-            oreq.params.cmd = 0; //add
             oreq.params.id = ID;
 
             oreq.method = "redirect_supernode_id";
