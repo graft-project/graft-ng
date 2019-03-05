@@ -29,7 +29,8 @@ GRAFT_DEFINE_IO_STRUCT(DbSupernode,
 );
 
 GRAFT_DEFINE_IO_STRUCT(SupernodeListResponse,
-    (std::vector<DbSupernode>, items)
+    (std::vector<DbSupernode>, items),
+    (uint64_t, height)
 );
 
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SupernodeListJsonRpcResult, SupernodeListResponse);
@@ -50,6 +51,7 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
     auto supernodes = fsl->items();
 
     SupernodeListJsonRpcResult resp;
+    resp.result.height = fsl->blockchainBasedListBlockNumber();
     for (auto& sa : supernodes)
     {
         auto sPtr = fsl->get(sa);
@@ -84,11 +86,10 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     std::vector<SupernodePtr> sample;
 
-    uint64_t height;
+
     std::string payment_id;
     try
     {
-        height = stoull(vars.find("height")->second);
         payment_id = vars.find("payment_id")->second;
     }
     catch(...)
@@ -96,13 +97,14 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
         return errorInternalError("invalid input", output);
     }
 
-    const bool ok = fsl->buildAuthSample(height, payment_id, sample);
+    const bool ok = fsl->buildAuthSample(fsl->blockchainBasedListBlockNumber(), payment_id, sample);
     if(!ok)
     {
         return errorInternalError("failed to build auth sample", output);
     }
 
     SupernodeListJsonRpcResult resp;
+    resp.result.height = fsl->blockchainBasedListBlockNumber();
     for(auto& sPtr : sample)
     {
         DbSupernode sn;
@@ -144,7 +146,7 @@ void __registerDebugRequests(Router &router)
     router.addRoute("/debug/supernode_list/{all:[0-1]}", METHOD_GET, _HANDLER(getSupernodeList));
     router.addRoute("/debug/announce", METHOD_POST, _HANDLER(doAnnounce));
     router.addRoute("/debug/close_wallets/", METHOD_POST, _HANDLER(closeStakeWallets));
-    router.addRoute("/debug/auth_sample/{height:[0-9]+}/{payment_id:[0-9a-zA-Z]+}", METHOD_GET, _HANDLER(getAuthSample));
+    router.addRoute("/debug/auth_sample/{payment_id:[0-9a-zA-Z]+}", METHOD_GET, _HANDLER(getAuthSample));
 }
 
 }
