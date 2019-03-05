@@ -26,6 +26,24 @@ namespace graft
 namespace snd
 {
 
+namespace
+{
+
+std::string exec(const std::string& cmd)
+{
+    std::array<char, 16> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.data(), "r"), pclose);
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+
+}//namespace
 
 bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& configOpts)
 {
@@ -43,10 +61,50 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
     m_configEx.stake_wallet_refresh_interval_random_factor = server_conf.get<double>("stake-wallet-refresh-interval-random-factor", 0);
-    m_configEx.external_address = server_conf.get<std::string>("external-address", "");
-    if(m_configEx.external_address.empty() != m_configEx.common.wallet_public_address.empty())
+
+    {//get external address
+        //try get from [stun]
+        boost::optional<boost::property_tree::ptree&> stun_conf = config.get_child_optional("stun");
+        bool ok = !!stun_conf;
+        if(ok)
+        {
+            bool stun_enabled = stun_conf.get().get<bool>("enabled", false);
+            ok = stun_enabled;
+        }
+        if(ok)
+        {//using stun
+            std::string server = stun_conf.get().get<std::string>("server", "");
+            std::string port = stun_conf.get().get<std::string>("port", "");
+            std::string cmd = stun_conf.get().get<std::string>("cmd", "");
+
+            std::string env = "stun_server=" + server + " " + "stun_port=" + port + "; ";
+            std::string external_address = exec(env + cmd);
+            if(external_address.empty())
+            {
+                throw graft::exit_error("Obtaining external IP address using the stun has failed. Maybe you should install 'stuntman-client' package and correct parameters. Or disable the stun and set external-address manually.");
+            }
+            assert(!m_configEx.http_address.empty());
+            auto pos = m_configEx.http_address.find(':');
+            if(pos != std::string::npos)
+            {
+                external_address += ":" + m_configEx.http_address.substr(pos);
+            }
+            m_configEx.external_address = external_address;
+        }
+        else
+        {//external-address or http-address
+            m_configEx.external_address = server_conf.get<std::string>("external-address", "");
+            if(m_configEx.external_address.empty())
+            {
+                assert(!m_configEx.http_address.empty());
+                m_configEx.external_address = m_configEx.http_address;
+            }
+        }
+    }
+
+    if(m_configEx.common.wallet_public_address.empty())
     {
-        throw graft::exit_error("wallet-public-address and external-address must be both set or both empty.");
+        throw graft::exit_error("wallet-public-address cannot be empty.");
     }
     m_configEx.jump_node_coefficient = server_conf.get<double>("jump-node-coefficient", .3);
     if(m_configEx.jump_node_coefficient < .0001 || 1.0001 < m_configEx.jump_node_coefficient)
