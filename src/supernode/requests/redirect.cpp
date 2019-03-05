@@ -224,6 +224,7 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
         }
 
         std::sort(allWithStake.begin(), allWithStake.end());
+        selectedCount = allWithStake.size();
     }
 #else
     if(allWithStake.empty()) return std::string();
@@ -522,8 +523,8 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
         MDEBUG("Redirect broadcast for supernode id '") << req.params.receiver_id << "' uri:'"
             << output.host << ":" << output.port << "/" << output.path;
 #if tst
-        LOG_PRINT_L0(" I redirect '") << input.body << "\nas\n" << output.body;
         {
+            assert(!tst_myIDstr.empty());
             std::ostringstream oss;
             oss << "I am (" << tst_myIDstr << ") redirecting directly to "
                 << output.host << ":" << output.port << "/" << output.path
@@ -555,7 +556,7 @@ graft::Status test_Broadcast_IPport(const graft::Router::vars_t& vars, const gra
     {
         if(input.body.find("I am (") != std::string::npos)
         {
-            LOG_PRINT_L0(" test_Broadcast_IPport ") << input.body;
+            LOG_PRINT_L0("test_Broadcast_IPport I got direct call  ") << input.body;
         }
         return graft::Status::Ok;
     }
