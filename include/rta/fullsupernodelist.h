@@ -95,6 +95,8 @@ public:
      */
     bool buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out);
 
+    bool buildAuthSample(const std::string& payment_id, supernode_array &out);
+
     /*!
      * \brief items - returns address list of known supernodes
      * \return
@@ -159,6 +161,12 @@ public:
      */
     void refreshStakeTransactionsAndBlockchainBasedList(const char* supernode_network_address, const char* supernode_address);
 
+    /*!
+     * \brief getBlockchainHeight - returns current daemon block height
+     * \return
+     */
+    uint64_t getBlockchainHeight() const;
+
 private:
     // bool loadWallet(const std::string &wallet_path);
     void addImpl(SupernodePtr item);
@@ -169,7 +177,7 @@ private:
     std::unordered_map<std::string, SupernodePtr> m_list;
     std::string m_daemon_address;
     bool m_testnet;
-    DaemonRpcClient m_rpc_client;
+    mutable DaemonRpcClient m_rpc_client;
     mutable boost::shared_mutex m_access;
     std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;

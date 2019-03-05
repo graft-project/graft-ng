@@ -69,12 +69,6 @@ string Supernode::walletAddress() const
     return m_wallet_address;
 }
 
-uint64_t Supernode::daemonHeight() const
-{
-    uint64_t result = 0;
-    return result;
-}
-
 
 bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
 {

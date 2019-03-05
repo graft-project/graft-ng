@@ -87,12 +87,6 @@ public:
      */
     std::string walletAddress() const;
 
-    /*!
-     * \brief daemonHeight - returns cryptonode's blockchain height
-     * \return
-     */
-    uint64_t daemonHeight() const;
-
 
     /*!
      * \brief updateFromAnnounce - updates supernode from announce (helper to extract signed key images from graft::supernode::request::SupernodeAnnounce)

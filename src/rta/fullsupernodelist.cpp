@@ -264,7 +264,6 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
     MDEBUG("building auth sample for height " << height << " and PaymentID " << payment_id);
 
     std::array<supernode_array, TIERS> tier_supernodes;
-
     {
         boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
@@ -350,6 +349,11 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
     return out.size() == AUTH_SAMPLE_SIZE;
 }
 
+bool FullSupernodeList::buildAuthSample(const string &payment_id, FullSupernodeList::supernode_array &out)
+{
+    return buildAuthSample(blockchainBasedListBlockNumber(), payment_id, out);
+}
+
 vector<string> FullSupernodeList::items() const
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
@@ -390,24 +394,6 @@ size_t FullSupernodeList::refreshedItems() const
 {
     return m_refresh_counter;
 }
-
-//bool FullSupernodeList::loadWallet(const std::string &wallet_path)
-//{
-//    bool result = false;
-
-//    MDEBUG("loading wallet from: " << wallet_path);
-//    Supernode * sn = Supernode::load(wallet_path, "", m_daemon_address, m_testnet);
-//    if (sn)  {
-//        if (!this->add(sn)) {
-//            LOG_ERROR("Can't add supernode " << sn->walletAddress() << ", already exists");
-//            delete sn;
-//        } else {
-//            MINFO("Added supernode: " << sn->walletAddress() << ", stake: " << sn->stakeAmount());
-//            result = true;
-//        }
-//    }
-//    return result;
-//}
 
 void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& stake_txs, const std::string& cryptonode_rpc_address, bool testnet)
 {
@@ -466,6 +452,13 @@ void FullSupernodeList::refreshStakeTransactionsAndBlockchainBasedList(const cha
     m_rpc_client.send_supernode_blockchain_based_list(network_address, address);
 }
 
+uint64_t FullSupernodeList::getBlockchainHeight() const
+{
+    uint64_t result = 0;
+    bool ret = m_rpc_client.get_height(result);
+    return ret ? result : 0;
+}
+
 void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const blockchain_based_list& tiers)
 {
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
@@ -478,6 +471,11 @@ void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const bloc
 
     m_blockchain_based_list              = tiers;
     m_blockchain_based_list_block_number = block_number;
+}
+
+uint64_t FullSupernodeList::blockchainBasedListBlockNumber() const
+{
+    return m_blockchain_based_list_block_number;
 }
 
 std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes)
