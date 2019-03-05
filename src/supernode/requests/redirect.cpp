@@ -357,7 +357,7 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
 
             BroadcastRequestJsonRpc req;
             req.params.callback_uri = "/cryptonode/update_redirect_ids";
-            req.params.data = epee::string_tools::buff_to_hex_nodelimer(message);
+            req.params.data = graft::utils::base64_encode(message);
 
             req.method = "wide_broadcast";
             //TODO: do we need unique id?
@@ -405,14 +405,7 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
 
             std::string ID_ip_port;
             {
-                std::string message;
-                bool res = epee::string_tools::parse_hexstr_to_binbuff(ireq.params.data, message);
-                if(!res)
-                {
-                    MDEBUG("Invalid conversion.");
-                    return graft::Status::Ok;
-                }
-
+                std::string message = graft::utils::base64_decode(ireq.params.data);
                 if(!ctx.global.hasKey("my_secID"))
                 {
                     MDEBUG("Secret key not found.");
