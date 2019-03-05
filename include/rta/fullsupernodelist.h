@@ -136,24 +136,25 @@ public:
 
     struct blockchain_based_list_entry
     {
-      std::string supernode_public_id;
-      std::string supernode_public_address;
+        std::string supernode_public_id;
+        std::string supernode_public_address;
     };
     
     typedef std::vector<blockchain_based_list_entry> blockchain_based_list_tier;
     typedef std::vector<blockchain_based_list_tier>  blockchain_based_list;
+    typedef std::shared_ptr<blockchain_based_list>   blockchain_based_list_ptr;
 
     /*!
      * \brief setBlockchainBasedList - updates full list of supernodes
      * \return
      */
-    void setBlockchainBasedList(uint64_t block_number, const blockchain_based_list& tiers);
+    void setBlockchainBasedList(uint64_t block_number, const blockchain_based_list_ptr& list);
 
     /*!
-     * \brief blockchainBasedListBlockNumber - number of block which blockchain list is built for
+     * \brief blockchainBasedListMaxBlockNumber - number of latest block which blockchain list is built for
      * \return
      */
-    uint64_t blockchainBasedListBlockNumber() const;
+    uint64_t getBlockchainBasedListMaxBlockNumber() const;
 
     /*!
      * \brief refreshedStakeTransactions - request stake transactions from cryptonode
@@ -170,7 +171,11 @@ public:
 private:
     // bool loadWallet(const std::string &wallet_path);
     void addImpl(SupernodePtr item);
-    void selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);
+    void selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);    
+
+    typedef std::unordered_map<uint64_t, blockchain_based_list_ptr> blockchain_based_list_map;
+
+    blockchain_based_list_ptr findBlockchainBasedList(uint64_t block_number) const;
 
 private:
     // key is public id as a string
@@ -181,8 +186,8 @@ private:
     mutable boost::shared_mutex m_access;
     std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
-    uint64_t m_blockchain_based_list_block_number;
-    blockchain_based_list m_blockchain_based_list;
+    uint64_t m_blockchain_based_list_max_block_number;
+    blockchain_based_list_map m_blockchain_based_lists;
     std::mt19937_64 m_rng;
 };
 

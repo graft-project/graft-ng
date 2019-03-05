@@ -71,7 +71,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
 
     // reply to caller (POS)
-    SaleData data(in.IdKey, fsl->blockchainBasedListBlockNumber(), in.Amount);
+    SaleData data(in.IdKey, fsl->getBlockchainBasedListMaxBlockNumber(), in.Amount);
 
     // what needs to be multicasted to auth sample ?
     // 1. payment_id
