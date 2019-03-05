@@ -58,10 +58,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     }
 
     bool testnet = ctx.global["testnet"];
-    if (!Supernode::validateAddress(in.Address, testnet))
-    {
-        return errorInvalidAddress(output);
-    }
+
 
     std::string payment_id = in.PaymentID;
     if (payment_id.empty()) // request comes from POS.
@@ -74,7 +71,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
 
     // reply to caller (POS)
-    SaleData data(in.Address, fsl->blockchainBasedListBlockNumber(), in.Amount);
+    SaleData data(in.IdKey, fsl->blockchainBasedListBlockNumber(), in.Amount);
 
     // what needs to be multicasted to auth sample ?
     // 1. payment_id
@@ -113,7 +110,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     MulticastRequestJsonRpc cryptonode_req;
 
     for (const auto & sn : authSample) {
-        cryptonode_req.params.receiver_addresses.push_back(sn->walletAddress());
+        cryptonode_req.params.receiver_addresses.push_back(sn->idKeyAsString());
     }
 
     MINFO("processed, payment_id: " << payment_id

@@ -147,7 +147,7 @@ bool FullSupernodeList::add(Supernode *item)
 bool FullSupernodeList::add(SupernodePtr item)
 {
     if (exists(item->idKeyAsString())) {
-        LOG_ERROR("item already exists: " << item->walletAddress());
+        LOG_ERROR("item already exists: " << item->idKeyAsString());
         return false;
     }
 
@@ -331,7 +331,7 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
     if (VLOG_IS_ON(2)) {
         std::string auth_sample_str, tier_sample_str;
         for (const auto &a : out) {
-            auth_sample_str += a->walletAddress() + "\n";
+            auth_sample_str += a->idKeyAsString() + "\n";
         }
         for (size_t i = 0; i < select.size(); i++) {
             if (i > 0) tier_sample_str += ", ";
@@ -481,7 +481,7 @@ uint64_t FullSupernodeList::blockchainBasedListBlockNumber() const
 std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes)
 {
     for (size_t i = 0; i  < supernodes.size(); ++i) {
-        os << supernodes[i]->walletAddress();
+        os << supernodes[i]->idKeyAsString();
         if (i < supernodes.size() - 1)
             os << ", ";
     }

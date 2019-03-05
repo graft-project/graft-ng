@@ -34,14 +34,13 @@ Supernode::Supernode(const string &wallet_address, const crypto::public_key &id_
     , m_stake_transaction_unlock_time()
     , m_testnet(testnet)
 {
-    MINFO("supernode created: " << "[" << this << "] " <<  this->walletAddress());
+    MINFO("supernode created: " << "[" << this << "] " <<  this->walletAddress() << ", " << this->idKeyAsString());
 }
 
 
 Supernode::~Supernode()
 {
-    LOG_PRINT_L0("destroying supernode: " << "[" << this << "] " <<  this->walletAddress());
-
+    LOG_PRINT_L0("destroying supernode: " << "[" << this << "] " <<  this->walletAddress() << ", " << this->idKeyAsString());
 }
 
 uint64_t Supernode::stakeAmount() const

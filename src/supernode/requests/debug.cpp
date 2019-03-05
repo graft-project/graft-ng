@@ -17,7 +17,7 @@
 #include <string>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "supernode.payrequest"
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.debugrequest"
 
 namespace graft::supernode::request::debug {
 
@@ -107,6 +107,7 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
     {
         DbSupernode sn;
         sn.Address = sPtr->walletAddress();
+        sn.PublicId = sPtr->idKeyAsString();
         sn.StakeAmount = sPtr->stakeAmount();
         sn.LastUpdateAge = static_cast<unsigned>(std::time(nullptr)) - sPtr->lastUpdateTime();
         resp.result.items.push_back(sn);

@@ -294,7 +294,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
    // TODO: read payment id from transaction, map tx_id to payment_id
     MulticastRequestJsonRpc authResponseMulticast;
     authResponseMulticast.method = "multicast";
-    authResponseMulticast.params.sender_address = supernode->walletAddress();
+    authResponseMulticast.params.sender_address = supernode->idKeyAsString();
     authResponseMulticast.params.receiver_addresses = req.params.receiver_addresses;
     authResponseMulticast.params.callback_uri = PATH_RESPONSE;
     AuthorizeRtaTxResponse authResponse;

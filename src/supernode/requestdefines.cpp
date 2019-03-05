@@ -128,7 +128,7 @@ void cleanPaySaleData(const std::string& payment_id, Context& ctx)
 void buildBroadcastSaleStatusOutput(const std::string& payment_id, int status, const SupernodePtr& supernode, Output& output)
 {
     UpdateSaleStatusBroadcast ussb;
-    ussb.address = supernode->walletAddress();
+    ussb.id_key = supernode->idKeyAsString();
     ussb.Status =  status;
     ussb.PaymentID = payment_id;
 

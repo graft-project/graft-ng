@@ -9,7 +9,7 @@ namespace graft::supernode::request {
 
 // Sale request payload
 GRAFT_DEFINE_IO_STRUCT_INITED(SaleRequest,
-    (std::string, Address, std::string()),
+    (std::string, IdKey, std::string()),
     (std::string, SaleDetails, std::string()),
     (std::string, PaymentID, std::string()),
     (uint64_t, Amount, 0)
