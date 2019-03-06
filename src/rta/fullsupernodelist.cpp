@@ -472,7 +472,8 @@ void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const bloc
 
     if (it != m_blockchain_based_lists.end())
     {
-        MWARNING("Blockchain based list for block " << block_number << " has been already defined");
+        MWARNING("Overriding blockchain based list for block " << block_number);
+        it->second = list;
         return;
     }
 
