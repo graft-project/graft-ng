@@ -97,14 +97,15 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
         return errorInternalError("invalid input", output);
     }
 
-    const bool ok = fsl->buildAuthSample(fsl->getBlockchainBasedListMaxBlockNumber(), payment_id, sample);
+    SupernodeListJsonRpcResult resp;
+    resp.result.height = fsl->getBlockchainBasedListMaxBlockNumber();
+
+    const bool ok = fsl->buildAuthSample(resp.result.height, payment_id, sample);
     if(!ok)
     {
         return errorInternalError("failed to build auth sample", output);
     }
 
-    SupernodeListJsonRpcResult resp;
-    resp.result.height = fsl->getBlockchainBasedListMaxBlockNumber();
     for(auto& sPtr : sample)
     {
         DbSupernode sn;
