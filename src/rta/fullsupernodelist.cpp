@@ -237,7 +237,7 @@ SupernodePtr FullSupernodeList::get(const string &address) const
     return SupernodePtr(nullptr);
 }
 
-void FullSupernodeList::selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array)
+bool FullSupernodeList::selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array)
 {
     size_t src_array_size = src_array.size();
 
@@ -249,24 +249,35 @@ void FullSupernodeList::selectSupernodes(size_t items_count, const std::string& 
         auto supernode_it = m_list.find(src_array[i].supernode_public_id);
 
         if (supernode_it == m_list.end())
-            continue;
+        {
+            LOG_ERROR("attempt to select unknown supernode " << src_array[i].supernode_public_id);
+            return false;
+        }
 
         SupernodePtr supernode = supernode_it->second;    
         
-        size_t random_value = m_rng() % (src_array_size - i);
+        size_t random_value = m_rng();
+
+        MDEBUG(".....select random value " << random_value << " with clamp to " << (src_array_size - i) << " items; result is " << (random_value % (src_array_size - i)));
+
+        random_value %= src_array_size - i;
 
         if (random_value >= items_count)
             continue;
+
+        MDEBUG(".....supernode " << src_array[i].supernode_public_id << " has been selected");
 
         dst_array.push_back(supernode);
 
         items_count--;
     }
+
+    return true;
 }
 
 bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out)
 {
-    MDEBUG("building auth sample for height " << height << " and PaymentID " << payment_id);
+    MDEBUG("building auth sample for height " << height << " and PaymentID '" << payment_id << "'");
 
     std::array<supernode_array, TIERS> tier_supernodes;
     {
@@ -297,7 +308,11 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
             
             dst_array.reserve(AUTH_SAMPLE_SIZE);
 
-            selectSupernodes(AUTH_SAMPLE_SIZE, payment_id, src_array, dst_array);
+            if (!selectSupernodes(AUTH_SAMPLE_SIZE, payment_id, src_array, dst_array))
+            {
+              LOG_ERROR("unable to select supernodes for auth sample");
+              return false;
+            }
 
             MDEBUG("..." << dst_array.size() << " supernodes has been selected for tier " << i << " from blockchain based list with " << src_array.size() << " supernodes");
         }

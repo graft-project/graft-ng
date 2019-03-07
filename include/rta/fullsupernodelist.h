@@ -181,7 +181,7 @@ public:
 private:
     // bool loadWallet(const std::string &wallet_path);
     void addImpl(SupernodePtr item);
-    void selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);    
+    bool selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);    
 
     typedef std::unordered_map<uint64_t, blockchain_based_list_ptr> blockchain_based_list_map;
 
