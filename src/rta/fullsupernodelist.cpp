@@ -468,7 +468,7 @@ void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const bloc
 {
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
-    blockchain_based_list_map::const_iterator it = m_blockchain_based_lists.find(block_number);
+    blockchain_based_list_map::iterator it = m_blockchain_based_lists.find(block_number);
 
     if (it != m_blockchain_based_lists.end())
     {
