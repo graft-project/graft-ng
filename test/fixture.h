@@ -29,6 +29,7 @@ public:
 protected:
     virtual bool initConfigOption(int argc, const char** argv, graft::ConfigOpts& configOpts) override
     {
+        configOpts.duplicate_filter_enabled = false;
         if(m_ignoreInitConfig) return true; //prevents loading parameters from command line and config.ini
         return graft::GraftServer::initConfigOption(argc, argv, configOpts);
     }
