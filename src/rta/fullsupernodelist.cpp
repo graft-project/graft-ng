@@ -132,6 +132,8 @@ FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     , m_rpc_client(daemon_address, "", "")
     , m_tp(new utils::ThreadPool())
     , m_blockchain_based_list_max_block_number()
+    , m_stake_transactions_received()
+    , m_blockchain_based_list_received()
 {
     m_refresh_counter = 0;
 }
@@ -449,6 +451,8 @@ void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& s
             addImpl(sn);
         }
     }
+
+    m_stake_transactions_received = true;
 }
 
 void FullSupernodeList::refreshStakeTransactionsAndBlockchainBasedList(const char* network_address, const char* address)
@@ -476,6 +480,8 @@ void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const bloc
         it->second = list;
         return;
     }
+
+    m_blockchain_based_list_received = true;
 
     m_blockchain_based_lists[block_number] = list;
 
@@ -508,6 +514,18 @@ uint64_t FullSupernodeList::getBlockchainBasedListMaxBlockNumber() const
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     return m_blockchain_based_list_max_block_number;
+}
+
+bool FullSupernodeList::isStakeTransactionsReceived() const
+{
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
+    return m_stake_transactions_received;
+}
+
+bool FullSupernodeList::isBlockchainBasedListReceived() const
+{
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
+    return m_blockchain_based_list_received;
 }
 
 std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes)

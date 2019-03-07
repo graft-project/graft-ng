@@ -133,10 +133,13 @@ void Supernode::requestStakeTransactions()
 
         if (FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr()))
         {
+            if (fsl->isStakeTransactionsReceived() && fsl->isBlockchainBasedListReceived())
+                return graft::Status::Stop;
+
             fsl->refreshStakeTransactionsAndBlockchainBasedList(supernode->networkAddress().c_str(), supernode->idKeyAsString().c_str());
         }
 
-        return graft::Status::Stop;
+        return graft::Status::Ok;
     };
 
     static const size_t STAKE_TRANSACTIONS_REQUEST_DELAY_MS = 1000;
