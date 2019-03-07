@@ -3,6 +3,7 @@
 #include "lib/graft/mongoosex.h"
 #include "lib/graft/sys_info.h"
 #include "lib/graft/graft_exception.h"
+#include "lib/graft/expiring_list.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.connection"
@@ -459,6 +460,19 @@ CoapConnectionManager* CoapConnectionManager::from_accepted(mg_connection* cn)
     return static_cast<CoapConnectionManager*>(cm);
 }
 
+class XorolFilter : public detail::ExpiringSetT<uint64_t>
+{
+    static constexpr int lifetime = 30000;
+public:
+    XorolFilter() : detail::ExpiringSetT<uint64_t>(lifetime) { }
+};
+
+HttpConnectionManager::HttpConnectionManager()
+    : ConnectionManager("HTTP")
+    , m_xorolFilter(std::make_unique<XorolFilter>())
+{
+}
+
 void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void *ev_data)
 {
     ConnectionBase* conBase = ConnectionBase::from(client->mgr);
@@ -474,6 +488,26 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         struct http_message *hm = (struct http_message *) ev_data;
 
         conBase->getLooper().runtimeSysInfo().count_http_req_bytes_raw(hm->message.len);
+
+        const ConfigOpts& opts = conBase->getLooper().getCopts();
+        if(opts.duplicate_filter_enabled)
+        {//calculate hash value of body, and check if it is in XorolFilter
+            mg_str& body = hm->body;
+            uint16_t xr = graft::utils::xorol(reinterpret_cast<const uint8_t*>(body.p), body.len);
+
+            HttpConnectionManager* httpCM = dynamic_cast<HttpConnectionManager*>( conBase->getConMgr("HTTP") );
+            assert(httpCM);
+            bool res = httpCM->m_xorolFilter->emplace(xr);
+            if(!res)
+            {
+                conBase->getLooper().runtimeSysInfo().count_http_request_unrouted();
+
+                LOG_PRINT_CLN(2,client,"Duplicating hash found '") << std::ios::hex << xr << std::ios::dec << "'; closing connection";
+                mg_http_send_error(client, 409, "duplicate request found");
+                client->flags |= MG_F_SEND_AND_CLOSE;
+                break;
+            }
+        }
 
         std::string uri(hm->uri.p, hm->uri.len);
 
