@@ -17,5 +17,9 @@ T random_number(T startRange, T endRange)
     return dist(mt);
 }
 
+//non-cryptographic hash function
+// the result should be interpreted as a 64bit number, it is correct for both little/big endian
+uint64_t xorol(const uint8_t* buf, size_t len);
+
 }
 
