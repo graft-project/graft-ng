@@ -215,10 +215,12 @@ public:
 
 } //namespace details
 
+class XorolFilter;
+
 class HttpConnectionManager final : public ConnectionManager
 {
 public:
-    HttpConnectionManager() : ConnectionManager("HTTP") { }
+    HttpConnectionManager();
 
     void bind(Looper& looper) override;
 
@@ -226,6 +228,8 @@ private:
     static void ev_handler_http(mg_connection *client, int ev, void *ev_data);
     static int translateMethod(const char *method, std::size_t len);
     static HttpConnectionManager* from_accepted(mg_connection* cn);
+
+    std::unique_ptr<XorolFilter> m_xorolFilter;
 };
 
 class CoapConnectionManager final : public ConnectionManager
