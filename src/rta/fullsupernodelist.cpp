@@ -464,30 +464,39 @@ void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& s
 
             if (tx.amount)
             {
-                sn->setStakeAmount(sn->stakeAmount() + tx.amount);
-
-                  //find intersection of stake transaction intervals
-
-                uint64_t min_block_height    = sn->stakeTransactionBlockHeight(),
-                         max_block_height    = min_block_height + sn->stakeTransactionUnlockTime(),
-                         min_tx_block_height = tx.block_height,
-                         max_tx_block_height = min_tx_block_height + tx.unlock_time;
-
-                if (min_tx_block_height > min_block_height)
-                    min_block_height = min_tx_block_height;
-
-                if (max_tx_block_height < max_block_height)
-                    max_block_height = max_tx_block_height;
-
-                if (max_block_height <= min_block_height)
+                if (sn->stakeAmount())
                 {
-                    sn->setStakeAmount(0);
+                    sn->setStakeAmount(sn->stakeAmount() + tx.amount);
 
-                    max_block_height = min_block_height;
+                      //find intersection of stake transaction intervals
+
+                    uint64_t min_block_height    = sn->stakeTransactionBlockHeight(),
+                             max_block_height    = min_block_height + sn->stakeTransactionUnlockTime(),
+                             min_tx_block_height = tx.block_height,
+                             max_tx_block_height = min_tx_block_height + tx.unlock_time;
+
+                    if (min_tx_block_height > min_block_height)
+                        min_block_height = min_tx_block_height;
+
+                    if (max_tx_block_height < max_block_height)
+                        max_block_height = max_tx_block_height;
+
+                    if (max_block_height <= min_block_height)
+                    {
+                        sn->setStakeAmount(0);
+
+                        max_block_height = min_block_height;
+                    }
+
+                    sn->setStakeTransactionBlockHeight(min_block_height);
+                    sn->setStakeTransactionUnlockTime(max_block_height - min_block_height);
                 }
-
-                sn->setStakeTransactionBlockHeight(min_block_height);
-                sn->setStakeTransactionUnlockTime(max_block_height - min_block_height);
+                else
+                {
+                    sn->setStakeAmount(tx.amount);
+                    sn->setStakeTransactionBlockHeight(tx.block_height);
+                    sn->setStakeTransactionUnlockTime(tx.unlock_time);
+                }
             }
         }
         else
