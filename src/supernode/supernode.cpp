@@ -7,6 +7,7 @@
 #include "supernode/requests/send_supernode_announce.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+#include "lib/graft/graft_exception.h"
 
 #include <boost/property_tree/ini_parser.hpp>
 
@@ -41,6 +42,11 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
     m_configEx.stake_wallet_refresh_interval_random_factor = server_conf.get<double>("stake-wallet-refresh-interval-random-factor", 0);
+
+    if(m_configEx.common.wallet_public_address.empty())
+    {
+        throw graft::exit_error("Configuration parameter 'wallet-public-address' cannot be empty.");
+    }
     return res;
 }
 
