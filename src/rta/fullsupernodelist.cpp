@@ -258,7 +258,7 @@ bool FullSupernodeList::selectSupernodes(size_t items_count, const std::string& 
         
         size_t random_value = m_rng();
 
-        MDEBUG(".....select random value " << random_value << " with clamp to " << (src_array_size - i) << " items; result is " << (random_value % (src_array_size - i)));
+        MDEBUG(".....select random value " << random_value << " items count is " << items_count << " with clamp to " << (src_array_size - i) << " items; result is " << (random_value % (src_array_size - i)));
 
         random_value %= src_array_size - i;
 
@@ -277,15 +277,17 @@ bool FullSupernodeList::selectSupernodes(size_t items_count, const std::string& 
 
 bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out)
 {
-    MDEBUG("building auth sample for height " << height << " and PaymentID '" << payment_id << "'");
+    uint64_t blockchain_based_list_height = height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+
+    MDEBUG("building auth sample for height " << height << "(blockchain_based_list_height=" << blockchain_based_list_height << ") and PaymentID '" << payment_id << "'");
 
     std::array<supernode_array, TIERS> tier_supernodes;
     {
-        blockchain_based_list_ptr blockchain_based_list = findBlockchainBasedList(height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT);
+        blockchain_based_list_ptr blockchain_based_list = findBlockchainBasedList(blockchain_based_list_height);
 
         if (!blockchain_based_list)
         {
-            LOG_ERROR("unable to build auth sample for block height " << height << ", delay " << BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT << " blocks and PaymentID "
+            LOG_ERROR("unable to build auth sample for block height " << height << " (blockchain_based_list_height=" << blockchain_based_list_height << ") and PaymentID "
                << payment_id << ". Blockchain based list for this block is absent, latest block is " << getBlockchainBasedListMaxBlockNumber());
             return false;
         }
@@ -300,6 +302,17 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
         m_rng.seed(seed);
  
             //select supernodes for a full supernode list
+
+        MDEBUG("use blockchain based list for height " << blockchain_based_list_height << " (" << blockchain_based_list.get() << ")");
+        int t = 0;
+        for (const blockchain_based_list_tier& l : *blockchain_based_list)
+        {
+          MDEBUG("...tier #" << t);
+          int j=0;
+          for (const blockchain_based_list_entry& e : l)
+            MDEBUG(".....[" << j++ << "]=" << e.supernode_public_id);
+          t++;
+        }
 
         for (size_t i=0, tiers_count=blockchain_based_list->size(); i<TIERS && i<tiers_count; i++)
         {
@@ -447,9 +460,35 @@ void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& s
         {
             SupernodePtr sn = it->second;
 
-            sn->setStakeAmount(tx.amount);
-            sn->setStakeTransactionBlockHeight(tx.block_height);
-            sn->setStakeTransactionUnlockTime(tx.unlock_time);
+              //aggregate stake transaction fields for supernode 
+
+            if (tx.amount)
+            {
+                sn->setStakeAmount(sn->stakeAmount() + tx.amount);
+
+                  //find intersection of stake transaction intervals
+
+                uint64_t min_block_height    = sn->stakeTransactionBlockHeight(),
+                         max_block_height    = min_block_height + sn->stakeTransactionUnlockTime(),
+                         min_tx_block_height = tx.block_height,
+                         max_tx_block_height = min_tx_block_height + tx.unlock_time;
+
+                if (min_tx_block_height > min_block_height)
+                    min_block_height = min_tx_block_height;
+
+                if (max_tx_block_height < max_block_height)
+                    max_block_height = max_tx_block_height;
+
+                if (max_block_height <= min_block_height)
+                {
+                    sn->setStakeAmount(0);
+
+                    max_block_height = min_block_height;
+                }
+
+                sn->setStakeTransactionBlockHeight(min_block_height);
+                sn->setStakeTransactionUnlockTime(max_block_height - min_block_height);
+            }
         }
         else
         {
@@ -486,6 +525,17 @@ uint64_t FullSupernodeList::getBlockchainHeight() const
 void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const blockchain_based_list_ptr& list)
 {
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+
+    MDEBUG("update blockchain based list for height " << block_number << " (" << list.get() << ")");
+    int t = 0;
+    for (const blockchain_based_list_tier& l : *list)
+    {
+      MDEBUG("...tier #" << t);
+      int j=0;
+      for (const blockchain_based_list_entry& e : l)
+        MDEBUG(".....[" << j++ << "]=" << e.supernode_public_id);
+      t++;
+    }
 
     blockchain_based_list_map::iterator it = m_blockchain_based_lists.find(block_number);
 
