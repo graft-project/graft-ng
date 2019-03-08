@@ -242,6 +242,8 @@ public:
 
 private:
     Supernode(bool testnet = false);
+    static bool validateAnnounce(const graft::supernode::request::SupernodeAnnounce& announce, crypto::public_key &id_key);
+
 
 private:
     // wallet's address. empty in case 'their' supernode

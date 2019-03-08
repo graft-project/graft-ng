@@ -73,7 +73,11 @@ bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
 {
     // check if address match
     //setNetworkAddress(announce.network_address);
-    m_last_update_time  = static_cast<int64_t>(std::time(nullptr));
+    crypto::public_key id_key;
+    if (!Supernode::validateAnnounce(announce, id_key))
+        return false;
+
+    setLastUpdateTime(std::time(nullptr));
     uint64 stake_amount = stakeAmount();
     MDEBUG("update from announce done for: " << walletAddress() <<
             "; last update time updated to: " << m_last_update_time <<
@@ -85,28 +89,9 @@ Supernode *Supernode::createFromAnnounce(const SupernodeAnnounce &announce, cons
                                          bool testnet)
 {
 
-    if (announce.supernode_public_id.empty()) {
-        MERROR("Empty public id");
-        return nullptr;
-    }
-
     crypto::public_key id_key;
-    if (!epee::string_tools::hex_to_pod(announce.supernode_public_id, id_key)) {
-        MERROR("Failed to parse id key from announce: " << announce.supernode_public_id);
+    if (!Supernode::validateAnnounce(announce, id_key))
         return nullptr;
-    }
-
-    crypto::signature sign;
-    if (!epee::string_tools::hex_to_pod(announce.signature, sign)) {
-        MERROR("Failed to parse signature from announce: " << announce.signature);
-        return nullptr;
-    }
-
-    string msg = announce.supernode_public_id + to_string(announce.height);
-    if (!Supernode::verifySignature(msg, id_key, sign)) {
-        MERROR("Signature check failed ");
-        return nullptr;
-    }
 
     Supernode * result = new Supernode("",  id_key, daemon_address, testnet);
     result->setLastUpdateTime(time(nullptr));
@@ -336,6 +321,31 @@ string Supernode::idKeyAsString() const
     return epee::string_tools::pod_to_hex(m_id_key);
 }
 
+bool Supernode::validateAnnounce(const SupernodeAnnounce& announce, crypto::public_key &id_key)
+{
+    if (announce.supernode_public_id.empty()) {
+        MERROR("Empty public id");
+        return false;
+    }
+
+    if (!epee::string_tools::hex_to_pod(announce.supernode_public_id, id_key)) {
+        MERROR("Failed to parse id key from announce: " << announce.supernode_public_id);
+        return false;
+    }
+
+    crypto::signature sign;
+    if (!epee::string_tools::hex_to_pod(announce.signature, sign)) {
+        MERROR("Failed to parse signature from announce: " << announce.signature);
+        return false;
+    }
+
+    string msg = announce.supernode_public_id + to_string(announce.height);
+    if (!Supernode::verifySignature(msg, id_key, sign)) {
+        MERROR("Signature check failed ");
+        return false;
+    }
+    return true;
+}
 
 } // namespace graft
 
