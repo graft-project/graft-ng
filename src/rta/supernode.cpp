@@ -85,6 +85,11 @@ Supernode *Supernode::createFromAnnounce(const SupernodeAnnounce &announce, cons
                                          bool testnet)
 {
 
+    if (announce.supernode_public_id.empty()) {
+        MERROR("Empty public id");
+        return nullptr;
+    }
+
     crypto::public_key id_key;
     if (!epee::string_tools::hex_to_pod(announce.supernode_public_id, id_key)) {
         MERROR("Failed to parse id key from announce: " << announce.supernode_public_id);
