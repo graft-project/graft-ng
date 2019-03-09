@@ -157,26 +157,16 @@ public:
     uint64_t getBlockchainBasedListMaxBlockNumber() const;
 
     /*!
-     * \brief refreshedStakeTransactions - request stake transactions from cryptonode
+     * \brief synchronizeWithCryptonode - synchronize with cryptonode
      * \return
      */
-    void refreshStakeTransactionsAndBlockchainBasedList(const char* supernode_network_address, const char* supernode_address);
+    void synchronizeWithCryptonode(const char* supernode_network_address, const char* supernode_address);
 
     /*!
      * \brief getBlockchainHeight - returns current daemon block height
      * \return
      */
     uint64_t getBlockchainHeight() const;
-
-    /*!
-     * \brief isStakeTransactionsReceived - returns true if stake transactions have been received
-     */
-    bool isStakeTransactionsReceived() const;
-
-    /*!
-     * \brief isBlockchainBasedListReceived - returns true if blockchain based list has been received
-     */
-    bool isBlockchainBasedListReceived() const;
 
 private:
     // bool loadWallet(const std::string &wallet_path);
@@ -201,6 +191,8 @@ private:
     std::mt19937_64 m_rng;
     bool m_stake_transactions_received;
     bool m_blockchain_based_list_received;
+    boost::posix_time::ptime m_last_recv_stake_txs;
+    boost::posix_time::ptime m_last_recv_blockchain_based_list;
 };
 
 using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;

@@ -15,8 +15,9 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.fullsupernodelist"
 
-constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT = 10;
-constexpr size_t BLOCKCHAIN_BASED_LIST_HISTORY_SIZE      = 100;
+constexpr size_t STAKE_TRANSACTIONS_RECV_TIMEOUT_SECONDS    = 600;
+constexpr size_t BLOCKCHAIN_BASED_LIST_RECV_TIMEOUT_SECONDS = 180;
+constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT    = 10;
 
 namespace fs = boost::filesystem;
 using namespace boost::multiprecision;
@@ -132,8 +133,8 @@ FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     , m_rpc_client(daemon_address, "", "")
     , m_tp(new utils::ThreadPool())
     , m_blockchain_based_list_max_block_number()
-    , m_stake_transactions_received()
-    , m_blockchain_based_list_received()
+    , m_last_recv_stake_txs(boost::date_time::not_a_date_time)
+    , m_last_recv_blockchain_based_list(boost::date_time::not_a_date_time)
 {
     m_refresh_counter = 0;
 }
@@ -515,13 +516,35 @@ void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& s
         }
     }
 
-    m_stake_transactions_received = true;
+    m_last_recv_stake_txs = boost::posix_time::second_clock::local_time();
 }
 
-void FullSupernodeList::refreshStakeTransactionsAndBlockchainBasedList(const char* network_address, const char* address)
+namespace
 {
-    m_rpc_client.send_supernode_stake_txs(network_address, address);
-    m_rpc_client.send_supernode_blockchain_based_list(network_address, address);
+
+bool is_timeout_expired(const boost::posix_time::ptime& last_recv_time, size_t timeout_seconds)
+{
+    if (last_recv_time.is_not_a_date_time())
+        return true;
+
+    boost::posix_time::time_duration duration = boost::posix_time::second_clock::local_time() - last_recv_time;
+
+    return duration > boost::posix_time::seconds(timeout_seconds);
+}
+
+}
+
+void FullSupernodeList::synchronizeWithCryptonode(const char* network_address, const char* address)
+{
+    if (is_timeout_expired(m_last_recv_stake_txs, STAKE_TRANSACTIONS_RECV_TIMEOUT_SECONDS))
+    {
+        m_rpc_client.send_supernode_stake_txs(network_address, address);
+    }
+
+    if (is_timeout_expired(m_last_recv_blockchain_based_list, BLOCKCHAIN_BASED_LIST_RECV_TIMEOUT_SECONDS))
+    {
+        m_rpc_client.send_supernode_blockchain_based_list(network_address, address, m_blockchain_based_list_max_block_number);
+    }
 }
 
 uint64_t FullSupernodeList::getBlockchainHeight() const
@@ -555,7 +578,7 @@ void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const bloc
         return;
     }
 
-    m_blockchain_based_list_received = true;
+    m_last_recv_blockchain_based_list = boost::posix_time::second_clock::local_time();
 
     m_blockchain_based_lists[block_number] = list;
 
@@ -564,8 +587,7 @@ void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const bloc
 
       //flush cache - remove old blockchain based lists
 
-    uint64_t oldest_block_number = m_blockchain_based_list_max_block_number -
-        BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT - BLOCKCHAIN_BASED_LIST_HISTORY_SIZE;
+    uint64_t oldest_block_number = m_blockchain_based_list_max_block_number - config::graft::SUPERNODE_HISTORY_SIZE;
 
     for (blockchain_based_list_map::iterator it=m_blockchain_based_lists.begin(); it!=m_blockchain_based_lists.end();)
       if (it->first < oldest_block_number) it = m_blockchain_based_lists.erase(it);
@@ -588,18 +610,6 @@ uint64_t FullSupernodeList::getBlockchainBasedListMaxBlockNumber() const
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     return m_blockchain_based_list_max_block_number;
-}
-
-bool FullSupernodeList::isStakeTransactionsReceived() const
-{
-    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
-    return m_stake_transactions_received;
-}
-
-bool FullSupernodeList::isBlockchainBasedListReceived() const
-{
-    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
-    return m_blockchain_based_list_received;
 }
 
 std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes)
