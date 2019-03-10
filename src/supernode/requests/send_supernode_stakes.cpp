@@ -26,7 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "supernode/requests/send_supernode_stake_txs.h"
+#include "supernode/requests/send_supernode_stakes.h"
 #include "supernode/requestdefines.h"
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
@@ -35,10 +35,10 @@
 #include <boost/shared_ptr.hpp>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "supernode.sendsupernodestaketxsrequest"
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.sendsupernodestakesrequest"
 
 namespace {
-    static const char* PATH = "/send_supernode_stake_txs";
+    static const char* PATH = "/send_supernode_stakes";
 }
 
 namespace graft::supernode::request {
@@ -46,7 +46,7 @@ namespace graft::supernode::request {
 namespace
 {
 
-Status supernodeStakeTransactionsHandler
+Status supernodeStakesHandler
  (const Router::vars_t& vars,
   const graft::Input& input,
   graft::Context& ctx,
@@ -67,7 +67,7 @@ Status supernodeStakeTransactionsHandler
        return Status::Error;
     }
 
-    SendSupernodeStakeTransactionsJsonRpcRequest req;
+    SendSupernodeStakesJsonRpcRequest req;
 
     if (!input.get(req))
     { 
@@ -76,38 +76,39 @@ Status supernodeStakeTransactionsHandler
         return Status::Error;
     }
 
-    //  handle stake Transactions
-    const std::vector<SupernodeStakeTransaction>& src_stake_txs = req.params.stake_txs;
-    FullSupernodeList::stake_transaction_array dst_stake_txs;
+    //  handle stakes
 
-    dst_stake_txs.reserve(src_stake_txs.size());
+    const std::vector<SupernodeStake>& src_stakes = req.params.stakes;
+    FullSupernodeList::supernode_stake_array dst_stakes;
 
-    for (const SupernodeStakeTransaction& src_tx : src_stake_txs)
+    dst_stakes.reserve(src_stakes.size());
+
+    for (const SupernodeStake& src_stake : src_stakes)
     {
-        stake_transaction dst_tx;
+        supernode_stake dst_stake;
 
-        dst_tx.amount                   = src_tx.amount;
-        dst_tx.block_height             = src_tx.block_height;
-        dst_tx.unlock_time              = src_tx.unlock_time;
-        dst_tx.supernode_public_id      = src_tx.supernode_public_id;
-        dst_tx.supernode_public_address = src_tx.supernode_public_address;
+        dst_stake.amount                   = src_stake.amount;
+        dst_stake.block_height             = src_stake.block_height;
+        dst_stake.unlock_time              = src_stake.unlock_time;
+        dst_stake.supernode_public_id      = src_stake.supernode_public_id;
+        dst_stake.supernode_public_address = src_stake.supernode_public_address;
 
-        dst_stake_txs.emplace_back(std::move(dst_tx));
+        dst_stakes.emplace_back(std::move(dst_stake));
     }
 
     std::string cryptonode_rpc_address = ctx.global["cryptonode_rpc_address"];
     bool testnet = ctx.global["testnet"];
 
-    fsl->updateStakeTransactions(dst_stake_txs, cryptonode_rpc_address, testnet);
+    fsl->updateStakes(dst_stakes, cryptonode_rpc_address, testnet);
 
     return Status::Ok;
 }
 
 }
 
-void registerSendSupernodeStakeTransactionsRequest(graft::Router &router)
+void registerSendSupernodeStakesRequest(graft::Router &router)
 {
-    Router::Handler3 h3(nullptr, supernodeStakeTransactionsHandler, nullptr);
+    Router::Handler3 h3(nullptr, supernodeStakesHandler, nullptr);
 
     router.addRoute(PATH, METHOD_POST, h3);
 

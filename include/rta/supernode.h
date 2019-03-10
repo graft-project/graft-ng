@@ -23,9 +23,9 @@ namespace graft::supernode::request { struct SupernodeAnnounce; }
 namespace graft {
 
 /*!
- * \brief Stake transaction description
+ * \brief Supernode stake description
  */
-struct stake_transaction
+struct supernode_stake
 {
   uint64_t amount = 0;
   uint64_t block_height = 0;
@@ -106,14 +106,14 @@ public:
                                           bool testnet);
 
     /*!
-     * \brief createFromStakeTransaction - creates new Supernode instance from stake transaction
-     * \param transaction        - stake transaction
-     * \param testnet            - testnet flag
-     * \return                   - Supernode pointer on success
+     * \brief createFromStake - creates new Supernode instance from a stake
+     * \param stake           - stake of the supernode
+     * \param testnet         - testnet flag
+     * \return                - Supernode pointer on success
      */
-    static Supernode * createFromStakeTransaction(const stake_transaction& transaction,
-                                                  const std::string &daemon_address,
-                                                  bool testnet);
+    static Supernode * createFromStake(const supernode_stake& stake,
+                                       const std::string &daemon_address,
+                                       bool testnet);
 
     bool prepareAnnounce(graft::supernode::request::SupernodeAnnounce& announce);
 
@@ -196,28 +196,28 @@ public:
     bool busy() const;
 
     /*!
-     * \brief stakeTransactionBlockHeight - height of block for stake transaction
-     * \return                            - height of block
+     * \brief stakeBlockHeight - height of block for stake
+     * \return                 - height of block
      */
-    uint64_t stakeTransactionBlockHeight() const;
+    uint64_t stakeBlockHeight() const;
 
     /*!
-     * \brief setStakeTransactionBlock - set height of block for stake transaction
-     * \param                          - height of block
+     * \brief setStakeBlock - set height of block for stake
+     * \param               - height of block
      */
-    void setStakeTransactionBlockHeight(uint64_t blockHeight);
+    void setStakeBlockHeight(uint64_t blockHeight);
 
     /*!
-     * \brief stakeTransactionUnlockTime - number of blocks for unlocking stake transaction
+     * \brief stakeUnlockTime - number of blocks for unlocking stake
      * \return
      */
-    uint64_t stakeTransactionUnlockTime() const;
+    uint64_t stakeUnlockTime() const;
 
     /*!
-     * \brief setStakeTransactionUnlockTime - set number of blocks for unlocking stake transaction
-     * \param                          - height of block
+     * \brief setStakeUnlockTime - set number of blocks for unlocking stake
+     * \param                    - height of block
      */
-    void setStakeTransactionUnlockTime(uint64_t unlockTime);
+    void setStakeUnlockTime(uint64_t unlockTime);
 
     /*!
      * \brief loadKeys
@@ -253,8 +253,8 @@ private:
     bool                  m_has_secret_key = false;
     std::atomic<int64_t>  m_last_update_time;
     std::atomic<uint64_t> m_stake_amount;
-    std::atomic<uint64_t> m_stake_transaction_block_height;
-    std::atomic<uint64_t> m_stake_transaction_unlock_time;
+    std::atomic<uint64_t> m_stake_block_height;
+    std::atomic<uint64_t> m_stake_unlock_time;
     bool                  m_testnet = false;
     std::string           m_network_address;
 };

@@ -125,14 +125,14 @@ public:
      */
     size_t refreshedItems() const;
 
-    typedef std::vector<stake_transaction> stake_transaction_array;
+    typedef std::vector<supernode_stake> supernode_stake_array;
 
     /*!
-     * \brief updateStakeTransactions - update stake transactions
-     * \param                         - array of stake transactions
+     * \brief updateStakes - update stakes
+     * \param              - array of stakes
      * \return
      */
-    void updateStakeTransactions(const stake_transaction_array& stake_txs, const std::string& cryptonode_rpc_address, bool testnet);
+    void updateStakes(const supernode_stake_array& stakes, const std::string& cryptonode_rpc_address, bool testnet);
 
     struct blockchain_based_list_entry
     {
@@ -189,9 +189,7 @@ private:
     uint64_t m_blockchain_based_list_max_block_number;
     blockchain_based_list_map m_blockchain_based_lists;
     std::mt19937_64 m_rng;
-    bool m_stake_transactions_received;
-    bool m_blockchain_based_list_received;
-    boost::posix_time::ptime m_last_recv_stake_txs;
+    boost::posix_time::ptime m_last_recv_stakes;
     boost::posix_time::ptime m_last_recv_blockchain_based_list;
 };
 

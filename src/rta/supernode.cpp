@@ -30,8 +30,8 @@ Supernode::Supernode(const string &wallet_address, const crypto::public_key &id_
     , m_has_secret_key(false)
     , m_last_update_time {0}
     , m_stake_amount()
-    , m_stake_transaction_block_height()
-    , m_stake_transaction_unlock_time()
+    , m_stake_block_height()
+    , m_stake_unlock_time()
     , m_testnet(testnet)
 {
     MINFO("supernode created: " << "[" << this << "] " <<  this->walletAddress() << ", " << this->idKeyAsString());
@@ -102,7 +102,7 @@ Supernode *Supernode::createFromAnnounce(const SupernodeAnnounce &announce, cons
 bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
 {
     announce.supernode_public_id = this->idKeyAsString();
-    announce.height = m_stake_transaction_block_height;
+    announce.height = m_stake_block_height;
 
     crypto::signature sign;
     if (!signMessage(announce.supernode_public_id + to_string(announce.height), sign))
@@ -113,20 +113,20 @@ bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
     return true;
 }
 
-Supernode* Supernode::createFromStakeTransaction(const stake_transaction& transaction, const std::string &daemon_address, bool testnet)
+Supernode* Supernode::createFromStake(const supernode_stake& stake, const std::string &daemon_address, bool testnet)
 {
     crypto::public_key id_key;
-    if (!epee::string_tools::hex_to_pod(transaction.supernode_public_id, id_key)) {
-        MERROR("Failed to parse id key from stake transaction: " << transaction.supernode_public_id);
+    if (!epee::string_tools::hex_to_pod(stake.supernode_public_id, id_key)) {
+        MERROR("Failed to parse id key from stake: " << stake.supernode_public_id);
         return nullptr;
     }
 
-    std::unique_ptr<Supernode> result (new Supernode(transaction.supernode_public_address, id_key, daemon_address, testnet));
+    std::unique_ptr<Supernode> result (new Supernode(stake.supernode_public_address, id_key, daemon_address, testnet));
 
     result->setLastUpdateTime(time(nullptr));
-    result->setStakeAmount(transaction.amount);
-    result->setStakeTransactionBlockHeight(transaction.block_height);
-    result->setStakeTransactionUnlockTime(transaction.unlock_time);
+    result->setStakeAmount(stake.amount);
+    result->setStakeBlockHeight(stake.block_height);
+    result->setStakeUnlockTime(stake.unlock_time);
 
     return result.release();
 }
@@ -225,24 +225,24 @@ bool Supernode::busy() const
     return false;
 }
 
-uint64_t Supernode::stakeTransactionBlockHeight() const
+uint64_t Supernode::stakeBlockHeight() const
 {
-    return m_stake_transaction_block_height;
+    return m_stake_block_height;
 }
 
-void Supernode::setStakeTransactionBlockHeight(uint64_t blockHeight)
+void Supernode::setStakeBlockHeight(uint64_t blockHeight)
 {
-    m_stake_transaction_block_height.store(blockHeight);
+    m_stake_block_height.store(blockHeight);
 }
 
-uint64_t Supernode::stakeTransactionUnlockTime() const
+uint64_t Supernode::stakeUnlockTime() const
 {
-    return m_stake_transaction_unlock_time;
+    return m_stake_unlock_time;
 }
 
-void Supernode::setStakeTransactionUnlockTime(uint64_t unlockTime)
+void Supernode::setStakeUnlockTime(uint64_t unlockTime)
 {
-    m_stake_transaction_unlock_time.store(unlockTime);
+    m_stake_unlock_time.store(unlockTime);
 }
 
 bool Supernode::loadKeys(const string &filename)

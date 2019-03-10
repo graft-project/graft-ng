@@ -15,7 +15,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.fullsupernodelist"
 
-constexpr size_t STAKE_TRANSACTIONS_RECV_TIMEOUT_SECONDS    = 600;
+constexpr size_t STAKES_RECV_TIMEOUT_SECONDS                = 600;
 constexpr size_t BLOCKCHAIN_BASED_LIST_RECV_TIMEOUT_SECONDS = 180;
 constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT    = 10;
 
@@ -133,7 +133,7 @@ FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     , m_rpc_client(daemon_address, "", "")
     , m_tp(new utils::ThreadPool())
     , m_blockchain_based_list_max_block_number()
-    , m_last_recv_stake_txs(boost::date_time::not_a_date_time)
+    , m_last_recv_stakes(boost::date_time::not_a_date_time)
     , m_last_recv_blockchain_based_list(boost::date_time::not_a_date_time)
 {
     m_refresh_counter = 0;
@@ -431,9 +431,9 @@ size_t FullSupernodeList::refreshedItems() const
     return m_refresh_counter;
 }
 
-void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& stake_txs, const std::string& cryptonode_rpc_address, bool testnet)
+void FullSupernodeList::updateStakes(const supernode_stake_array& stakes, const std::string& cryptonode_rpc_address, bool testnet)
 {
-    MDEBUG("update stake transactions");
+    MDEBUG("update stakes");
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
@@ -447,76 +447,43 @@ void FullSupernodeList::updateStakeTransactions(const stake_transaction_array& s
             continue;
 
         sn->setStakeAmount(0);
-        sn->setStakeTransactionBlockHeight(0);
-        sn->setStakeTransactionUnlockTime(0);
+        sn->setStakeBlockHeight(0);
+        sn->setStakeUnlockTime(0);
     }
 
       //update supernodes
 
-    for (const stake_transaction& tx : stake_txs)
+    for (const supernode_stake& stake : stakes)
     {
-        auto it = m_list.find(tx.supernode_public_id);
+        auto it = m_list.find(stake.supernode_public_id);
 
-        if (it != m_list.end())
+        if (it == m_list.end())
         {
-            SupernodePtr sn = it->second;
-
-              //aggregate stake transaction fields for supernode 
-
-            if (tx.amount)
-            {
-                if (sn->stakeAmount())
-                {
-                    sn->setStakeAmount(sn->stakeAmount() + tx.amount);
-
-                      //find intersection of stake transaction intervals
-
-                    uint64_t min_block_height    = sn->stakeTransactionBlockHeight(),
-                             max_block_height    = min_block_height + sn->stakeTransactionUnlockTime(),
-                             min_tx_block_height = tx.block_height,
-                             max_tx_block_height = min_tx_block_height + tx.unlock_time;
-
-                    if (min_tx_block_height > min_block_height)
-                        min_block_height = min_tx_block_height;
-
-                    if (max_tx_block_height < max_block_height)
-                        max_block_height = max_tx_block_height;
-
-                    if (max_block_height <= min_block_height)
-                    {
-                        sn->setStakeAmount(0);
-
-                        max_block_height = min_block_height;
-                    }
-
-                    sn->setStakeTransactionBlockHeight(min_block_height);
-                    sn->setStakeTransactionUnlockTime(max_block_height - min_block_height);
-                }
-                else
-                {
-                    sn->setStakeAmount(tx.amount);
-                    sn->setStakeTransactionBlockHeight(tx.block_height);
-                    sn->setStakeTransactionUnlockTime(tx.unlock_time);
-                }
-            }
-        }
-        else
-        {
-            SupernodePtr sn (Supernode::createFromStakeTransaction(tx, cryptonode_rpc_address, testnet));
+            SupernodePtr sn (Supernode::createFromStake(stake, cryptonode_rpc_address, testnet));
 
             if (!sn)
             {
-                LOG_ERROR("Cant create watch-only supernode wallet for id: " << tx.supernode_public_id);
+                LOG_ERROR("Cant create watch-only supernode wallet for id: " << stake.supernode_public_id);
                 continue;
             }
 
             MINFO("About to add supernode to list [" << sn << "]: " << sn->idKeyAsString());
 
             addImpl(sn);
+
+            continue;
         }
+
+          //update stake
+
+        SupernodePtr sn = it->second;
+
+        sn->setStakeAmount(stake.amount);
+        sn->setStakeBlockHeight(stake.block_height);
+        sn->setStakeUnlockTime(stake.unlock_time);
     }
 
-    m_last_recv_stake_txs = boost::posix_time::second_clock::local_time();
+    m_last_recv_stakes = boost::posix_time::second_clock::local_time();
 }
 
 namespace
@@ -536,9 +503,9 @@ bool is_timeout_expired(const boost::posix_time::ptime& last_recv_time, size_t t
 
 void FullSupernodeList::synchronizeWithCryptonode(const char* network_address, const char* address)
 {
-    if (is_timeout_expired(m_last_recv_stake_txs, STAKE_TRANSACTIONS_RECV_TIMEOUT_SECONDS))
+    if (is_timeout_expired(m_last_recv_stakes, STAKES_RECV_TIMEOUT_SECONDS))
     {
-        m_rpc_client.send_supernode_stake_txs(network_address, address);
+        m_rpc_client.send_supernode_stakes(network_address, address);
     }
 
     if (is_timeout_expired(m_last_recv_blockchain_based_list, BLOCKCHAIN_BASED_LIST_RECV_TIMEOUT_SECONDS))

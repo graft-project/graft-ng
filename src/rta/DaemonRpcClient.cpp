@@ -172,18 +172,18 @@ bool DaemonRpcClient::get_block_hash(uint64_t height, string &hash)
     return true;
 }
 
-bool DaemonRpcClient::send_supernode_stake_txs(const char* network_address, const char* id)
+bool DaemonRpcClient::send_supernode_stakes(const char* network_address, const char* id)
 {
-    epee::json_rpc::request<cryptonote::COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::request> req = AUTO_VAL_INIT(req);
-    epee::json_rpc::response<cryptonote::COMMAND_RPC_SUPERNODE_GET_STAKE_TRANSACTIONS::response, std::string> res = AUTO_VAL_INIT(res);
+    epee::json_rpc::request<cryptonote::COMMAND_RPC_SUPERNODE_GET_STAKES::request> req = AUTO_VAL_INIT(req);
+    epee::json_rpc::response<cryptonote::COMMAND_RPC_SUPERNODE_GET_STAKES::response, std::string> res = AUTO_VAL_INIT(res);
     req.jsonrpc = "2.0";
     req.id = epee::serialization::storage_entry(0);
-    req.method = "send_supernode_stake_txs";
+    req.method = "send_supernode_stakes";
     req.params.network_address = network_address;
     req.params.supernode_public_id = id;
     bool r = epee::net_utils::invoke_http_json("/json_rpc/rta", req, res, m_http_client, m_rpc_timeout);
     if (!r) {
-        LOG_ERROR("/json_rpc/rta/send_supernode_stake_txs error");
+        LOG_ERROR("/json_rpc/rta/send_supernode_stakes error");
         return false;
     }
 
