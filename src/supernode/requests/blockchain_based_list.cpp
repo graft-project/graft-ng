@@ -94,6 +94,7 @@ Status blockchainBasedListHandler
 
             entry.supernode_public_id      = supernode_desc.supernode_public_id;
             entry.supernode_public_address = supernode_desc.supernode_public_address;
+            entry.amount                   = supernode_desc.amount;
 
             supernodes.emplace_back(std::move(entry));
         }

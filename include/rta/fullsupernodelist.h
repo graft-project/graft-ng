@@ -138,6 +138,7 @@ public:
     {
         std::string supernode_public_id;
         std::string supernode_public_address;
+        uint64_t    amount;
     };
     
     typedef std::vector<blockchain_based_list_entry> blockchain_based_list_tier;
