@@ -71,12 +71,6 @@ public:
     uint64_t stakeAmount() const;
 
     /*!
-     * \brief setStakeAmount - set stake amount
-     * \param                - amount
-     */
-    void setStakeAmount(uint64_t amount);
-
-    /*!
      * \brief tier - returns the tier of this supernode based on its stake amount
      * \return     - the tier (1-4) of the supernode or 0 if the verified stake amount is below tier 1
      */
@@ -87,6 +81,10 @@ public:
      */
     std::string walletAddress() const;
 
+    /*!
+     * \brief setWalletAddress - sets wallet public address
+     */
+    void setWalletAddress(const std::string &address);
 
     /*!
      * \brief updateFromAnnounce - updates supernode from announce (helper to extract signed key images from graft::supernode::request::SupernodeAnnounce)
@@ -202,22 +200,18 @@ public:
     uint64_t stakeBlockHeight() const;
 
     /*!
-     * \brief setStakeBlock - set height of block for stake
-     * \param               - height of block
-     */
-    void setStakeBlockHeight(uint64_t blockHeight);
-
-    /*!
      * \brief stakeUnlockTime - number of blocks for unlocking stake
      * \return
      */
     uint64_t stakeUnlockTime() const;
 
     /*!
-     * \brief setStakeUnlockTime - set number of blocks for unlocking stake
-     * \param                    - height of block
+     * \brief setStake - set stake details
+     * \param          - stake amount
+     * \param          - height of block
+     * \param          - unlock time
      */
-    void setStakeUnlockTime(uint64_t unlockTime);
+    void setStake(uint64_t amount, uint64_t blockHeight, uint64_t unlockTime);
 
     /*!
      * \brief loadKeys
@@ -247,14 +241,15 @@ private:
 
 private:
     // wallet's address. empty in case 'their' supernode
+    mutable boost::shared_mutex m_access;
     std::string           m_wallet_address;
     crypto::public_key    m_id_key;
     crypto::secret_key    m_secret_key;
     bool                  m_has_secret_key = false;
     std::atomic<int64_t>  m_last_update_time;
-    std::atomic<uint64_t> m_stake_amount;
-    std::atomic<uint64_t> m_stake_block_height;
-    std::atomic<uint64_t> m_stake_unlock_time;
+    uint64_t              m_stake_amount;
+    uint64_t              m_stake_block_height;
+    uint64_t              m_stake_unlock_time;
     bool                  m_testnet = false;
     std::string           m_network_address;
 };

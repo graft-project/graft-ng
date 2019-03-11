@@ -446,9 +446,7 @@ void FullSupernodeList::updateStakes(const supernode_stake_array& stakes, const 
         if (!sn)
             continue;
 
-        sn->setStakeAmount(0);
-        sn->setStakeBlockHeight(0);
-        sn->setStakeUnlockTime(0);
+        sn->setStake(0, 0, 0);
     }
 
       //update supernodes
@@ -478,9 +476,8 @@ void FullSupernodeList::updateStakes(const supernode_stake_array& stakes, const 
 
         SupernodePtr sn = it->second;
 
-        sn->setStakeAmount(stake.amount);
-        sn->setStakeBlockHeight(stake.block_height);
-        sn->setStakeUnlockTime(stake.unlock_time);
+        sn->setStake(stake.amount, stake.block_height, stake.unlock_time);
+        sn->setWalletAddress(stake.supernode_public_address);
     }
 
     m_last_recv_stakes = boost::posix_time::second_clock::local_time();

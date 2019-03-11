@@ -45,12 +45,8 @@ Supernode::~Supernode()
 
 uint64_t Supernode::stakeAmount() const
 {
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     return m_stake_amount;
-}
-
-void Supernode::setStakeAmount(uint64_t amount)
-{
-    m_stake_amount = amount;
 }
 
 uint32_t Supernode::tier() const
@@ -65,9 +61,16 @@ uint32_t Supernode::tier() const
 
 string Supernode::walletAddress() const
 {
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     return m_wallet_address;
 }
 
+void Supernode::setWalletAddress(const std::string &address)
+{
+    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+
+    m_wallet_address = address;
+}
 
 bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
 {
@@ -124,9 +127,7 @@ Supernode* Supernode::createFromStake(const supernode_stake& stake, const std::s
     std::unique_ptr<Supernode> result (new Supernode(stake.supernode_public_address, id_key, daemon_address, testnet));
 
     result->setLastUpdateTime(time(nullptr));
-    result->setStakeAmount(stake.amount);
-    result->setStakeBlockHeight(stake.block_height);
-    result->setStakeUnlockTime(stake.unlock_time);
+    result->setStake(stake.amount, stake.block_height, stake.unlock_time);
 
     return result.release();
 }
@@ -227,22 +228,23 @@ bool Supernode::busy() const
 
 uint64_t Supernode::stakeBlockHeight() const
 {
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     return m_stake_block_height;
 }
 
-void Supernode::setStakeBlockHeight(uint64_t blockHeight)
+void Supernode::setStake(uint64_t stakeAmount, uint64_t blockHeight, uint64_t unlockTime)
 {
-    m_stake_block_height.store(blockHeight);
+    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+
+    m_stake_amount = stakeAmount;
+    m_stake_block_height = blockHeight;
+    m_stake_unlock_time = unlockTime;
 }
 
 uint64_t Supernode::stakeUnlockTime() const
 {
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     return m_stake_unlock_time;
-}
-
-void Supernode::setStakeUnlockTime(uint64_t unlockTime)
-{
-    m_stake_unlock_time.store(unlockTime);
 }
 
 bool Supernode::loadKeys(const string &filename)
