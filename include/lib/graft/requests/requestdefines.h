@@ -2,7 +2,7 @@
 #pragma once
 
 #include "lib/graft/graft_constants.h"
-#include "lib/graft/inout.h"
+#include "lib/graft/serialize.h"
 #include "lib/graft/router.h"
 #include "rta/supernode.h"
 

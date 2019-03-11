@@ -2,7 +2,7 @@
 #include "lib/graft/sys_info_request.h"
 
 #include "lib/graft/context.h"
-#include "lib/graft/connection.h"
+#include "lib/graft/task.h"
 #include "lib/graft/inout.h"
 #include "lib/graft/router.h"
 #include "lib/graft/sys_info.h"
