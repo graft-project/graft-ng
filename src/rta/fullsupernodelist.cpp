@@ -18,6 +18,7 @@
 constexpr size_t STAKES_RECV_TIMEOUT_SECONDS                = 600;
 constexpr size_t BLOCKCHAIN_BASED_LIST_RECV_TIMEOUT_SECONDS = 180;
 constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT    = 10;
+constexpr size_t REPEATED_REQUEST_DELAY_SECONDS             = 10;
 
 namespace fs = boost::filesystem;
 using namespace boost::multiprecision;
@@ -133,8 +134,9 @@ FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     , m_rpc_client(daemon_address, "", "")
     , m_tp(new utils::ThreadPool())
     , m_blockchain_based_list_max_block_number()
-    , m_last_recv_stakes(boost::date_time::not_a_date_time)
-    , m_last_recv_blockchain_based_list(boost::date_time::not_a_date_time)
+    , m_stakes_max_block_number()
+    , m_next_recv_stakes(boost::date_time::not_a_date_time)
+    , m_next_recv_blockchain_based_list(boost::date_time::not_a_date_time)
 {
     m_refresh_counter = 0;
 }
@@ -433,11 +435,17 @@ size_t FullSupernodeList::refreshedItems() const
     return m_refresh_counter;
 }
 
-void FullSupernodeList::updateStakes(const supernode_stake_array& stakes, const std::string& cryptonode_rpc_address, bool testnet)
+void FullSupernodeList::updateStakes(uint64_t block_number, const supernode_stake_array& stakes, const std::string& cryptonode_rpc_address, bool testnet)
 {
     MDEBUG("update stakes");
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+
+    if (block_number <= m_stakes_max_block_number)
+    {
+      MDEBUG("stakes for block #" << block_number << " have already been received (last stakes have been received for block #" << m_stakes_max_block_number << ")");
+      return;
+    }
 
       //clear supernode data
 
@@ -482,32 +490,35 @@ void FullSupernodeList::updateStakes(const supernode_stake_array& stakes, const 
         sn->setWalletAddress(stake.supernode_public_address);
     }
 
-    m_last_recv_stakes = boost::posix_time::second_clock::local_time();
+    m_stakes_max_block_number = block_number;
+    m_next_recv_stakes = boost::posix_time::second_clock::local_time() + boost::posix_time::seconds(STAKES_RECV_TIMEOUT_SECONDS);
 }
 
 namespace
 {
 
-bool is_timeout_expired(const boost::posix_time::ptime& last_recv_time, size_t timeout_seconds)
+bool check_timeout_expired(boost::posix_time::ptime& next_recv_time)
 {
-    if (last_recv_time.is_not_a_date_time())
-        return true;
+    boost::posix_time::ptime now = boost::posix_time::second_clock::local_time();
 
-    boost::posix_time::time_duration duration = boost::posix_time::second_clock::local_time() - last_recv_time;
+    if (!next_recv_time.is_special() && next_recv_time > now)
+      return false;
 
-    return duration > boost::posix_time::seconds(timeout_seconds);
+    next_recv_time = now + boost::posix_time::seconds(REPEATED_REQUEST_DELAY_SECONDS);
+
+    return true;
 }
 
 }
 
 void FullSupernodeList::synchronizeWithCryptonode(const char* network_address, const char* address)
 {
-    if (is_timeout_expired(m_last_recv_stakes, STAKES_RECV_TIMEOUT_SECONDS))
+    if (check_timeout_expired(m_next_recv_stakes))
     {
         m_rpc_client.send_supernode_stakes(network_address, address);
     }
 
-    if (is_timeout_expired(m_last_recv_blockchain_based_list, BLOCKCHAIN_BASED_LIST_RECV_TIMEOUT_SECONDS))
+    if (check_timeout_expired(m_next_recv_blockchain_based_list))
     {
         m_rpc_client.send_supernode_blockchain_based_list(network_address, address, m_blockchain_based_list_max_block_number);
     }
@@ -544,7 +555,7 @@ void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const bloc
         return;
     }
 
-    m_last_recv_blockchain_based_list = boost::posix_time::second_clock::local_time();
+    m_next_recv_blockchain_based_list = boost::posix_time::second_clock::local_time() + boost::posix_time::seconds(BLOCKCHAIN_BASED_LIST_RECV_TIMEOUT_SECONDS);
 
     m_blockchain_based_lists[block_number] = list;
 

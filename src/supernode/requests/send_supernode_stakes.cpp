@@ -99,7 +99,7 @@ Status supernodeStakesHandler
     std::string cryptonode_rpc_address = ctx.global["cryptonode_rpc_address"];
     bool testnet = ctx.global["testnet"];
 
-    fsl->updateStakes(dst_stakes, cryptonode_rpc_address, testnet);
+    fsl->updateStakes(req.params.block_height, dst_stakes, cryptonode_rpc_address, testnet);
 
     return Status::Ok;
 }

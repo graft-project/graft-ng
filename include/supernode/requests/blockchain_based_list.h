@@ -17,7 +17,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(BlockchainBasedListTier,
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(BlockchainBasedList,
-                              (uint64_t, block_number, uint64_t()),
+                              (uint64_t, block_height, uint64_t()),
                               (std::vector<BlockchainBasedListTier>, tiers, std::vector<BlockchainBasedListTier>())
                        );
 

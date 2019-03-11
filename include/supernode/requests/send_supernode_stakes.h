@@ -16,6 +16,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeStake,
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeStakes,
+                              (uint64_t, block_height, 0),
                               (std::vector<SupernodeStake>, stakes, std::vector<SupernodeStake>())
                        );
 
