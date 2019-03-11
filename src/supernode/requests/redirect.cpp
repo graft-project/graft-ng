@@ -68,7 +68,7 @@ void getSupernodesWithStake(graft::Context& ctx, IdSet& allWithStake)
     {//remove my ID
         std::string myIDstr;
         {
-            crypto::public_key pubID = ctx.global["my_pubID"];
+            const crypto::public_key& pubID = ctx.global["my_pubID"];
             myIDstr = epee::string_tools::pod_to_hex(pubID);
         }
         assert(!myIDstr.empty());
@@ -145,7 +145,7 @@ bool initializeIDs(graft::Context& ctx)
     assert(ctx.global.hasKey("jump_node_coefficient"));
     assert(ctx.global.hasKey("redirect_timeout_ms"));
 
-    double jump_node_coefficient = ctx.global["jump_node_coefficient"];
+    const double& jump_node_coefficient = ctx.global["jump_node_coefficient"];
     uint32_t broadcast_hops = 1 + std::lround(1./jump_node_coefficient);
     ctx.global["broadcast_hops"] = broadcast_hops;
 
@@ -189,7 +189,7 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
     //get sorted list of all supernodes with stake
     getSupernodesWithStake(ctx, allWithStake);
 
-    double jump_node_coefficient = ctx.global["jump_node_coefficient"];
+    const double& jump_node_coefficient = ctx.global["jump_node_coefficient"];
     size_t selectedCount = std::lround(allWithStake.size() * jump_node_coefficient);
 
 #if tst
@@ -208,7 +208,7 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
         }
         std::string myIDstr;
         {
-            crypto::public_key pubID = ctx.global["my_pubID"];
+            const crypto::public_key& pubID = ctx.global["my_pubID"];
             myIDstr = epee::string_tools::pod_to_hex(pubID);
         }
         tst_myIDstr = myIDstr;
@@ -238,10 +238,10 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
 
     if(selectedSupernodes->empty()) return std::string();
 
-    crypto::public_key pubID = ctx.global["my_pubID"];
+    const crypto::public_key& pubID = ctx.global["my_pubID"];
 
     std::string ID = epee::string_tools::pod_to_hex(pubID);
-    std::string external_address = ctx.global["external_address"];
+    const std::string& external_address = ctx.global["external_address"];
     std::string plain = ID + ':' + external_address;
 
     //encrypt
@@ -286,7 +286,7 @@ graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const
             std::string my_pubIDstr;
             if(ctx.global.hasKey("my_pubID"))
             {
-                crypto::public_key my_pubID = ctx.global["my_pubID"];
+                const crypto::public_key& my_pubID = ctx.global["my_pubID"];
                 my_pubIDstr = epee::string_tools::pod_to_hex(my_pubID);
             }
             LOG_PRINT_L0("my_pubIDstr ") << my_pubIDstr;
@@ -302,7 +302,7 @@ graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const
             }
 #endif
 
-            std::string supernode_url = ctx.global["supernode_url"]; //[config.ini][server]http_address + "/dapi/v2.0";
+            const std::string& supernode_url = ctx.global["supernode_url"]; //[config.ini][server]http_address + "/dapi/v2.0";
 
             RegisterSupernodeJsonRpcRequest req;
 
@@ -412,7 +412,7 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
                     MDEBUG("Secret key not found.");
                     return graft::Status::Ok;
                 }
-                crypto::secret_key secID = ctx.global["my_secID"];
+                const crypto::secret_key& secID = ctx.global["my_secID"];
 #if tst
                 {
                     crypto::public_key P;
@@ -447,7 +447,7 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
             std::string my_pubIDstr;
             if(ctx.global.hasKey("my_pubID"))
             {
-                crypto::public_key my_pubID = ctx.global["my_pubID"];
+                const crypto::public_key& my_pubID = ctx.global["my_pubID"];
                 my_pubIDstr = epee::string_tools::pod_to_hex(my_pubID);
             }
             assert(!my_pubIDstr.empty());
