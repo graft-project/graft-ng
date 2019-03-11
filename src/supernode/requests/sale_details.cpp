@@ -98,10 +98,11 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     }
 
     vector<SupernodePtr> authSample;
+    uint64_t auth_sample_block_number = 0;
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
-    if (!fsl->buildAuthSample(in.BlockNumber, in.PaymentID, authSample)) {
+    if (!fsl->buildAuthSample(in.BlockNumber, in.PaymentID, authSample, auth_sample_block_number)) {
         return  errorBuildAuthSample(output);
     }
     // we have sale details locally, easy way
@@ -285,13 +286,14 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
     }
 
     vector<SupernodePtr> authSample;
+    uint64_t auth_sample_block_number = 0;
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
 
     MDEBUG("sale_details request from remote supernode: " << unicastReq.sender_address
            << ", payment: " << sdr.PaymentID
            << ", block: " << sdr.BlockNumber);
 
-    if (!fsl->buildAuthSample(sdr.BlockNumber, sdr.PaymentID, authSample)) {
+    if (!fsl->buildAuthSample(sdr.BlockNumber, sdr.PaymentID, authSample, auth_sample_block_number)) {
         LOG_ERROR("failed to build auth sample for block: " << sdr.BlockNumber
                   << ", payment: " << sdr.PaymentID);
         return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request

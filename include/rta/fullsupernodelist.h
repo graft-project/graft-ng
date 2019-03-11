@@ -87,15 +87,16 @@ public:
     typedef std::vector<SupernodePtr> supernode_array;
 
     /*!
-     * \brief buildAuthSample - builds auth sample (8 supernodes) for given block height
-     * \param height          - block height used to perform selection
-     * \param payment_id      - payment id which is used for building auth sample
-     * \param out             - vector of supernode pointers
-     * \return                - true on success
+     * \brief buildAuthSample       - builds auth sample (8 supernodes) for given block height
+     * \param height                - block height used to perform selection
+     * \param payment_id            - payment id which is used for building auth sample
+     * \param out                   - vector of supernode pointers
+     * \param out_auth_block_number - block number which was used for auth sample
+     * \return                      - true on success
      */
-    bool buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out);
+    bool buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number);
 
-    bool buildAuthSample(const std::string& payment_id, supernode_array &out);
+    bool buildAuthSample(const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number);
 
     /*!
      * \brief items - returns address list of known supernodes

@@ -85,7 +85,7 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
 
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     std::vector<SupernodePtr> sample;
-
+    uint64_t sample_block_number = 0;
 
     std::string payment_id;
     try
@@ -98,13 +98,14 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
     }
 
     SupernodeListJsonRpcResult resp;
-    resp.result.height = fsl->getBlockchainBasedListMaxBlockNumber();
 
-    const bool ok = fsl->buildAuthSample(resp.result.height, payment_id, sample);
+    const bool ok = fsl->buildAuthSample(fsl->getBlockchainBasedListMaxBlockNumber(), payment_id, sample, sample_block_number);
     if(!ok)
     {
         return errorInternalError("failed to build auth sample", output);
     }
+
+    resp.result.height = sample_block_number;
 
     for(auto& sPtr : sample)
     {

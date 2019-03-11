@@ -276,9 +276,11 @@ bool FullSupernodeList::selectSupernodes(size_t items_count, const std::string& 
     return true;
 }
 
-bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out)
+bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number)
 {
     uint64_t blockchain_based_list_height = height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+
+    out_auth_block_number = blockchain_based_list_height;
 
     MDEBUG("building auth sample for height " << height << "(blockchain_based_list_height=" << blockchain_based_list_height << ") and PaymentID '" << payment_id << "'");
 
@@ -385,9 +387,9 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
     return out.size() == AUTH_SAMPLE_SIZE;
 }
 
-bool FullSupernodeList::buildAuthSample(const string &payment_id, FullSupernodeList::supernode_array &out)
+bool FullSupernodeList::buildAuthSample(const string &payment_id, FullSupernodeList::supernode_array &out, uint64_t &out_auth_block_number)
 {
-    return buildAuthSample(getBlockchainBasedListMaxBlockNumber(), payment_id, out);
+    return buildAuthSample(getBlockchainBasedListMaxBlockNumber(), payment_id, out, out_auth_block_number);
 }
 
 vector<string> FullSupernodeList::items() const
