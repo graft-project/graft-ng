@@ -99,6 +99,9 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
                         graft::Context& ctx, graft::Output& output)
 {
     MDEBUG(__FUNCTION__ << " begin");
+    // Disable pay request for RTA mining
+    return errorInternalError("Not implemented", output);
+
     PayRequestJsonRpc req;
 
     if (!input.get(req)) {
