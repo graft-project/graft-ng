@@ -229,6 +229,8 @@ TEST(Context, simple)
     std::cout << b << " " << bb << " " << std::string(cc.begin(), cc.end()) << std::endl;
 #endif
     ctx.global[key[0]] = s;
+    const std::string& s_ref = ctx.global["aaa"];
+    EXPECT_EQ(s, s_ref);
     ctx.global[key[1]] = v;
     std::string bbg = ctx.global[key[0]];
     const std::vector<char> ccg = ctx.global[key[1]];
