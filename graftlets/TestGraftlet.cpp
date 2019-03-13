@@ -56,6 +56,25 @@ public:
         return graft::Status::Ok;
     }
 
+    static std::string value;
+    static int count;
+
+    std::string resetPeriodic(const std::string& val)
+    {
+        std::string res;
+        res.swap(value);
+        count = 0;
+        value = val;
+        return res;
+    }
+
+    graft::Status testPeriodic(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        bool stop = value.empty();
+        value = "count " + std::to_string(++count);
+        return (stop)? graft::Status::Stop : graft::Status::Ok;
+    }
+
     virtual void initOnce(const graft::CommonOpts& opts) override
     {
 //        REGISTER_ACTION(TestGraftlet, testUndefined);
@@ -66,6 +85,10 @@ public:
 
         REGISTER_ENDPOINT("/URI/test/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler);
         REGISTER_ENDPOINT("/URI/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler1);
+
+        REGISTER_ACTION(TestGraftlet, resetPeriodic);
+        //Type, method, int interval_ms, int initial_interval_ms, double random_factor
+        REGISTER_PERIODIC(TestGraftlet, testPeriodic, 100, 100, 0);
     }
 };
 
@@ -74,6 +97,9 @@ GRAFTLET_PLUGIN(TestGraftlet, IGraftlet, "testGL");
 GRAFTLET_EXPORTS_END
 
 GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(0,3))
+
+std::string TestGraftlet::value;
+int TestGraftlet::count = 0;
 
 namespace
 {

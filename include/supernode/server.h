@@ -56,6 +56,7 @@ private:
     void addGlobalCtxCleaner();
     void initGraftlets();
     void initGraftletRouters();
+    void initGraftletPeriodics();
 
     ConfigOpts& getCopts();
 
