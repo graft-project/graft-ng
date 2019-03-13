@@ -843,7 +843,7 @@ void TaskManager::onClientDone(BaseTaskPtr bt)
 void TaskManager::initThreadPool(int threadCount, int workersQueueSize, int expellingIntervalMs)
 {
     if(threadCount <= 0) threadCount = std::thread::hardware_concurrency();
-    threadCount = next_pow2(threadCount);
+    threadCount = std::max(size_t(2), next_pow2(threadCount));
     if(workersQueueSize <= 0) workersQueueSize = 32;
 
     tp::ThreadPoolOptions th_op;

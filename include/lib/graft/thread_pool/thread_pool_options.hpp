@@ -60,7 +60,7 @@ private:
 /// Implementation
 
 inline ThreadPoolOptions::ThreadPoolOptions()
-    : m_thread_count(std::max<size_t>(1u, std::thread::hardware_concurrency()))
+    : m_thread_count(std::max<size_t>(2u, std::thread::hardware_concurrency()))
     , m_queue_size(1024u)
     , m_workers_expelling_interval_ms(1000u)
 {
@@ -68,7 +68,7 @@ inline ThreadPoolOptions::ThreadPoolOptions()
 
 inline void ThreadPoolOptions::setThreadCount(size_t count)
 {
-    m_thread_count = std::max<size_t>(1u, count);
+    m_thread_count = std::max<size_t>(2u, count);
 }
 
 inline void ThreadPoolOptions::setQueueSize(size_t size)
