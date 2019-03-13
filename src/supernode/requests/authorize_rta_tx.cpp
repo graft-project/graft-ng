@@ -114,6 +114,7 @@ private:
 // TODO: this function duplicates PendingTransaction::putRtaSignatures
 void putRtaSignaturesToTx(cryptonote::transaction &tx, const std::vector<SupernodeSignature> &signatures, bool testnet)
 {
+#if 0
     std::vector<cryptonote::rta_signature> bin_signs;
     for (const auto &sign : signatures) {
         cryptonote::rta_signature bin_sign;
@@ -125,6 +126,7 @@ void putRtaSignaturesToTx(cryptonote::transaction &tx, const std::vector<Superno
         bin_signs.push_back(bin_sign);
     }
     tx.put_rta_signatures(bin_signs);
+#endif
 }
 
 
