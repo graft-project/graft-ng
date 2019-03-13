@@ -97,6 +97,14 @@ public:
         struct helperSign<Sign> h(this);
         return h.invoke(cls_method, std::forward<Args>(args)...);
     }
+
+    BaseT* getClass(const ClsName& cls)
+    {
+        auto it = m_cls2any.find(cls);
+        if(it == m_cls2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
+        std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
+        return concreteGraftlet.get();
+    }
 };
 
 class GraftletLoader
