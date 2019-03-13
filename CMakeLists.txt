@@ -225,7 +225,7 @@ endif()
 
 set_target_properties(graft PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
 
-add_dependencies(graft libr3 cryptonode graftlet_lib)
+add_dependencies(graft version libr3 cryptonode graftlet_lib)
 
 ### requests_common library
 add_library(requests_common STATIC

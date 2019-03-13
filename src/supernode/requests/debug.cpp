@@ -25,6 +25,7 @@ GRAFT_DEFINE_IO_STRUCT(DbSupernode,
     (std::string, Address),
     (std::string, PublicId),
     (uint64, StakeAmount),
+    (uint64, ExpiringBlock),
     (uint64, LastUpdateAge)
 );
 
@@ -72,6 +73,7 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
         dbSupernode.Address = sPtr->walletAddress();
         dbSupernode.PublicId = sPtr->idKeyAsString();
         dbSupernode.StakeAmount = sPtr->stakeAmount();
+        dbSupernode.ExpiringBlock = sPtr->stakeBlockHeight() + sPtr->stakeUnlockTime();
         resp.result.items.push_back(dbSupernode);
     }
     output.load(resp);
