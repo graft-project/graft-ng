@@ -362,3 +362,24 @@ TEST_F(GraftServerTest, graftlets)
 
     stop_and_wait_for();
 }
+
+TEST_F(GraftServerTest, graftletsPeriodic)
+{
+    m_copts.graftlet_dirs.emplace_back("graftlets");
+    m_copts.timer_poll_interval_ms = 50;
+
+    graft::CommonOpts opts;
+    graftlet::GraftletLoader loader(opts);
+    loader.findGraftletsInDirectory("./graftlets", "so");
+
+    graftlet::GraftletHandler plugin = loader.buildAndResolveGraftlet("myGraftlet");
+    plugin.invoke<std::string (const std::string& val)>("testGL.resetPeriodic", " ");
+
+    run();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1050));
+    std::string res = plugin.invoke<std::string (const std::string& val)>("testGL.resetPeriodic", "");
+    EXPECT_EQ(res, "count " + std::to_string(10));
+
+    stop_and_wait_for();
+}

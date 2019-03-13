@@ -109,6 +109,19 @@ void GraftServer::initGraftletRouters()
     }
 }
 
+void GraftServer::initGraftletPeriodics()
+{
+    assert(m_graftletLoader);
+    IGraftlet::PeriodicVec periodics = m_graftletLoader->getPeriodics();
+    for(IGraftlet::Periodic& p : periodics)
+    {
+        getLooper().addPeriodicTask(p.handler, std::chrono::milliseconds( p.interval_ms ),
+                                    std::chrono::milliseconds( p.initial_interval_ms ),
+                                    p.random_factor);
+    }
+}
+
+
 void GraftServer::initGlobalContext()
 {
 //  TODO: why context intialized second time here?
@@ -175,6 +188,8 @@ bool GraftServer::init(int argc, const char** argv, ConfigOpts& configOpts)
     initGraftletRouters();
 
     m_connectionBase->bindConnectionManagers();
+
+    initGraftletPeriodics();
 
     return true;
 }
