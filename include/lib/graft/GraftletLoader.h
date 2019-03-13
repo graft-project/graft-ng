@@ -97,6 +97,14 @@ public:
         struct helperSign<Sign> h(this);
         return h.invoke(cls_method, std::forward<Args>(args)...);
     }
+
+    BaseT* getClass(const ClsName& cls)
+    {
+        auto it = m_cls2any.find(cls);
+        if(it == m_cls2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
+        std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
+        return concreteGraftlet.get();
+    }
 };
 
 class GraftletLoader
@@ -124,6 +132,11 @@ public:
     typename IGraftlet::EndpointsVec getEndpoints()
     {
         return getEndpointsT<IGraftlet>();
+    }
+
+    typename IGraftlet::PeriodicVec getPeriodics()
+    {
+        return getPeriodicsT<IGraftlet>();
     }
 
     class DependencyGraph;
@@ -156,6 +169,27 @@ private:
         {
             buildAndResolveGraftletT<BaseT>(item.first);
         }
+    }
+
+    template <class BaseT>
+    typename BaseT::PeriodicVec getPeriodicsT()
+    {
+        prepareAllEndpoints<BaseT>();
+
+        typename BaseT::PeriodicVec res;
+        for(auto& it0 : m_name2gls)
+        {
+            if(it0.first.second != std::type_index(typeid(BaseT))) continue;
+            std::map<ClsName, std::any>& map = it0.second;
+            for(auto& it1 : map)
+            {
+                //TODO: remove shared_ptr, it does not hold something now
+                std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it1.second);
+                typename BaseT::PeriodicVec vec = concreteGraftlet->getPeriodics();
+                res.insert(res.end(), vec.begin(), vec.end());
+            }
+        }
+        return res;
     }
 
     template <class BaseT>

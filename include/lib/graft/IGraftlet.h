@@ -20,14 +20,26 @@
 #define REGISTER_ENDPOINT(Endpoint, Methods, T, f) \
     register_endpoint_memf(#f, this, &T::f, Endpoint, Methods)
 
+#define REGISTER_PERIODIC(T, f, interval_ms, initial_interval_ms, random_factor) \
+    register_periodic_memf("#"#f, this, &T::f, interval_ms, initial_interval_ms, random_factor)
+
 class IGraftlet
 {
 public:
+    struct Periodic
+    {
+        graft::Router::Handler handler;
+        int interval_ms;
+        int initial_interval_ms;
+        double random_factor;
+    };
+
     using ClsName = std::string;
     using FuncName = std::string;
     using EndpointPath = std::string;
     using Methods = int;
     using EndpointsVec = std::vector< std::tuple<EndpointPath, Methods, graft::Router::Handler> >;
+    using PeriodicVec = std::vector< Periodic >;
 
     IGraftlet() = delete;
     virtual ~IGraftlet() = default;
@@ -64,6 +76,24 @@ public:
         return res;
     }
 
+    PeriodicVec getPeriodics()
+    {
+        PeriodicVec res;
+        std::type_index ti = std::type_index(typeid(Periodic));
+        for(auto& it : m_map)
+        {
+            TypeIndex2any& ti2any = it.second;
+            auto it1 = ti2any.find(ti);
+            if(it1 == ti2any.end()) continue;
+
+            std::any& any = std::get<0>(it1->second);
+            Periodic periodic = std::any_cast<Periodic>(any);
+
+            res.emplace_back(std::move(periodic));
+        }
+        return res;
+    }
+
     template <typename Res, typename...Ts, typename = Res(Ts...), typename...Args>
     Res invoke(const FuncName& name, Args&&...args)
     {
@@ -83,23 +113,29 @@ public:
         return callable(std::forward<Args>(args)...);
     }
 
-    //It can be used to register any callable object like a function, to register member function use register_handler_memf
-    template<typename Res,  typename...Ts, typename Callable = Res (Ts...)>
-    void register_handler(const FuncName& name, Callable callable, const EndpointPath& endpoint = EndpointPath(), Methods methods = 0)
+    template<typename Obj>
+    void register_obj(const FuncName& name, Obj&& obj, const EndpointPath& endpoint = EndpointPath(), Methods methods = 0)
     {
-        std::type_index ti = std::type_index(typeid(Callable));
+        std::type_index ti = std::type_index(typeid(Obj));
         TypeIndex2any& ti2any = m_map[name];
-        std::any any = std::make_any<Callable>(callable);
-        assert(any.type().hash_code() == typeid(callable).hash_code());
+        std::any any = std::make_any<Obj>(std::forward<Obj>(obj));
+        assert(any.type().hash_code() == typeid(Obj).hash_code());
 
         std::ostringstream oss;
         if(!endpoint.empty())
         {
             oss << " '" << endpoint << "' " << graft::Router::methodsToString(methods);
         }
-        LOG_PRINT_L2("register_handler " << name << oss.str() << " of " << typeid(callable).name());
+        LOG_PRINT_L2("register_obj " << name << oss.str() <<  " of " << typeid(Obj).name());
         auto res = ti2any.emplace(ti, std::make_tuple(std::move(any), endpoint, methods) );
-        if(!res.second) throw std::runtime_error("function " + name + " with typeid " + ti.name() + " already registered");
+        if(!res.second) throw std::runtime_error("object " + name + " with typeid " + ti.name() + " already registered");
+    }
+
+    //It can be used to register any callable object like a function, to register member function use register_handler_memf
+    template<typename Res,  typename...Ts, typename Callable = Res (Ts...)>
+    void register_handler(const FuncName& name, Callable callable, const EndpointPath& endpoint = EndpointPath(), Methods methods = 0)
+    {
+        register_obj(name, callable, endpoint, methods);
     }
 
     template<typename Obj, typename Res,  typename...Ts>
@@ -129,6 +165,22 @@ public:
         };
         register_endpoint(name, fun, endpoint, methods);
     }
+
+    template<typename Obj>
+    void register_periodic_memf(const FuncName& name, Obj* p
+                                , graft::Status (Obj::*f)(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+                                , int interval_ms, int initial_interval_ms, double random_factor )
+    {
+        std::function<graft::Status (Obj*,const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)> memf = f;
+        graft::Router::Handler fun =
+                [p,memf](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+        {
+            return memf(p,vars,input,ctx,output);
+        };
+        Periodic periodic { fun, interval_ms, initial_interval_ms, random_factor };
+        register_obj(name, std::move(periodic));
+    }
+
 protected:
     IGraftlet(const ClsName& name = ClsName() ) : m_clsName(name) { }
     virtual void initOnce(const graft::CommonOpts& opts) = 0;
