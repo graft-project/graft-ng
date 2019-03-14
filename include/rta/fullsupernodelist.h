@@ -1,6 +1,8 @@
 #ifndef FULLSUPERNODELIST_H
 #define FULLSUPERNODELIST_H
 
+#include <random>
+
 #include "rta/supernode.h"
 #include "rta/DaemonRpcClient.h"
 
@@ -25,7 +27,7 @@ class FullSupernodeList
 {
 public:
     static constexpr int32_t TIERS = 4;
-    static constexpr int32_t ITEMS_PER_TIER = 1;
+    static constexpr int32_t ITEMS_PER_TIER = 2;
     static constexpr int32_t AUTH_SAMPLE_SIZE = TIERS * ITEMS_PER_TIER;
     static constexpr int64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
     static constexpr int64_t ANNOUNCE_TTL_SECONDS = 60 * 60; // if more than ANNOUNCE_TTL_SECONDS passed from last annouce - supernode excluded from auth sample selection
@@ -57,7 +59,7 @@ public:
     
     /*!
      * \brief remove  - removes Supernode from list. closes it's wallet and frees memory
-     * \param address - supernode address
+     * \param id      - supernode id
      * \return        - true if supernode removed
      */
     bool remove(const std::string &address);
@@ -70,33 +72,31 @@ public:
 
     /*!
      * \brief exists  - checks if supernode with given address exists in list
-     * \param address - supernode address
+     * \param id      - supernode id
      * \return        - true if exists
      */
-    bool exists(const std::string &address) const;
-
-    /*!
-     * \brief update     - updates supernode's key images. this will probably cause stake amount change
-     * \param address    - supernode's address
-     * \param key_images - list of key images
-     * \return           - true of successfully updated
-     */
-    bool update(const std::string &address, const std::vector<Supernode::SignedKeyImage> &key_images);
+    bool exists(const std::string &id) const;
 
     /*!
      * \brief get      - returns supernode instance (pointer)
-     * \param address  - supernode's address
+     * \param id       - supernode's public id
      * \return         - shared pointer to supernode or empty pointer (nullptr) is no such address
      */
-    SupernodePtr get(const std::string &address) const;
+    SupernodePtr get(const std::string &id) const;
+
+    typedef std::vector<SupernodePtr> supernode_array;
 
     /*!
-     * \brief buildAuthSample - builds auth sample (8 supernodes) for given block height
-     * \param height          - block height used to perform selection
-     * \param out             - vector of supernode pointers
-     * \return                - true on success
+     * \brief buildAuthSample       - builds auth sample (8 supernodes) for given block height
+     * \param height                - block height used to perform selection
+     * \param payment_id            - payment id which is used for building auth sample
+     * \param out                   - vector of supernode pointers
+     * \param out_auth_block_number - block number which was used for auth sample
+     * \return                      - true on success
      */
-    bool buildAuthSample(uint64_t height, std::vector<SupernodePtr> &out);
+    bool buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number);
+
+    bool buildAuthSample(const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number);
 
     /*!
      * \brief items - returns address list of known supernodes
@@ -126,18 +126,74 @@ public:
      */
     size_t refreshedItems() const;
 
+    typedef std::vector<supernode_stake> supernode_stake_array;
+
+    /*!
+     * \brief updateStakes - update stakes
+     * \param              - array of stakes
+     * \return
+     */
+    void updateStakes(uint64_t block_number, const supernode_stake_array& stakes, const std::string& cryptonode_rpc_address, bool testnet);
+
+    struct blockchain_based_list_entry
+    {
+        std::string supernode_public_id;
+        std::string supernode_public_address;
+        uint64_t    amount;
+    };
+    
+    typedef std::vector<blockchain_based_list_entry> blockchain_based_list_tier;
+    typedef std::vector<blockchain_based_list_tier>  blockchain_based_list;
+    typedef std::shared_ptr<blockchain_based_list>   blockchain_based_list_ptr;
+
+    /*!
+     * \brief setBlockchainBasedList - updates full list of supernodes
+     * \return
+     */
+    void setBlockchainBasedList(uint64_t block_number, const blockchain_based_list_ptr& list);
+
+    /*!
+     * \brief blockchainBasedListMaxBlockNumber - number of latest block which blockchain list is built for
+     * \return
+     */
+    uint64_t getBlockchainBasedListMaxBlockNumber() const;
+
+    /*!
+     * \brief synchronizeWithCryptonode - synchronize with cryptonode
+     * \return
+     */
+    void synchronizeWithCryptonode(const char* supernode_network_address, const char* supernode_address);
+
+    /*!
+     * \brief getBlockchainHeight - returns current daemon block height
+     * \return
+     */
+    uint64_t getBlockchainHeight() const;
 
 private:
-    bool loadWallet(const std::string &wallet_path);
+    // bool loadWallet(const std::string &wallet_path);
+    void addImpl(SupernodePtr item);
+    bool selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);    
+
+    typedef std::unordered_map<uint64_t, blockchain_based_list_ptr> blockchain_based_list_map;
+
+    blockchain_based_list_ptr findBlockchainBasedList(uint64_t block_number) const;
 
 private:
+    // key is public id as a string
     std::unordered_map<std::string, SupernodePtr> m_list;
     std::string m_daemon_address;
     bool m_testnet;
-    DaemonRpcClient m_rpc_client;
+    mutable DaemonRpcClient m_rpc_client;
     mutable boost::shared_mutex m_access;
     std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
+    uint64_t m_blockchain_based_list_max_block_number;
+    uint64_t m_stakes_max_block_number;
+    blockchain_based_list_map m_blockchain_based_lists;
+    std::mt19937_64 m_rng;
+    boost::posix_time::ptime m_next_recv_stakes;
+    boost::posix_time::ptime m_next_recv_blockchain_based_list;
 };
 
 using FullSupernodeListPtr = boost::shared_ptr<FullSupernodeList>;

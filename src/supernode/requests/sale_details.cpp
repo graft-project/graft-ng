@@ -46,6 +46,7 @@ bool prepareSaleDetailsResponse(const SaleDetailsRequest &req, graft::Context &c
     for (const auto &member : authSample) {
         SupernodeFee snf;
         snf.Address = member->walletAddress();
+        snf.IdKey = member->idKeyAsString();
         snf.Fee = std::to_string(total_fee / authSample.size());
         resp.AuthSample.push_back(snf);
     }
@@ -97,10 +98,11 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
     }
 
     vector<SupernodePtr> authSample;
+    uint64_t auth_sample_block_number = 0;
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
-    if (!fsl->buildAuthSample(in.BlockNumber, authSample)) {
+    if (!fsl->buildAuthSample(in.BlockNumber, in.PaymentID, authSample, auth_sample_block_number)) {
         return  errorBuildAuthSample(output);
     }
     // we have sale details locally, easy way
@@ -126,7 +128,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         // in this case, we MUST have sale details received from multicast
         if (std::find_if(authSample.begin(), authSample.end(),
                         [&](const SupernodePtr &sn) {
-                            return sn->walletAddress() == supernode->walletAddress();
+                            return sn->idKeyAsString() == supernode->idKeyAsString();
                         }) != authSample.end()) {
 
             ostringstream oss; oss << authSample;
@@ -143,10 +145,10 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         in.callback_uri = "/cryptonode/callback/sale_details/" + boost::uuids::to_string(ctx.getId());
         innerOut.loadT<serializer::JSON_B64>(in);
         UnicastRequestJsonRpc unicastReq;
-        unicastReq.params.sender_address = supernode->walletAddress();
+        unicastReq.params.sender_address = supernode->idKeyAsString();
         size_t maxIndex = authSample.size() - 1;
         size_t randomIndex = utils::random_number<size_t>(0, maxIndex);
-        unicastReq.params.receiver_address = authSample.at(randomIndex)->walletAddress();
+        unicastReq.params.receiver_address = authSample.at(randomIndex)->idKeyAsString();
         MDEBUG("requesting sale details from remote supernode: "
                << unicastReq.params.receiver_address
                << ", for payment: " << in.PaymentID);
@@ -204,8 +206,8 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
     MDEBUG("received sale details from remote supernode: " << unicastReq.sender_address
            << ", payment: " << payment_id);
 
-    if (unicastReq.receiver_address != supernode->walletAddress()) {
-        string msg =  string("wrong receiver address: " + unicastReq.receiver_address + ", expected address: " + supernode->walletAddress());
+    if (unicastReq.receiver_address != supernode->idKeyAsString()) {
+        string msg =  string("wrong receiver id: " + unicastReq.receiver_address + ", expected id: " + supernode->idKeyAsString());
         LOG_ERROR(msg);
         return errorInternalError(msg, output);
     }
@@ -266,8 +268,8 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
     UnicastRequest unicastReq = in.params;
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
-    if (unicastReq.receiver_address != supernode->walletAddress()) {
-        string msg =  string("wrong receiver address: " + supernode->walletAddress());
+    if (unicastReq.receiver_address != supernode->idKeyAsString()) {
+        string msg =  string("wrong receiver id: " + supernode->idKeyAsString());
         LOG_ERROR(msg);
         return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
     }
@@ -284,13 +286,14 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
     }
 
     vector<SupernodePtr> authSample;
+    uint64_t auth_sample_block_number = 0;
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
 
     MDEBUG("sale_details request from remote supernode: " << unicastReq.sender_address
            << ", payment: " << sdr.PaymentID
            << ", block: " << sdr.BlockNumber);
 
-    if (!fsl->buildAuthSample(sdr.BlockNumber, authSample)) {
+    if (!fsl->buildAuthSample(sdr.BlockNumber, sdr.PaymentID, authSample, auth_sample_block_number)) {
         LOG_ERROR("failed to build auth sample for block: " << sdr.BlockNumber
                   << ", payment: " << sdr.PaymentID);
         return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
@@ -313,7 +316,7 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
 
             callbackReq.params.data = innerOut.data();
             callbackReq.params.callback_uri = sdr.callback_uri;
-            callbackReq.params.sender_address = supernode->walletAddress();
+            callbackReq.params.sender_address = supernode->idKeyAsString();
             callbackReq.params.receiver_address = unicastReq.sender_address;
             callbackReq.method = "unicast";
             output.load(callbackReq);

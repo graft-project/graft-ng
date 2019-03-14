@@ -3,6 +3,7 @@
 
 #include <crypto/crypto.h>
 #include <cryptonote_config.h>
+#include <graft_rta_config.h>
 #include <boost/scoped_ptr.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/asio/io_service.hpp>
@@ -20,6 +21,19 @@ namespace cryptonote {
 namespace graft::supernode::request { struct SupernodeAnnounce; }
 
 namespace graft {
+
+/*!
+ * \brief Supernode stake description
+ */
+struct supernode_stake
+{
+  uint64_t amount = 0;
+  uint64_t block_height = 0;
+  uint64_t unlock_time = 0;
+  std::string supernode_public_id;
+  std::string supernode_public_address;
+};
+
 /*!
  * \brief The Supernode class - Representing supernode instance
  */
@@ -28,33 +42,14 @@ class Supernode
 public:
     using SignedKeyImage = std::pair<crypto::key_image, crypto::signature>;
 
-    //  50,000 GRFT –  tier 1
-    //  90,000 GRFT –  tier 2
-    //  150,000 GRFT – tier 3
-    //  250,000 GRFT – tier 4
-    static constexpr uint64_t TIER1_STAKE_AMOUNT = COIN *  50000;
-    static constexpr uint64_t TIER2_STAKE_AMOUNT = COIN *  90000;
-    static constexpr uint64_t TIER3_STAKE_AMOUNT = COIN * 150000;
-    static constexpr uint64_t TIER4_STAKE_AMOUNT = COIN * 250000;
+    static constexpr uint64_t TIER1_STAKE_AMOUNT = config::graft::TIER1_STAKE_AMOUNT;
+    static constexpr uint64_t TIER2_STAKE_AMOUNT = config::graft::TIER2_STAKE_AMOUNT;
+    static constexpr uint64_t TIER3_STAKE_AMOUNT = config::graft::TIER3_STAKE_AMOUNT;
+    static constexpr uint64_t TIER4_STAKE_AMOUNT = config::graft::TIER4_STAKE_AMOUNT;
 
-    /*!
-     * \brief Supernode - constructs supernode
-     * \param wallet_path - filename of the existing wallet or new wallet. in case filename doesn't exists, new wallet will be created
-     * \param wallet_password  - wallet's password. wallet_path doesn't exists - this password will be used to protect new wallet;
-     * \param daemon_address  - address of the cryptonode daemon
-     * \param testnet         - testnet flag
-     * \param seed_language   - seed language
-     */
-    Supernode(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address, bool testnet = false,
-              const std::string &seed_language = std::string());
+    Supernode(const std::string &wallet_address, const crypto::public_key &id_key, const std::string &daemon_address, bool testnet = false);
+
     ~Supernode();
-
-    /*!
-     * \brief setDaemonAddress - setup connection with the cryptonode daemon
-     * \param address          - address in "hostname:port" form
-     * \return                 - true on success
-     */
-    bool setDaemonAddress(const std::string &address);
 
     /*!
      * \brief refresh         - get latest blocks from the daemon
@@ -74,18 +69,12 @@ public:
      * \return            - stake amount in atomic units
      */
     uint64_t stakeAmount() const;
+
     /*!
      * \brief tier - returns the tier of this supernode based on its stake amount
      * \return     - the tier (1-4) of the supernode or 0 if the verified stake amount is below tier 1
      */
     uint32_t tier() const;
-    /*!
-     * \brief walletBalance - returns wallet balance as seen by the internal wallet; note that this
-     *                        can be wrong for a view-only wallet with unverified transactions: you
-     *                        typically want to use stakeAmount() instead.
-     * \return              - wallet balance in atomic units
-     */
-    uint64_t walletBalance() const;
     /*!
      * \brief walletAddress - returns wallet address as string
      * \return
@@ -93,50 +82,9 @@ public:
     std::string walletAddress() const;
 
     /*!
-     * \brief daemonHeight - returns cryptonode's blockchain height
-     * \return
+     * \brief setWalletAddress - sets wallet public address
      */
-    uint64_t daemonHeight() const;
-
-    /*!
-     * \brief exportKeyImages - exports key images
-     * \param key_images      - destination vector
-     * \return                - true on success
-     */
-    bool exportKeyImages(std::vector<Supernode::SignedKeyImage> &key_images) const;
-
-
-    /*!
-     * \brief importKeyImages - imports key images
-     * \param key_images      - source vector
-     * \param height          - output height
-     * \return                - true on success
-     */
-    bool importKeyImages(const std::vector<SignedKeyImage> &key_images, uint64_t &height);
-
-    /*!
-     * \brief createFromViewOnlyWallet - creates new Supernode object, creates underlying read-only stake wallet
-     * \param path                     - path to wallet files to be created
-     * \param account_public_address   - public address of read-only wallet
-     * \param viewkey                  - private view key
-     * \param testnet                  - testnet flag
-     * \return                         - pointer to Supernode object on success
-     */
-    static Supernode * createFromViewOnlyWallet(const std::string &path,
-                                       const std::string &address,
-                                       const crypto::secret_key& viewkey = crypto::secret_key(), bool testnet = false);
-
-    /*!
-     * \brief load              - creates new Supernode object from existing wallet
-     * \param wallet_path       - path to existing  wallet file
-     * \param wallet_password   - wallet password
-     * \param daemon_address    - daemon address connection for supernode
-     * \param testnet           - testnet flag
-     * \param seed_language     - seed language
-     * \return                  - Supernode pointer on success
-     */
-    static Supernode * load(const std::string &wallet_path, const std::string &wallet_password, const std::string &daemon_address, bool testnet = false,
-                                       const std::string &seed_language = std::string());
+    void setWalletAddress(const std::string &address);
 
     /*!
      * \brief updateFromAnnounce - updates supernode from announce (helper to extract signed key images from graft::supernode::request::SupernodeAnnounce)
@@ -147,23 +95,25 @@ public:
 
     /*!
      * \brief createFromAnnounce - creates new Supernode instance from announce
-     * \param path               - wallet file path
      * \param announce           - announce object
      * \param testnet            - testnet flag
      * \return                   - Supernode pointer on success
      */
-    static Supernode * createFromAnnounce(const std::string &path,
-                                          const graft::supernode::request::SupernodeAnnounce& announce,
+    static Supernode * createFromAnnounce(const graft::supernode::request::SupernodeAnnounce& announce,
                                           const std::string &daemon_address,
                                           bool testnet);
 
-    bool prepareAnnounce(graft::supernode::request::SupernodeAnnounce& announce);
-
     /*!
-     * \brief exportViewkey - exports stake wallet private viewkey
-     * \return private viewkey
+     * \brief createFromStake - creates new Supernode instance from a stake
+     * \param stake           - stake of the supernode
+     * \param testnet         - testnet flag
+     * \return                - Supernode pointer on success
      */
-    crypto::secret_key exportViewkey() const;
+    static Supernode * createFromStake(const supernode_stake& stake,
+                                       const std::string &daemon_address,
+                                       bool testnet);
+
+    bool prepareAnnounce(graft::supernode::request::SupernodeAnnounce& announce);
 
     /*!
      * \brief signMessage - signs message. internally hashes the message and signs the hash
@@ -181,7 +131,7 @@ public:
      * \param signature       - signer's signature
      * \return                - true if signature valid
      */
-    bool verifySignature(const std::string &msg, const std::string &address, const crypto::signature &signature) const;
+    static bool verifySignature(const std::string &msg, const crypto::public_key &pkey, const crypto::signature &signature);
 
     /*!
      * \brief getScoreHash  - calculates supernode score (TODO: as 265-bit integer)
@@ -190,7 +140,7 @@ public:
      * \return              - true on success
      */
 
-    bool verifyHash(const crypto::hash &hash, const std::string &address, const crypto::signature &signature) const;
+    static bool verifyHash(const crypto::hash &hash, const crypto::public_key &pkey, const crypto::signature &signature);
 
 
     void getScoreHash(const crypto::hash &block_hash, crypto::hash &result) const;
@@ -198,6 +148,7 @@ public:
     std::string networkAddress() const;
 
     void setNetworkAddress(const std::string &networkAddress);
+
     /*!
      * \brief getAmountFromTx - scans given tx for outputs destined to this address
      * \param tx              - transaction object
@@ -242,19 +193,65 @@ public:
      */
     bool busy() const;
 
+    /*!
+     * \brief stakeBlockHeight - height of block for stake
+     * \return                 - height of block
+     */
+    uint64_t stakeBlockHeight() const;
+
+    /*!
+     * \brief stakeUnlockTime - number of blocks for unlocking stake
+     * \return
+     */
+    uint64_t stakeUnlockTime() const;
+
+    /*!
+     * \brief setStake - set stake details
+     * \param          - stake amount
+     * \param          - height of block
+     * \param          - unlock time
+     */
+    void setStake(uint64_t amount, uint64_t blockHeight, uint64_t unlockTime);
+
+    /*!
+     * \brief loadKeys
+     * \param filename
+     * \return
+     */
+    bool loadKeys(const std::string &filename);
+
+    /*!
+     * \brief initKeys
+     * \param force
+     * \return
+     */
+    void initKeys();
+
+    bool saveKeys(const std::string &filename, bool force = false);
+
+    const crypto::public_key &idKey() const;
+    const crypto::secret_key &secretKey() const;
+    std::string idKeyAsString() const;
+
 
 private:
     Supernode(bool testnet = false);
+    static bool validateAnnounce(const graft::supernode::request::SupernodeAnnounce& announce, crypto::public_key &id_key);
+
 
 private:
-    using wallet2_ptr = boost::scoped_ptr<tools::wallet2>;
-    mutable wallet2_ptr m_wallet;
-    static boost::shared_ptr<boost::asio::io_service> m_ioservice;
-    std::string    m_network_address;
-
-    std::atomic<int64_t>       m_last_update_time;
-    mutable boost::shared_mutex m_wallet_guard;
-
+    // wallet's address. empty in case 'their' supernode
+    mutable boost::shared_mutex m_access;
+    std::string           m_wallet_address;
+    crypto::public_key    m_id_key;
+    crypto::secret_key    m_secret_key;
+    bool                  m_has_secret_key = false;
+    std::atomic<int64_t>  m_last_update_time;
+    uint64_t              m_stake_amount;
+    uint64_t              m_stake_block_height;
+    uint64_t              m_stake_unlock_time;
+    bool                  m_testnet = false;
+    std::string           m_network_address;
 };
 
 using SupernodePtr = boost::shared_ptr<Supernode>;

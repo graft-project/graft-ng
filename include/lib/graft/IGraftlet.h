@@ -12,6 +12,7 @@
 #include <cassert>
 #include <misc_log_ex.h>
 #include "lib/graft/router.h"
+#include "lib/graft/serveropts.h"
 
 #define REGISTER_ACTION(T, f) \
     register_handler_memf(#f, this, &T::f)
@@ -33,11 +34,11 @@ public:
     IGraftlet(const IGraftlet&) = delete;
     IGraftlet& operator = (const IGraftlet&) = delete;
 
-    void init()
+    void init(const graft::CommonOpts& opts)
     {
         if(m_inited) return;
         m_inited = true;
-        initOnce();
+        initOnce(opts);
     }
 
     const ClsName& getClsName() const { return m_clsName; }
@@ -130,7 +131,7 @@ public:
     }
 protected:
     IGraftlet(const ClsName& name = ClsName() ) : m_clsName(name) { }
-    virtual void initOnce() = 0;
+    virtual void initOnce(const graft::CommonOpts& opts) = 0;
 private:
     using TypeIndex2any = std::map<std::type_index, std::tuple<std::any, EndpointPath, Methods> >;
     using Map = std::map<FuncName, TypeIndex2any>;

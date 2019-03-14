@@ -11,6 +11,7 @@ namespace graft::supernode::request {
 // fee per supernode
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeFee,
                        (std::string, Address, std::string()),
+                       (std::string, IdKey, std::string()),
                        (std::string, Fee, std::string())
                        );
 

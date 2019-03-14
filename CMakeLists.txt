@@ -1,5 +1,40 @@
 cmake_minimum_required(VERSION 3.10)
 
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+   set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+
+if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+    message("==> The configuration is ${CMAKE_BUILD_TYPE}. Debug info will be extracted into separate files.")
+
+    function (add_executable _name)
+        _add_executable(${ARGV})
+
+        if (TARGET ${_name})
+            add_custom_command(TARGET ${_name} POST_BUILD
+                COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
+            )
+        endif()
+    endfunction()
+
+    function (add_library _name _type)
+        _add_library(${ARGV})
+
+        if (TARGET ${_name} AND ${_type} STREQUAL SHARED)
+            add_custom_command(TARGET ${_name} POST_BUILD
+                COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> strip --strip-debug --strip-unneeded "$<TARGET_FILE_NAME:${_name}>"
+                COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --add-gnu-debuglink="$<TARGET_FILE_NAME:${_name}>.debug" "$<TARGET_FILE_NAME:${_name}>"
+            )
+        endif()
+    endfunction()
+
+endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+
 project(graft_server)
 
 option(OPT_BUILD_TESTS "Build tests." OFF)
@@ -190,7 +225,7 @@ endif()
 
 set_target_properties(graft PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
 
-add_dependencies(graft libr3 cryptonode graftlet_lib)
+add_dependencies(graft version libr3 cryptonode graftlet_lib)
 
 ### requests_common library
 add_library(requests_common STATIC
@@ -245,7 +280,9 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_raw_tx.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_stakes.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/blockchain_based_list.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
@@ -285,6 +322,8 @@ add_dependencies(supernode_common requests_common graft cryptonode)
 add_executable(supernode
     ${PROJECT_SOURCE_DIR}/src/supernode/main.cpp
     )
+
+set_target_properties(supernode PROPERTIES LINK_FLAGS "-Wl,-E")
 
 target_include_directories(supernode PRIVATE
     ${GRAFT_INCLUDE_DIRS}

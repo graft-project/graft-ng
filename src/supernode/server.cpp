@@ -13,6 +13,18 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.server"
 
+namespace consts {
+   static const char * DATA_PATH = "supernode/data";
+}
+
+namespace tools {
+    // TODO: make it crossplatform
+    std::string getHomeDir()
+    {
+        return std::string(getenv("HOME"));
+    }
+}
+
 namespace graft {
 
 static std::function<void (int sig_num)> int_handler, term_handler, hup_handler;
@@ -66,7 +78,7 @@ void GraftServer::getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledW
 void GraftServer::initGraftlets()
 {
     if(m_graftletLoader) return;
-    m_graftletLoader = std::make_unique<graftlet::GraftletLoader>();
+    m_graftletLoader = std::make_unique<graftlet::GraftletLoader>(getCopts().common);
     LOG_PRINT_L1("Searching graftlets");
     for(auto& it : getCopts().graftlet_dirs)
     {
@@ -507,6 +519,9 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.workers_expelling_interval_ms = server_conf.get<int>("workers-expelling-interval-ms", 1000);
     configOpts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
     configOpts.lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
+    configOpts.common.data_dir = server_conf.get<std::string>("data-dir");
+    configOpts.common.wallet_public_address = server_conf.get<std::string>("wallet-public-address", "");
+    configOpts.common.testnet = server_conf.get<bool>("testnet", false);
 
     //ipfilter
     auto opt_ipfilter = config.get_child_optional("ipfilter");
@@ -557,7 +572,19 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         graft::OutHttp::uri_substitutions.emplace(std::move(name), std::make_tuple(std::move(uri), cnt, keepAlive, timeout));
     });
 
+    prepareDataDir(configOpts);
+
     return true;
+}
+
+void GraftServer::prepareDataDir(ConfigOpts& configOpts)
+{
+    if (configOpts.common.data_dir.empty()) {
+        boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
+        p /= ".graft/";
+        p /= consts::DATA_PATH;
+        configOpts.common.data_dir = p.string();
+    }
 }
 
 void GraftServer::initRouters()

@@ -6,6 +6,15 @@
 
 namespace graft {
 
+struct CommonOpts
+{
+    // testnet flag
+    bool testnet;
+    // data directory - base directory where supernode stake wallet and other supernodes wallets are located
+    std::string data_dir;
+    std::string wallet_public_address;
+};
+
 struct IPFilterOpts
 {
     int requests_per_sec = 0;
@@ -30,6 +39,7 @@ struct ConfigOpts
     std::vector<std::string> graftlet_dirs;
     int lru_timeout_ms;
     IPFilterOpts ipfilter;
+    CommonOpts common;
 
     void check_asserts() const
     {

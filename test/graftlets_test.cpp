@@ -176,7 +176,8 @@ TEST(DependencyGraph, dependencies)
 
 TEST(Graftlets, calls)
 {
-    graftlet::GraftletLoader loader;
+    graft::CommonOpts opts;
+    graftlet::GraftletLoader loader(opts);
 
     loader.findGraftletsInDirectory("./", "so");
     loader.findGraftletsInDirectory("./graftlets", "so");
@@ -259,25 +260,27 @@ TEST(Graftlets, calls)
 
 TEST(Graftlets, exceptionList)
 {
+    graft::CommonOpts opts;
+
 #define VER(a,b) GRAFTLET_MKVER(a,b)
     using GL = graftlet::GraftletLoader;
     {
         GL::setGraftletsExceptionList({});
-        GL loader;
+        GL loader(opts);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 4);
     }
     {
         GL::setGraftletsExceptionList({ {"myGraftlet", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)}} } });
-        GL loader;
+        GL loader(opts);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 4);
     }
     {
         GL::setGraftletsExceptionList({ {"myGraftlet1", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)}} } });
-        GL loader;
+        GL loader(opts);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 2);
@@ -286,7 +289,7 @@ TEST(Graftlets, exceptionList)
         GL::setGraftletsExceptionList({ {"myGraftlet", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,1)}} },
                                         {"myGraftlet1", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)}} }
                                       });
-        GL loader;
+        GL loader(opts);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 0);
@@ -299,13 +302,15 @@ TEST(Graftlets, exceptionList)
 
 TEST(Graftlets, checkFwVersion)
 {
+    graft::CommonOpts opts;
+
 #define VER(a,b) GRAFTLET_MKVER(a,b)
     using Version = graftlet::GraftletLoader::Version;
     Version fwVersion = graftlet::GraftletLoader::getFwVersion();
     Version save_ver = fwVersion;
 
     {
-        graftlet::GraftletLoader loader;
+        graftlet::GraftletLoader loader(opts);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 4);
@@ -313,7 +318,7 @@ TEST(Graftlets, checkFwVersion)
 
     {
         graftlet::GraftletLoader::setFwVersion( VER(0,5) );
-        graftlet::GraftletLoader loader;
+        graftlet::GraftletLoader loader(opts);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 2);

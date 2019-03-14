@@ -50,7 +50,7 @@ namespace {
 namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeSignature,
-                              (std::string, address, std::string()),
+                              (std::string, id_key, std::string()),
                               (std::string, result_signature, std::string()), // signarure for tx_id + result
                               (std::string, tx_signature, std::string())      // signature for tx_id only
                               );
@@ -92,21 +92,21 @@ struct RtaAuthResult
 {
     std::vector<SupernodeSignature> approved;
     std::vector<SupernodeSignature> rejected;
-    bool alreadyApproved(const std::string &address)
+    bool alreadyApproved(const std::string &id)
     {
-        return contains(approved, address);
+        return contains(approved, id);
     }
 
-    bool alreadyRejected(const std::string &address)
+    bool alreadyRejected(const std::string &id)
     {
-        return contains(rejected, address);
+        return contains(rejected, id);
     }
 
 private:
-    bool contains(const std::vector<SupernodeSignature> &v, const std::string &address)
+    bool contains(const std::vector<SupernodeSignature> &v, const std::string &id)
     {
         return std::find_if(v.begin(), v.end(), [&](const SupernodeSignature &item) {
-            return item.address == address;
+            return item.id_key == id;
         }) != v.end();
     }
 };
@@ -114,17 +114,19 @@ private:
 // TODO: this function duplicates PendingTransaction::putRtaSignatures
 void putRtaSignaturesToTx(cryptonote::transaction &tx, const std::vector<SupernodeSignature> &signatures, bool testnet)
 {
+#if 0
     std::vector<cryptonote::rta_signature> bin_signs;
     for (const auto &sign : signatures) {
         cryptonote::rta_signature bin_sign;
-        if (!cryptonote::get_account_address_from_str(bin_sign.address, testnet, sign.address)) {
-            LOG_ERROR("error parsing address from string: " << sign.address);
+        if (!cryptonote::get_account_address_from_str(bin_sign.address, testnet, sign.id_key)) {
+            LOG_ERROR("error parsing address from string: " << sign.id_key);
             continue;
         }
         epee::string_tools::hex_to_pod(sign.tx_signature, bin_sign.signature);
         bin_signs.push_back(bin_sign);
     }
     tx.put_rta_signatures(bin_signs);
+#endif
 }
 
 
@@ -143,7 +145,7 @@ bool signAuthResponse(AuthorizeRtaTxResponse &arg, const SupernodePtr &supernode
     epee::string_tools::hex_to_pod(arg.tx_id, tx_id);
     supernode->signHash(tx_id, sign);
     arg.signature.tx_signature = epee::string_tools::pod_to_hex(sign);
-    arg.signature.address = supernode->walletAddress();
+    arg.signature.id_key = supernode->idKeyAsString();
     return true;
 }
 
@@ -176,8 +178,10 @@ bool validateAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr 
 
 
     std::string msg = arg.tx_id + ":" + to_string(arg.result);
-    bool r1 = supernode->verifySignature(msg, arg.signature.address, sign_result);
-    bool r2 = supernode->verifyHash(tx_id, arg.signature.address, sign_tx_id);
+    crypto::public_key id_key;
+    epee::string_tools::hex_to_pod(arg.signature.id_key, id_key);
+    bool r1 = supernode->verifySignature(msg, id_key, sign_result);
+    bool r2 = supernode->verifyHash(tx_id, id_key, sign_tx_id);
     return r1 && r2;
 }
 
@@ -292,7 +296,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
    // TODO: read payment id from transaction, map tx_id to payment_id
     MulticastRequestJsonRpc authResponseMulticast;
     authResponseMulticast.method = "multicast";
-    authResponseMulticast.params.sender_address = supernode->walletAddress();
+    authResponseMulticast.params.sender_address = supernode->idKeyAsString();
     authResponseMulticast.params.receiver_addresses = req.params.receiver_addresses;
     authResponseMulticast.params.callback_uri = PATH_RESPONSE;
     AuthorizeRtaTxResponse authResponse;
@@ -301,7 +305,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
                                              RTAAuthResult::Approved
                                            : RTAAuthResult::Rejected);
     signAuthResponse(authResponse, supernode);
-    authResponse.signature.address  = supernode->walletAddress();
+    authResponse.signature.id_key  = supernode->idKeyAsString();
 
     // store tx
     ctx.global.set(authResponse.tx_id + CONTEXT_KEY_TX_BY_TXID, tx, RTA_TX_TTL);
@@ -408,7 +412,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         string payment_id = ctx.global.get(ctx_payment_id_key, std::string());
         MDEBUG("incoming tx auth response payment: " << payment_id
                      << ", tx_id: " << rtaAuthResp.tx_id
-                     << ", from: " << rtaAuthResp.signature.address
+                     << ", from: " << rtaAuthResp.signature.id_key
                      << ", result: " << int(result));
 
         // store payment id for a logging purposes
@@ -430,9 +434,9 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
             authResult = ctx.global.get(ctx_tx_to_auth_resp, authResult);
         }
 
-        if (authResult.alreadyApproved(rtaAuthResp.signature.address)
-                || authResult.alreadyRejected(rtaAuthResp.signature.address)) {
-            return errorCustomError(string("supernode: ") + rtaAuthResp.signature.address + " already processed",
+        if (authResult.alreadyApproved(rtaAuthResp.signature.id_key)
+                || authResult.alreadyRejected(rtaAuthResp.signature.id_key)) {
+            return errorCustomError(string("supernode: ") + rtaAuthResp.signature.id_key + " already processed",
                                     ERROR_ADDRESS_INVALID, output);
         }
 
@@ -442,7 +446,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
             authResult.rejected.push_back(rtaAuthResp.signature);
         }
 
-        MDEBUG("rta result accepted from " << rtaAuthResp.signature.address
+        MDEBUG("rta result accepted from " << rtaAuthResp.signature.id_key
                << ", payment: " << payment_id);
 
         // store result in context

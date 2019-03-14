@@ -25,19 +25,13 @@ protected:
     virtual void initRouters() override;
 
 private:
-    struct ConfigOptsEx : public ConfigOpts
-    {
-        // testnet flag
-        bool testnet;
-    };
-
     void initWalletManager();
     void startPeriodicTasks();
     void setHttpRouters(ConnectionManager& httpcm);
     void registerWalletRequests(ConnectionManager& httpcm);
     void flushWalletDiskCaches();
 
-    ConfigOptsEx m_configEx;
+    ConfigOpts m_configOpts;
     std::unique_ptr<WalletManager> m_walletManager;
 };
 

@@ -16,7 +16,7 @@ GRAFT_DEFINE_IO_STRUCT(SaleStatusRequest,
 GRAFT_DEFINE_IO_STRUCT_INITED(UpdateSaleStatusBroadcast,
                        (std::string, PaymentID, std::string()),
                        (int, Status, 0),
-                       (std::string, address, std::string()),   // address who updates the status
+                       (std::string, id_key, std::string()),   // address who updates the status
                        (std::string, signature, std::string())  // signature who updates the status
                        );
 

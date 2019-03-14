@@ -7,6 +7,7 @@
 #include "supernode/requests/send_supernode_announce.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+#include "lib/graft/graft_exception.h"
 
 #include <boost/property_tree/ini_parser.hpp>
 
@@ -14,18 +15,9 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.supernode"
 
 namespace consts {
-   static const char * DATA_PATH = "supernode/data";
    static const char * STAKE_WALLET_PATH = "stake-wallet";
    static const char * WATCHONLY_WALLET_PATH = "stake-wallet";
    static const size_t DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS = 5 * 1000;
-}
-
-namespace tools {
-    // TODO: make it crossplatform
-    std::string getHomeDir()
-    {
-        return std::string(getenv("HOME"));
-    }
 }
 
 namespace graft
@@ -46,25 +38,22 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     boost::property_tree::ini_parser::read_ini(m_configEx.config_filename, config);
 
     const boost::property_tree::ptree& server_conf = config.get_child("server");
-    m_configEx.data_dir = server_conf.get<std::string>("data-dir");
     m_configEx.stake_wallet_name = server_conf.get<std::string>("stake-wallet-name", "stake-wallet");
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
-    m_configEx.testnet = server_conf.get<bool>("testnet", false);
+    m_configEx.stake_wallet_refresh_interval_random_factor = server_conf.get<double>("stake-wallet-refresh-interval-random-factor", 0);
+
+    if(m_configEx.common.wallet_public_address.empty())
+    {
+        throw graft::exit_error("Configuration parameter 'wallet-public-address' cannot be empty.");
+    }
     return res;
 }
 
-void Supernode::prepareDataDir()
+void Supernode::prepareSupernode()
 {
-    if (m_configEx.data_dir.empty()) {
-        boost::filesystem::path p = boost::filesystem::absolute(tools::getHomeDir());
-        p /= ".graft/";
-        p /= consts::DATA_PATH;
-        m_configEx.data_dir = p.string();
-    }
-
     // create data directory if not exists
-    boost::filesystem::path data_path(m_configEx.data_dir);
+    boost::filesystem::path data_path(m_configEx.common.data_dir);
     boost::filesystem::path stake_wallet_path = data_path / "stake-wallet";
     boost::filesystem::path watchonly_wallets_path = data_path / "watch-only-wallets";
 
@@ -83,8 +72,6 @@ void Supernode::prepareDataDir()
         }
     }
 
-
-
     m_configEx.watchonly_wallets_path = watchonly_wallets_path.string();
 
     MINFO("data path: " << data_path.string());
@@ -92,25 +79,33 @@ void Supernode::prepareDataDir()
 
     // create supernode instance and put it into global context
     graft::SupernodePtr supernode = boost::make_shared<graft::Supernode>(
-                    (stake_wallet_path / m_configEx.stake_wallet_name).string(),
-                    "", // TODO
+                    m_configEx.common.wallet_public_address,
+                    crypto::public_key(),
                     m_configEx.cryptonode_rpc_address,
-                    m_configEx.testnet
+                    m_configEx.common.testnet
                     );
+    std::string keyfilename = (data_path / "supernode.keys").string();
+    if (!supernode->loadKeys(keyfilename)) {
+        // supernode is not initialized, generating key
+        supernode->initKeys();
+        if (!supernode->saveKeys(keyfilename)) {
+            MERROR("Failed to save keys");
+            throw std::runtime_error("Failed to save keys");
+        }
+    }
 
     supernode->setNetworkAddress(m_configEx.http_address + "/dapi/v2.0");
 
     // create fullsupernode list instance and put it into global context
     graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
-                m_configEx.cryptonode_rpc_address, m_configEx.testnet);
-
+                m_configEx.cryptonode_rpc_address, m_configEx.common.testnet);
     fsl->add(supernode);
 
     //put fsl into global context
     Context ctx(getLooper().getGcm());
-    ctx.global["supernode"] = supernode;
+    ctx.global[CONTEXT_KEY_SUPERNODE] = supernode;
     ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
-    ctx.global["testnet"] = m_configEx.testnet;
+    ctx.global["testnet"] = m_configEx.common.testnet;
     ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
     ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
 }
@@ -119,7 +114,8 @@ void Supernode::initMisc(ConfigOpts& configOpts)
 {
     ConfigOptsEx& coptsex = static_cast<ConfigOptsEx&>(configOpts);
     assert(&m_configEx == &coptsex);
-    prepareDataDir();
+
+    prepareSupernode();
     startSupernodePeriodicTasks();
 
     std::chrono::milliseconds duration( 5000 );
@@ -137,9 +133,36 @@ void Supernode::startSupernodePeriodicTasks()
         getLooper().addPeriodicTask(
                     graft::Router::Handler3(nullptr, graft::supernode::request::sendAnnounce, nullptr),
                     std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
-                    std::chrono::milliseconds(initial_interval_ms)
+                    std::chrono::milliseconds(initial_interval_ms),
+                    m_configEx.stake_wallet_refresh_interval_random_factor
                     );
     }
+
+    // sync with cryptonode
+
+    auto handler = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
+    {
+        graft::SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
+
+        if (!supernode.get()) {
+            LOG_ERROR("supernode is not set in global context");
+            return graft::Status::Error;
+        }
+
+        if (FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr()))
+        {
+            fsl->synchronizeWithCryptonode(supernode->networkAddress().c_str(), supernode->idKeyAsString().c_str());
+        }
+
+        return graft::Status::Ok;
+    };
+
+    static const size_t CRYPTONODE_SYNCHRONIZATION_PERIOD_MS = 1000;
+
+    getConnectionBase().getLooper().addPeriodicTask(
+                graft::Router::Handler3(nullptr, handler, nullptr),
+                std::chrono::milliseconds(CRYPTONODE_SYNCHRONIZATION_PERIOD_MS)
+                );
 }
 
 void Supernode::setHttpRouters(ConnectionManager& httpcm)

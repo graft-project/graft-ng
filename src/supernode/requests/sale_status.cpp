@@ -72,7 +72,7 @@ Status updateSaleStatusHandler(const Router::vars_t& vars, const graft::Input& i
 
     MDEBUG("sale status update received for payment: " << ussb.PaymentID);
 
-    if (!checkSaleStatusUpdateSignature(ussb.PaymentID, ussb.Status, ussb.address, ussb.signature, supernode)) {
+    if (!checkSaleStatusUpdateSignature(ussb.PaymentID, ussb.Status, ussb.id_key, ussb.signature, supernode)) {
         error.code = ERROR_RTA_SIGNATURE_FAILED;
         error.message = "status update: failed to validate signature for payment: " + ussb.PaymentID;
         LOG_ERROR(error.message);
@@ -119,7 +119,7 @@ string signSaleStatusUpdate(const string &payment_id, int status, const Supernod
 }
 
 
-bool checkSaleStatusUpdateSignature(const string &payment_id, int status, const string &address, const string &signature,
+bool checkSaleStatusUpdateSignature(const string &payment_id, int status, const string &id_key_, const string &signature,
                                     const SupernodePtr &supernode)
 {
     crypto::signature sign;
@@ -129,7 +129,15 @@ bool checkSaleStatusUpdateSignature(const string &payment_id, int status, const 
     }
 
     std::string msg = payment_id + ":" + to_string(status);
-    return supernode->verifySignature(msg, address, sign);
+    // TODO: address -> id_key
+    crypto::public_key id_key;
+    if (!epee::string_tools::hex_to_pod(id_key_, id_key)) {
+        LOG_ERROR("Error parsing id_key: " << id_key_);
+        return false;
+    }
+
+
+    return supernode->verifySignature(msg, id_key, sign);
 }
 
 }
