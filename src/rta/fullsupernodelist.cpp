@@ -288,9 +288,28 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
 
     std::array<supernode_array, TIERS> tier_supernodes;
     {
-        blockchain_based_list_ptr blockchain_based_list = findBlockchainBasedList(blockchain_based_list_height);
+        blockchain_based_list_ptr bbl = std::make_shared<blockchain_based_list>();
+        {
+            blockchain_based_list_ptr tmp_bbl = findBlockchainBasedList(blockchain_based_list_height);
+            for(blockchain_based_list_tier& src : *tmp_bbl)
+            {
+                blockchain_based_list_tier dst;
+                std::copy_if(src.begin(), src.end(), std::back_inserter(dst), [this](const auto& entry)->bool
+                {
+                    auto it = m_list.find(entry.supernode_public_id);
+                    if(it == m_list.end()) return false;
+                    SupernodePtr& sn = it->second;
+                    uint64_t lastUpdateAge = static_cast<unsigned>(std::time(nullptr)) - sn->lastUpdateTime();
+                    if(FullSupernodeList::ANNOUNCE_TTL_SECONDS < lastUpdateAge) return false;
+                    return true;
+                });
+                bbl->emplace_back(std::move(dst));
+            }
+        }
 
-        if (!blockchain_based_list)
+
+
+        if (!bbl)
         {
             LOG_ERROR("unable to build auth sample for block height " << height << " (blockchain_based_list_height=" << blockchain_based_list_height << ") and PaymentID "
                << payment_id << ". Blockchain based list for this block is absent, latest block is " << getBlockchainBasedListMaxBlockNumber());
@@ -308,9 +327,9 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
  
             //select supernodes for a full supernode list
 
-        MDEBUG("use blockchain based list for height " << blockchain_based_list_height << " (" << blockchain_based_list.get() << ")");
+        MDEBUG("use blockchain based list for height " << blockchain_based_list_height << " (" << bbl.get() << ")");
         int t = 0;
-        for (const blockchain_based_list_tier& l : *blockchain_based_list)
+        for (const blockchain_based_list_tier& l : *bbl)
         {
           MDEBUG("...tier #" << t);
           int j=0;
@@ -319,9 +338,9 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
           t++;
         }
 
-        for (size_t i=0, tiers_count=blockchain_based_list->size(); i<TIERS && i<tiers_count; i++)
+        for (size_t i=0, tiers_count=bbl->size(); i<TIERS && i<tiers_count; i++)
         {
-            const blockchain_based_list_tier& src_array = (*blockchain_based_list)[i];
+            const blockchain_based_list_tier& src_array = (*bbl)[i];
             supernode_array&                  dst_array = tier_supernodes[i];
             
             dst_array.reserve(AUTH_SAMPLE_SIZE);
