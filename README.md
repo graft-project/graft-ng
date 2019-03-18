@@ -4,9 +4,11 @@
 
 ### Dependencies
 
+**Due to gcc 7.3.0 being a hard requirement, we strongly recommend to use Ubuntu 18.04 as a build platform***
+
 | Dependency     | Min. Version  | Debian/Ubuntu Pkg  | Arch Pkg       | Optional | Purpose                |
 | -------------- | ------------- | ------------------ | -------------- | -------- | ---------------------- |
-| GCC            | 4.7.3         | `build-essential`  | `base-devel`   | NO       |                        |
+| GCC            | 7.3.0         | `build-essential`  | `base-devel`   | NO       |                        |
 | CMake          | 3.11.0        | `cmake`^           | `cmake`        | NO       |                        |
 | pkg-config     | any           | `pkg-config`       | `base-devel`   | NO       |                        |
 | Boost          | 1.65          | `libboost-all-dev` | `boost`        | NO       | C++ libraries          |
@@ -41,13 +43,7 @@ curl -s https://cmake.org/files/v3.11/cmake-3.11.1-Linux-x86_64.sh | bash -e
 Clone repository:
 
 ```bash
-git clone https://github.com/graft-project/graft-ng.git
-```
-Initialize and update submodules:
-
-```bash
-git submodule init
-git submodule update --recursive
+git clone --recurse-submodules https://github.com/graft-project/graft-ng.git
 ```
 
 ### Build instructions
