@@ -4,7 +4,7 @@
 
 ### Dependencies
 
-**Due to gcc 7.3.0 being a hard requirement, we strongly recomend to use Ubuntu 18.04 as a build platform***
+**Due to gcc 7.3.0 being a hard requirement, we strongly recommend to use Ubuntu 18.04 as a build platform***
 
 | Dependency     | Min. Version  | Debian/Ubuntu Pkg  | Arch Pkg       | Optional | Purpose                |
 | -------------- | ------------- | ------------------ | -------------- | -------- | ---------------------- |
