@@ -3,6 +3,10 @@
 #include <signal.h>
 
 #ifdef __cplusplus
+
+#include <sstream>
+std::string graft_bt_str();
+
 extern "C" {
 #endif
     void graft_bt();
