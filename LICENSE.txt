@@ -1,0 +1,25 @@
+* This license automatically overrides all license headers in project files *
+
+
+
+Copyright (c) 2017-2019 GRAFT Blockchain Foundation - GRAFT Blockchain,Inc 
+info@graft.network
+
+You can redistribute and/or modify the software 
+under the terms of the GNU General Public License version 2 as
+published by the Free Software Foundation. For the terms of this
+license, see <http://www.gnu.org/licenses/>.
+
+You are free to use this software under the terms of the GNU General
+Public License, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
+
+
+
+-------
+Note:
+
+While it is our intent to have a permissive license, 
+the project currently uses a library that's licensed under GPL2 (mongoose).  
+In the future we will look for ways to implement a more permissive license.
