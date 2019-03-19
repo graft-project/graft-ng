@@ -446,7 +446,17 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 #endif
                 ("log-format", po::value<std::string>(), "e.g. %datetime{%Y-%M-%d %H:%m:%s.%g} %level %logger %rfile %msg");
 
-        po::store(po::parse_command_line(argc, argv, desc), vm);
+        try
+        {
+            po::store(po::parse_command_line(argc, argv, desc), vm);
+        }
+        catch(std::exception& ex)
+        {
+            std::cout << "Exception : " << ex.what() << "\n";
+            usage(desc);
+            exit(EXIT_FAILURE);
+        }
+
         po::notify(vm);
 
         if (vm.count("help")) {
