@@ -134,14 +134,14 @@ set(CRYPTONODE_LIBS
     )
 
 set(COMMON_LIBS
-    ssl
-    crypto
-    readline
+    libssl.a
+    libcrypto.a
+    libreadline.a
     )
 
-#set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_LIBS ON)
 #set(Boost_USE_MULTITHREADED ON)
-#set(Boost_USE_STATIC_RUNTIME ON)
+set(Boost_USE_STATIC_RUNTIME ON)
 
 find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system chrono filesystem program_options serialization thread regex)
 
@@ -169,6 +169,7 @@ target_include_directories(graftlet_lib PRIVATE
 if(UNIX)
     target_link_libraries(graftlet_lib PRIVATE
         dl
+        -static-libgcc -static-libstdc++
         )
 endif(UNIX)
 
@@ -208,10 +209,11 @@ target_link_libraries(graft PRIVATE
     ${PROJECT_BINARY_DIR}/BUILD/lib/liblib3rdparty.a
     graftlet_lib
     easylogging
-    pcre
+    libpcre.a
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
+    -static-libgcc -static-libstdc++
     )
 
 set_target_properties(graft PROPERTIES
@@ -237,6 +239,7 @@ add_library(requests_common STATIC
 
 target_include_directories(requests_common PRIVATE
     ${GRAFT_INCLUDE_DIRS}
+    -static-libgcc -static-libstdc++
     )
 
 target_link_libraries(requests_common PRIVATE
@@ -251,6 +254,7 @@ target_link_libraries(requests_common PRIVATE
     ${Boost_REGEX_LIBRARY}
     ${COMMON_LIBS}
     graft
+    -static-libgcc -static-libstdc++
     )
 
 set_target_properties(requests_common PROPERTIES
@@ -290,6 +294,7 @@ add_library(supernode_common STATIC
 
 target_include_directories(supernode_common PRIVATE
     ${GRAFT_INCLUDE_DIRS}
+    -static-libgcc -static-libstdc++
     )
 
 target_link_libraries(supernode_common PRIVATE
@@ -305,6 +310,7 @@ target_link_libraries(supernode_common PRIVATE
     ${COMMON_LIBS}
     requests_common
     graft
+    -static-libgcc -static-libstdc++
     )
 
 set_target_properties(supernode_common PROPERTIES
@@ -332,6 +338,7 @@ target_include_directories(supernode PRIVATE
 target_link_libraries(supernode PRIVATE
     graft
     supernode_common
+    -static-libgcc -static-libstdc++
     )
 
 add_dependencies(supernode graft supernode_common)
@@ -352,6 +359,7 @@ target_link_libraries(wallet_server PRIVATE
     ${Boost_SYSTEM_LIBRARY}
     graft
     requests_common
+    -static-libgcc -static-libstdc++
     )
 
 add_dependencies(wallet_server graft requests_common)
@@ -406,6 +414,7 @@ if (OPT_BUILD_TESTS)
             ${GT_LIBS}
             graft
             supernode_common
+            -static-libgcc -static-libstdc++
             )
 
 
