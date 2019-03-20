@@ -39,6 +39,7 @@ project(graft_server)
 
 option(OPT_BUILD_TESTS "Build tests." OFF)
 option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
+option(STATIC_LINK "Link executables and libraries statically" ON)
 
 if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
     # CMAKE_ROOT_SOURCE_DIR variable is required, because CMAKE_SOURCE_DIR works well for include like commands and does not for external projects
@@ -92,6 +93,12 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
 
+if(STATIC_LINK)
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+    set(CMAKE_SHARED_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+    set(CMAKE_MODULE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+endif(STATIC_LINK)
+
 set(GRAFT_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/libr3/include
     ${PROJECT_SOURCE_DIR}/include
@@ -133,15 +140,25 @@ set(CRYPTONODE_LIBS
     cncrypto
     )
 
-set(COMMON_LIBS
-    ssl
-    crypto
-    readline
-    )
+if(STATIC_LINK)
+    set(COMMON_LIBS
+        libssl.a
+        libcrypto.a
+        libreadline.a
+        )
+else(STATIC_LINK)
+    set(COMMON_LIBS
+        ssl
+        crypto
+        readline
+        )
+endif(STATIC_LINK)
 
-#set(Boost_USE_STATIC_LIBS ON)
-#set(Boost_USE_MULTITHREADED ON)
-#set(Boost_USE_STATIC_RUNTIME ON)
+if(STATIC_LINK)
+    set(Boost_USE_STATIC_LIBS ON)
+    #set(Boost_USE_MULTITHREADED ON)
+    set(Boost_USE_STATIC_RUNTIME ON)
+endif(STATIC_LINK)
 
 find_package(Boost 1.65 QUIET REQUIRED COMPONENTS system chrono filesystem program_options serialization thread regex)
 
@@ -203,12 +220,18 @@ target_include_directories(graft PRIVATE
     ${GRAFT_INCLUDE_DIRS}
     )
 
+if(STATIC_LINK)
+    set(PCRE_LIB libpcre.a)
+else(STATIC_LINK)
+    set(PCRE_LIB pcre)
+endif(STATIC_LINK)
+
 target_link_libraries(graft PRIVATE
     ${PROJECT_BINARY_DIR}/BUILD/lib/libr3.a
     ${PROJECT_BINARY_DIR}/BUILD/lib/liblib3rdparty.a
     graftlet_lib
     easylogging
-    pcre
+    ${PCRE_LIB}
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
