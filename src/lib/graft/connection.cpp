@@ -317,7 +317,11 @@ Looper::Looper(const ConfigOpts& copts, ConnectionBase& connectionBase)
     : TaskManager(copts, connectionBase.getSysInfoCounter())
     , m_mgr(std::make_unique<mg_mgr>())
 {
+#if GN_ENABLE_EVENTFD
     mg_mgr_init(m_mgr.get(), &connectionBase, cb_event);
+#else
+    mg_mgr_init(m_mgr.get(), &connectionBase);
+#endif
 }
 
 
@@ -356,7 +360,11 @@ void Looper::stop(bool force)
 
 void Looper::notifyJobReady()
 {
+#ifndef __APPLE__
     mg_notify(m_mgr.get());
+#else
+    #warning mg_notify is DISABLED!
+#endif
 }
 
 void Looper::cb_event(mg_mgr *mgr, uint64_t cnt)

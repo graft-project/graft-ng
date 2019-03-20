@@ -6,6 +6,10 @@
 #define __USE_GNU
 #endif
 
+#ifdef __APPLE__
+#define _XOPEN_SOURCE
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +23,7 @@
 #define TRACE_SIZE_MAX 32
 #define FUNC_NAME_SIZE_MAX 256
 
+#ifndef __APPLE__
 /* This structure mirrors the one found in /usr/include/asm/ucontext.h */
 typedef struct {
     unsigned long     uc_flags;
@@ -27,6 +32,7 @@ typedef struct {
     struct sigcontext uc_mcontext;
     sigset_t          uc_sigmask;
 } sig_ucontext_t;
+#endif
 
 void graft_bt()
 {
@@ -84,6 +90,7 @@ void graft_bt()
 
 void graft_bt_sighandler(int sig, siginfo_t *info, void *ucontext)
 {
+#ifndef __APPLE__
     void *caller_address;
     sig_ucontext_t *ctx = (sig_ucontext_t *)ucontext;
 
@@ -96,9 +103,11 @@ void graft_bt_sighandler(int sig, siginfo_t *info, void *ucontext)
 #endif
     fprintf(stderr, "Signal %d (%s), address is %p from %p\n",
             sig, strsignal(sig), info->si_addr, (void *)caller_address);
-
+#else
+    fprintf(stderr, "Signal %d (%s), address is %p\n",
+            sig, strsignal(sig), info->si_addr);
+#endif
     graft_bt();
 
     exit(EXIT_FAILURE);
 }
-

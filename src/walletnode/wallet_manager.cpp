@@ -63,7 +63,7 @@ struct URL
 
     protocol.reserve(distance(url_s.begin(), prot_i));
 
-    transform(url_s.begin(), prot_i, back_inserter(protocol), ptr_fun<int,int>(tolower)); // protocol is icase
+    transform(url_s.begin(), prot_i, back_inserter(protocol), boost::ptr_fun<int,int>(tolower)); // protocol is icase
 
     if( prot_i == url_s.end() )
         return;
@@ -80,13 +80,13 @@ struct URL
 
       port = "80"; //todo: make port based on protocol
 
-      transform(prot_i, path_i, back_inserter(host), ptr_fun<int,int>(tolower)); // host is icase
+      transform(prot_i, path_i, back_inserter(host), boost::ptr_fun<int,int>(tolower)); // host is icase
     }
     else
     {
       host.reserve(distance(prot_i, port_i));
 
-      transform(prot_i, port_i, back_inserter(host), ptr_fun<int,int>(tolower)); // host is icase
+      transform(prot_i, port_i, back_inserter(host), boost::ptr_fun<int,int>(tolower)); // host is icase
 
       port.assign(port_i + 1, path_i);
     }
@@ -608,7 +608,7 @@ void WalletManager::requestTransactionHistory
       info.Hash          = epee::string_tools::pod_to_hex(details.m_tx_hash);
       info.BlockHeight   = details.m_block_height;
       info.Pending       = true;
-      info.Timestamp     = details.m_timestamp;
+      info.Timestamp     = uint64_t(details.m_timestamp);
       info.Confirmations = 0;
 
       transactions.emplace_back(std::move(info));
