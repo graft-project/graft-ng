@@ -4,10 +4,10 @@
 #include "lib/graft/GraftletLoader.h"
 #include "lib/graft/sys_info.h"
 #include "lib/graft/graft_exception.h"
+#include "lib/graft/ConfigIni.h"
 #include "version.h"
 
 #include <boost/program_options.hpp>
-#include <boost/property_tree/ini_parser.hpp>
 #include <regex>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -279,7 +279,7 @@ std::string trim_comments(std::string s)
 
 namespace po = boost::program_options;
 
-void init_log(const boost::property_tree::ptree& config, const po::variables_map& vm)
+void init_log(const ConfigIniSubtree& config, const po::variables_map& vm)
 {
     std::string log_level = "3";
     bool log_console = true;
@@ -287,15 +287,15 @@ void init_log(const boost::property_tree::ptree& config, const po::variables_map
     std::string log_format;
 
     //from config
-    const boost::property_tree::ptree& log_conf = config.get_child("logging");
-    boost::optional<std::string> level  = log_conf.get_optional<std::string>("loglevel");
-    if(level) log_level = trim_comments( level.get() );
-    boost::optional<std::string> log_file  = log_conf.get_optional<std::string>("logfile");
-    if(log_file) log_filename = trim_comments( log_file.get() );
-    boost::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
-    if(log_to_console) log_console = log_to_console.get();
-    boost::optional<std::string> log_fmt  = log_conf.get_optional<std::string>("log-format");
-    if(log_fmt) log_format = trim_comments( log_fmt.get() );
+    auto log_conf = config.get_child("logging");
+    std::optional<std::string> level  = log_conf.get_optional<std::string>("loglevel");
+    if(level) log_level = trim_comments( level.value() );
+    std::optional<std::string> log_file  = log_conf.get_optional<std::string>("logfile");
+    if(log_file) log_filename = trim_comments( log_file.value() );
+    std::optional<bool> log_to_console  = log_conf.get_optional<bool>("console");
+    if(log_to_console) log_console = log_to_console.value();
+    std::optional<std::string> log_fmt  = log_conf.get_optional<std::string>("log-format");
+    if(log_fmt) log_format = trim_comments( log_fmt.value() );
 
     //override from cmdline
     if (vm.count("log-level")) log_level = vm["log-level"].as<std::string>();
@@ -501,8 +501,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
         config_filename  = (selfpath / "config.ini").string();
     }
 
-    boost::property_tree::ptree config;
-    boost::property_tree::ini_parser::read_ini(config_filename, config);
+    ConfigIniSubtree config = ConfigIniSubtree::create(config_filename);
     // now we have only following parameters
     // [server]
     //  address <IP>:<PORT>
@@ -537,7 +536,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
 
     configOpts.config_filename = config_filename;
 
-    const boost::property_tree::ptree& server_conf = config.get_child("server");
+    ConfigIniSubtree server_conf = config.get_child("server");
     configOpts.http_address = server_conf.get<std::string>("http-address");
     configOpts.coap_address = server_conf.get<std::string>("coap-address");
     configOpts.timer_poll_interval_ms = server_conf.get<int>("timer-poll-interval-ms");
@@ -556,7 +555,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     if(opt_ipfilter)
     {
         IPFilterOpts& ipfilter = configOpts.ipfilter;
-        const auto ipfilter_conf = opt_ipfilter.get();
+        const auto ipfilter_conf = opt_ipfilter.value();
         ipfilter.window_size_sec = ipfilter_conf.get<int>("window-size-sec", 0);
         ipfilter.requests_per_sec = ipfilter_conf.get<int>("requests-per-sec", 0);
         ipfilter.ban_ip_sec = ipfilter_conf.get<int>("ban-ip-sec", 0);
@@ -577,22 +576,22 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     }
 
     //configOpts.graftlet_dirs
-    const boost::property_tree::ptree& graftlets_conf = config.get_child("graftlets");
-    boost::optional<std::string> dirs_opt  = graftlets_conf.get_optional<std::string>("dirs");
-    details::initGraftletDirs(argc, argv, (dirs_opt)? dirs_opt.get() : "", bool(dirs_opt), configOpts.graftlet_dirs);
+    ConfigIniSubtree graftlets_conf = config.get_child("graftlets");
+    std::optional<std::string> dirs_opt  = graftlets_conf.get_optional<std::string>("dirs");
+    details::initGraftletDirs(argc, argv, (dirs_opt)? dirs_opt.value() : "", bool(dirs_opt), configOpts.graftlet_dirs);
 
-    const boost::property_tree::ptree& cryptonode_conf = config.get_child("cryptonode");
+    ConfigIniSubtree cryptonode_conf = config.get_child("cryptonode");
     configOpts.cryptonode_rpc_address = cryptonode_conf.get<std::string>("rpc-address");
 
-    const boost::property_tree::ptree& log_conf = config.get_child("logging");
-    boost::optional<int> log_trunc_to_size  = log_conf.get_optional<int>("trunc-to-size");
-    configOpts.log_trunc_to_size = (log_trunc_to_size)? log_trunc_to_size.get() : -1;
+    ConfigIniSubtree log_conf = config.get_child("logging");
+    std::optional<int> log_trunc_to_size  = log_conf.get_optional<int>("trunc-to-size");
+    configOpts.log_trunc_to_size = (log_trunc_to_size)? log_trunc_to_size.value() : -1;
 
-    const boost::property_tree::ptree& uri_subst_conf = config.get_child("upstream");
+    ConfigIniSubtree uri_subst_conf = config.get_child("upstream");
     graft::OutHttp::uri_substitutions.clear();
     std::for_each(uri_subst_conf.begin(), uri_subst_conf.end(),[&uri_subst_conf](auto it)
     {
-        std::string name(it.first);
+        std::string name(it.name());
         std::string val(uri_subst_conf.get<std::string>(name));
 
         std::string uri; int cnt; bool keepAlive; double timeout;
