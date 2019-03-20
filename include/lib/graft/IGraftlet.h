@@ -46,11 +46,11 @@ public:
     IGraftlet(const IGraftlet&) = delete;
     IGraftlet& operator = (const IGraftlet&) = delete;
 
-    void init(const graft::CommonOpts& opts)
+    void init(const graft::CommonOpts& opts, graft::Context& ctx)
     {
         if(m_inited) return;
         m_inited = true;
-        initOnce(opts);
+        initOnce(opts, ctx);
     }
 
     const ClsName& getClsName() const { return m_clsName; }
@@ -183,7 +183,7 @@ public:
 
 protected:
     IGraftlet(const ClsName& name = ClsName() ) : m_clsName(name) { }
-    virtual void initOnce(const graft::CommonOpts& opts) = 0;
+    virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) = 0;
 private:
     using TypeIndex2any = std::map<std::type_index, std::tuple<std::any, EndpointPath, Methods> >;
     using Map = std::map<FuncName, TypeIndex2any>;

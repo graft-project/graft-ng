@@ -78,7 +78,7 @@ void GraftServer::getThreadPoolInfo(uint64_t& activeWorkers, uint64_t& expelledW
 void GraftServer::initGraftlets()
 {
     if(m_graftletLoader) return;
-    m_graftletLoader = std::make_unique<graftlet::GraftletLoader>(getCopts().common);
+    m_graftletLoader = std::make_unique<graftlet::GraftletLoader>(getCopts().common, getLooper().getGcm());
     LOG_PRINT_L1("Searching graftlets");
     for(auto& it : getCopts().graftlet_dirs)
     {
@@ -534,7 +534,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     details::init_log(config, vm);
     //
 
-    configOpts.config_filename = config_filename;
+    configOpts.common.config_filename = config_filename;
 
     ConfigIniSubtree server_conf = config.get_child("server");
     configOpts.http_address = server_conf.get<std::string>("http-address");

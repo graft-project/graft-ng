@@ -114,7 +114,7 @@ public:
     using Version = int;
     using GraftletExceptionList = std::vector< std::pair< DllName, std::vector< std::pair<Version, Version> >>>;
 
-    GraftletLoader(const graft::CommonOpts& opts) : m_opts(opts) { }
+    GraftletLoader(const graft::CommonOpts& opts, graft::GlobalContextMap& gcm) : m_opts(opts), m_ctx(gcm) { }
 
     static Version getFwVersion() { return m_fwVersion; }
     static void setFwVersion(Version fwVersion) { m_fwVersion = fwVersion; }
@@ -224,7 +224,7 @@ private:
             GraftletRegistry* gr = it1->second;
             std::shared_ptr<BaseT> concreteGraftlet = gr->resolveGraftlet<BaseT>();
             if(!concreteGraftlet.get()) throw std::runtime_error("Cannot resolve dll name:" + dllName + " type:" + typeid(BaseT).name());
-            concreteGraftlet->init(m_opts);
+            concreteGraftlet->init(m_opts, m_ctx);
             ClsName name = concreteGraftlet->getClsName();
             std::any any(concreteGraftlet);
 
@@ -295,6 +295,7 @@ private:
     static ExceptionMap m_exceptionMap;
 
     const graft::CommonOpts& m_opts;
+    graft::Context m_ctx;
 
     //we can use functions in a dll until we release object of boost::dll::shared_library
     //dll name -> (lib, version, path)
