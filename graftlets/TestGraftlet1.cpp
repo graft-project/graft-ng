@@ -56,7 +56,7 @@ public:
         return graft::Status::Ok;
     }
 
-    virtual void initOnce(const graft::CommonOpts& opts) override
+    virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) override
     {
 //        REGISTER_ACTION(TestGraftlet1, testUndefined);
         REGISTER_ACTION(TestGraftlet1, testInt1);

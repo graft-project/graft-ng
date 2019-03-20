@@ -2,6 +2,7 @@
 #define __GRAFTLET__
 #include "lib/graft/GraftletRegistry.h"
 #include "lib/graft/IGraftlet.h"
+#include "lib/graft/ConfigIni.h"
 
 #include<cassert>
 
@@ -75,8 +76,13 @@ public:
         return (stop)? graft::Status::Stop : graft::Status::Ok;
     }
 
-    virtual void initOnce(const graft::CommonOpts& opts) override
+    virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) override
     {
+        if(!opts.config_filename.empty())
+        {
+            graft::ConfigIniSubtree config = graft::ConfigIniSubtree::create(opts.config_filename);
+            ctx.global["graftlets.dirs"] = config.get<std::string>("graftlets.dirs");
+        }
 //        REGISTER_ACTION(TestGraftlet, testUndefined);
         REGISTER_ACTION(TestGraftlet, testInt1);
         REGISTER_ACTION(TestGraftlet, testInt2);

@@ -52,7 +52,7 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     ConfigOptsEx& coptsex = static_cast<ConfigOptsEx&>(configOpts);
     assert(&m_configEx == &coptsex);
 
-    ConfigIniSubtree config = ConfigIniSubtree::create(m_configEx.config_filename);
+    ConfigIniSubtree config = ConfigIniSubtree::create(m_configEx.common.config_filename);
 
     const ConfigIniSubtree server_conf = config.get_child("server");
     m_configEx.stake_wallet_name = server_conf.get<std::string>("stake-wallet-name", "stake-wallet");
