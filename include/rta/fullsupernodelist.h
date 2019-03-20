@@ -159,6 +159,29 @@ public:
     uint64_t getBlockchainBasedListMaxBlockNumber() const;
 
     /*!
+     * \brief hasBlockchainBasedList - returns if blockchain based list for specified block_number is present
+     * \param block_number           - number of block for which list presense should be checked
+     * \return
+     */
+    bool hasBlockchainBasedList(uint64_t block_number) const;
+
+    /*!
+     * \brief hasBlockchainBasedList - returns if blockchain based list for specified block_number is present
+     * \param supernode_public_id    - supernode ID
+     * \param block_number           - number of block for which supernode presense should be checked
+     * \return                       - tier number or 0 if supernode is not present in blockchain based list
+     */
+    size_t getSupernodeBlockchainBasedListTier(const std::string& supernode_public_id, uint64_t block_number) const;
+
+    /*!
+     * \brief getBlockchainBasedListForAuthSample - builds blockchain based list for specified block height and removes nodes which are not reachable
+     * \param block_number - block height used to list building
+     * \param out_list     - resulting list
+     * \return             - block number which was used for base list
+     */
+    uint64_t getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list) const;
+    
+    /*!
      * \brief synchronizeWithCryptonode - synchronize with cryptonode
      * \return
      */

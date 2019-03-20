@@ -25,12 +25,18 @@ GRAFT_DEFINE_IO_STRUCT(DbSupernode,
     (std::string, Address),
     (std::string, PublicId),
     (uint64, StakeAmount),
-    (uint64, ExpiringBlock),
+    (uint64, StakeFirstValidBlock),
+    (uint64, StakeExpiringBlock),
+    (bool, IsStakeValid),
+    (unsigned int, BlockchainBasedListTier),
+    (unsigned int, AuthSampleBlockchainBasedListTier),
+    (bool, IsAvailableForAuthSample),
     (uint64, LastUpdateAge)
 );
 
 GRAFT_DEFINE_IO_STRUCT(SupernodeListResponse,
     (std::vector<DbSupernode>, items),
+    (bool, has_blockchain_based_list),
     (uint64_t, height)
 );
 
@@ -52,7 +58,26 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
     auto supernodes = fsl->items();
 
     SupernodeListJsonRpcResult resp;
+
     resp.result.height = fsl->getBlockchainBasedListMaxBlockNumber();
+    resp.result.has_blockchain_based_list = fsl->hasBlockchainBasedList(resp.result.height);
+
+    FullSupernodeList::blockchain_based_list auth_sample_base_list;
+
+    uint64_t auth_sample_base_block_number = fsl->getBlockchainBasedListForAuthSample(resp.result.height, auth_sample_base_list);
+
+    auto is_supernode_available = [&](const std::string& supernode_public_id)
+    {
+        for (const FullSupernodeList::blockchain_based_list_tier& tier : auth_sample_base_list)
+        {
+            for (const FullSupernodeList::blockchain_based_list_entry& entry : tier)
+                if (supernode_public_id == entry.supernode_public_id)
+                    return true;
+        }
+       
+        return false;
+    };
+
     for (auto& sa : supernodes)
     {
         auto sPtr = fsl->get(sa);
@@ -73,7 +98,13 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
         dbSupernode.Address = sPtr->walletAddress();
         dbSupernode.PublicId = sPtr->idKeyAsString();
         dbSupernode.StakeAmount = sPtr->stakeAmount();
-        dbSupernode.ExpiringBlock = sPtr->stakeBlockHeight() + sPtr->stakeUnlockTime();
+        dbSupernode.StakeFirstValidBlock = sPtr->stakeBlockHeight();
+        dbSupernode.StakeExpiringBlock = sPtr->stakeBlockHeight() + sPtr->stakeUnlockTime();
+        dbSupernode.IsStakeValid = resp.result.height >= dbSupernode.StakeFirstValidBlock && resp.result.height < dbSupernode.StakeExpiringBlock;
+        dbSupernode.BlockchainBasedListTier = fsl->getSupernodeBlockchainBasedListTier(dbSupernode.PublicId, resp.result.height);
+        dbSupernode.AuthSampleBlockchainBasedListTier = fsl->getSupernodeBlockchainBasedListTier(dbSupernode.PublicId, auth_sample_base_block_number);
+        dbSupernode.IsAvailableForAuthSample = is_supernode_available(dbSupernode.PublicId);
+
         resp.result.items.push_back(dbSupernode);
     }
     output.load(resp);
