@@ -48,7 +48,7 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     auto& cfg = out.configuration;
     const ConfigOpts& co = ctx.handlerAPI()->configOpts();
 
-    cfg.config_filename = co.config_filename;
+    cfg.config_filename = co.common.config_filename;
     cfg.http_address = co.http_address;
     cfg.coap_address = co.coap_address;
     cfg.http_connection_timeout = co.http_connection_timeout;

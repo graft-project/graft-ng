@@ -9,8 +9,7 @@
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "lib/graft/graft_exception.h"
-
-#include <boost/property_tree/ini_parser.hpp>
+#include "lib/graft/ConfigIni.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.supernode"
@@ -53,10 +52,9 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     ConfigOptsEx& coptsex = static_cast<ConfigOptsEx&>(configOpts);
     assert(&m_configEx == &coptsex);
 
-    boost::property_tree::ptree config;
-    boost::property_tree::ini_parser::read_ini(m_configEx.config_filename, config);
+    ConfigIniSubtree config = ConfigIniSubtree::create(m_configEx.common.config_filename);
 
-    const boost::property_tree::ptree& server_conf = config.get_child("server");
+    const ConfigIniSubtree server_conf = config.get_child("server");
     m_configEx.stake_wallet_name = server_conf.get<std::string>("stake-wallet-name", "stake-wallet");
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
@@ -64,18 +62,18 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
 
     {//get external address
         //try get from [stun]
-        boost::optional<boost::property_tree::ptree&> stun_conf = config.get_child_optional("stun");
+        std::optional<ConfigIniSubtree> stun_conf = config.get_child_optional("stun");
         bool ok = !!stun_conf;
         if(ok)
         {
-            bool stun_enabled = stun_conf.get().get<bool>("enabled", false);
+            bool stun_enabled = stun_conf.value().get<bool>("enabled", false);
             ok = stun_enabled;
         }
         if(ok)
         {//using stun
-            std::string server = stun_conf.get().get<std::string>("server", "");
-            std::string port = stun_conf.get().get<std::string>("port", "");
-            std::string cmd = stun_conf.get().get<std::string>("cmd", "");
+            std::string server = stun_conf.value().get<std::string>("server", "");
+            std::string port = stun_conf.value().get<std::string>("port", "");
+            std::string cmd = stun_conf.value().get<std::string>("cmd", "");
 
             std::string env = "stun_server=" + server + " " + "stun_port=" + port + "; ";
             std::string external_address = exec(env + cmd);

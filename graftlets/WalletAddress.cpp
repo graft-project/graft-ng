@@ -55,7 +55,7 @@ public:
         return true;
     }
 
-    virtual void initOnce(const graft::CommonOpts& opts) override
+    virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) override
     {
         makeGetWalletAddressResponse(opts);
 
