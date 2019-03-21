@@ -25,10 +25,19 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/../modules/libr3/include
 )
 
-
 add_library(graftlet_walletAddress SHARED
     WalletAddress.cpp
 )
+
+link_directories(${PROJECT_BINARY_DIR}/BUILD/cryptonode/lib)
+target_link_libraries(graftlet_walletAddress PRIVATE
+    supernode_common
+    graft
+    epee
+    easylogging
+    ${Boost_SYSTEM_LIBRARY}
+    )
+
 set_target_properties(graftlet_walletAddress PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode
 )

@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 
+if(APPLE)
+  include_directories(SYSTEM /opt/local/include)
+  link_directories(/opt/local/lib)
+endif()
+
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
    set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
@@ -10,7 +15,7 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
     function (add_executable _name)
         _add_executable(${ARGV})
 
-        if (TARGET ${_name})
+        if (TARGET ${_name} AND NOT APPLE)
             add_custom_command(TARGET ${_name} POST_BUILD
                 COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
                 COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
@@ -23,7 +28,7 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
     function (add_library _name _type)
         _add_library(${ARGV})
 
-        if (TARGET ${_name} AND ${_type} STREQUAL SHARED)
+        if (TARGET ${_name} AND ${_type} STREQUAL SHARED AND NOT APPLE)
             add_custom_command(TARGET ${_name} POST_BUILD
                 COMMAND echo "$<TARGET_FILE_NAME:${_name}>: extracting debug info"
                 COMMAND ${CMAKE_COMMAND} -E chdir $<TARGET_FILE_DIR:${_name}> objcopy --only-keep-debug "$<TARGET_FILE_NAME:${_name}>" "$<TARGET_FILE_NAME:${_name}>.debug"
@@ -91,7 +96,10 @@ ExternalProject_Add(
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
+if(NOT APPLE)
+add_definitions(-DGN_ENABLE_EVENTFD=1)
+endif()
+add_definitions(-DMG_USE_READ_WRITE)
 
 if(STATIC_LINK)
     set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
@@ -246,7 +254,9 @@ if(ENABLE_SYSLOG)
     target_compile_definitions(graft PRIVATE -DELPP_SYSLOG)
 endif()
 
-set_target_properties(graft PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
+if(NOT APPLE)
+  set_target_properties(graft PROPERTIES LINK_FLAGS "-Wl,-E -rdynamic")
+endif()
 
 add_dependencies(graft version libr3 cryptonode graftlet_lib)
 
@@ -346,7 +356,9 @@ add_executable(supernode
     ${PROJECT_SOURCE_DIR}/src/supernode/main.cpp
     )
 
-set_target_properties(supernode PROPERTIES LINK_FLAGS "-Wl,-E")
+if(NOT APPLE)
+  set_target_properties(supernode PROPERTIES LINK_FLAGS "-Wl,-E")
+endif()
 
 target_include_directories(supernode PRIVATE
     ${GRAFT_INCLUDE_DIRS}
@@ -370,6 +382,10 @@ add_executable(wallet_server
 target_include_directories(wallet_server PRIVATE
     ${GRAFT_INCLUDE_DIRS}
     )
+
+if(APPLE)
+  set_target_properties(wallet_server PROPERTIES LINK_FLAGS "-framework IOKit")
+endif()
 
 target_link_libraries(wallet_server PRIVATE
     ${Boost_SYSTEM_LIBRARY}
