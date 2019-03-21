@@ -25,12 +25,18 @@ GRAFT_DEFINE_IO_STRUCT(DbSupernode,
     (std::string, Address),
     (std::string, PublicId),
     (uint64, StakeAmount),
-    (uint64, ExpiringBlock),
+    (uint64, StakeFirstValidBlock),
+    (uint64, StakeExpiringBlock),
+    (bool, IsStakeValid),
+    (unsigned int, BlockchainBasedListTier),
+    (unsigned int, AuthSampleBlockchainBasedListTier),
+    (bool, IsAvailableForAuthSample),
     (uint64, LastUpdateAge)
 );
 
 GRAFT_DEFINE_IO_STRUCT(SupernodeListResponse,
     (std::vector<DbSupernode>, items),
+    (bool, has_blockchain_based_list),
     (uint64_t, height)
 );
 
@@ -52,7 +58,26 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
     auto supernodes = fsl->items();
 
     SupernodeListJsonRpcResult resp;
+
     resp.result.height = fsl->getBlockchainBasedListMaxBlockNumber();
+    resp.result.has_blockchain_based_list = fsl->hasBlockchainBasedList(resp.result.height);
+
+    FullSupernodeList::blockchain_based_list auth_sample_base_list;
+
+    uint64_t auth_sample_base_block_number = fsl->getBlockchainBasedListForAuthSample(resp.result.height, auth_sample_base_list);
+
+    auto is_supernode_available = [&](const std::string& supernode_public_id)
+    {
+        for (const FullSupernodeList::blockchain_based_list_tier& tier : auth_sample_base_list)
+        {
+            for (const FullSupernodeList::blockchain_based_list_entry& entry : tier)
+                if (supernode_public_id == entry.supernode_public_id)
+                    return true;
+        }
+       
+        return false;
+    };
+
     for (auto& sa : supernodes)
     {
         auto sPtr = fsl->get(sa);
@@ -73,7 +98,13 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
         dbSupernode.Address = sPtr->walletAddress();
         dbSupernode.PublicId = sPtr->idKeyAsString();
         dbSupernode.StakeAmount = sPtr->stakeAmount();
-        dbSupernode.ExpiringBlock = sPtr->stakeBlockHeight() + sPtr->stakeUnlockTime();
+        dbSupernode.StakeFirstValidBlock = sPtr->stakeBlockHeight();
+        dbSupernode.StakeExpiringBlock = sPtr->stakeBlockHeight() + sPtr->stakeUnlockTime();
+        dbSupernode.IsStakeValid = resp.result.height >= dbSupernode.StakeFirstValidBlock && resp.result.height < dbSupernode.StakeExpiringBlock;
+        dbSupernode.BlockchainBasedListTier = fsl->getSupernodeBlockchainBasedListTier(dbSupernode.PublicId, resp.result.height);
+        dbSupernode.AuthSampleBlockchainBasedListTier = fsl->getSupernodeBlockchainBasedListTier(dbSupernode.PublicId, auth_sample_base_block_number);
+        dbSupernode.IsAvailableForAuthSample = is_supernode_available(dbSupernode.PublicId);
+
         resp.result.items.push_back(dbSupernode);
     }
     output.load(resp);
@@ -142,16 +173,108 @@ Status closeStakeWallets(const Router::vars_t& vars, const graft::Input& input,
     return Status::Ok;
 }
 
+enum BlockchainBasedListMode
+{
+  BlockchainBasedListMode_Source,
+  BlockchainBasedListMode_ForAuthSample,
+};
+
+GRAFT_DEFINE_IO_STRUCT(DbgBlockchainBasedListEntry,
+    (std::string, Address),
+    (std::string, PublicId),
+    (uint64, StakeAmount)
+);
+
+GRAFT_DEFINE_IO_STRUCT(DbgBlockchainBasedListResponse,
+    (std::vector<std::vector<DbgBlockchainBasedListEntry> >, Items),
+    (uint64_t, Height)
+);
+
+GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(DbgBlockchainBasedListResponseJsonRpcResult, DbgBlockchainBasedListResponse);
+
+Status getBlockchainBasedListImpl(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output, BlockchainBasedListMode mode)
+{
+    uint64_t block_height = 0;
+
+    try {
+        block_height = stoull(vars.find("block_height")->second);
+    } catch (...) {
+        return errorInternalError("invalid input", output);
+    }
+
+    FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
+
+    DbgBlockchainBasedListResponseJsonRpcResult resp;
+
+    FullSupernodeList::blockchain_based_list bbl;
+
+    switch (mode)
+    {
+        case BlockchainBasedListMode_ForAuthSample:
+            resp.result.Height = fsl->getBlockchainBasedListForAuthSample(block_height, bbl);
+
+            if (!resp.result.Height)
+            {
+                return errorInternalError("blockchain based list has not been found", output);
+            }
+
+            break;
+        case BlockchainBasedListMode_Source:
+        {
+            FullSupernodeList::blockchain_based_list_ptr bbl_ptr = fsl->findBlockchainBasedList(block_height);
+
+            if (!bbl_ptr)
+            {
+                return errorInternalError("blockchain based list has not been found", output);
+            }
+
+            resp.result.Height = block_height;
+            bbl                = *bbl_ptr;
+
+            break;
+        }
+    }
+
+    for (const FullSupernodeList::blockchain_based_list_tier& src_tier : bbl)
+    {
+        std::vector<DbgBlockchainBasedListEntry> dst_tier;
+
+        for (const FullSupernodeList::blockchain_based_list_entry& src_sn : src_tier)
+        {
+            DbgBlockchainBasedListEntry dst_sn;
+
+            dst_sn.Address     = src_sn.supernode_public_address;
+            dst_sn.PublicId    = src_sn.supernode_public_id;
+            dst_sn.StakeAmount = src_sn.amount;
+
+            dst_tier.emplace_back(std::move(dst_sn));
+        }
+
+        resp.result.Items.emplace_back(std::move(dst_tier));        
+    }
+
+    output.load(resp);
+
+    return Status::Ok;
+}
+
+template <BlockchainBasedListMode mode>
+Status getBlockchainBasedList(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+{
+  return getBlockchainBasedListImpl(vars, input, ctx, output, mode);
+}
+
 void __registerDebugRequests(Router &router)
 {
 #define _HANDLER(h) {nullptr, graft::supernode::request::debug::h, nullptr}
     // /debug/supernode_list/0 -> do not include inactive items
     // /debug/supernode_list/1 -> include inactive items
     router.addRoute("/debug/supernode_list/{all:[0-1]}", METHOD_GET, _HANDLER(getSupernodeList));
+    router.addRoute("/debug/blockchain_based_list/{block_height:[0-9]+}", METHOD_GET, _HANDLER(getBlockchainBasedList<BlockchainBasedListMode_Source>));
+    router.addRoute("/debug/auth_sample_blockchain_based_list/{block_height:[0-9]+}", METHOD_GET, _HANDLER(getBlockchainBasedList<BlockchainBasedListMode_ForAuthSample>));
     router.addRoute("/debug/announce", METHOD_POST, _HANDLER(doAnnounce));
     router.addRoute("/debug/close_wallets/", METHOD_POST, _HANDLER(closeStakeWallets));
     router.addRoute("/debug/auth_sample/{payment_id:[0-9a-zA-Z]+}", METHOD_GET, _HANDLER(getAuthSample));
 }
 
 }
-

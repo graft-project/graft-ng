@@ -159,6 +159,36 @@ public:
     uint64_t getBlockchainBasedListMaxBlockNumber() const;
 
     /*!
+     * \brief findBlockchainBasedList - returns blockchain based list for specified block_number if it is present
+     * \param block_number            - number of block for which list should be returned
+     * \return
+     */
+    blockchain_based_list_ptr findBlockchainBasedList(uint64_t block_number) const;
+
+    /*!
+     * \brief hasBlockchainBasedList - returns if blockchain based list for specified block_number is present
+     * \param block_number           - number of block for which list presense should be checked
+     * \return
+     */
+    bool hasBlockchainBasedList(uint64_t block_number) const;
+
+    /*!
+     * \brief hasBlockchainBasedList - returns if blockchain based list for specified block_number is present
+     * \param supernode_public_id    - supernode ID
+     * \param block_number           - number of block for which supernode presense should be checked
+     * \return                       - tier number or 0 if supernode is not present in blockchain based list
+     */
+    size_t getSupernodeBlockchainBasedListTier(const std::string& supernode_public_id, uint64_t block_number) const;
+
+    /*!
+     * \brief getBlockchainBasedListForAuthSample - builds blockchain based list for specified block height and removes nodes which are not reachable
+     * \param block_number - block height used to list building
+     * \param out_list     - resulting list
+     * \return             - block number which was used for base list
+     */
+    uint64_t getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list) const;
+    
+    /*!
      * \brief synchronizeWithCryptonode - synchronize with cryptonode
      * \return
      */
@@ -176,8 +206,6 @@ private:
     bool selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);    
 
     typedef std::unordered_map<uint64_t, blockchain_based_list_ptr> blockchain_based_list_map;
-
-    blockchain_based_list_ptr findBlockchainBasedList(uint64_t block_number) const;
 
 private:
     // key is public id as a string
