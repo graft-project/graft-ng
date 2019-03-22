@@ -35,6 +35,9 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
 endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
+set(CMAKE_C_FLAGS "-march=x86-64")
+set(CMAKE_CXX_FLAGS "-march=x86-64")
+
 project(graft_server)
 
 option(OPT_BUILD_TESTS "Build tests." OFF)
