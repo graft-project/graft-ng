@@ -12,6 +12,9 @@ GRAFT_DEFINE_IO_STRUCT(BroadcastRequest,
                        (std::vector<std::string>, receiver_addresses),
                        (std::string, sender_address),
                        (std::string, callback_uri),
+#ifdef UDHT_INFO
+                       (uint64_t, hops),
+#endif
                        (std::string, data)
                        );
 

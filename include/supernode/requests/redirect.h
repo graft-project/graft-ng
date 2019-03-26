@@ -21,6 +21,28 @@ GRAFT_DEFINE_IO_STRUCT(RegisterSupernode,
 
 GRAFT_DEFINE_JSON_RPC_REQUEST(RegisterSupernodeJsonRpcRequest, RegisterSupernode);
 
+#ifdef UDHT_INFO
+
+GRAFT_DEFINE_IO_STRUCT(UDHTInfoItem,
+                       (std::string, id),
+                       (std::string, ip_port),
+                       (std::string, expiration_time),
+                       (uint32_t, broadcast_count),
+                       (double, avg_hop_ip_broadcast),
+                       (uint32_t, redirect_count),
+                       (double, avg_hop_redirect)
+                       );
+
+GRAFT_DEFINE_IO_STRUCT(UDHTInfoResponse,
+                       (std::string, id),
+                       (std::string, url),
+                       (std::string, redirect_uri),
+                       (std::vector<UDHTInfoItem>, items),
+                       (double, avg_hop_ip_broadcast),
+                       (double, avg_hop_redirect)
+                       );
+
+#endif //UDHT_INFO
 ///////
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIds,
