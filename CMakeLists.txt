@@ -43,6 +43,7 @@ project(graft_server)
 option(OPT_BUILD_TESTS "Build tests." OFF)
 option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
 option(STATIC_LINK "Link executables and libraries statically" ON)
+option(UDHT_INFO "Include UDHT debug information." OFF)
 
 if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
     # CMAKE_ROOT_SOURCE_DIR variable is required, because CMAKE_SOURCE_DIR works well for include like commands and does not for external projects
@@ -89,12 +90,15 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DARCH=x86-64 -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DARCH=x86-64 -DUDHT_INFO=${UDHT_INFO} -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
     )
 
 set(CMAKE_CXX_STANDARD 17)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
+if(UDHT_INFO)
+    add_definitions(-DUDHT_INFO)
+endif(UDHT_INFO)
 
 if(STATIC_LINK)
     set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
