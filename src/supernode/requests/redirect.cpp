@@ -32,11 +32,123 @@
 #include "lib/graft/common/utils.h"
 #include "lib/graft/GraftletLoader.h"
 #include <utils/cryptmsg.h>
+#include <deque>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.redirect"
 
 namespace graft::supernode::request {
+
+#ifdef UDHT_INFO
+
+namespace
+{
+
+const std::chrono::system_clock::duration time_wnd = std::chrono::hours(12);
+
+struct UdhtStates
+{
+    //announce expire time, hops left
+    using ContTimeHop = std::deque<std::pair<std::chrono::system_clock::time_point, uint64_t>>;
+    ContTimeHop announces;
+    ContTimeHop redirects;
+};
+
+class UdhtInfo
+{
+    void chop_old(UdhtStates* item = nullptr)
+    {
+        auto edge = std::chrono::system_clock::now() - time_wnd;
+        auto chop = [&edge](UdhtStates::ContTimeHop& cont)->void
+        {
+            auto v = std::make_pair(edge, (uint64_t)0);
+            auto it = std::upper_bound(cont.begin(), cont.end(), v, [](auto& a, auto& b){ return a.first > b.first; } );
+            cont.erase(it, cont.end());
+        };
+        if(item)
+        {
+            chop(item->announces);
+            chop(item->redirects);
+        }
+    }
+public:
+    enum Cont
+    {
+        Announces,
+        Redirects,
+        OthersAnnounces,
+        OthersRedirects,
+    };
+
+    using Id = std::string;
+    std::unordered_map<Id, UdhtStates> id2states;
+    void add(Id id, uint64_t hops, Cont to_cont)
+    {
+        assert(!id.empty());
+        UdhtStates& item = id2states[id];
+        chop_old(&item);
+        UdhtStates::ContTimeHop* cont = nullptr;
+        switch(to_cont)
+        {
+        case Announces: cont = &item.announces; break;
+        case Redirects: cont = &item.redirects; break;
+        default: assert(false);
+        }
+        cont->push_front(std::make_pair(std::chrono::system_clock::now(), hops));
+    }
+
+    void chop_all_old()
+    {
+        chop_old();
+        for(auto& item : id2states)
+        {
+            chop_old(&item.second);
+        }
+    }
+
+    static std::string local_time(const std::chrono::system_clock::time_point& tp)
+    {
+        auto tm = std::chrono::system_clock::to_time_t(tp);
+
+        std::ostringstream ss;
+        ss << std::put_time(std::localtime(&tm), "%F %T");
+        return ss.str();
+    }
+
+    static std::pair<uint64_t, size_t> get_hops(UdhtStates::ContTimeHop& cont)
+    {
+        if(cont.empty()) return std::make_pair(uint64_t(0),size_t(0));
+        uint64_t hops = 0;
+        std::for_each(cont.begin(), cont.end(), [&hops]( auto& item ){ hops += item.second; } );
+        return std::make_pair(hops, cont.size());
+    }
+
+    std::pair<uint64_t, size_t> get_all_hops(Cont from_cont)
+    {
+        std::pair<uint64_t, size_t> res = std::make_pair(uint64_t(0),size_t(0));
+        for(auto& it : id2states)
+        {
+            auto& item = it.second;
+            UdhtStates::ContTimeHop* cont = nullptr;
+            switch(from_cont)
+            {
+            case Announces: cont = &item.announces; break;
+            case Redirects: cont = &item.redirects; break;
+            default: assert(false);
+            }
+            auto pair = get_hops(*cont);
+            res.first += pair.first;
+            res.second += pair.second;
+        }
+        return res;
+    }
+};
+
+using UdhtInfoShared = std::shared_ptr<UdhtInfo>;
+
+} //namespace
+
+#endif //UDHT_INFO
 
 namespace
 {
@@ -133,6 +245,12 @@ void fillSubsetFromAll(IdSet& all, IdSet& subset, size_t required)
     std::inplace_merge(subset.begin(), subset.begin()+middle, subset.end());
 }
 
+bool is_initializedIDs(graft::Context& ctx)
+{
+    if(!ctx.global.hasKey("my_ID_initialized")) return false;
+    return ctx.global["my_ID_initialized"];
+}
+
 bool initializeIDs(graft::Context& ctx)
 {
     if(ctx.global.hasKey("my_ID_initialized"))
@@ -170,6 +288,10 @@ bool initializeIDs(graft::Context& ctx)
     ctx.global["my_pubID"] = pubID;
 
     ctx.global["ID:IP:port map"] = std::make_shared<Id2Ip>();
+
+#ifdef UDHT_INFO
+    ctx.global["UdhtInfo"] = std::make_shared<UdhtInfo>();
+#endif //UDHT_INFO
 
     ctx.global["my_ID_initialized"] = true;
     return true;
@@ -213,8 +335,8 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
         }
         tst_myIDstr = myIDstr;
         tst_IDs.push_back("c2e3c8e7adf55ac6be9b9ac62e2cf96b239299b9b3a6ac152fbe4de121188452");
-        tst_IDs.push_back("548767311a1041e4bd2e36f70e5b8329fc82da57015e19a5be6aa6278c9c95fe");
-        tst_IDs.push_back("95af53a524c0149a852b422d9daae0e4c12e10fc2f7cb0f4c6b0f7f16df3cf34");
+        tst_IDs.push_back("a638e97d174c4f7af32f613a485ceec22394486ac3ed7d8720129f3c40f4260e");
+        tst_IDs.push_back("3cad1a7a0b34bba7def142666d454dbc6690624bb643f12d26cc69525591615a");
     }
 
     {
@@ -457,9 +579,19 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
                 return graft::Status::Ok;
             }
 
-            Id2IpShared map = ctx.global["ID:IP:port map"];
-            map->emplace(ID, ip_port);
+            ctx.global.apply<Id2IpShared>("ID:IP:port map", [&](Id2IpShared& map)->bool
+            {
+                map->emplace(ID, ip_port);
+                return true;
+            });
 
+#ifdef UDHT_INFO
+            ctx.global.apply<UdhtInfoShared>("UdhtInfo", [&](UdhtInfoShared& info)->bool
+            {
+                info->add(ID, uint64_t(0) - ireq.params.hops, UdhtInfo::Announces);
+                return true;
+            });
+#endif //UDHT_INFO
             //register ID of another supernode to redirect
             SupernodeRedirectIdsJsonRpcRequest oreq;
             oreq.params.id = ID;
@@ -499,15 +631,22 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
         bool res = input.get(req);
         assert(res);
 
-        Id2IpShared map = ctx.global["ID:IP:port map"];
-        auto it = map->find(req.params.receiver_id);
-        if(it == map->end())
+        std::string ID, ip_port;
+
+        bool ok = ctx.global.apply("ID:IP:port map", std::function<bool(Id2IpShared&)>( [&](Id2IpShared& map)->bool
+        {
+            auto it = map->find(req.params.receiver_id);
+            if(it == map->end()) return false;
+            ID = it->first;
+            ip_port = it->second;
+            return true;
+        }));
+
+        if(!ok)
         {
             LOG_ERROR("Cannot find supernode IP:port to redirect by ID:'") << req.params.receiver_id << "'";
             return graft::Status::Error;
         }
-        std::string ip_port = it->second;
-
 
         {//set output.host, output.port
             int pos = ip_port.find(':');
@@ -517,6 +656,17 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
                 output.port = ip_port.substr(pos+1);
             }
         }
+
+#ifdef UDHT_INFO
+        const uint32_t& broadcast_hops = ctx.global["broadcast_hops"];
+
+        ctx.global.apply<UdhtInfoShared>("UdhtInfo", [&](UdhtInfoShared& info)->bool
+        {
+            info->add(ID, broadcast_hops - req.params.request.hops + 1, UdhtInfo::Redirects);
+            return true;
+        });
+
+#endif //UDHT_INFO
 
         output.path = "dapi/v2.0" + req.params.request.callback_uri;
 
@@ -545,6 +695,90 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
     }
     }
 }
+
+#ifdef UDHT_INFO
+
+graft::Status onGetUDHTInfo(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+{
+    switch (ctx.local.getLastStatus()) {
+    case graft::Status::Ok:
+    case graft::Status::None:
+    {
+        if(!is_initializedIDs(ctx)) return graft::Status::Error;
+
+        std::string my_pubIDstr;
+        {
+            const crypto::public_key& my_pubID = ctx.global["my_pubID"];
+            my_pubIDstr = epee::string_tools::pod_to_hex(my_pubID);
+        }
+
+        UDHTInfoResponse res;
+        res.id = my_pubIDstr;
+        res.url = (std::string)ctx.global["supernode_url"];
+        res.redirect_uri = "/redirect_broadcast";
+
+        Id2IpShared id2ip = ctx.global["ID:IP:port map"];
+
+        ctx.global.apply<UdhtInfoShared>("UdhtInfo", [&](UdhtInfoShared& info)->bool
+        {
+            info->chop_all_old();
+
+            // fill res.items
+            for(auto& it : info->id2states)
+            {
+                std::string id = it.first;
+                UdhtStates states = it.second;
+                auto it_ip = id2ip->find(id);
+                assert(it_ip != id2ip->end());
+                if(it_ip == id2ip->end()) continue;
+                if(states.announces.empty()) continue;
+
+                UDHTInfoItem res_item;
+                res_item.id = it_ip->first;
+                res_item.ip_port = it_ip->second;
+                {//res_item.expiration_time
+                    auto& tp = states.announces.front().first;
+                    uint32_t redirect_timeout_ms = ctx.global["redirect_timeout_ms"];
+                    tp += std::chrono::milliseconds( redirect_timeout_ms );
+                    res_item.expiration_time = UdhtInfo::local_time(tp);
+                }
+                res_item.broadcast_count = states.announces.size();
+                res_item.redirect_count = states.redirects.size();
+                {//res_item.avg_hop_ip_broadcast
+                    auto pair = UdhtInfo::get_hops(states.announces);
+                    res_item.avg_hop_ip_broadcast = (!pair.second)? 0 : double(pair.first)/pair.second;
+                }
+                {//res_item.avg_hop_redirect
+                    auto pair = UdhtInfo::get_hops(states.redirects);
+                    res_item.avg_hop_redirect = (!pair.second)? 0 : double(pair.first)/pair.second;
+                }
+
+                res.items.emplace_back(res_item);
+            }
+
+            {//res.avg_hop_ip_broadcast
+                auto pair = info->get_all_hops(UdhtInfo::Announces);
+                res.avg_hop_ip_broadcast = (!pair.second)? 0 : double(pair.first)/pair.second;
+            }
+
+            {//res.avg_hop_redirect
+                auto pair = info->get_all_hops(UdhtInfo::Redirects);
+                res.avg_hop_redirect = (!pair.second)? 0 : double(pair.first)/pair.second;
+            }
+
+            return true;
+        });
+
+        output.load(res);
+
+        return graft::Status::Ok;
+    }
+    default: assert(false);
+    }
+}
+
+#endif //UDHT_INFO
+
 
 #if tst
 
@@ -607,6 +841,9 @@ void registerRedirectRequests(graft::Router &router)
 
     router.addRoute(endpoint, METHOD_POST, {nullptr, onUpdateRedirectIds, nullptr});
     router.addRoute("/redirect_broadcast", METHOD_POST, {nullptr, onRedirectBroadcast, nullptr});
+#ifdef UDHT_INFO
+    router.addRoute("/get_udht_info", METHOD_POST, {nullptr, onGetUDHTInfo, nullptr});
+#endif //UDHT_INFO
 
 #if tst
 /*
