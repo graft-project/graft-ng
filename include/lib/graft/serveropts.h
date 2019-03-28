@@ -41,6 +41,7 @@ struct ConfigOpts
     IPFilterOpts ipfilter;
     CommonOpts common;
     bool duplicate_filter_enabled = true;
+    std::string mandatory_graftlet_dependencies;
 
     void check_asserts() const
     {

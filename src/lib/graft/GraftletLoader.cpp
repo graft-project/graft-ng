@@ -126,7 +126,7 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
 
             auto res = m_name2lib.emplace(
                         std::make_pair(dllName,
-                                       std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path), std::move(dependencies) ))
+                                       std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path), std::move(dependencies), false ))
                         );
             if(!res.second) throw std::runtime_error("A plugin with the name '" + dllName + "' already exists");
             auto res1 = m_name2registries.emplace( std::make_pair(dllName, graftletRegistry) );
@@ -214,7 +214,7 @@ void GraftletLoader::DependencyGraph::initialize(const std::vector<std::tuple<Dl
     }
 }
 
-void GraftletLoader::DependencyGraph::initialize(GraftletLoader& gl)
+void GraftletLoader::DependencyGraph::initialize(GraftletLoader& gl, const Dependencies& mandatories)
 {
     std::vector<std::tuple<DllName,Version,Dependencies>> vec;
     vec.reserve(gl.m_name2lib.size());
@@ -224,6 +224,7 @@ void GraftletLoader::DependencyGraph::initialize(GraftletLoader& gl)
         Version& ver = std::get<1>(item.second);
         vec.emplace_back(std::make_tuple(item.first, ver, deps));
     }
+    vec.emplace_back(std::make_tuple("", 0, mandatories));
     initialize(vec);
 }
 
@@ -243,6 +244,10 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
             //special case if the dependency format is violated; see initialize(...)
             if(list.size() == 1 && list.begin()->first.empty())
             {
+                if(name.empty())
+                {//mandatory
+                    throw graft::exit_error("Required graftlets have invalid dependency format. Cannot continue.");
+                }
                 LOG_PRINT_L2("graftlet '") << name << "' has invalid dependency format. it will be unloaded.";
                 ok = false;
             }
@@ -256,6 +261,12 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
                     auto it = m_graph.find(dep_name);
                     if(it == m_graph.end())
                     {
+                        if(name.empty())
+                        {
+                            std::ostringstream oss;
+                            oss << "The graftlet '" << dep_name << "' is required, but not found or cannot be loaded. Cannot continue.";
+                            throw graft::exit_error(oss.str());
+                        }
                         LOG_PRINT_L2("graftlet '") << name << "' depends on '" << dep_name << "' which is not found. it will be unloaded.";
                         ok = false;
                         break;
@@ -263,7 +274,16 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
                     Version dep_ver = m_dll2ver[dep_name];
                     if(m_RemoveIfCmpMinverVer(dep_ver, minver))
                     {
-                        LOG_PRINT_L2("graftlet '") << name << "' depends on '" << dep_name << "' which verson "
+                        std::string msg = (name.empty())? "Mandatory graftlets depend on" : "graftlet '" + name + "' depends on";
+                        if(name.empty())
+                        {
+                            std::ostringstream oss;
+                            oss << "The graftlet '" << dep_name << "' is required, but its version "
+                                << GRAFTLET_Major(dep_ver) << "." << GRAFTLET_Minor(dep_ver) << " is less than required "
+                                << GRAFTLET_Major(minver) << "." << GRAFTLET_Minor(minver) << ". Cannot continue.";
+                            throw graft::exit_error(oss.str());
+                        }
+                        LOG_PRINT_L2("graftlet '") << name << "' depends on '" << dep_name << "' which version "
                                                    << GRAFTLET_Major(dep_ver) << "." << GRAFTLET_Minor(dep_ver) << " is less than required "
                                                    << GRAFTLET_Major(minver) << "." << GRAFTLET_Minor(minver) << ". it will be unloaded.";
                         ok = false;
@@ -377,12 +397,25 @@ std::string GraftletLoader::DependencyGraph::findCycles(bool dont_throw)
     return std::string();
 }
 
-void GraftletLoader::checkDependencies()
+void GraftletLoader::checkDependencies(const std::string& mandatories)
 {
     DependencyGraph graph;
-    graph.initialize(*this);
+    graph.initialize(*this, mandatories);
     graph.removeFailedDependants(*this);
     graph.findCycles();
+
+    {//set mandatory flags
+        auto it = graph.m_graph.find("");
+        assert(it != graph.m_graph.end());
+        for(auto& item : it->second)
+        {
+            const DllName& name = item.first;
+            auto it1 = m_name2lib.find(name);
+            assert(it1 != m_name2lib.end());
+            Mandatory& mandatory = std::get<4>( it1->second );
+            mandatory = true;
+        }
+    }
 }
 
 } //namespace graftlet

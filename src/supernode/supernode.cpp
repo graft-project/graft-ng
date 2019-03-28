@@ -52,6 +52,8 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     ConfigOptsEx& coptsex = static_cast<ConfigOptsEx&>(configOpts);
     assert(&m_configEx == &coptsex);
 
+    m_configEx.mandatory_graftlet_dependencies = "walletAddress : 1.1";
+
     ConfigIniSubtree config = ConfigIniSubtree::create(m_configEx.common.config_filename);
 
     const ConfigIniSubtree server_conf = config.get_child("server");
