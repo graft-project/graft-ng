@@ -334,12 +334,17 @@ void Looper::serve()
     for (;;)
     {
         mg_mgr_poll(m_mgr.get(), m_copts.timer_poll_interval_ms);
+        if(m_forceStop)
+        {
+            if(canStop()) break;
+            continue;
+        }
         getTimerList().eval();
         checkUpstreamBlockingIO();
         checkPeriodicTaskIO();
         executePostponedTasks();
         expelWorkers();
-        if( stopped() && (m_forceStop || canStop()) ) break;
+        if( stopped() && canStop() ) break;
     }
 
     setIOThread(false);
@@ -349,7 +354,7 @@ void Looper::serve()
 
 void Looper::stop(bool force)
 {
-    assert(!m_stop && !m_forceStop);
+    assert(!m_stop || !m_forceStop);
     m_stop = true;
     if(force) m_forceStop = true;
 }
@@ -523,6 +528,13 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
     }
     case MG_EV_ACCEPT:
     {
+        if(conBase->stopped())
+        {
+            LOG_PRINT_CLN(2,client,"Shutdown in progress; connection refused.");
+            client->flags |= MG_F_CLOSE_IMMEDIATELY;
+            break;
+        }
+
         if(!conBase->getBlackList().processIp( client->sa.sin.sin_addr.s_addr ))
         {
             LOG_PRINT_CLN(2,client,"The address is in the black-list; closing connection");
@@ -559,6 +571,16 @@ void CoapConnectionManager::ev_handler_coap(mg_connection *client, int ev, void 
 
     switch (ev)
     {
+    case MG_EV_ACCEPT:
+    {
+        ConnectionBase* conBase = ConnectionBase::from(client->mgr);
+        if(conBase->stopped())
+        {
+            LOG_PRINT_CLN(2,client,"Shutdown in progress; connection refused.");
+            client->flags |= MG_F_CLOSE_IMMEDIATELY;
+        }
+    } break;
+
     case MG_EV_COAP_CON:
         res = mg_coap_send_ack(client, cm->msg_id);
         // No break

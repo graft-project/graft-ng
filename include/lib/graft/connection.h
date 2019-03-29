@@ -158,6 +158,7 @@ protected:
     Router::Root m_root;
 private:
     Proto m_proto;
+    std::atomic_bool m_stop{false};
 };
 
 class ConnectionBase final
@@ -176,7 +177,8 @@ public:
     void bindConnectionManagers();
 
     bool ready() const { return m_looperReady && m_looper->ready(); }
-    void stop(bool force = false) { assert(m_looper); m_looper->stop(force); }
+    void stop(bool force = false) { m_stop = true; assert(m_looper); m_looper->stop(force); }
+    bool stopped() { return m_stop; }
 
     BlackList& getBlackList() { return *m_blackList; }
     SysInfoCounter& getSysInfoCounter() { assert(m_sysInfo); return *m_sysInfo; }
@@ -187,6 +189,8 @@ public:
     static ConnectionBase* from(mg_mgr* mgr);
 private:
     static void checkRoutes(graft::ConnectionManager& cm);
+
+    std::atomic_bool m_stop{false};
 
     //the order of members is important because of destruction order.
     std::unique_ptr<BlackList> m_blackList;
