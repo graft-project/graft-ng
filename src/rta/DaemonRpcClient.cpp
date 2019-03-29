@@ -183,7 +183,7 @@ bool DaemonRpcClient::send_supernode_stakes(const char* network_address, const c
     req.params.supernode_public_id = id;
     bool r = epee::net_utils::invoke_http_json("/json_rpc/rta", req, res, m_http_client, m_rpc_timeout);
     if (!r) {
-        LOG_ERROR("/json_rpc/rta/send_supernode_stakes error");
+        MWARNING("/json_rpc/rta/send_supernode_stakes error");
         return false;
     }
 
@@ -202,7 +202,7 @@ bool DaemonRpcClient::send_supernode_blockchain_based_list(const char* network_a
     req.params.last_received_block_height = last_received_block_height;
     bool r = epee::net_utils::invoke_http_json("/json_rpc/rta", req, res, m_http_client, m_rpc_timeout);
     if (!r) {
-        LOG_ERROR("/json_rpc/rta/send_supernode_blockchain_based_list error");
+        MWARNING("/json_rpc/rta/send_supernode_blockchain_based_list error");
         return false;
     }
 
