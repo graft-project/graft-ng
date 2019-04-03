@@ -38,8 +38,9 @@ public:
     using FuncName = std::string;
     using EndpointPath = std::string;
     using Methods = int;
-    using EndpointsVec = std::vector< std::tuple<EndpointPath, Methods, graft::Router::Handler> >;
+    using EndpointsVec = std::vector< std::tuple<EndpointPath, Methods, graft::Router::Handler, FuncName> >;
     using PeriodicVec = std::vector< Periodic >;
+    using FuncNameVec = std::vector< FuncName >;
 
     IGraftlet() = delete;
     virtual ~IGraftlet() = default;
@@ -55,6 +56,16 @@ public:
 
     const ClsName& getClsName() const { return m_clsName; }
 
+    FuncNameVec getFuncNames()
+    {
+        FuncNameVec res;
+        for(auto& it : m_map)
+        {
+            res.emplace_back(it.first);
+        }
+        return res;
+    }
+
     EndpointsVec getEndpoints()
     {
         EndpointsVec res;
@@ -65,13 +76,14 @@ public:
             auto it1 = ti2any.find(ti);
             if(it1 == ti2any.end()) continue;
 
-            std::any& any = std::get<0>(it1->second);
-            EndpointPath& endpoint = std::get<1>(it1->second);
-            Methods& methods = std::get<2>(it1->second);
+            const FuncName& name = it.first;
+            const std::any& any = std::get<0>(it1->second);
+            const EndpointPath& endpoint = std::get<1>(it1->second);
+            const Methods& methods = std::get<2>(it1->second);
 
             graft::Router::Handler handler = std::any_cast<graft::Router::Handler>(any);
 
-            res.emplace_back(std::make_tuple(endpoint, methods, handler));
+            res.emplace_back(std::make_tuple(endpoint, methods, handler, name));
         }
         return res;
     }
