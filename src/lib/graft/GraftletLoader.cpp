@@ -24,6 +24,8 @@
 #include "lib/graft/graft_exception.h"
 #define INCLUDE_DEPENDENCY_GRAPH
 #include "lib/graft/GraftletLoader.h"
+#include "lib/graft/serialize.h"
+#include "lib/graft/graftlets_sys_info.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "graftlet.GraftletLoader"
@@ -155,6 +157,81 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
             else throw;
         }
     }
+}
+
+template <class BaseT>
+void GraftletLoader::fillInfoT(std::vector<GraftletInfo>& graftletsInfo)
+{
+    using namespace graft::request::system_info;
+    graftletsInfo.clear();
+
+    prepareAllEndpoints<BaseT>();
+
+    for(auto& it0 : m_name2gls)
+    {
+        if(it0.first.second != std::type_index(typeid(BaseT))) continue;
+
+        GraftletInfo graftlet;
+
+        const DllName& name = it0.first.first;
+        graftlet.name = name;
+        {
+            auto it_lib = m_name2lib.find(name);
+            assert(it_lib != m_name2lib.end());
+
+            const Version& version = std::get<1>(it_lib->second);
+            const DllPath& dllPath = std::get<2>(it_lib->second);
+            const Dependencies& dependencies = std::get<3>(it_lib->second);
+            const Mandatory& mandatory = std::get<4>(it_lib->second);
+            const InfoFunction& info = std::get<5>(it_lib->second);
+
+            graftlet.path = dllPath;
+            graftlet.version_major = GRAFTLET_Major(version);
+            graftlet.version_minor = GRAFTLET_Minor(version);
+            graftlet.mandatory = mandatory;
+            if(info)
+            {
+                graftlet.info.json = info();
+            }
+
+            std::list<std::pair<DllName,Version>> list = DependencyGraph::parseDependencies(dependencies);
+            for(auto& it_d : list)
+            {
+                Dependency d;
+                d.name = it_d.first;
+                d.min_version_major = GRAFTLET_Major(it_d.second);
+                d.min_version_minor = GRAFTLET_Minor(it_d.second);
+                graftlet.dependencies.emplace_back( std::move(d) );
+            }
+        }
+
+        std::map<ClsName, std::any>& map = it0.second;
+        for(auto& it1 : map)
+        {
+            Class cls;
+            cls.name = it1.first;
+            //TODO: remove shared_ptr, it does not hold something now
+            std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it1.second);
+            cls.methods = concreteGraftlet->getFuncNames();
+            typename BaseT::EndpointsVec vec = concreteGraftlet->getEndpoints();
+            for(auto& it_ep : vec)
+            {
+                Endpoint endpoint;
+                endpoint.path = std::get<0>(it_ep);
+                endpoint.methods = graft::Router::methodsToString( std::get<1>(it_ep) );
+                endpoint.name = std::get<3>(it_ep);
+
+                graftlet.end_points.emplace_back(std::move(endpoint));
+            }
+            graftlet.classes.emplace_back(std::move(cls));
+        }
+        graftletsInfo.emplace_back(std::move(graftlet));
+    }
+}
+
+void GraftletLoader::fillInfo(std::vector<GraftletInfo>& graftletsInfo)
+{
+    fillInfoT<IGraftlet>(graftletsInfo);
 }
 
 GraftletLoader::DependencyGraph::DependencyList GraftletLoader::DependencyGraph::parseDependencies(std::string_view deps)

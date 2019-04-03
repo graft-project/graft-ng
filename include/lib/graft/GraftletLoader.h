@@ -31,8 +31,12 @@
 #include <iostream>
 #include <boost/dll/import.hpp>
 
+namespace graft::request::system_info { struct GraftletInfo; }
+
 namespace graftlet
 {
+
+using GraftletInfo = graft::request::system_info::GraftletInfo;
 
 template <class BaseT>
 class GraftletHandlerT
@@ -139,6 +143,8 @@ public:
         return getPeriodicsT<IGraftlet>();
     }
 
+    void fillInfo(std::vector<GraftletInfo>& graftletsInfo);
+
     class DependencyGraph;
     friend class GraftletLoader::DependencyGraph;
 private:
@@ -214,6 +220,9 @@ private:
         }
         return res;
     }
+
+    template <class BaseT>
+    void fillInfoT(std::vector<GraftletInfo>& graftletsInfo);
 
     template <class BaseT>
     GraftletHandlerT<BaseT> buildAndResolveGraftletT(const DllName& dllName)

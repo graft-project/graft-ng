@@ -6,6 +6,7 @@
 #include "lib/graft/inout.h"
 #include "lib/graft/router.h"
 #include "lib/graft/sys_info.h"
+#include "lib/graft/GraftletLoader.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.sys_info"
@@ -72,6 +73,14 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     cfg.log_filename = co.log_filename;
     cfg.log_categories = co.log_categories;
     */
+
+    ctx.global.apply<graftlet::GraftletLoader*>("graftletLoader",
+        [&out](graftlet::GraftletLoader* gl)->bool
+    {
+        if(!gl) return false;
+        gl->fillInfo(out.graftlets);
+        return true;
+    });
 
     output.load(out);
     return Status::Ok;

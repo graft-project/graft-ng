@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "lib/graft/jsonrpc.h"
+#include "lib/graft/graftlets_sys_info.h"
 
 namespace graft { template<typename In, typename Out> class RouterT; class InHttp; class OutHttp; using Router = RouterT<InHttp, OutHttp>; }
 
@@ -73,19 +74,6 @@ GRAFT_DEFINE_IO_STRUCT_INITED(DapiEntry,
     (std::vector<EndPoint>, end_points, std::vector<EndPoint>())
 );
 
-GRAFT_DEFINE_IO_STRUCT_INITED(GraftletDependency,
-    (std::string, name, std::string()),
-    (std::string, min_version, std::string())
-);
-
-GRAFT_DEFINE_IO_STRUCT_INITED(Graftlet,
-    (std::string, name, std::string()),
-    (std::string, version, std::string()),
-    (std::string, status, std::string()),
-    (std::vector<EndPoint>, end_points, std::vector<EndPoint>()),
-    (std::vector<GraftletDependency>, requires, std::vector<GraftletDependency>())
-);
-
 GRAFT_DEFINE_IO_STRUCT_INITED(Request,
     (int, request, 0)
 );
@@ -95,7 +83,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(Response,
     (Configuratioon, configuration, Configuratioon()),
     (Running, running_info, Running()),
     (std::vector<DapiEntry>, dapi, std::vector<DapiEntry>()),
-    (std::vector<Graftlet>, graftlets, std::vector<Graftlet>())
+    (std::vector<GraftletInfo>, graftlets, std::vector<GraftletInfo>{})
 );
 
 GRAFT_DEFINE_JSON_RPC_REQUEST(ReqJsonRpc, Request)
