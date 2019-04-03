@@ -316,6 +316,9 @@ public:
     using DllName = GraftletLoader::DllName;
     using Version = GraftletLoader::Version;
     using Dependencies = GraftletLoader::Dependencies;
+    using DependencyList = std::list<std::pair<DllName,Version>>;
+
+    static DependencyList parseDependencies(std::string_view deps);
 
     void initialize(GraftletLoader& gl, const Dependencies& mandatories);
     void removeFailedDependants(GraftletLoader& gl);

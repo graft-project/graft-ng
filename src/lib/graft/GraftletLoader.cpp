@@ -157,6 +157,56 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
     }
 }
 
+GraftletLoader::DependencyGraph::DependencyList GraftletLoader::DependencyGraph::parseDependencies(std::string_view deps)
+{
+    DependencyList list;
+    if(!deps.empty())
+    {
+        for(std::string::size_type s = 0;;)
+        {
+            std::string::size_type e = deps.find(',',s);
+            std::string_view nv = (e == std::string::npos)? deps.substr(s) : deps.substr(s,e-s);
+
+            std::string snv{nv};
+            std::regex regex(R"(^\s*([^:\s]*)\s*(:\s*([0-9]+)\s*(\.\s*([0-9]+))?)?\s*$)");
+            std::smatch m;
+            if(!std::regex_match(snv, m, regex))
+            {//invalid format of dependencies, the dll should be removed later
+                list.clear();
+                list.emplace_back(std::make_pair("",0));
+                break;
+            }
+            assert(1 < m.size());
+            std::string name = m[1];
+            if(name.empty())
+            {//invalid format
+                list.clear();
+                list.emplace_back(std::make_pair("",0));
+                break;
+            }
+            Version minver = 0;
+            if(2 < m.size() && m[2].matched)
+            {
+                assert(3 < m.size() && m[3].matched);
+                int Ma = std::stoi(m[3]);
+                int mi = 0;
+                if(4 < m.size() && m[4].matched)
+                {
+                    assert(5 < m.size() && m[5].matched);
+                    mi = std::stoi(m[5]);
+                }
+                minver = GRAFTLET_MKVER(Ma, mi);
+            }
+
+            list.push_back(std::make_pair(DllName(name),minver));
+
+            if(e == std::string::npos) break;
+            s = e + 1;
+        }
+    }
+    return list;
+}
+
 void GraftletLoader::DependencyGraph::initialize(const std::vector<std::tuple<DllName,Version,Dependencies>>& vec)
 {
     m_graph.clear();
@@ -168,52 +218,7 @@ void GraftletLoader::DependencyGraph::initialize(const std::vector<std::tuple<Dl
         const Version& ver = std::get<1>(item);
         std::string_view deps = std::get<2>(item); //Dependencies
         //make list of dependencies
-        std::list<std::pair<DllName,Version>> list;
-        if(!deps.empty())
-        {
-            for(std::string::size_type s = 0;;)
-            {
-                std::string::size_type e = deps.find(',',s);
-                std::string_view nv = (e == std::string::npos)? deps.substr(s) : deps.substr(s,e-s);
-
-                std::string snv{nv};
-                std::regex regex(R"(^\s*([^:\s]*)\s*(:\s*([0-9]+)\s*(\.\s*([0-9]+))?)?\s*$)");
-                std::smatch m;
-                if(!std::regex_match(snv, m, regex))
-                {//invalid format of dependencies, the dll should be removed later
-                    list.clear();
-                    list.emplace_back(std::make_pair("",0));
-                    break;
-                }
-                assert(1 < m.size());
-                std::string name = m[1];
-                if(name.empty())
-                {//invalid format
-                    list.clear();
-                    list.emplace_back(std::make_pair("",0));
-                    break;
-                }
-                Version minver = 0;
-                if(2 < m.size() && m[2].matched)
-                {
-                    assert(3 < m.size() && m[3].matched);
-                    int Ma = std::stoi(m[3]);
-                    int mi = 0;
-                    if(4 < m.size() && m[4].matched)
-                    {
-                        assert(5 < m.size() && m[5].matched);
-                        mi = std::stoi(m[5]);
-                    }
-                    minver = GRAFTLET_MKVER(Ma, mi);
-                }
-
-                list.push_back(std::make_pair(DllName(name),minver));
-
-                if(e == std::string::npos) break;
-                s = e + 1;
-            }
-        }
-
+        DependencyList list = parseDependencies(deps);
         auto res = m_graph.emplace(dllName, std::move(list));
         assert(res.second);
         auto res1 = m_dll2ver.emplace(dllName, ver);
