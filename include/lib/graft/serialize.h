@@ -38,6 +38,7 @@
  *   std::unique_ptr, std::shared_ptr                        | depends/null
  *   std::map, std::unordered_map                            | object
  *   JsonSerializable                                        | object
+ *   JsonBlob(std::string)                                   | object
  *  ---------------------------------------------------------+--------------
  *
  *  Example of structure definitions:
@@ -64,7 +65,70 @@
  * GRAFT_DEFINE_IO_STRUCT(Payments,
  *     (std::vector<Payment>, payments)
  * );
+ *
+ * You can use JsonBlob type instead of nested struct object. Thus, instead of
+ *
+ *  GRAFT_DEFINE_IO_STRUCT(Nested,
+ *      (int, x),
+ *      (int, y)
+ * );
+ *
+ *  GRAFT_DEFINE_IO_STRUCT(Wrapper,
+ *      (int, nestedType),
+ *      (Nested, nested)
+ * );
+ *
+ * following can be used
+ *
+ *  GRAFT_DEFINE_IO_STRUCT(Wrapper,
+ *      (int, nestedType),
+ *      (JsonBlob, nested)
+ * );
+ *
+ * and nested.json represents nested object as json string.
+ *
  */
+
+struct JsonBlob
+{
+    std::string json{"{}"};
+};
+
+namespace ReflectiveRapidJSON
+{
+namespace JsonReflector
+{
+
+template <>
+inline void push<JsonBlob>(
+    const JsonBlob &reflectable, RAPIDJSON_NAMESPACE::Value &value, RAPIDJSON_NAMESPACE::Document::AllocatorType &allocator)
+{
+    RAPIDJSON_NAMESPACE::Document doc;
+    std::string s = reflectable.json;
+    doc.Parse(s.c_str());
+    if(!doc.IsObject()) throw std::runtime_error("parsed JsonBlob is not an object");
+    value = doc.GetObject();
+}
+
+template <>
+inline void pull<JsonBlob>(JsonBlob &reflectable,
+    const RAPIDJSON_NAMESPACE::GenericValue<RAPIDJSON_NAMESPACE::UTF8<char>> &value, JsonDeserializationErrors *errors)
+{
+    if (!value.IsObject()) {
+        if (errors) {
+            errors->reportTypeMismatch<RAPIDJSON_NAMESPACE::Value::Object>(value.GetType());
+        }
+        return;
+    }
+    RAPIDJSON_NAMESPACE::StringBuffer sb;
+    RAPIDJSON_NAMESPACE::Writer<RAPIDJSON_NAMESPACE::StringBuffer> writer( sb );
+    value.Accept(writer);
+    reflectable.json = sb.GetString();
+}
+
+} //namespace JsonReflector
+} //namespace ReflectiveRapidJSON
+
 
 namespace graft::serializer
 {
