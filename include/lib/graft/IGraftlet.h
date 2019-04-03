@@ -193,3 +193,10 @@ private:
     Map m_map;
 };
 
+template<typename T>
+std::string makeInfo(const T& t)
+{
+    graft::Output out;
+    out.loadT(t);
+    return out.body;
+}

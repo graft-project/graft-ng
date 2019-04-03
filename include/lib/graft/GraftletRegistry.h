@@ -66,6 +66,8 @@
     extern "C" GRAFTLET_EXPORT const char* getGraftletDependencies() { return dependencies; }
 #define GRAFTLET_PLUGIN_CHECK_FW_VERSION() \
     extern "C" GRAFTLET_EXPORT bool checkFwVersion( int fwVersion );
+#define GRAFTLET_PLUGIN_INFO(infoFunction) \
+    extern "C" GRAFTLET_EXPORT std::string getGraftletInfo() { return infoFunction(); }
 
 #define GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(minversion) \
     extern "C" GRAFTLET_EXPORT bool checkFwVersion( int fwVersion ) { return minversion <= fwVersion; }
@@ -153,6 +155,7 @@ static const char* getGraftletName();
 static int getGraftletVersion();
 static const char* getGraftletDependencies();
 static bool checkFwVersion( int fwVersion );
+static std::string getGraftletInfo();
 static GraftletRegistry* getGraftletRegistry();
 
 inline std::string getVersionStr(int version)

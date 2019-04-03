@@ -122,11 +122,18 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
                 continue;
             }
 
+            InfoFunction infoFunction = nullptr;
+            if(lib.has("getGraftletInfo"))
+            {
+                auto infoFunc = dll::import<decltype(getGraftletInfo)>(lib, "getGraftletInfo" );
+                infoFunction = [infoFunc]()->std::string { return infoFunc(); };
+            }
+
             LOG_PRINT_L2("The graftlet accepted '") << dllName << " version " << graftletVersion << " path " << dll_path;
 
             auto res = m_name2lib.emplace(
                         std::make_pair(dllName,
-                                       std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path), std::move(dependencies), false ))
+                                       std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path), std::move(dependencies), false, std::move(infoFunction) ))
                         );
             if(!res.second) throw std::runtime_error("A plugin with the name '" + dllName + "' already exists");
             auto res1 = m_name2registries.emplace( std::make_pair(dllName, graftletRegistry) );

@@ -3,11 +3,32 @@
 #include "lib/graft/GraftletRegistry.h"
 #include "lib/graft/IGraftlet.h"
 #include "lib/graft/ConfigIni.h"
+#include "lib/graft/serialize.h"
 
 #include<cassert>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "graftlet.TestGraftlet"
+
+namespace
+{
+
+std::atomic<int> testHandlerCount{0};
+std::atomic<int> testHandler1Count{0};
+
+std::string Info()
+{
+    GRAFT_DEFINE_IO_STRUCT(InfoStruct,
+        (int, testHandlerCount),
+        (int, testHandler1Count)
+    );
+
+    InfoStruct info{ {}, testHandlerCount, testHandler1Count };
+
+    return makeInfo(info);
+}
+
+}
 
 class TestGraftlet: public IGraftlet
 {
@@ -37,6 +58,7 @@ public:
 
     graft::Status testHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        ++testHandlerCount;
         std::string id;
         {
             auto it = vars.find("id");
@@ -48,6 +70,7 @@ public:
 
     graft::Status testHandler1(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        ++testHandler1Count;
         std::string id;
         {
             auto it = vars.find("id");
@@ -101,6 +124,8 @@ public:
 GRAFTLET_EXPORTS_BEGIN("myGraftlet", GRAFTLET_MKVER(1,1));
 GRAFTLET_PLUGIN(TestGraftlet, IGraftlet, "testGL");
 GRAFTLET_EXPORTS_END
+
+GRAFTLET_PLUGIN_INFO(Info)
 
 GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(0,3))
 

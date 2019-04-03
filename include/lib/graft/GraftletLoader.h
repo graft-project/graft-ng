@@ -112,7 +112,6 @@ class GraftletLoader
 public:
     using DllName = std::string;
     using Version = int;
-    using Mandatory = bool;
     using GraftletExceptionList = std::vector< std::pair< DllName, std::vector< std::pair<Version, Version> >>>;
 
     GraftletLoader(const graft::CommonOpts& opts, graft::GlobalContextMap& gcm) : m_opts(opts), m_ctx(gcm) { }
@@ -146,6 +145,8 @@ private:
     using ClsName = std::string;
     using DllPath = std::string;
     using Dependencies = std::string; // format: dllName:minVersion,dllName1:minVersion1, ...
+    using Mandatory = bool;
+    using InfoFunction = std::function<std::string ()>;
 
     using ExceptionRngVec = std::vector<std::pair<Version,Version>>;
     using ExceptionMap = std::map<DllName, ExceptionRngVec>;
@@ -300,7 +301,7 @@ private:
 
     //we can use functions in a dll until we release object of boost::dll::shared_library
     //dll name -> (lib, version, path)
-    std::map<DllName, std::tuple<boost::dll::shared_library, Version, DllPath, Dependencies, Mandatory>> m_name2lib;
+    std::map<DllName, std::tuple<boost::dll::shared_library, Version, DllPath, Dependencies, Mandatory, InfoFunction>> m_name2lib;
     //dll name -> registry
     std::map<DllName, GraftletRegistry*> m_name2registries;
     //dll (name, type_index of BaseT) -> (class name, any of BaseT)
