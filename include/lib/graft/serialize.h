@@ -9,6 +9,8 @@
 
 #include <boost/hana.hpp>
 
+#include <sstream>
+
 #define GRAFT_DEFINE_IO_STRUCT(__S__, ...) \
     struct __S__ : public ReflectiveRapidJSON::JsonSerializable<__S__> { \
 	BOOST_HANA_DEFINE_STRUCT(__S__, __VA_ARGS__); \
@@ -105,9 +107,16 @@ inline void push<JsonBlob>(
 {
     RAPIDJSON_NAMESPACE::Document doc;
     std::string s = reflectable.json;
-    doc.Parse(s.c_str());
+    const RAPIDJSON_NAMESPACE::ParseResult parseRes = doc.Parse(s.c_str());
+    if (parseRes.IsError())
+    {
+        std::ostringstream oss;
+        oss << "Error while parsing JsonBlob code:" << parseRes.Code() << ", offset:" << parseRes.Offset()
+            << ", json:'" << s << "'";
+        throw std::runtime_error(oss.str());
+    }
     if(!doc.IsObject()) throw std::runtime_error("parsed JsonBlob is not an object");
-    value = doc.GetObject();
+    value.CopyFrom(doc, allocator);
 }
 
 template <>

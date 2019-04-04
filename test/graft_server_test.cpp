@@ -20,6 +20,9 @@
 
 #include <deque>
 
+namespace
+{
+
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
       (uint32, block_height),
@@ -31,6 +34,8 @@ GRAFT_DEFINE_IO_STRUCT(Payment,
 GRAFT_DEFINE_IO_STRUCT(Sstr,
       (std::string, s)
 );
+
+} //namespace
 
 TEST(InOut, common)
 {
@@ -80,7 +85,50 @@ TEST(InOut, common)
     EXPECT_EQ(s_out, s);
 }
 
-TEST(InOut, nested)
+TEST(InOut, nested1)
+{
+    GRAFT_DEFINE_IO_STRUCT(Nested,
+        (uint32, unlock_time)
+    );
+
+    GRAFT_DEFINE_IO_STRUCT(Cont,
+        (Nested, nested),
+        (std::string, s)
+    );
+
+    GRAFT_DEFINE_IO_STRUCT(ContX,
+        (JsonBlob, nested),
+        (std::string, s)
+    );
+
+    Nested nested{ {}, 50 };
+    Cont cont{ {}, nested, "70" };
+
+    //cont -> json
+    graft::Output output;
+    output.loadT(cont);
+    std::string cont_json = output.body;
+
+    //json -> cont1
+    graft::Input input; input.body = cont_json;
+    Cont cont1; input.getT(cont1);
+    EXPECT_EQ(cont1.nested.unlock_time, 50);
+    EXPECT_EQ(cont1.s, "70");
+
+    //nested -> json
+    output.loadT(nested);
+    std::string nested_json = output.body;
+
+    //contx -> json
+    ContX contx;
+    contx.nested.json = nested_json;
+    contx.s = "70";
+    graft::Output output1;
+    output1.loadT(contx);
+    EXPECT_EQ(output1.body, cont_json);
+}
+
+TEST(InOut, nested2)
 {
     GRAFT_DEFINE_IO_STRUCT(Nested,
         (uint64, amount),
