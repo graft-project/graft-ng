@@ -381,16 +381,15 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
                     if(!ok) break;
                 }
             }
-            auto it0 = it_gr;
-            ++it_gr;
             if(!ok)
             {
                 res.push_back(name);
-                m_graph.erase(it0);
                 m_dll2ver.erase(name);
+                it_gr = m_graph.erase(it_gr);
                 changed = true;
                 break;
             }
+            else ++it_gr;
         }
     }
     return res;
