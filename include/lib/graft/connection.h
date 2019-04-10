@@ -220,7 +220,7 @@ class XorolFilter;
 class HttpConnectionManager final : public ConnectionManager
 {
 public:
-    HttpConnectionManager();
+    HttpConnectionManager(uint expire_ms);
 
     void bind(Looper& looper) override;
 
