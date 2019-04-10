@@ -35,6 +35,10 @@
 
 #include "requests/presale.h"
 
+#include <rta/supernode.h>
+#include <rta/fullsupernodelist.h>
+#include <lib/graft/ConfigIni.h>
+
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "graftlet.WalletAddress"
@@ -48,14 +52,66 @@ public:
       : IGraftlet(name) { }
 
 protected:
-    virtual void initOnce(const graft::CommonOpts& opts) override
+    virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) override
     {
-
+        prepareSupernode(opts, ctx);
         REGISTER_ENDPOINT("/dapi/v2.0/test", METHOD_GET, RtaGraftlet, test);
         REGISTER_ENDPOINT("/dapi/v3.0/presale", METHOD_GET, RtaGraftlet, handlePresaleRequest);
-
     }
 private:
+
+    void prepareSupernode(const graft::CommonOpts& opts, graft::Context& ctx)
+    {
+        // create data directory if not exists
+        boost::filesystem::path data_path(opts.data_dir);
+
+        if (!boost::filesystem::exists(data_path)) {
+            boost::system::error_code ec;
+            if (!boost::filesystem::create_directories(data_path, ec)) {
+                throw std::runtime_error(ec.message());
+            }
+        }
+
+        // read config
+        auto config = graft::ConfigIniSubtree::create(opts.config_filename);
+        std::string cryptonode_rpc_address = config.get<std::string>("cryptonode.rpc_address");
+        std::string supernode_http_address = config.get<std::string>("server.http_address");
+
+
+        // create supernode instance and put it into global context
+        graft::SupernodePtr supernode = boost::make_shared<graft::Supernode>(
+                        opts.wallet_public_address,
+                        crypto::public_key(),
+                        cryptonode_rpc_address,
+                        opts.testnet
+                        );
+
+        std::string keyfilename = (data_path / "supernode.keys").string();
+        if (!supernode->loadKeys(keyfilename)) {
+            // supernode is not initialized, generating key
+            supernode->initKeys();
+            if (!supernode->saveKeys(keyfilename)) {
+                MERROR("Failed to save keys");
+                throw std::runtime_error("Failed to save keys");
+            }
+        }
+
+        supernode->setNetworkAddress(supernode_http_address + "/dapi/v3.0");
+
+        // create fullsupernode list instance and put it into global context
+        graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
+                    cryptonode_rpc_address,
+                    opts.testnet);
+        fsl->add(supernode);
+
+        ctx.global[CONTEXT_KEY_SUPERNODE] = supernode;
+        ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
+        // TODO: check what depends on following context values, move to the proper place;
+        ctx.global["testnet"] = opts.testnet;
+        ctx.global["cryptonode_rpc_address"] = cryptonode_rpc_address;
+        ctx.global["supernode_url"] = supernode_http_address + "/dapi/v3.0";
+    }
+
     Status test(const Router::vars_t& vars, const graft::Input& input,
                             graft::Context& ctx, graft::Output& output)
     {

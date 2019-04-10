@@ -168,12 +168,7 @@ void Supernode::prepareSupernode()
 
     //put fsl into global context
     Context ctx(getLooper().getGcm());
-    ctx.global[CONTEXT_KEY_SUPERNODE] = supernode;
-    ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
-    ctx.global["testnet"] = m_configEx.common.testnet;
-    ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
-    ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
-    ctx.global["supernode_url"] = m_configEx.http_address + "/dapi/v2.0";
+
     ctx.global["external_address"] = m_configEx.external_address;
     ctx.global["jump_node_coefficient"] = m_configEx.jump_node_coefficient;
     ctx.global["redirect_timeout_ms"] = m_configEx.redirect_timeout_ms;
