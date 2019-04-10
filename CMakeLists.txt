@@ -201,7 +201,8 @@ set_target_properties(graftlet_lib PROPERTIES
     )
 
 set(GRAFTLETS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/graftlets)
-add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
+add_subdirectory(graftlets/wallet_address ${PROJECT_BINARY_DIR}/BUILD/graftlets/wallet_address)
+add_subdirectory(graftlets/rta ${PROJECT_BINARY_DIR}/BUILD/graftlets/rta)
 
 ### graft library
 add_library(graft STATIC
