@@ -32,11 +32,9 @@
 
 #include "supernode/requestdefines.h"
 #include "lib/graft/graft_exception.h"
-#include "cryptonote_basic/cryptonote_basic_impl.h"
-#include "cryptonote_protocol/blobdatatype.h"
-#include "file_io_utils.h"
 
-#include<cassert>
+#include "requests/presale.h"
+
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "graftlet.WalletAddress"
@@ -54,6 +52,7 @@ protected:
     {
 
         REGISTER_ENDPOINT("/dapi/v2.0/test", METHOD_GET, RtaGraftlet, test);
+        REGISTER_ENDPOINT("/dapi/v3.0/presale", METHOD_GET, RtaGraftlet, handlePresaleRequest);
 
     }
 private:
@@ -64,6 +63,10 @@ private:
         return Status::Ok;
     }
 
+    Status handlePresaleRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return supernode::request::handlePresaleRequest(vars, input, ctx, output);
+    }
 
 };
 

@@ -22,12 +22,14 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/requests/include
     ${PROJECT_SOURCE_DIR}/../../modules/libr3/include
 )
 
 
 add_library(graftlet_rta SHARED
     RTA.cpp
+    requests/presale.cpp
 )
 set_target_properties(graftlet_walletAddress PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode
