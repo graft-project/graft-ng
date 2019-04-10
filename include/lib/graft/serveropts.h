@@ -38,9 +38,9 @@ struct ConfigOpts
     int log_trunc_to_size;
     std::vector<std::string> graftlet_dirs;
     int lru_timeout_ms;
+    int duplicate_filter_timeout_ms;
     IPFilterOpts ipfilter;
     CommonOpts common;
-    bool duplicate_filter_enabled = true;
 
     void check_asserts() const
     {
@@ -51,6 +51,7 @@ struct ConfigOpts
         assert(0 < workers_expelling_interval_ms);
         assert(0 < timer_poll_interval_ms);
         assert(0 < lru_timeout_ms);
+        assert(0 <= duplicate_filter_timeout_ms);
         assert(ipfilter.requests_per_sec == 0 || 0 < ipfilter.window_size_sec);
     }
 };
