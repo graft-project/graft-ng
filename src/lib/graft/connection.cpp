@@ -500,7 +500,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
         if(opts.duplicate_filter_enabled)
         {//calculate hash value of body, and check if it is in XorolFilter
             mg_str& body = hm->body;
-            uint16_t xr = graft::utils::xorol(reinterpret_cast<const uint8_t*>(body.p), body.len);
+            uint64_t xr = graft::utils::xorol(reinterpret_cast<const uint8_t*>(body.p), body.len);
 
             HttpConnectionManager* httpCM = dynamic_cast<HttpConnectionManager*>( conBase->getConMgr("HTTP") );
             assert(httpCM);
