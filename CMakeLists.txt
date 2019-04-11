@@ -35,10 +35,16 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
 endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
-set(CMAKE_C_FLAGS "-march=x86-64")
-set(CMAKE_CXX_FLAGS "-march=x86-64")
-
 project(graft_server)
+
+set(COMMON_FLAGS "-march=x86-64")
+#CMAKE_CXX_COMPILER_ID is defined after 'project' statement
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU") # using GCC
+#    set(COMMON_FLAGS "${COMMON_FLAGS} -Werror=return-type -Wall -Wno-reorder -Wno-sign-compare -Wno-unused-function")
+    set(COMMON_FLAGS "${COMMON_FLAGS} -Wreturn-type")
+endif()
+set(CMAKE_C_FLAGS "${COMMON_FLAGS}")
+set(CMAKE_CXX_FLAGS "${COMMON_FLAGS}")
 
 option(OPT_BUILD_TESTS "Build tests." OFF)
 option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
