@@ -456,22 +456,13 @@ if (OPT_BUILD_TESTS)
             target_compile_definitions(supernode_test PRIVATE -DELPP_SYSLOG)
         endif()
 
-        if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
-            add_custom_command(
-                TARGET supernode_test POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_SOURCE_DIR}/data/test_wallet.keys
-                ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
-        endif()
-
 endif (OPT_BUILD_TESTS)
 
-# copy config file to build directory
-if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
-    add_custom_command(
-        TARGET supernode POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/data/*
-        ${CMAKE_CURRENT_BINARY_DIR}/)
-endif()
-
+# copy data/* to build directory if config.ini absent
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/config.ini
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/data/* ${CMAKE_CURRENT_BINARY_DIR}/
+    DEPENDS "${CMAKE_SOURCE_DIR}/data/config.ini"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Copy ${CMAKE_SOURCE_DIR}/data/ to ${CMAKE_CURRENT_BINARY_DIR}/"
+)
+add_custom_target(copy_data ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
