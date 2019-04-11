@@ -87,7 +87,7 @@ void UpstreamSender::send(TaskManager &manager, const std::string& def_uri)
         std::stringstream ss;
         ss << "http://0.0.0.0:" << mg_port << "/callback/" << boost::uuids::to_string(callback_uuid);
 
-        auto it = std::find_if(output.headers.begin(), output.headers.end(), [](auto& v)->bool { v.first == "X-Callback"; } );
+        auto it = std::find_if(output.headers.begin(), output.headers.end(), [](auto& v)->bool { return v.first == "X-Callback"; } );
         if(it != output.headers.end())
         {
             std::ostringstream oss;

@@ -989,6 +989,7 @@ TEST_F(GraftServerTestBase, Again)
         } break;
         default: assert(false);
         }
+        return graft::Status::Ok;
     };
 
     TempCryptoNodeServer crypton;
@@ -1262,7 +1263,9 @@ TEST_F(GraftServerPostponeTest, common)
             output.body = postpone_result;
             return graft::Status::Ok;
         } break;
+        default: assert(false);
         }
+        return graft::Status::Ok;
     };
 
     std::atomic<bool> stop_crypton{false};
@@ -1399,7 +1402,9 @@ TEST_F(GraftServerTest, genericCallback)
         {
             return graft::Status::Ok;
         } break;
+        default: assert(false);
         }
+        return graft::Status::Ok;
     };
 
     graft::supernode::request::registerForwardRequests(m_httpRouter);
