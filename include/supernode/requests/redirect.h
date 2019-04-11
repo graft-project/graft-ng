@@ -26,6 +26,7 @@ GRAFT_DEFINE_JSON_RPC_REQUEST(RegisterSupernodeJsonRpcRequest, RegisterSupernode
 GRAFT_DEFINE_IO_STRUCT(UDHTInfoItem,
                        (std::string, id),
                        (std::string, ip_port),
+                       (bool, active),
                        (std::string, expiration_time),
                        (uint32_t, broadcast_count),
                        (double, avg_hop_ip_broadcast),
