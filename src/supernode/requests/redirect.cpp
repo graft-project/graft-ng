@@ -44,12 +44,14 @@ namespace graft::supernode::request {
 namespace
 {
 
-const std::chrono::system_clock::duration time_wnd = std::chrono::hours(12);
+using Clock = std::chrono::system_clock;
+
+const Clock::duration time_wnd = std::chrono::hours(12);
 
 struct UdhtStates
 {
     //announce expire time, hops left
-    using ContTimeHop = std::deque<std::pair<std::chrono::system_clock::time_point, uint64_t>>;
+    using ContTimeHop = std::deque<std::pair<Clock::time_point, uint64_t>>;
     ContTimeHop announces;
     ContTimeHop redirects;
 };
@@ -58,7 +60,7 @@ class UdhtInfo
 {
     void chop_old(UdhtStates* item = nullptr)
     {
-        auto edge = std::chrono::system_clock::now() - time_wnd;
+        auto edge = Clock::now() - time_wnd;
         auto chop = [&edge](UdhtStates::ContTimeHop& cont)->void
         {
             auto v = std::make_pair(edge, (uint64_t)0);
@@ -94,7 +96,7 @@ public:
         case Redirects: cont = &item.redirects; break;
         default: assert(false);
         }
-        cont->push_front(std::make_pair(std::chrono::system_clock::now(), hops));
+        cont->push_front(std::make_pair(Clock::now(), hops));
     }
 
     void chop_all_old()
@@ -106,9 +108,9 @@ public:
         }
     }
 
-    static std::string local_time(const std::chrono::system_clock::time_point& tp)
+    static std::string local_time(const Clock::time_point& tp)
     {
-        auto tm = std::chrono::system_clock::to_time_t(tp);
+        auto tm = Clock::to_time_t(tp);
 
         std::ostringstream ss;
         ss << std::put_time(std::localtime(&tm), "%F %T");
@@ -723,6 +725,8 @@ graft::Status onGetUDHTInfo(const graft::Router::vars_t& vars, const graft::Inpu
         {
             info->chop_all_old();
 
+            Clock::time_point tp_now = Clock::now();
+
             // fill res.items
             for(auto& it : info->id2states)
             {
@@ -740,6 +744,7 @@ graft::Status onGetUDHTInfo(const graft::Router::vars_t& vars, const graft::Inpu
                     auto& tp = states.announces.front().first;
                     uint32_t redirect_timeout_ms = ctx.global["redirect_timeout_ms"];
                     tp += std::chrono::milliseconds( redirect_timeout_ms );
+                    res_item.active = (tp_now <= tp);
                     res_item.expiration_time = UdhtInfo::local_time(tp);
                 }
                 res_item.broadcast_count = states.announces.size();
