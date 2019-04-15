@@ -40,7 +40,7 @@ struct ConfigOpts
     int lru_timeout_ms;
     IPFilterOpts ipfilter;
     CommonOpts common;
-    bool duplicate_filter_enabled = true;
+    bool duplicate_filter_enabled = false;
     std::string mandatory_graftlet_dependencies;
 
     void check_asserts() const
