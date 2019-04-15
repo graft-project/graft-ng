@@ -55,8 +55,8 @@ protected:
     virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) override
     {
         prepareSupernode(opts, ctx);
-        REGISTER_ENDPOINT("/dapi/v3.0/test", METHOD_GET, RtaGraftlet, test);
-        REGISTER_ENDPOINT("/dapi/v3.0/presale", METHOD_POST, RtaGraftlet, handlePresaleRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/test", METHOD_GET, RtaGraftlet, test);
+        REGISTER_ENDPOINT("/dapi/v2.0/presale", METHOD_POST, RtaGraftlet, handlePresaleRequest);
 
     }
 private:
@@ -96,7 +96,7 @@ private:
             }
         }
 
-        supernode->setNetworkAddress(supernode_http_address + "/dapi/v3.0");
+        supernode->setNetworkAddress(supernode_http_address + "/dapi/v2.0");
 
         // create fullsupernode list instance and put it into global context
         graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
