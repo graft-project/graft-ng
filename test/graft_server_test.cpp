@@ -20,6 +20,9 @@
 
 #include <deque>
 
+namespace
+{
+
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
       (uint32, block_height),
@@ -31,6 +34,8 @@ GRAFT_DEFINE_IO_STRUCT(Payment,
 GRAFT_DEFINE_IO_STRUCT(Sstr,
       (std::string, s)
 );
+
+} //namespace
 
 TEST(InOut, common)
 {
@@ -78,6 +83,124 @@ TEST(InOut, common)
     //remove all spaces
     s.erase(std::remove_if(s.begin(), s.end(), isspace), s.end());
     EXPECT_EQ(s_out, s);
+}
+
+TEST(InOut, nested1)
+{
+    GRAFT_DEFINE_IO_STRUCT(Nested,
+        (uint32, unlock_time)
+    );
+
+    GRAFT_DEFINE_IO_STRUCT(Cont,
+        (Nested, nested),
+        (std::string, s)
+    );
+
+    GRAFT_DEFINE_IO_STRUCT(ContX,
+        (JsonBlob, nested),
+        (std::string, s)
+    );
+
+    Nested nested{ {}, 50 };
+    Cont cont{ {}, nested, "70" };
+
+    //cont -> json
+    graft::Output output;
+    output.loadT(cont);
+    std::string cont_json = output.body;
+
+    //json -> cont1
+    graft::Input input; input.body = cont_json;
+    Cont cont1; input.getT(cont1);
+    EXPECT_EQ(cont1.nested.unlock_time, 50);
+    EXPECT_EQ(cont1.s, "70");
+
+    //nested -> json
+    output.loadT(nested);
+    std::string nested_json = output.body;
+
+    //contx -> json
+    ContX contx;
+    contx.nested.json = nested_json;
+    contx.s = "70";
+    graft::Output output1;
+    output1.loadT(contx);
+    EXPECT_EQ(output1.body, cont_json);
+}
+
+TEST(InOut, nested2)
+{
+    GRAFT_DEFINE_IO_STRUCT(Nested,
+        (uint64, amount),
+        (uint32, block_height),
+        (std::string, payment_id),
+        (std::string, tx_hash),
+        (uint32, unlock_time)
+    );
+
+    GRAFT_DEFINE_IO_STRUCT(Cont,
+        (int, val),
+        (Nested, nested),
+        (std::string, s)
+    );
+
+    GRAFT_DEFINE_IO_STRUCT(ContX,
+        (int, val),
+        (JsonBlob, nested),
+        (std::string, s)
+    );
+
+    Nested nested{ {}, 10, 20, "30", "40", 50 };
+    Cont cont{ {}, 60, nested, "70" };
+
+    //cont -> json
+    graft::Output output;
+    output.loadT(cont);
+    std::string cont_json = output.body;
+
+    //json -> cont1
+    graft::Input input; input.body = cont_json;
+    Cont cont1; input.getT(cont1);
+    EXPECT_EQ(cont1.nested.amount, 10);
+    EXPECT_EQ(cont1.nested.block_height, 20);
+    EXPECT_EQ(cont1.nested.payment_id, "30");
+    EXPECT_EQ(cont1.nested.tx_hash, "40");
+    EXPECT_EQ(cont1.nested.unlock_time, 50);
+    EXPECT_EQ(cont1.val, 60);
+    EXPECT_EQ(cont1.s, "70");
+
+
+    //nested -> json
+    output.loadT(nested);
+    std::string nested_json = output.body;
+
+    //contx -> json
+    ContX contx;
+    contx.val = 60;
+    contx.nested.json = nested_json;
+    contx.s = "70";
+    output.loadT(contx);
+    EXPECT_EQ(output.body, cont_json);
+
+    //json -> contx1
+    input.body = output.body;
+    ContX contx1; input.getT(contx1);
+    EXPECT_EQ(contx1.nested.json, nested_json);
+    EXPECT_EQ(contx1.val, 60);
+    EXPECT_EQ(contx1.s, "70");
+
+    bool except = false;
+    try
+    {
+        contx.nested.json = "{invalid : 10 ";
+        output.loadT(contx);
+    }
+    catch(std::exception& e)
+    {
+        except = true;
+        std::cout << "exception : " << e.what() << "\n";
+    }
+    EXPECT_EQ(except, true);
 }
 
 namespace graft { namespace serializer {
@@ -866,6 +989,7 @@ TEST_F(GraftServerTestBase, Again)
         } break;
         default: assert(false);
         }
+        return graft::Status::Ok;
     };
 
     TempCryptoNodeServer crypton;
@@ -1139,7 +1263,9 @@ TEST_F(GraftServerPostponeTest, common)
             output.body = postpone_result;
             return graft::Status::Ok;
         } break;
+        default: assert(false);
         }
+        return graft::Status::Ok;
     };
 
     std::atomic<bool> stop_crypton{false};
@@ -1276,7 +1402,9 @@ TEST_F(GraftServerTest, genericCallback)
         {
             return graft::Status::Ok;
         } break;
+        default: assert(false);
         }
+        return graft::Status::Ok;
     };
 
     graft::supernode::request::registerForwardRequests(m_httpRouter);

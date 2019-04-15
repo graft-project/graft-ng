@@ -153,7 +153,7 @@ public:
     virtual bool addPeriodicTask(const Router::Handler& h_worker,
                                  std::chrono::milliseconds interval_ms,
                                  std::chrono::milliseconds initial_interval_ms = std::chrono::milliseconds::max(),
-                                 double random_factor = 0) override { }
+                                 double random_factor = 0) override { return false; }
     virtual graft::request::system_info::Counter& runtimeSysInfo() override
     {
         return m_sic;

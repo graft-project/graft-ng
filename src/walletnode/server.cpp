@@ -3,12 +3,7 @@
 #include "walletnode/requests.h"
 #include "supernode/requestdefines.h"
 
-#include <boost/program_options.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-
 const int WALLET_DISK_CACHES_UPDATE_TIME_MS = 10 * 60 * 1000; //TODO: move to config
-
-namespace po = boost::program_options;
 
 namespace graft {
 

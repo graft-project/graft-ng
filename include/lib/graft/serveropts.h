@@ -10,6 +10,7 @@ struct CommonOpts
 {
     // testnet flag
     bool testnet;
+    std::string config_filename;
     // data directory - base directory where supernode stake wallet and other supernodes wallets are located
     std::string data_dir;
     std::string wallet_public_address;
@@ -25,7 +26,6 @@ struct IPFilterOpts
 
 struct ConfigOpts
 {
-    std::string config_filename;
     std::string http_address;
     std::string coap_address;
     double http_connection_timeout;
@@ -41,6 +41,7 @@ struct ConfigOpts
     IPFilterOpts ipfilter;
     CommonOpts common;
     bool duplicate_filter_enabled = true;
+    std::string mandatory_graftlet_dependencies;
 
     void check_asserts() const
     {

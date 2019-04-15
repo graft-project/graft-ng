@@ -172,6 +172,7 @@ void getSupernodesWithStake(graft::Context& ctx, IdSet& allWithStake)
             if(!sptr->stakeAmount()) continue;
             allWithStake.emplace_back(item);
         }
+        return true;
     }
     );
 
@@ -694,6 +695,8 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
         return graft::Status::Ok;
     }
     }
+    assert(false);
+    return graft::Status::Ok;
 }
 
 #ifdef UDHT_INFO

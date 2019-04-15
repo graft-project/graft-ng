@@ -31,8 +31,12 @@
 #include <iostream>
 #include <boost/dll/import.hpp>
 
+namespace graft::request::system_info { struct GraftletInfo; }
+
 namespace graftlet
 {
+
+using GraftletInfo = graft::request::system_info::GraftletInfo;
 
 template <class BaseT>
 class GraftletHandlerT
@@ -97,6 +101,14 @@ public:
         struct helperSign<Sign> h(this);
         return h.invoke(cls_method, std::forward<Args>(args)...);
     }
+
+    BaseT* getClass(const ClsName& cls)
+    {
+        auto it = m_cls2any.find(cls);
+        if(it == m_cls2any.end()) throw std::runtime_error("Cannot find graftlet class name:" + cls);
+        std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it->second);
+        return concreteGraftlet.get();
+    }
 };
 
 class GraftletLoader
@@ -106,7 +118,7 @@ public:
     using Version = int;
     using GraftletExceptionList = std::vector< std::pair< DllName, std::vector< std::pair<Version, Version> >>>;
 
-    GraftletLoader(const graft::CommonOpts& opts) : m_opts(opts) { }
+    GraftletLoader(const graft::CommonOpts& opts, graft::GlobalContextMap& gcm) : m_opts(opts), m_ctx(gcm) { }
 
     static Version getFwVersion() { return m_fwVersion; }
     static void setFwVersion(Version fwVersion) { m_fwVersion = fwVersion; }
@@ -114,7 +126,7 @@ public:
     static void setGraftletsExceptionList(const GraftletExceptionList& gel);
 
     void findGraftletsInDirectory(std::string additionalDir, std::string extension);
-    void checkDependencies();
+    void checkDependencies(const std::string& mandatories = "");
 
     GraftletHandlerT<IGraftlet> buildAndResolveGraftlet(const DllName& dllName)
     {
@@ -126,12 +138,21 @@ public:
         return getEndpointsT<IGraftlet>();
     }
 
+    typename IGraftlet::PeriodicVec getPeriodics()
+    {
+        return getPeriodicsT<IGraftlet>();
+    }
+
+    void fillInfo(std::vector<GraftletInfo>& graftletsInfo);
+
     class DependencyGraph;
     friend class GraftletLoader::DependencyGraph;
 private:
     using ClsName = std::string;
     using DllPath = std::string;
     using Dependencies = std::string; // format: dllName:minVersion,dllName1:minVersion1, ...
+    using Mandatory = bool;
+    using InfoFunction = std::function<std::string ()>;
 
     using ExceptionRngVec = std::vector<std::pair<Version,Version>>;
     using ExceptionMap = std::map<DllName, ExceptionRngVec>;
@@ -159,6 +180,27 @@ private:
     }
 
     template <class BaseT>
+    typename BaseT::PeriodicVec getPeriodicsT()
+    {
+        prepareAllEndpoints<BaseT>();
+
+        typename BaseT::PeriodicVec res;
+        for(auto& it0 : m_name2gls)
+        {
+            if(it0.first.second != std::type_index(typeid(BaseT))) continue;
+            std::map<ClsName, std::any>& map = it0.second;
+            for(auto& it1 : map)
+            {
+                //TODO: remove shared_ptr, it does not hold something now
+                std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it1.second);
+                typename BaseT::PeriodicVec vec = concreteGraftlet->getPeriodics();
+                res.insert(res.end(), vec.begin(), vec.end());
+            }
+        }
+        return res;
+    }
+
+    template <class BaseT>
     typename BaseT::EndpointsVec getEndpointsT()
     {
         prepareAllEndpoints<BaseT>();
@@ -180,6 +222,9 @@ private:
     }
 
     template <class BaseT>
+    void fillInfoT(std::vector<GraftletInfo>& graftletsInfo);
+
+    template <class BaseT>
     GraftletHandlerT<BaseT> buildAndResolveGraftletT(const DllName& dllName)
     {
         auto it0 = m_name2gls.find(std::make_pair(dllName,std::type_index(typeid(BaseT))));
@@ -190,7 +235,7 @@ private:
             GraftletRegistry* gr = it1->second;
             std::shared_ptr<BaseT> concreteGraftlet = gr->resolveGraftlet<BaseT>();
             if(!concreteGraftlet.get()) throw std::runtime_error("Cannot resolve dll name:" + dllName + " type:" + typeid(BaseT).name());
-            concreteGraftlet->init(m_opts);
+            concreteGraftlet->init(m_opts, m_ctx);
             ClsName name = concreteGraftlet->getClsName();
             std::any any(concreteGraftlet);
 
@@ -261,10 +306,11 @@ private:
     static ExceptionMap m_exceptionMap;
 
     const graft::CommonOpts& m_opts;
+    graft::Context m_ctx;
 
     //we can use functions in a dll until we release object of boost::dll::shared_library
     //dll name -> (lib, version, path)
-    std::map<DllName, std::tuple<boost::dll::shared_library, Version, DllPath, Dependencies>> m_name2lib;
+    std::map<DllName, std::tuple<boost::dll::shared_library, Version, DllPath, Dependencies, Mandatory, InfoFunction>> m_name2lib;
     //dll name -> registry
     std::map<DllName, GraftletRegistry*> m_name2registries;
     //dll (name, type_index of BaseT) -> (class name, any of BaseT)
@@ -279,8 +325,11 @@ public:
     using DllName = GraftletLoader::DllName;
     using Version = GraftletLoader::Version;
     using Dependencies = GraftletLoader::Dependencies;
+    using DependencyList = std::list<std::pair<DllName,Version>>;
 
-    void initialize(GraftletLoader& gl);
+    static DependencyList parseDependencies(std::string_view deps);
+
+    void initialize(GraftletLoader& gl, const Dependencies& mandatories);
     void removeFailedDependants(GraftletLoader& gl);
     //returns error if dont_throw == true
     std::string findCycles(bool dont_throw = false);

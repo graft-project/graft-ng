@@ -24,6 +24,8 @@
 #include "lib/graft/graft_exception.h"
 #define INCLUDE_DEPENDENCY_GRAPH
 #include "lib/graft/GraftletLoader.h"
+#include "lib/graft/serialize.h"
+#include "lib/graft/graftlets_sys_info.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "graftlet.GraftletLoader"
@@ -122,11 +124,18 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
                 continue;
             }
 
+            InfoFunction infoFunction = nullptr;
+            if(lib.has("getGraftletInfo"))
+            {
+                auto infoFunc = dll::import<decltype(getGraftletInfo)>(lib, "getGraftletInfo" );
+                infoFunction = [infoFunc]()->std::string { return infoFunc(); };
+            }
+
             LOG_PRINT_L2("The graftlet accepted '") << dllName << " version " << graftletVersion << " path " << dll_path;
 
             auto res = m_name2lib.emplace(
                         std::make_pair(dllName,
-                                       std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path), std::move(dependencies) ))
+                                       std::make_tuple( std::move(lib), graftletVersion, std::move(dll_path), std::move(dependencies), false, std::move(infoFunction) ))
                         );
             if(!res.second) throw std::runtime_error("A plugin with the name '" + dllName + "' already exists");
             auto res1 = m_name2registries.emplace( std::make_pair(dllName, graftletRegistry) );
@@ -150,6 +159,131 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
     }
 }
 
+template <class BaseT>
+void GraftletLoader::fillInfoT(std::vector<GraftletInfo>& graftletsInfo)
+{
+    using namespace graft::request::system_info;
+    graftletsInfo.clear();
+
+    prepareAllEndpoints<BaseT>();
+
+    for(auto& it0 : m_name2gls)
+    {
+        if(it0.first.second != std::type_index(typeid(BaseT))) continue;
+
+        GraftletInfo graftlet;
+
+        const DllName& name = it0.first.first;
+        graftlet.name = name;
+        {
+            auto it_lib = m_name2lib.find(name);
+            assert(it_lib != m_name2lib.end());
+
+            const Version& version = std::get<1>(it_lib->second);
+            const DllPath& dllPath = std::get<2>(it_lib->second);
+            const Dependencies& dependencies = std::get<3>(it_lib->second);
+            const Mandatory& mandatory = std::get<4>(it_lib->second);
+            const InfoFunction& info = std::get<5>(it_lib->second);
+
+            graftlet.path = dllPath;
+            graftlet.version_major = GRAFTLET_Major(version);
+            graftlet.version_minor = GRAFTLET_Minor(version);
+            graftlet.mandatory = mandatory;
+            if(info)
+            {
+                graftlet.info.json = info();
+            }
+
+            std::list<std::pair<DllName,Version>> list = DependencyGraph::parseDependencies(dependencies);
+            for(auto& it_d : list)
+            {
+                Dependency d;
+                d.name = it_d.first;
+                d.min_version_major = GRAFTLET_Major(it_d.second);
+                d.min_version_minor = GRAFTLET_Minor(it_d.second);
+                graftlet.dependencies.emplace_back( std::move(d) );
+            }
+        }
+
+        std::map<ClsName, std::any>& map = it0.second;
+        for(auto& it1 : map)
+        {
+            Class cls;
+            cls.name = it1.first;
+            //TODO: remove shared_ptr, it does not hold something now
+            std::shared_ptr<BaseT> concreteGraftlet = std::any_cast<std::shared_ptr<BaseT>>(it1.second);
+            cls.methods = concreteGraftlet->getFuncNames();
+            typename BaseT::EndpointsVec vec = concreteGraftlet->getEndpoints();
+            for(auto& it_ep : vec)
+            {
+                Endpoint endpoint;
+                endpoint.path = std::get<0>(it_ep);
+                endpoint.methods = graft::Router::methodsToString( std::get<1>(it_ep) );
+                endpoint.name = std::get<3>(it_ep);
+
+                graftlet.end_points.emplace_back(std::move(endpoint));
+            }
+            graftlet.classes.emplace_back(std::move(cls));
+        }
+        graftletsInfo.emplace_back(std::move(graftlet));
+    }
+}
+
+void GraftletLoader::fillInfo(std::vector<GraftletInfo>& graftletsInfo)
+{
+    fillInfoT<IGraftlet>(graftletsInfo);
+}
+
+GraftletLoader::DependencyGraph::DependencyList GraftletLoader::DependencyGraph::parseDependencies(std::string_view deps)
+{
+    DependencyList list;
+    if(!deps.empty())
+    {
+        for(std::string::size_type s = 0;;)
+        {
+            std::string::size_type e = deps.find(',',s);
+            std::string_view nv = (e == std::string::npos)? deps.substr(s) : deps.substr(s,e-s);
+
+            std::string snv{nv};
+            std::regex regex(R"(^\s*([^:\s]*)\s*(:\s*([0-9]+)\s*(\.\s*([0-9]+))?)?\s*$)");
+            std::smatch m;
+            if(!std::regex_match(snv, m, regex))
+            {//invalid format of dependencies, the dll should be removed later
+                list.clear();
+                list.emplace_back(std::make_pair("",0));
+                break;
+            }
+            assert(1 < m.size());
+            std::string name = m[1];
+            if(name.empty())
+            {//invalid format
+                list.clear();
+                list.emplace_back(std::make_pair("",0));
+                break;
+            }
+            Version minver = 0;
+            if(2 < m.size() && m[2].matched)
+            {
+                assert(3 < m.size() && m[3].matched);
+                int Ma = std::stoi(m[3]);
+                int mi = 0;
+                if(4 < m.size() && m[4].matched)
+                {
+                    assert(5 < m.size() && m[5].matched);
+                    mi = std::stoi(m[5]);
+                }
+                minver = GRAFTLET_MKVER(Ma, mi);
+            }
+
+            list.push_back(std::make_pair(DllName(name),minver));
+
+            if(e == std::string::npos) break;
+            s = e + 1;
+        }
+    }
+    return list;
+}
+
 void GraftletLoader::DependencyGraph::initialize(const std::vector<std::tuple<DllName,Version,Dependencies>>& vec)
 {
     m_graph.clear();
@@ -161,52 +295,7 @@ void GraftletLoader::DependencyGraph::initialize(const std::vector<std::tuple<Dl
         const Version& ver = std::get<1>(item);
         std::string_view deps = std::get<2>(item); //Dependencies
         //make list of dependencies
-        std::list<std::pair<DllName,Version>> list;
-        if(!deps.empty())
-        {
-            for(std::string::size_type s = 0;;)
-            {
-                std::string::size_type e = deps.find(',',s);
-                std::string_view nv = (e == std::string::npos)? deps.substr(s) : deps.substr(s,e-s);
-
-                std::string snv{nv};
-                std::regex regex(R"(^\s*([^:\s]*)\s*(:\s*([0-9]+)\s*(\.\s*([0-9]+))?)?\s*$)");
-                std::smatch m;
-                if(!std::regex_match(snv, m, regex))
-                {//invalid format of dependencies, the dll should be removed later
-                    list.clear();
-                    list.emplace_back(std::make_pair("",0));
-                    break;
-                }
-                assert(1 < m.size());
-                std::string name = m[1];
-                if(name.empty())
-                {//invalid format
-                    list.clear();
-                    list.emplace_back(std::make_pair("",0));
-                    break;
-                }
-                Version minver = 0;
-                if(2 < m.size() && m[2].matched)
-                {
-                    assert(3 < m.size() && m[3].matched);
-                    int Ma = std::stoi(m[3]);
-                    int mi = 0;
-                    if(4 < m.size() && m[4].matched)
-                    {
-                        assert(5 < m.size() && m[5].matched);
-                        mi = std::stoi(m[5]);
-                    }
-                    minver = GRAFTLET_MKVER(Ma, mi);
-                }
-
-                list.push_back(std::make_pair(DllName(name),minver));
-
-                if(e == std::string::npos) break;
-                s = e + 1;
-            }
-        }
-
+        DependencyList list = parseDependencies(deps);
         auto res = m_graph.emplace(dllName, std::move(list));
         assert(res.second);
         auto res1 = m_dll2ver.emplace(dllName, ver);
@@ -214,7 +303,7 @@ void GraftletLoader::DependencyGraph::initialize(const std::vector<std::tuple<Dl
     }
 }
 
-void GraftletLoader::DependencyGraph::initialize(GraftletLoader& gl)
+void GraftletLoader::DependencyGraph::initialize(GraftletLoader& gl, const Dependencies& mandatories)
 {
     std::vector<std::tuple<DllName,Version,Dependencies>> vec;
     vec.reserve(gl.m_name2lib.size());
@@ -224,6 +313,7 @@ void GraftletLoader::DependencyGraph::initialize(GraftletLoader& gl)
         Version& ver = std::get<1>(item.second);
         vec.emplace_back(std::make_tuple(item.first, ver, deps));
     }
+    vec.emplace_back(std::make_tuple("", 0, mandatories));
     initialize(vec);
 }
 
@@ -243,6 +333,10 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
             //special case if the dependency format is violated; see initialize(...)
             if(list.size() == 1 && list.begin()->first.empty())
             {
+                if(name.empty())
+                {//mandatory
+                    throw graft::exit_error("Required graftlets have invalid dependency format. Cannot continue.");
+                }
                 LOG_PRINT_L2("graftlet '") << name << "' has invalid dependency format. it will be unloaded.";
                 ok = false;
             }
@@ -256,6 +350,12 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
                     auto it = m_graph.find(dep_name);
                     if(it == m_graph.end())
                     {
+                        if(name.empty())
+                        {
+                            std::ostringstream oss;
+                            oss << "The graftlet '" << dep_name << "' is required, but not found or cannot be loaded. Cannot continue.";
+                            throw graft::exit_error(oss.str());
+                        }
                         LOG_PRINT_L2("graftlet '") << name << "' depends on '" << dep_name << "' which is not found. it will be unloaded.";
                         ok = false;
                         break;
@@ -263,7 +363,16 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
                     Version dep_ver = m_dll2ver[dep_name];
                     if(m_RemoveIfCmpMinverVer(dep_ver, minver))
                     {
-                        LOG_PRINT_L2("graftlet '") << name << "' depends on '" << dep_name << "' which verson "
+                        std::string msg = (name.empty())? "Mandatory graftlets depend on" : "graftlet '" + name + "' depends on";
+                        if(name.empty())
+                        {
+                            std::ostringstream oss;
+                            oss << "The graftlet '" << dep_name << "' is required, but its version "
+                                << GRAFTLET_Major(dep_ver) << "." << GRAFTLET_Minor(dep_ver) << " is less than required "
+                                << GRAFTLET_Major(minver) << "." << GRAFTLET_Minor(minver) << ". Cannot continue.";
+                            throw graft::exit_error(oss.str());
+                        }
+                        LOG_PRINT_L2("graftlet '") << name << "' depends on '" << dep_name << "' which version "
                                                    << GRAFTLET_Major(dep_ver) << "." << GRAFTLET_Minor(dep_ver) << " is less than required "
                                                    << GRAFTLET_Major(minver) << "." << GRAFTLET_Minor(minver) << ". it will be unloaded.";
                         ok = false;
@@ -272,16 +381,15 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
                     if(!ok) break;
                 }
             }
-            auto it0 = it_gr;
-            ++it_gr;
             if(!ok)
             {
                 res.push_back(name);
-                m_graph.erase(it0);
                 m_dll2ver.erase(name);
+                it_gr = m_graph.erase(it_gr);
                 changed = true;
                 break;
             }
+            else ++it_gr;
         }
     }
     return res;
@@ -377,12 +485,25 @@ std::string GraftletLoader::DependencyGraph::findCycles(bool dont_throw)
     return std::string();
 }
 
-void GraftletLoader::checkDependencies()
+void GraftletLoader::checkDependencies(const std::string& mandatories)
 {
     DependencyGraph graph;
-    graph.initialize(*this);
+    graph.initialize(*this, mandatories);
     graph.removeFailedDependants(*this);
     graph.findCycles();
+
+    {//set mandatory flags
+        auto it = graph.m_graph.find("");
+        assert(it != graph.m_graph.end());
+        for(auto& item : it->second)
+        {
+            const DllName& name = item.first;
+            auto it1 = m_name2lib.find(name);
+            assert(it1 != m_name2lib.end());
+            Mandatory& mandatory = std::get<4>( it1->second );
+            mandatory = true;
+        }
+    }
 }
 
 } //namespace graftlet

@@ -2,11 +2,33 @@
 #define __GRAFTLET__
 #include "lib/graft/GraftletRegistry.h"
 #include "lib/graft/IGraftlet.h"
+#include "lib/graft/ConfigIni.h"
+#include "lib/graft/serialize.h"
 
 #include<cassert>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "graftlet.TestGraftlet"
+
+namespace
+{
+
+std::atomic<int> testHandlerCount{0};
+std::atomic<int> testHandler1Count{0};
+
+std::string Info()
+{
+    GRAFT_DEFINE_IO_STRUCT(InfoStruct,
+        (int, testHandlerCount),
+        (int, testHandler1Count)
+    );
+
+    InfoStruct info{ {}, testHandlerCount, testHandler1Count };
+
+    return makeInfo(info);
+}
+
+}
 
 class TestGraftlet: public IGraftlet
 {
@@ -36,6 +58,7 @@ public:
 
     graft::Status testHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        ++testHandlerCount;
         std::string id;
         {
             auto it = vars.find("id");
@@ -47,6 +70,7 @@ public:
 
     graft::Status testHandler1(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        ++testHandler1Count;
         std::string id;
         {
             auto it = vars.find("id");
@@ -56,8 +80,32 @@ public:
         return graft::Status::Ok;
     }
 
-    virtual void initOnce(const graft::CommonOpts& opts) override
+    static std::string value;
+    static int count;
+
+    std::string resetPeriodic(const std::string& val)
     {
+        std::string res;
+        res.swap(value);
+        count = 0;
+        value = val;
+        return res;
+    }
+
+    graft::Status testPeriodic(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        bool stop = value.empty();
+        value = "count " + std::to_string(++count);
+        return (stop)? graft::Status::Stop : graft::Status::Ok;
+    }
+
+    virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) override
+    {
+        if(!opts.config_filename.empty())
+        {
+            graft::ConfigIniSubtree config = graft::ConfigIniSubtree::create(opts.config_filename);
+            ctx.global["graftlets.dirs"] = config.get<std::string>("graftlets.dirs");
+        }
 //        REGISTER_ACTION(TestGraftlet, testUndefined);
         REGISTER_ACTION(TestGraftlet, testInt1);
         REGISTER_ACTION(TestGraftlet, testInt2);
@@ -66,6 +114,10 @@ public:
 
         REGISTER_ENDPOINT("/URI/test/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler);
         REGISTER_ENDPOINT("/URI/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler1);
+
+        REGISTER_ACTION(TestGraftlet, resetPeriodic);
+        //Type, method, int interval_ms, int initial_interval_ms, double random_factor
+        REGISTER_PERIODIC(TestGraftlet, testPeriodic, 100, 100, 0);
     }
 };
 
@@ -73,7 +125,12 @@ GRAFTLET_EXPORTS_BEGIN("myGraftlet", GRAFTLET_MKVER(1,1));
 GRAFTLET_PLUGIN(TestGraftlet, IGraftlet, "testGL");
 GRAFTLET_EXPORTS_END
 
+GRAFTLET_PLUGIN_INFO(Info)
+
 GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(0,3))
+
+std::string TestGraftlet::value;
+int TestGraftlet::count = 0;
 
 namespace
 {

@@ -385,6 +385,8 @@ Status saleDetailsClientHandler(const Router::vars_t& vars, const graft::Input& 
     case ClientHandlerState::CallbackFromAuthSample:
         return handleSaleDetailsResponse(vars, input, ctx, output);
     }
+    assert(false);
+    return graft::Status::Ok;
 }
 
 // handles callback with response from remote supernode
@@ -432,6 +434,8 @@ Status saleDetailsUnicastHandler(const Router::vars_t& vars, const graft::Input&
         ctx.local[__FUNCTION__] = State::CallbackAcknowledge;
         return sendOkResponseToCryptonode(output);                       // send ok as reply to initial request
     }
+    assert(false);
+    return graft::Status::Ok;
 }
 
 

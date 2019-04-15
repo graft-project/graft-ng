@@ -2,10 +2,11 @@
 #include "lib/graft/sys_info_request.h"
 
 #include "lib/graft/context.h"
-#include "lib/graft/connection.h"
+#include "lib/graft/task.h"
 #include "lib/graft/inout.h"
 #include "lib/graft/router.h"
 #include "lib/graft/sys_info.h"
+#include "lib/graft/GraftletLoader.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.sys_info"
@@ -48,7 +49,7 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     auto& cfg = out.configuration;
     const ConfigOpts& co = ctx.handlerAPI()->configOpts();
 
-    cfg.config_filename = co.config_filename;
+    cfg.config_filename = co.common.config_filename;
     cfg.http_address = co.http_address;
     cfg.coap_address = co.coap_address;
     cfg.http_connection_timeout = co.http_connection_timeout;
@@ -72,6 +73,14 @@ Status handler(const Vars& vars, const Input& input, Ctx& ctx, Output& output)
     cfg.log_filename = co.log_filename;
     cfg.log_categories = co.log_categories;
     */
+
+    ctx.global.apply<graftlet::GraftletLoader*>("graftletLoader",
+        [&out](graftlet::GraftletLoader* gl)->bool
+    {
+        if(!gl) return false;
+        gl->fillInfo(out.graftlets);
+        return true;
+    });
 
     output.load(out);
     return Status::Ok;
