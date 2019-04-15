@@ -124,7 +124,7 @@ public:
 
         bool operator ==(const iterator& it) const
         {
-            vi->operator ==(*it.vi);
+            return vi->operator ==(*it.vi);
         }
         bool operator !=(const iterator& it) const
         {
