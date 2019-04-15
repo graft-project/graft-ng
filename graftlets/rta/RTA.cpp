@@ -55,8 +55,9 @@ protected:
     virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) override
     {
         prepareSupernode(opts, ctx);
-        REGISTER_ENDPOINT("/dapi/v2.0/test", METHOD_GET, RtaGraftlet, test);
-        REGISTER_ENDPOINT("/dapi/v3.0/presale", METHOD_GET, RtaGraftlet, handlePresaleRequest);
+        REGISTER_ENDPOINT("/dapi/v3.0/test", METHOD_GET, RtaGraftlet, test);
+        REGISTER_ENDPOINT("/dapi/v3.0/presale", METHOD_POST, RtaGraftlet, handlePresaleRequest);
+
     }
 private:
 
@@ -74,9 +75,8 @@ private:
 
         // read config
         auto config = graft::ConfigIniSubtree::create(opts.config_filename);
-        std::string cryptonode_rpc_address = config.get<std::string>("cryptonode.rpc_address");
-        std::string supernode_http_address = config.get<std::string>("server.http_address");
-
+        std::string cryptonode_rpc_address = config.get<std::string>("cryptonode.rpc-address");
+        std::string supernode_http_address = config.get<std::string>("server.http-address");
 
         // create supernode instance and put it into global context
         graft::SupernodePtr supernode = boost::make_shared<graft::Supernode>(
