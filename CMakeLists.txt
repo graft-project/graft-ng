@@ -35,10 +35,16 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
 endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
-set(CMAKE_C_FLAGS "-march=x86-64")
-set(CMAKE_CXX_FLAGS "-march=x86-64")
-
 project(graft_server)
+
+set(COMMON_FLAGS "-march=x86-64")
+#CMAKE_CXX_COMPILER_ID is defined after 'project' statement
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU") # using GCC
+#    set(COMMON_FLAGS "${COMMON_FLAGS} -Werror=return-type -Wall -Wno-reorder -Wno-sign-compare -Wno-unused-function")
+    set(COMMON_FLAGS "${COMMON_FLAGS} -Wreturn-type")
+endif()
+set(CMAKE_C_FLAGS "${COMMON_FLAGS}")
+set(CMAKE_CXX_FLAGS "${COMMON_FLAGS}")
 
 option(OPT_BUILD_TESTS "Build tests." OFF)
 option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
@@ -451,22 +457,13 @@ if (OPT_BUILD_TESTS)
             target_compile_definitions(supernode_test PRIVATE -DELPP_SYSLOG)
         endif()
 
-        if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
-            add_custom_command(
-                TARGET supernode_test POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_SOURCE_DIR}/data/test_wallet.keys
-                ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
-        endif()
-
 endif (OPT_BUILD_TESTS)
 
-# copy config file to build directory
-if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
-    add_custom_command(
-        TARGET supernode POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/data/*
-        ${CMAKE_CURRENT_BINARY_DIR}/)
-endif()
-
+# copy data/* to build directory if config.ini absent
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/config.ini
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/data/* ${CMAKE_CURRENT_BINARY_DIR}/
+    DEPENDS "${CMAKE_SOURCE_DIR}/data/config.ini"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Copy ${CMAKE_SOURCE_DIR}/data/ to ${CMAKE_CURRENT_BINARY_DIR}/"
+)
+add_custom_target(copy_data ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
