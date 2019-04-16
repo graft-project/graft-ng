@@ -58,7 +58,7 @@ Status handlePresaleRequest(const Router::vars_t& vars, const graft::Input& inpu
 
 
 
-void registerSaleRequest(graft::Router &router)
+void registerPreSaleRequest(graft::Router &router)
 {
     Router::Handler3 h1(nullptr, handlePresaleRequest, nullptr);
     router.addRoute("/presale", METHOD_POST, h1);
