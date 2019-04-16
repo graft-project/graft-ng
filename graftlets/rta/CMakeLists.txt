@@ -24,6 +24,8 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
     ${CMAKE_CURRENT_SOURCE_DIR}/requests/include
     ${PROJECT_SOURCE_DIR}/../../modules/libr3/include
+    ${CMAKE_CURRENT_SOURCE_DIR}
+
 )
 
 

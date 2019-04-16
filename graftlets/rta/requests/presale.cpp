@@ -47,6 +47,8 @@ Status handlePresaleRequest(const Router::vars_t& vars, const graft::Input& inpu
         resp.AuthSample.push_back(sPtr->idKeyAsString());
     }
 
+    resp.Proxy.Id = supernode->idKeyAsString();
+    resp.Proxy.WalletAddress = supernode->walletAddress();
     output.load(resp);
 
     return Status::Ok;

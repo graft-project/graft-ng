@@ -12,10 +12,16 @@ GRAFT_DEFINE_IO_STRUCT_INITED(PresaleRequest,
     (std::string, PaymentID, std::string())
 );
 
+GRAFT_DEFINE_IO_STRUCT(ProxyAddress,
+                       (std::string, Id),
+                       (std::string, WalletAddress)
+                       );
+
 GRAFT_DEFINE_IO_STRUCT_INITED(PresaleResponse,
     (uint64, BlockNumber, 0),
     (std::string, BlockHash, std::string()),
-    (std::vector<std::string>, AuthSample, std::vector<std::string>())
+    (std::vector<std::string>, AuthSample, std::vector<std::string>()),
+    (ProxyAddress, Proxy, ProxyAddress())
 );
 
 // presale request handler
