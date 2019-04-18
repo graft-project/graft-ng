@@ -1,9 +1,11 @@
 
 #pragma once
 
+#include "common.h"
 #include "lib/graft/router.h"
 #include "lib/graft/jsonrpc.h"
 #include "supernode/requestdefines.h"
+
 
 namespace graft::supernode::request {
 
@@ -12,16 +14,11 @@ GRAFT_DEFINE_IO_STRUCT_INITED(PresaleRequest,
     (std::string, PaymentID, std::string())
 );
 
-GRAFT_DEFINE_IO_STRUCT(ProxyAddress,
-                       (std::string, Id),
-                       (std::string, WalletAddress)
-                       );
-
 GRAFT_DEFINE_IO_STRUCT_INITED(PresaleResponse,
     (uint64, BlockNumber, 0),
     (std::string, BlockHash, std::string()),
     (std::vector<std::string>, AuthSample, std::vector<std::string>()),
-    (ProxyAddress, Proxy, ProxyAddress())
+    (NodeAddress, PosProxy, NodeAddress())
 );
 
 // presale request handler

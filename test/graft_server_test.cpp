@@ -6,7 +6,6 @@
 #include "lib/graft/handler_api.h"
 #include "lib/graft/expiring_list.h"
 #include "supernode/requests.h"
-#include "supernode/requests/sale.h"
 #include "supernode/requests/sale_status.h"
 #include "supernode/requests/reject_sale.h"
 #include "supernode/requests/sale_details.h"

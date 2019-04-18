@@ -15,7 +15,8 @@ GRAFT_DEFINE_IO_STRUCT(BroadcastRequest,
 #ifdef UDHT_INFO
                        (uint64_t, hops),
 #endif
-                       (std::string, data)
+                       (std::string, data),
+                       (std::string, signature)
                        );
 
 GRAFT_DEFINE_IO_STRUCT(RedirectBroadcast,

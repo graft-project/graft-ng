@@ -19,7 +19,7 @@ GRAFT_DEFINE_IO_STRUCT(ErrorResponse,
 
 #define STATUS_OK                           0
 
-//Standart JSON-RPC 2.0 Errors
+//Standart JSON-RPC 2.0 Errors // TODO: change the codes as we're not a json-rpc anymore
 #define ERROR_PARSE_ERROR                   -32700
 #define ERROR_INVALID_REQUEST               -32600
 #define ERROR_METHOD_NOT_FOUND              -32601
@@ -28,6 +28,7 @@ GRAFT_DEFINE_IO_STRUCT(ErrorResponse,
 
 static const std::string MESSAGE_INVALID_PARAMS("The request parameters are invalid.");
 static const std::string MESSAGE_INTERNAL_ERROR("Internal server error.");
+
 
 namespace graft {
 

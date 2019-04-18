@@ -314,7 +314,6 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_pay.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_sale.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_details.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_raw_tx.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp

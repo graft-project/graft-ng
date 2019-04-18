@@ -34,6 +34,8 @@
 #include "lib/graft/graft_exception.h"
 
 #include "requests/presale.h"
+#include "requests/sale.h"
+#include "requests/storepaymentdata.h"
 
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
@@ -122,6 +124,16 @@ private:
     Status handlePresaleRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
         return supernode::request::handlePresaleRequest(vars, input, ctx, output);
+    }
+
+    Status handleSaleRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return supernode::request::handleSaleRequest(vars, input, ctx, output);
+    }
+
+    Status handleStorePaymentDataRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return supernode::request::storePaymentDataRequest(vars, input, ctx, output);
     }
 
 };

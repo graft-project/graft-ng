@@ -1,5 +1,4 @@
 
-#include "supernode/requests/sale.h"
 #include "supernode/requests/sale_status.h"
 #include "supernode/requests/reject_sale.h"
 #include "supernode/requests/get_info.h"
@@ -26,7 +25,6 @@ namespace graft::supernode::request {
 
 void registerRTARequests(graft::Router &router)
 {
-    registerSaleRequest(router);
     registerSaleStatusRequest(router);
     registerRejectSaleRequest(router);
     registerGetInfoRequest(router);

@@ -6,13 +6,12 @@ namespace graft {
 
 Status errorInvalidParams(Output& output)
 {
-    JsonRpcError err;
+    ErrorResponse err;
     err.code = ERROR_INVALID_PARAMS;
     err.message = MESSAGE_INVALID_PARAMS;
-    JsonRpcErrorResponse resp;
-    resp.error = err;
-    output.load(resp);
+    output.load(err);
     return Status::Error;
 }
+
 
 }

@@ -104,6 +104,15 @@ Status errorCustomError(const std::string& message, int code, Output& output)
     return Status::Error;
 }
 
+Status errorInvalidSignature(Output &output)
+{
+    ErrorResponse err;
+    err.code = ERROR_INVALID_SIGNATURE;
+    err.message = MESSAGE_INVALID_SIGNATURE;
+    output.load(err);
+    return Status::Error;
+}
+
 
 void cleanPaySaleData(const std::string& payment_id, Context& ctx)
 {

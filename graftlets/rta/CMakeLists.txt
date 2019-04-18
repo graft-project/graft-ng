@@ -32,6 +32,9 @@ include_directories(
 add_library(graftlet_rta SHARED
     RTA.cpp
     requests/presale.cpp
+    requests/sale.cpp
+    requests/common.cpp
+    requests/storepaymentdata.cpp
 )
 set_target_properties(graftlet_walletAddress PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode
