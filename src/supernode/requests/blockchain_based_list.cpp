@@ -78,7 +78,7 @@ Status blockchainBasedListHandler
 
       //handle tiers
 
-    FullSupernodeList::blockchain_based_list tiers;
+    FullSupernodeList::blockchain_based_list bbl(req.params.block_hash);
 
     for (const BlockchainBasedListTier& tier : req.params.tiers)
     {
@@ -99,11 +99,11 @@ Status blockchainBasedListHandler
             supernodes.emplace_back(std::move(entry));
         }
 
-        tiers.emplace_back(std::move(supernodes));
+        bbl.tiers.emplace_back(std::move(supernodes));
     }
 
     fsl->setBlockchainBasedList(req.params.block_height, FullSupernodeList::blockchain_based_list_ptr(
-      new FullSupernodeList::blockchain_based_list(std::move(tiers))));
+      new FullSupernodeList::blockchain_based_list(std::move(bbl))));
 
     return Status::Ok;
 }

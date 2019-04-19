@@ -68,7 +68,7 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
 
     auto is_supernode_available = [&](const std::string& supernode_public_id)
     {
-        for (const FullSupernodeList::blockchain_based_list_tier& tier : auth_sample_base_list)
+        for (const FullSupernodeList::blockchain_based_list_tier& tier : auth_sample_base_list.tiers)
         {
             for (const FullSupernodeList::blockchain_based_list_entry& entry : tier)
                 if (supernode_public_id == entry.supernode_public_id)
@@ -235,7 +235,7 @@ Status getBlockchainBasedListImpl(const Router::vars_t& vars, const graft::Input
         }
     }
 
-    for (const FullSupernodeList::blockchain_based_list_tier& src_tier : bbl)
+    for (const FullSupernodeList::blockchain_based_list_tier& src_tier : bbl.tiers)
     {
         std::vector<DbgBlockchainBasedListEntry> dst_tier;
 
