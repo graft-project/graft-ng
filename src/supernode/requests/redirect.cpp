@@ -719,7 +719,14 @@ graft::Status onGetUDHTInfo(const graft::Router::vars_t& vars, const graft::Inpu
         res.url = (std::string)ctx.global["supernode_url"];
         res.redirect_uri = "/redirect_broadcast";
 
-        Id2IpShared id2ip = ctx.global["ID:IP:port map"];
+        //make copy of "ID:IP:port map"
+        Id2Ip id2ip;
+        ctx.global.apply<Id2IpShared>("ID:IP:port map", [&id2ip](Id2IpShared& ptr)->bool
+        {
+            id2ip = *ptr;
+        });
+
+        uint32_t redirect_timeout_ms = ctx.global["redirect_timeout_ms"];
 
         ctx.global.apply<UdhtInfoShared>("UdhtInfo", [&](UdhtInfoShared& info)->bool
         {
@@ -732,9 +739,9 @@ graft::Status onGetUDHTInfo(const graft::Router::vars_t& vars, const graft::Inpu
             {
                 std::string id = it.first;
                 UdhtStates states = it.second;
-                auto it_ip = id2ip->find(id);
-                assert(it_ip != id2ip->end());
-                if(it_ip == id2ip->end()) continue;
+                auto it_ip = id2ip.find(id);
+                assert(it_ip != id2ip.end());
+                if(it_ip == id2ip.end()) continue;
                 if(states.announces.empty()) continue;
 
                 UDHTInfoItem res_item;
@@ -742,7 +749,6 @@ graft::Status onGetUDHTInfo(const graft::Router::vars_t& vars, const graft::Inpu
                 res_item.ip_port = it_ip->second;
                 {//res_item.expiration_time
                     auto& tp = states.announces.front().first;
-                    uint32_t redirect_timeout_ms = ctx.global["redirect_timeout_ms"];
                     tp += std::chrono::milliseconds( redirect_timeout_ms );
                     res_item.active = (tp_now <= tp);
                     res_item.expiration_time = UdhtInfo::local_time(tp);
