@@ -278,11 +278,14 @@ bool FullSupernodeList::selectSupernodes(size_t items_count, const blockchain_ba
     return true;
 }
 
-uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list) const
+uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list, bool use_delay) const
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
 
-    uint64_t blockchain_based_list_height = block_number - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+    uint64_t blockchain_based_list_height = block_number;
+
+    if (use_delay)
+      blockchain_based_list_height -= BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
 
     blockchain_based_list_map::const_iterator it = m_blockchain_based_lists.find(block_number);
 
@@ -431,11 +434,11 @@ bool FullSupernodeList::buildAuthSample(const string &payment_id, FullSupernodeL
     return buildAuthSample(getBlockchainBasedListMaxBlockNumber(), payment_id, out, out_auth_block_number);
 }
 
-bool FullSupernodeList::buildDisqualificationSamples(uint64_t height, supernode_array &out_disqualification_sample, supernode_array &out_disqualification_candidates, uint64_t &out_auth_block_number)
+bool FullSupernodeList::buildDisqualificationSamples(uint64_t height, supernode_array &out_disqualification_sample, supernode_array &out_disqualification_candidates)
 {
     blockchain_based_list bbl;
 
-    out_auth_block_number = getBlockchainBasedListForAuthSample(height, bbl);
+    uint64_t out_auth_block_number = getBlockchainBasedListForAuthSample(height, bbl, false);
 
     if (!out_auth_block_number)
     {

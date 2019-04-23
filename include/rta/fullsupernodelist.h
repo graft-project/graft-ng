@@ -105,10 +105,9 @@ public:
      * \param height                       - block height used to perform selectio
      * \param out_disqualification_sample  - vector of supernode pointers which should check other nodes
      * \param out_nodes_for_check          - vector of supernode pointers which should be checked
-     * \param out_block_number             - block number which was used for samples
      * \return                             - true on success
      */
-    bool buildDisqualificationSamples(uint64_t height, supernode_array &out_disqualification_sample, supernode_array &out_disqualification_candidates, uint64_t &out_block_number);
+    bool buildDisqualificationSamples(uint64_t height, supernode_array &out_disqualification_sample, supernode_array &out_disqualification_candidates);
 
     /*!
      * \brief items - returns address list of known supernodes
@@ -206,9 +205,10 @@ public:
      * \brief getBlockchainBasedListForAuthSample - builds blockchain based list for specified block height and removes nodes which are not reachable
      * \param block_number - block height used to list building
      * \param out_list     - resulting list
+     * \param use_delay    - should delay be used for shifting block number
      * \return             - block number which was used for base list
      */
-    uint64_t getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list) const;
+    uint64_t getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list, bool use_delay = true) const;
     
     /*!
      * \brief synchronizeWithCryptonode - synchronize with cryptonode
