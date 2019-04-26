@@ -55,7 +55,8 @@ GRAFT_DEFINE_IO_STRUCT(NestedPayment,
 );
 
 GRAFT_DEFINE_IO_STRUCT(WithVector,
-      (std::vector<std::string>, v)
+      (std::vector<std::string>, vs),
+      (std::vector<Payment>, vp)
 );
 
 //TODO: does not work
@@ -93,9 +94,11 @@ struct NestedPaymentX
 
 struct WithVectorX
 {
-  std::vector<std::string> v;
+  std::vector<std::string> vs;
+  std::vector<PaymentX> vp;
   BEGIN_SERIALIZE()
-    FIELD(v)
+    FIELD(vs)
+    FIELD(vp)
   END_SERIALIZE()
 };
 
@@ -229,15 +232,26 @@ TEST(InOut, serialization)
         EXPECT_EQ(np.i, np1.i);
     }
     {
-        WithVector wv{ {}, {"1","2","3","4","5"} };
+        WithVector wv{ {}, {"1","2","3","4","5"}, {p, p, p} };
         output.load<WithVector, graft::serializer::Binary<WithVector>>(wv);
-        WithVectorX wvx{ {"1","2","3","4","5"} };
+        WithVectorX wvx{ {"1","2","3","4","5"}, {px, px, px} };
         ::serialization::dump_binary(wvx, blob);
         EXPECT_EQ(output.body, blob);
 
         input.body = output.body;
         WithVector wv1 = input.get<WithVector, graft::serializer::Binary<WithVector>>();
-        EXPECT_EQ(wv.v, wv1.v);
+        EXPECT_EQ(wv.vs, wv1.vs);
+        EXPECT_EQ(wv.vp.size(), wv1.vp.size());
+        for(size_t i = 0; i<wv.vp.size(); ++i)
+        {
+            auto& p = wv.vp[i];
+            auto& p1 = wv1.vp[i];
+            EXPECT_EQ(p.amount, p1.amount);
+            EXPECT_EQ(p.block_height, p1.block_height);
+            EXPECT_EQ(p.payment_id, p1.payment_id);
+            EXPECT_EQ(p.tx_hash, p1.tx_hash);
+            EXPECT_EQ(p.unlock_time, p1.unlock_time);
+        }
     }
 //does not work yet
 #if 0

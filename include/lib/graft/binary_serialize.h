@@ -120,6 +120,13 @@ static bool read_varint(Arch& ar, V& write)
 }
 
 //////////////
+// forward declarations
+template<typename Arch, typename V>
+static void serialize(Arch& ar, V& v);
+
+template<typename Arch, typename V>
+static void deserialize(Arch& ar, V& v);
+//////////////
 template<typename Arch, typename V>
 static void ser(Arch& ar, V& v)
 {
@@ -129,7 +136,15 @@ static void ser(Arch& ar, V& v)
         write_varint(ar, size);
         std::for_each(v.begin(), v.end(), [&](auto& item)
         {
-            ser(ar, item);
+            using naked_member_t = std::remove_cv_t<std::remove_reference_t<decltype(item)>>;
+            if constexpr(!std::is_base_of<ReflectiveRapidJSON::JsonSerializable<naked_member_t>, naked_member_t>::value)
+            {
+                ser(ar, item);
+            }
+            else
+            {
+                serialize(ar, item);
+            }
         });
     }
     else
@@ -148,7 +163,15 @@ static void deser(Arch& ar, V& v)
         v.resize(size);
         std::for_each(v.begin(), v.end(), [&](auto& item)
         {
-            deser(ar, item);
+            using naked_member_t = std::remove_cv_t<std::remove_reference_t<decltype(item)>>;
+            if constexpr(!std::is_base_of<ReflectiveRapidJSON::JsonSerializable<naked_member_t>, naked_member_t>::value)
+            {
+                deser(ar, item);
+            }
+            else
+            {
+                deserialize(ar, item);
+            }
         });
     }
     else
