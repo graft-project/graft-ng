@@ -32,6 +32,8 @@
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
 #include <utils/cryptmsg.h>
+#include "supernode/graft_wallet2.h"
+#include "lib/graft/binary_serialize.h"
 
 #include <misc_log_ex.h>
 #include <boost/shared_ptr.hpp>
@@ -39,31 +41,59 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.blockchainbasedlistrequest"
 
-namespace {
-    static const char* PATH = "/blockchain_based_list";
+namespace
+{
+
+static const char* PATH = "/blockchain_based_list";
 
 GRAFT_DEFINE_IO_STRUCT(PingMessage,
-                       (std::string, id),
                        (uint64_t, block_height),
-                       (std::string, block_hash)
+                       (crypto::hash, block_hash),
+                       (crypto::public_key, id)
+                       );
+
+GRAFT_DEFINE_IO_STRUCT(SignedPingMessage,
+                       (PingMessage, pm),
+                       (crypto::signature, self_sign)
                        );
 
 GRAFT_DEFINE_IO_STRUCT(DisqualificationItem,
-                       (std::string, id),
-                       (std::string, sign)
+                       (uint64_t, block_height),
+                       (crypto::hash, block_hash),
+                       (crypto::public_key, id)
+                       );
+
+GRAFT_DEFINE_IO_STRUCT(DisqualificationVotes,
+                       (uint64_t, block_height),
+                       (crypto::hash, block_hash),
+                       (crypto::public_key, signer_id),
+                       (std::vector<crypto::public_key>, ids),
+                       (std::vector<crypto::signature>, signs) //signs of DisqualificationItem with correcponding ids
+//                       (std::vector<SignedDisqualificationItem>, items)
+                       );
+
+GRAFT_DEFINE_IO_STRUCT(SignerItem,
+                       (crypto::public_key, signer_id),
+                       (crypto::signature, sign)
                        );
 
 GRAFT_DEFINE_IO_STRUCT(DisqualificationRequest,
-                       (std::string, signer_id),
-                       (uint64_t, block_height),
-                       (std::vector<DisqualificationItem>, items)
+                       (DisqualificationItem, item),
+                       (std::vector<SignerItem>, siners)
+                       );
+
+/*
+GRAFT_DEFINE_IO_STRUCT(SignedDisqualificationItem,
+                       (DisqualificationItem, item),
+                       (crypto::signature, sign)
                        );
 
 GRAFT_DEFINE_IO_STRUCT(SignedMessage,
                        (std::string, json),
                        (std::string, sign)
                        );
-}
+*/
+} //namespace
 
 namespace graft::supernode::request {
 
@@ -71,6 +101,10 @@ namespace {
 
 class BBLDisqualificator
 {
+    static constexpr int32_t DESIRED_BBQS_SIZE = graft::FullSupernodeList::DISQUALIFICATION_SAMPLE_SIZE;
+    static constexpr int32_t DESIRED_QCL_SIZE = graft::FullSupernodeList::DISQUALIFICATION_CANDIDATES_SIZE;
+    static constexpr int32_t REQUIRED_BBQS_VOTES = (DESIRED_BBQS_SIZE*2 + (3-1))/3;
+
     enum Phases : int
     {
         phase_1,
@@ -82,39 +116,131 @@ class BBLDisqualificator
 
 //    static constexpr int32 DESIRED_BBQS_SIZE = 8;
 //    static constexpr int32 DESIRED_QCL_SIZE = 8;
+    bool m_started = false;
 
     uint64_t m_block_height;
-    std::string m_block_hash;
-    //Blockchain Based Qualification Sample
-    std::vector<std::string> m_bbqs_ids;
-    //Qualification Candidate List
-    std::vector<std::string> m_qcl_ids;
+    crypto::hash m_block_hash;
+    //Blockchain Based Qualification Sample, exclude itself
+//    std::vector<std::string> m_bbqs_ids;
+    std::vector<crypto::public_key> m_bbqs_ids;
+    //Qualification Candidate List, exclude itself
+    std::vector<crypto::public_key> m_qcl_ids;
 
-    std::vector<std::string> m_answered_ids;
+    std::vector<crypto::public_key> m_answered_ids;
 
-    std::string m_supernode_id;
+//    std::string m_supernode_id;
+    crypto::public_key m_supernode_id;
+    crypto::secret_key m_secret_key;
+
+    std::vector<std::string> m_bbqs_str_ids;
+    std::string m_supernode_str_id;
+
 
     bool m_in_bbqs = false;
     bool m_in_qcl = false;
     bool m_collectPings = false;
     bool m_collectVotes = false;
 
+/*
     using DisqId = std::string;
     using SignerId = std::string;
     using Sign = std::string;
-
-    std::map<DisqId, std::vector<std::pair<SignerId, Sign>>> m_votes;
+*/
+    using DisqId = crypto::public_key;
+    using SignerId = crypto::public_key;
+    using Sign = crypto::signature;
+/*
+    template<typename T>
+    static bool less_mem(const T& l, const T& r)
+    {
+        static_assert(std::is_trivially_copyable<T>::value);
+        int res = std::memcmp(&l, &r, sizeof(T));
+        return (res<0);
+    }
+*/
+    template<typename T>
+    struct less_mem
+    {
+        static_assert(std::is_trivially_copyable<T>::value);
+        bool operator() (const T& l, const T& r)
+        {
+            int res = std::memcmp(&l, &r, sizeof(T));
+            return (res<0);
+        }
+    };
+/*
+    static bool less_mem(const T& l, const T& r)
+    {
+        static_assert(std::is_trivially_copyable<T>::value);
+        int res = std::memcmp(&l, &r, sizeof(T));
+        return (res<0);
+    }
+*/
+    std::map<DisqId, std::vector<std::pair<SignerId, Sign>>, less_mem<DisqId> > m_votes;
 
 ///////////////////// tools return error message if any
 
+    static graft::Status setError(graft::Context& ctx, const std::string& msg)
+    {
+        LOG_ERROR(msg);
+        ctx.local.setError(msg.c_str(), graft::Status::Error);
+        return graft::Status::Error;
+    };
+
     template<typename T>
-    static void serialize(const T& t, std::string& json)
+    static void bin_serialize(const T& t, std::string& str)
+    {
+        graft::Output out;
+        out.loadT<graft::serializer::Binary>(t);
+        str = out.body;
+    }
+
+    template<typename T>
+    static std::string bin_deserialize(const std::string& str, T& t)
+    {
+        graft::Input in;
+        in.body = str;
+        try
+        {
+            in.getT<graft::serializer::Binary>(t);
+        }
+        catch(std::exception& ex)
+        {
+            return ex.what();
+        }
+        return "";
+    }
+
+    template<typename T>
+    static void json_serialize(const T& t, std::string& str)
     {
         graft::Output out;
         out.load(t);
-        json = out.body;
+        str = out.body;
     }
 
+    template<typename T>
+    static bool json_deserialize(const std::string& str, T& t)
+    {
+        graft::Input in;
+        in.body = str;
+        return in.get(t);
+    }
+
+    void sign(const std::string& str, crypto::signature& sig)
+    {
+        crypto::hash hash;
+        crypto::cn_fast_hash(str.data(), str.size(), hash);
+        crypto::generate_signature(hash, m_supernode_id, m_secret_key, sig);
+    }
+
+    bool check_sign(const std::string& str, const crypto::public_key id, const crypto::signature& sig)
+    {
+        crypto::hash hash;
+        crypto::cn_fast_hash(str.data(), str.size(), hash);
+        return crypto::check_signature(hash, id, sig);
+    }
+/*
     void makeSignedMessage(graft::Context& ctx, const std::string& json, SignedMessage& sm)
     {
         //sdr.sign = sign(sdr.json)
@@ -129,7 +255,8 @@ class BBLDisqualificator
             return true;
         });
     }
-
+*/
+/*
     //encrypts to ids excluding itself
     void encryptFor(graft::Context& ctx, const std::string& plain, const std::vector<std::string>& ids, std::string& message)
     {
@@ -155,13 +282,35 @@ class BBLDisqualificator
         //encrypt
         graft::crypto_tools::encryptMessage(plain, Bkeys, message);
     }
-
+*/
+/*
+    std::string decryptForMe(graft::Context& ctx, const std::string& message, std::string& plain)
+    {
+        crypto::secret_key bkey;
+        ctx.global.apply<graft::SupernodePtr>("supernode",
+            [&bkey](graft::SupernodePtr& supernode)->bool
+        {
+            assert(supernode);
+            bkey = supernode->secretKey();
+            return true;
+        });
+        bool res = graft::crypto_tools::decryptMessage(message, bkey, plain);
+        if(!res)
+        {
+            return "cannot decrypt, the message is not for me";
+        }
+        return std::string();
+    }
+*/
 ///////////////////// phases
 
     graft::Status do_phase1(graft::Context& ctx, uint64_t block_height, const std::string& block_hash)
     {
+        m_started = true;
         m_block_height = block_height;
-        m_block_hash = block_hash;
+//        m_block_hash = block_hash;
+        bool res = epee::string_tools::hex_to_pod(block_hash, m_block_hash);
+        assert(res);
 /*
         //create BBQS & QCL
         auto get_ids = [](graft::Context& ctx, uint64_t block_height, const std::string& seed, int32_t desired_size, std::vector<std::string>& ids) -> bool
@@ -190,6 +339,19 @@ class BBLDisqualificator
         get_ids(ctx, block_height, block_hash, DESIRED_BBQS_SIZE, m_bbqs_ids);
         get_ids(ctx, block_height, "", DESIRED_QCL_SIZE, m_qcl_ids); //don't seed
 */
+        {//get m_supernode_id & m_
+            ctx.global.apply<graft::SupernodePtr>("supernode",
+                [this](graft::SupernodePtr& supernode)->bool
+            {
+                assert(supernode);
+//                m_supernode_id = supernode->idKeyAsString();
+                m_supernode_id = supernode->idKey();
+                m_supernode_str_id = epee::string_tools::pod_to_hex(m_supernode_id);
+                m_secret_key = supernode->secretKey();
+                return true;
+            });
+        }
+
         {//generate BBQS & QCL
             graft::FullSupernodeList::supernode_array suBBQS, suQCL;
             bool res = ctx.global.apply<boost::shared_ptr<graft::FullSupernodeList>>("fsl",
@@ -206,32 +368,39 @@ class BBLDisqualificator
 
             m_bbqs_ids.clear();
             m_bbqs_ids.reserve(suBBQS.size());
+            m_bbqs_str_ids.clear();
+            m_bbqs_str_ids.reserve(suBBQS.size());
             for(auto& item : suBBQS)
             {
-                m_bbqs_ids.push_back(item->idKeyAsString());
+                auto& pub_key = item->idKey();
+                if(m_supernode_id == pub_key)
+                {
+                    m_in_bbqs = true;
+                    continue;
+                }
+                m_bbqs_ids.push_back(pub_key);
+                m_bbqs_str_ids.push_back( epee::string_tools::pod_to_hex(pub_key) );
             }
+            std::sort(m_bbqs_ids.begin(), m_bbqs_ids.end(), less_mem<crypto::public_key>{});
 
             m_qcl_ids.clear();
             m_qcl_ids.reserve(suQCL.size());
             for(auto& item : suQCL)
             {
-                m_qcl_ids.push_back(item->idKeyAsString());
+                auto& pub_key = item->idKey();
+                if(m_supernode_id == pub_key)
+                {
+                    m_in_qcl = true;
+                    continue;
+                }
+                m_qcl_ids.push_back(pub_key);
             }
-        }
-
-        {//get m_supernode_id
-            ctx.global.apply<graft::SupernodePtr>("supernode",
-                [this](graft::SupernodePtr& supernode)->bool
-            {
-                assert(supernode);
-                m_supernode_id = supernode->idKeyAsString();
-                return true;
-            });
+            std::sort(m_qcl_ids.begin(), m_qcl_ids.end(), less_mem<crypto::public_key>{});
         }
 
         //check if we are in BBQS & QCL
-        m_in_bbqs = std::any_of(m_bbqs_ids.begin(), m_bbqs_ids.end(), [this](auto& it)->bool { return it == m_supernode_id; });
-        m_in_qcl = std::any_of(m_qcl_ids.begin(), m_qcl_ids.end(), [this](auto& it)->bool { return it == m_supernode_id; });
+//        m_in_bbqs = std::any_of(m_bbqs_ids.begin(), m_bbqs_ids.end(), [this](auto& it)->bool { return it == m_supernode_id; });
+//        m_in_qcl = std::any_of(m_qcl_ids.begin(), m_qcl_ids.end(), [this](auto& it)->bool { return it == m_supernode_id; });
 
         m_answered_ids.clear();
         m_collectPings = m_in_bbqs;
@@ -241,8 +410,10 @@ class BBLDisqualificator
 
     graft::Status do_phase2(graft::Context& ctx, graft::Output& output)
     {
-        if(!m_in_qcl) return graft::Status::Ok;
+        if(!m_started) return graft::Status::Ok;
         m_collectVotes = m_in_bbqs;
+        if(m_collectVotes) m_votes.clear();
+        if(!m_in_qcl) return graft::Status::Ok;
 /*
         std::vector<crypto::public_key> Bkeys;
 
@@ -263,12 +434,26 @@ class BBLDisqualificator
         assert(res);
 */
         std::string plain;
-        //prepare signed message
-        {
+        {//prepare bin serialized SignedPingMessage
+            SignedPingMessage spm;
+            spm.pm.block_height = m_block_height;
+            spm.pm.block_hash = m_block_hash;
+            spm.pm.id = m_supernode_id;
+
+            //sign
+            std::string pm_str;
+            bin_serialize(spm.pm, pm_str);
+            sign(pm_str, spm.self_sign);
+
+            //serialize
+            bin_serialize(spm, plain);
+/*
             PingMessage pm;
-            pm.id = m_supernode_id;
             pm.block_height = m_block_height;
             pm.block_hash = m_block_hash;
+            pm.id = m_supernode_id;
+
+
             graft::Output out;
             out.load(pm);
 
@@ -289,19 +474,21 @@ class BBLDisqualificator
 
             out.load(spm);
             plain = out.body;
+*/
         }
         //encrypt
         std::string message;
-//        graft::crypto_tools::encryptMessage(plain, Bkeys, message);
-        encryptFor(ctx, plain, m_bbqs_ids, message);
+        graft::crypto_tools::encryptMessage(plain, m_bbqs_ids, message);
+//        encryptFor(ctx, plain, m_bbqs_ids, message);
 
         //multicast to m_bbqs_ids
         MulticastRequestJsonRpc req;
-        req.params.receiver_addresses = m_bbqs_ids;
+//        req.params.receiver_addresses = m_bbqs_ids;
+        req.params.receiver_addresses = m_bbqs_str_ids;
         req.method = "multicast";
         req.params.callback_uri = ROUTE_PING_RESULT; //"/cryptonode/ping_result";
         req.params.data = message;
-        req.params.sender_address = m_supernode_id;
+        req.params.sender_address = m_supernode_str_id;
 
         output.load(req);
         output.path = "/json_rpc/rta";
@@ -312,24 +499,24 @@ class BBLDisqualificator
 
     graft::Status handle_phase2(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
-        if(!m_collectPings) return graft::Status::Ok;
+        if(!m_started || !m_collectPings) return graft::Status::Ok;
 //        if(!m_in_bbqs) return graft::Status::Ok;
         assert(m_in_bbqs);
-
+/*
         auto setError = [&ctx](const std::string& msg)
         {
             LOG_ERROR(msg);
             ctx.local.setError(msg.c_str(), graft::Status::Error);
             return graft::Status::Error;
         };
-
+*/
         MulticastRequestJsonRpc req;
-        bool res = input.get(req);
-        if(!res)
+        bool res1 = input.get(req);
+        if(!res1)
         {
-            return setError("cannot deserialize MulticastRequestJsonRpc");
+            return setError(ctx, "cannot deserialize MulticastRequestJsonRpc");
         }
-
+/*
         //decrypt
         std::string plain;
         {
@@ -344,8 +531,58 @@ class BBLDisqualificator
             bool res = graft::crypto_tools::decryptMessage(req.params.data, bkey, plain);
             if(!res)
             {
-                return setError("cannot decrypt, the message is not for me");
+                return setError(ctx, "cannot decrypt, the message is not for me");
             }
+        }
+*/
+        std::string plain;
+        bool res2 = graft::crypto_tools::decryptMessage(req.params.data, m_secret_key, plain);
+        if(!res2)
+        {
+            return setError(ctx, "cannot decrypt, the message is not for me");
+        }
+
+        SignedPingMessage spm;
+        std::string err = bin_deserialize(plain, spm);
+        if(!err.empty())
+        {
+            std::ostringstream oss;
+            oss << "cannot deserialize SignedPingMessage, error: '" << err << "'";
+            return setError(ctx, oss.str());
+        }
+
+        //check reliability
+        if(spm.pm.block_height != m_block_height || spm.pm.block_hash != m_block_hash)
+        {
+            std::ostringstream oss;
+            oss << "invalid block_height " << spm.pm.block_height << " expected " << m_block_height
+                << " or block_hash " << spm.pm.block_hash << " expected " << m_block_hash;
+            return setError(ctx, oss.str());
+        }
+        if(!std::any_of(m_qcl_ids.begin(), m_qcl_ids.end(), [&spm](auto& it){ return it == spm.pm.id; } ))
+        {
+            std::ostringstream oss; oss << "the id '" << spm.pm.id << "' is not in QCL";
+            return setError(ctx, oss.str());
+        }
+
+        {//check sign of spm
+            std::string pm_str;
+            bin_serialize(spm.pm, pm_str);
+            bool res = check_sign(pm_str, spm.pm.id, spm.self_sign);
+            if(!res)
+            {
+                std::ostringstream oss;
+                oss << "invalid self signature '" << spm.self_sign << "' of id '" << spm.pm.id << "'";
+                return setError(ctx, oss.str());
+            }
+
+        }
+/*
+        std::string plain;
+        std::string err = decryptForMe(ctx, req.params.data, plain);
+        if(!err.empty())
+        {
+            return setError(ctx, err);
         }
 
         SignedMessage spm;
@@ -354,7 +591,7 @@ class BBLDisqualificator
             bool res = in.get(spm);
             if(!res)
             {
-                return setError("cannot deserialize SignedMessage");
+                return setError(ctx, "cannot deserialize SignedMessage");
             }
         }
         PingMessage pm;
@@ -363,7 +600,7 @@ class BBLDisqualificator
             bool res = in.get(pm);
             if(!res)
             {
-                return setError("cannot deserialize PingMessage");
+                return setError(ctx, "cannot deserialize PingMessage");
             }
         }
 
@@ -394,7 +631,7 @@ class BBLDisqualificator
             });
             if(!err.empty())
             {
-                return setError(err);
+                return setError(ctx, err);
             }
         }
 
@@ -402,38 +639,79 @@ class BBLDisqualificator
         if(pm.block_height != m_block_height)
         {
             std::ostringstream oss; oss << "invalid block_height " << pm.block_height << " expected " << m_block_height;
-            return setError(oss.str());
+            return setError(ctx, oss.str());
         }
         if(!std::any_of(m_qcl_ids.begin(), m_qcl_ids.end(), [&pm](auto& it){ return it == pm.id; } ))
         {
             std::ostringstream oss; oss << "the id '" << pm.id << "' is not in QCL";
-            return setError(oss.str());
+            return setError(ctx, oss.str());
         }
-
+*/
         //save SN id
-        m_answered_ids.push_back(pm.id);
+        m_answered_ids.push_back(spm.pm.id);
 
         return graft::Status::Ok;
     }
 
     graft::Status do_phase3(graft::Context& ctx, graft::Output& output)
     {
-        if(!m_in_bbqs) return graft::Status::Ok;
+        if(!m_started || !m_in_bbqs) return graft::Status::Ok;
         m_collectPings = false;
 
 
         //find difference (m_qcl_ids) - (m_answered_ids)
-        std::sort(m_qcl_ids.begin(), m_qcl_ids.end());
+        std::sort(m_qcl_ids.begin(), m_qcl_ids.end(), less_mem<crypto::public_key>{});
         m_qcl_ids.erase( std::unique( m_qcl_ids.begin(), m_qcl_ids.end() ), m_qcl_ids.end() );
 
-        std::sort(m_answered_ids.begin(), m_answered_ids.end());
+        std::sort(m_answered_ids.begin(), m_answered_ids.end(), less_mem<crypto::public_key>{});
         m_answered_ids.erase( std::unique( m_answered_ids.begin(), m_answered_ids.end() ), m_answered_ids.end() );
 
-        std::vector<std::string> diff;
-        std::set_difference(m_qcl_ids.begin(), m_qcl_ids.end(), m_answered_ids.begin(), m_answered_ids.end(), std::back_inserter(diff));
+        std::vector<crypto::public_key> diff;
+        std::set_difference(m_qcl_ids.begin(), m_qcl_ids.end(), m_answered_ids.begin(), m_answered_ids.end(), std::back_inserter(diff), less_mem<crypto::public_key>{} );
         LOG_PRINT_L1("non-answered qcl size: ") << diff.size();
         if(diff.empty()) return graft::Status::Ok;
 
+
+        //sign each id in diff and push into dv
+        DisqualificationVotes dv;
+        {
+            dv.block_height = m_block_height;
+            dv.block_hash = m_block_hash;
+            dv.signer_id = m_supernode_id;
+            dv.ids.reserve(diff.size());
+            dv.signs.reserve(diff.size());
+
+            DisqualificationItem di;
+            di.block_height = m_block_height;
+            di.block_hash = m_block_hash;
+            for(const auto& it : diff)
+            {
+                di.id = it;
+                std::string di_str;
+                bin_serialize(di, di_str);
+                crypto::signature sig;
+                sign(di_str, sig);
+                dv.ids.push_back(it);
+                dv.signs.push_back(sig);
+            }
+        }
+
+        //bin serialize dv
+        std::string dv_str;
+        bin_serialize(dv, dv_str);
+        //encrypt
+        std::string message;
+        graft::crypto_tools::encryptMessage(dv_str, m_bbqs_ids, message);
+
+        //add my votes to me
+        for(size_t i = 0; i < dv.ids.size(); ++i)
+        {
+            const auto& id = dv.ids[i];
+            const auto& sign = dv.signs[i];
+            auto& vec = m_votes[id];
+            vec.emplace_back( std::make_pair(dv.signer_id, sign) );
+        }
+/*
         //sign each id in diff and push into dr
         DisqualificationRequest dr;
         dr.signer_id = m_supernode_id;
@@ -485,14 +763,14 @@ class BBLDisqualificator
         //encrypt
         std::string message;
         encryptFor(ctx, plain, m_bbqs_ids, message);
-
+*/
         //multicast to m_bbqs_ids
         MulticastRequestJsonRpc req;
-        req.params.receiver_addresses = m_bbqs_ids;
+        req.params.receiver_addresses = m_bbqs_str_ids;
         req.method = "multicast";
         req.params.callback_uri = ROUTE_VOTES;
         req.params.data = message;
-        req.params.sender_address = m_supernode_id;
+        req.params.sender_address = m_supernode_str_id;
 
         output.load(req);
         output.path = "/json_rpc/rta";
@@ -503,23 +781,23 @@ class BBLDisqualificator
 
     graft::Status handle_phase3(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
-        if(!m_collectVotes) return graft::Status::Ok;
+        if(!m_started || !m_collectVotes) return graft::Status::Ok;
         assert(m_in_bbqs);
-
+/*
         auto setError = [&ctx](const std::string& msg)
         {
             LOG_ERROR(msg);
             ctx.local.setError(msg.c_str(), graft::Status::Error);
             return graft::Status::Error;
         };
-
+*/
         MulticastRequestJsonRpc req;
         bool res = input.get(req);
         if(!res)
         {
-            return setError("cannot deserialize MulticastRequestJsonRpc");
+            return setError(ctx, "cannot deserialize MulticastRequestJsonRpc");
         }
-
+/*
         //decrypt
         std::string plain;
         {
@@ -534,8 +812,111 @@ class BBLDisqualificator
             bool res = graft::crypto_tools::decryptMessage(req.params.data, bkey, plain);
             if(!res)
             {
-                return setError("cannot decrypt, the message is not for me");
+                return setError(ctx, "cannot decrypt, the message is not for me");
             }
+        }
+*/
+
+        std::string dv_str;
+        bool res2 = graft::crypto_tools::decryptMessage(req.params.data, m_secret_key, dv_str);
+        if(!res2)
+        {
+            return setError(ctx, "cannot decrypt, the message is not for me");
+        }
+
+        DisqualificationVotes dv;
+        std::string err = bin_deserialize(dv_str, dv);
+        if(!err.empty())
+        {
+            std::ostringstream oss;
+            oss << "cannot deserialize DisqualificationVotes, error: '" << err << "'";
+            return setError(ctx, oss.str());
+        }
+
+        //check reliability
+        if(dv.block_height != m_block_height || dv.block_hash != m_block_hash)
+        {
+            std::ostringstream oss;
+            oss << "invalid block_height " << dv.block_height << " expected " << m_block_height
+                << " or block_hash " << dv.block_hash << " expected " << m_block_hash;
+            return setError(ctx, oss.str());
+        }
+        if(dv.ids.empty() || dv.signs.size() != dv.ids.size())
+        {
+            return setError(ctx, "corrupted DisqualificationVotes");
+        }
+            //assumed m_qcl_ids and m_bbqs_ids are sorted
+        //check dv.signer_id in BBQS
+        if(!std::binary_search(m_bbqs_ids.cbegin(), m_bbqs_ids.cend(), dv.signer_id, less_mem<crypto::public_key>{} ))
+        {
+            std::ostringstream oss; oss << "in DisqualificationVotes signer with id '" << dv.signer_id << "'  is not in BBQS ";
+            return setError(ctx, oss.str());
+        }
+        {//check that all dv.ids in QCL  difference (dv.ids) - (m_qcl_ids) is empty
+            std::vector<crypto::public_key> diff;
+            std::set_difference(dv.ids.begin(), dv.ids.end(), m_qcl_ids.begin(), m_qcl_ids.end(), std::back_inserter(diff), less_mem<crypto::public_key>{});
+            if(!diff.empty())
+            {
+                return setError(ctx, "in DisqualificationVotes some ids is not in QCL");
+            }
+        }
+        {//check signes
+            DisqualificationItem di;
+            di.block_height = m_block_height;
+            di.block_hash = m_block_hash;
+            for(size_t i = 0; i < dv.ids.size(); ++i)
+            {
+                const auto& id = dv.ids[i];
+                const auto& sign = dv.signs[i];
+                di.id = id;
+                std::string di_str;
+                bin_serialize(di, di_str);
+                bool res = check_sign(di_str, dv.signer_id, sign);
+                if(!res)
+                {
+                    return setError(ctx, "in DisqualificationVotes at least one sign is invalid");
+                }
+            }
+        }
+
+        //save votes
+        for(size_t i = 0; i < dv.ids.size(); ++i)
+        {
+            const auto& id = dv.ids[i];
+            const auto& sign = dv.signs[i];
+            auto& vec = m_votes[id];
+            vec.emplace_back( std::make_pair(dv.signer_id, sign) );
+        }
+
+        return graft::Status::Ok;
+/*
+
+        decltype(m_votes[0].second) vec;
+        vec.reserve(dv.ids.size());
+        vec.push_back( std::make_pair())
+
+
+
+
+        for(auto i : std::indices())
+
+        m_bbqs_ids
+        m_qcl_ids
+        std::
+
+        if(!std::any_of(m_qcl_ids.begin(), m_qcl_ids.end(), [&spm](auto& it){ return it == spm.pm.id; } ))
+        {
+            std::ostringstream oss; oss << "the id '" << spm.pm.id << "' is not in QCL";
+            return setError(ctx, oss.str());
+        }
+
+
+        //decrypt
+        std::string plain;
+        std::string err = decryptForMe(ctx, req.params.data, plain);
+        if(!err.empty())
+        {
+            return setError(ctx, err);
         }
 
         SignedMessage sdr;
@@ -544,7 +925,7 @@ class BBLDisqualificator
             bool res = in.get(sdr);
             if(!res)
             {
-                return setError("cannot deserialize SignedMessage");
+                return setError(ctx, "cannot deserialize SignedMessage");
             }
         }
         DisqualificationRequest dr;
@@ -553,7 +934,7 @@ class BBLDisqualificator
             bool res = in.get(dr);
             if(!res)
             {
-                return setError("cannot deserialize PingMessage");
+                return setError(ctx, "cannot deserialize PingMessage");
             }
         }
 
@@ -596,7 +977,7 @@ class BBLDisqualificator
             });
             if(!err.empty())
             {
-                return setError(err);
+                return setError(ctx, err);
             }
         }
 
@@ -604,12 +985,12 @@ class BBLDisqualificator
         if(dr.block_height != m_block_height)
         {
             std::ostringstream oss; oss << "invalid block_height " << dr.block_height << " expected " << m_block_height;
-            return setError(oss.str());
+            return setError(ctx, oss.str());
         }
         if(!std::any_of(m_bbqs_ids.begin(), m_bbqs_ids.end(), [&dr](auto& it){ return it == dr.signer_id; } ))
         {
             std::ostringstream oss; oss << "the id '" << dr.signer_id << "' is not in BBQS";
-            return setError(oss.str());
+            return setError(ctx, oss.str());
         }
 
         /////////////////////////
@@ -621,10 +1002,113 @@ class BBLDisqualificator
         }
 
         return graft::Status::Ok;
+*/
+    }
+
+    graft::Status do_phase4(graft::Context& ctx, graft::Output& output)
+    {
+        if(!m_started || !m_in_bbqs) return graft::Status::Ok;
+        m_collectVotes = false;
+
+        //remove entries from m_votes with not enough votes
+        for(auto it = m_votes.begin(), eit = m_votes.end(); it != eit;)
+        {
+            if(it->second.size() < REQUIRED_BBQS_VOTES)
+            {
+                it = m_votes.erase(it);
+            }
+            else ++it;
+        }
+        if(m_votes.empty()) return graft::Status::Ok;
+        //
+        std::vector<DisqualificationRequest> drs;
+        drs.reserve(m_votes.size());
+        for(auto& [id, vec] : m_votes)
+        {
+//            auto& [siner_id, sign] = pair;
+            DisqualificationRequest dr;
+            dr.item.block_height = m_block_height;
+            dr.item.block_hash = m_block_hash;
+            dr.item.id = id;
+            dr.siners.reserve(vec.size());
+            for(auto& [siner_id, sign] : vec)
+            {
+                SignerItem si;
+                si.signer_id = siner_id;
+                si.sign = sign;
+                dr.siners.push_back(std::move(si) );
+            }
+            drs.push_back(std::move(dr));
+        }
+//        m_votes.erase( std::remove_if(m_votes.begin(), m_votes.end(), [](auto& it)->bool { return it->second.size() < REQUIRED_BBQS_VOTES; }), m_votes.end());
+
+        //create wallet
+        std::string addr = ctx.global["cryptonode_rpc_address"];
+        bool testnet = ctx.global["testnet"];
+        auto pos = addr.find(':');
+        assert(pos != std::string::npos);
+        std::string nodeIp = addr.substr(0, pos);
+        int nodePort = std::stoi(addr.substr(pos+1));
+        std::unique_ptr<tools::GraftWallet2> wal =
+                tools::GraftWallet2::createWallet("", nodeIp, nodePort, "", testnet);
+        wal->set_refresh_from_block_height(m_block_height);
+        if (!wal)
+        {
+            return setError(ctx, "cannot create temporal wallet");
+        }
+        wal->set_seed_language("English");
+        try
+        {
+            crypto::secret_key dummy_key;
+            wal->generate_graft("", dummy_key, false, false);
+        }
+        catch (const std::exception& e)
+        {
+            return setError(ctx, "cannot generate_graft with temporal wallet");
+        }
+
+
+        //TODO: fill this
+        uint32_t unlock_time;
+        uint32_t priority;
+        bool trusted_daemon;
+        using extra2_t = std::vector<uint8_t>;
+        std::vector<extra2_t> extra2s;
+        extra2s.reserve(drs.size());
+        for(auto& dr : drs)
+        {
+            extra2_t ext;
+            ext.push_back(TX_EXTRA_GRAFT_DISQUALIFICATION_TAG);
+            std::string dr_str;
+            bin_serialize(dr, dr_str);
+            static_assert(sizeof(dr_str[0]) == sizeof(uint8_t));
+            std::copy(dr_str.begin(), dr_str.end(), std::back_inserter(ext));
+            extra2s.push_back(std::move(ext));
+        }
+
+//        uint64_t upper_transaction_size_limit = get_upper_transaction_size_limit();
+
+
+//        std::vector<tools::GraftWallet2::pending_tx> txes = wal->create_disqualification_transactions(unlock_time, priority, extra, trusted_daemon);
+
+//        wal->create_transactions_2() //
+
+//        PendingTransaction *GraftWallet2::createTransaction(
+/*
+        bool simple_wallet::stake_transfer(const std::vector<std::string> &args_)
+        {
+          return transfer_main(TransferStake, args_);
+        }
+*/
+
+        cryptonote::tx_extra_graft_rta_signatures tmp;
+
+        return graft::Status::Ok;
     }
 
     graft::Status do_process(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        if(ctx.local.getLastStatus() == graft::Status::Forward) return graft::Status::Ok;
         assert(ctx.global.hasKey("fsl"));
 
         BlockchainBasedListJsonRpcRequest req;
@@ -637,14 +1121,15 @@ class BBLDisqualificator
 
         int phase = req.params.block_height % phases_count;
         //TODO: get block_hash
-        std::string block_hash;
+//        std::string block_hash = req.params.block_;
 
         switch(phase)
         {
-        case phase_1: return do_phase1(ctx, req.params.block_height, block_hash);
-        //TODO: do_phase2 can return Forward
+        case phase_1: return do_phase1(ctx, req.params.block_height, req.params.block_hash);
+////        //TODO: do_phase2 can return Forward
         case phase_2: return do_phase2(ctx, output);
         case phase_3: return do_phase3(ctx, output);
+        case phase_4: return do_phase4(ctx, output);
         default: assert(false);
         }
 
