@@ -38,6 +38,8 @@
 #include <misc_log_ex.h>
 #include <boost/shared_ptr.hpp>
 
+#include "../../../../modules/cryptonode/src/supernode/api/pending_transaction.h"
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.blockchainbasedlistrequest"
 
@@ -616,7 +618,7 @@ class BBLDisqualificator
 
         //TODO: fill this
         uint32_t unlock_time;
-        uint32_t priority;
+        uint32_t priority = PendingTransaction::Priority_Low;
         bool trusted_daemon;
         using extra2_t = std::vector<uint8_t>;
         std::vector<extra2_t> extra2s;
@@ -631,6 +633,45 @@ class BBLDisqualificator
             std::copy(dr_str.begin(), dr_str.end(), std::back_inserter(ext));
             extra2s.push_back(std::move(ext));
         }
+
+// std::vector<tools::GraftWallet2::pending_tx> txes = wal->create_disqualification_transactions(unlock_time, priority, extra, trusted_daemon);
+
+        std::vector<tools::GraftWallet2::pending_tx> txes;
+        txes.reserve(extra2s.size());
+        for(auto& extra2 : extra2s)
+        {
+            tools::GraftWallet2::pending_tx ptx;
+            cryptonote::transaction& tx = ptx.tx;
+            tx.extra = extra2s[0];
+
+            crypto::public_key tmp;
+            crypto::generate_keys(tmp, ptx.tx_key);
+
+            ptx.construction_data.extra = tx.extra;
+            ptx.construction_data.unlock_time = unlock_time;
+            ptx.construction_data.use_rct = false;
+
+            txes.push_back(std::move(ptx));
+        }
+//from PendingTransaction *GraftWallet2::createTransaction(
+        Monero::GraftPendingTransactionImpl *transaction = new Monero::GraftPendingTransactionImpl(wal.get());
+
+        transaction->setPendingTx(txes);
+
+        wal->commit_tx(txes);
+/*
+        tools::GraftWallet2::pending_tx ptx;
+//        tools::wallet2::pending_tx ptx;
+        cryptonote::transaction& tx = ptx.tx;
+        tx.extra = extra2s[0];
+
+        crypto::public_key tmp;
+        crypto::generate_keys(tmp, ptx.tx_key);
+
+        ptx.construction_data.extra = tx.extra;
+        ptx.construction_data.unlock_time = unlock_time;
+        ptx.construction_data.use_rct = false;
+*/
 
 //        uint64_t upper_transaction_size_limit = get_upper_transaction_size_limit();
 
@@ -647,8 +688,84 @@ class BBLDisqualificator
         }
 */
 
-        cryptonote::tx_extra_graft_rta_signatures tmp;
+//        cryptonote::tx_extra_graft_rta_signatures tmp;
 
+        return graft::Status::Ok;
+    }
+
+    graft::Status handle_test(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+/*
+        //create wallet
+        std::string addr = ctx.global["cryptonode_rpc_address"];
+        bool testnet = ctx.global["testnet"];
+        auto pos = addr.find(':');
+        assert(pos != std::string::npos);
+        std::string nodeIp = addr.substr(0, pos);
+        int nodePort = std::stoi(addr.substr(pos+1));
+        std::unique_ptr<tools::GraftWallet2> wal =
+                tools::GraftWallet2::createWallet("", nodeIp, nodePort, "", testnet);
+        wal->set_refresh_from_block_height(m_block_height);
+        if (!wal)
+        {
+            return setError(ctx, "cannot create temporal wallet");
+        }
+        wal->set_seed_language("English");
+        try
+        {
+            crypto::secret_key dummy_key;
+            wal->generate_graft("", dummy_key, false, false);
+        }
+        catch (const std::exception& e)
+        {
+            return setError(ctx, "cannot generate_graft with temporal wallet");
+        }
+
+
+        //TODO: fill this
+        uint32_t unlock_time;
+        uint32_t priority = PendingTransaction::Priority_Low;
+        bool trusted_daemon;
+        using extra2_t = std::vector<uint8_t>;
+        std::vector<extra2_t> extra2s;
+        extra2s.reserve(drs.size());
+        for(auto& dr : drs)
+        {
+            extra2_t ext;
+            ext.push_back(TX_EXTRA_GRAFT_DISQUALIFICATION_TAG);
+            std::string dr_str;
+            bin_serialize(dr, dr_str);
+            static_assert(sizeof(dr_str[0]) == sizeof(uint8_t));
+            std::copy(dr_str.begin(), dr_str.end(), std::back_inserter(ext));
+            extra2s.push_back(std::move(ext));
+        }
+
+// std::vector<tools::GraftWallet2::pending_tx> txes = wal->create_disqualification_transactions(unlock_time, priority, extra, trusted_daemon);
+
+        std::vector<tools::GraftWallet2::pending_tx> txes;
+        txes.reserve(extra2s.size());
+        for(auto& extra2 : extra2s)
+        {
+            tools::GraftWallet2::pending_tx ptx;
+            cryptonote::transaction& tx = ptx.tx;
+            tx.extra = extra2s[0];
+
+            crypto::public_key tmp;
+            crypto::generate_keys(tmp, ptx.tx_key);
+
+            ptx.construction_data.extra = tx.extra;
+            ptx.construction_data.unlock_time = unlock_time;
+            ptx.construction_data.use_rct = false;
+
+            txes.push_back(std::move(ptx));
+        }
+//from PendingTransaction *GraftWallet2::createTransaction(
+        Monero::GraftPendingTransactionImpl *transaction = new Monero::GraftPendingTransactionImpl(wal.get());
+
+        transaction->setPendingTx(txes);
+
+        wal->commit_tx(txes);
+*/
         return graft::Status::Ok;
     }
 
@@ -703,6 +820,12 @@ public:
         return bbld->handle_phase3(vars, input, ctx, output);
     }
 
+    static graft::Status testHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        if(!ctx.global.hasKey("BBLDisqualificator")) return graft::Status::Ok;
+        std::shared_ptr<BBLDisqualificator> bbld = ctx.global["BBLDisqualificator"];
+        return bbld->handle_test(vars, input, ctx, output);
+    }
 
     static constexpr const char* ROUTE_PING_RESULT = "/cryptonode/ping_result";
     static constexpr const char* ROUTE_VOTES = "/cryptonode/votes";
@@ -790,6 +913,8 @@ void registerBlockchainBasedListRequest(graft::Router &router)
 
     router.addRoute(BBLDisqualificator::ROUTE_PING_RESULT, METHOD_POST, {nullptr, BBLDisqualificator::phase2Handler , nullptr});
     router.addRoute(BBLDisqualificator::ROUTE_VOTES, METHOD_POST, {nullptr, BBLDisqualificator::phase3Handler , nullptr});
+
+    router.addRoute("disqualTest", METHOD_GET | METHOD_POST, {nullptr, BBLDisqualificator::testHandler , nullptr});
 }
 
 }

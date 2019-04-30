@@ -36,7 +36,7 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
 set(CMAKE_C_FLAGS "-march=x86-64")
-set(CMAKE_CXX_FLAGS "-march=x86-64")
+set(CMAKE_CXX_FLAGS "-march=x86-64 -ftemplate-backtrace-limit=0")
 
 project(graft_server)
 
