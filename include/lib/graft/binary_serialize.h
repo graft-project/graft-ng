@@ -33,6 +33,7 @@
 #include <boost/archive/binary_iarchive.hpp>
 
 #include "lib/graft/inout.h"
+//#include "crypto/crypto.h"
 
 namespace graft { namespace serializer {
 
@@ -122,14 +123,18 @@ static bool read_varint(Arch& ar, V& write)
 //////////////
 // forward declarations
 template<typename Arch, typename V>
-static void serialize(Arch& ar, V& v);
+static void bserialize(Arch& ar, V& v);
 
 template<typename Arch, typename V>
-static void deserialize(Arch& ar, V& v);
+static void bdeserialize(Arch& ar, V& v);
 //////////////
 template<typename Arch, typename V>
 static void ser(Arch& ar, V& v)
 {
+//    static_assert(std::is_same_v<std::const crypto::hash, crypto::hash>);
+//    if constexpr(is_container<V>::value || std::is_same_v<V, crypto::hash>)
+//    static_assert(std::is_trivially_copyable<crypto::public_key>::value && std::is_class<crypto::public_key>::value);
+    static_assert(!(std::is_trivially_copyable<int>::value && std::is_class<int>::value));
     if constexpr(is_container<V>::value)
     {
         size_t size = v.size();
@@ -143,9 +148,17 @@ static void ser(Arch& ar, V& v)
             }
             else
             {
-                serialize(ar, item);
+                bserialize(ar, item);
             }
         });
+    }
+    else if constexpr(std::is_trivially_copyable<V>::value && std::is_class<V>::value)
+    {
+        const uint8_t* p = reinterpret_cast<const uint8_t*>(&v);
+        for(int i=0; i<sizeof(V); ++i, ++p)
+        {
+            ar << *p;
+        }
     }
     else
     {
@@ -170,9 +183,17 @@ static void deser(Arch& ar, V& v)
             }
             else
             {
-                deserialize(ar, item);
+                bdeserialize(ar, item);
             }
         });
+    }
+    else if constexpr(std::is_trivially_copyable<V>::value && std::is_class<V>::value)
+    {
+        uint8_t* p = reinterpret_cast<uint8_t*>(&v);
+        for(int i=0; i<sizeof(V); ++i, ++p)
+        {
+            ar >> *p;
+        }
     }
     else
     {
@@ -181,7 +202,7 @@ static void deser(Arch& ar, V& v)
 }
 
 template<typename Arch, typename V>
-static void serialize(Arch& ar, V& v)
+static void bserialize(Arch& ar, V& v)
 {
     boost::hana::for_each(boost::hana::keys(v), [&](auto key)
     {
@@ -193,13 +214,13 @@ static void serialize(Arch& ar, V& v)
         }
         else
         {
-            serialize(ar, member);
+            bserialize(ar, member);
         }
     });
 }
 
 template<typename Arch, typename V>
-static void deserialize(Arch& ar, V& v)
+static void bdeserialize(Arch& ar, V& v)
 {
     boost::hana::for_each(boost::hana::keys(v), [&](auto key)
     {
@@ -211,7 +232,7 @@ static void deserialize(Arch& ar, V& v)
         }
         else
         {
-            deserialize(ar, member);
+            bdeserialize(ar, member);
         }
     });
 }
@@ -227,7 +248,7 @@ public:
     {
         std::ostringstream oss;
         boost::archive::binary_oarchive ar(oss, boost::archive::no_header);
-        binary_details::serialize(ar, t);
+        binary_details::bserialize(ar, t);
         return oss.str();
     }
 
@@ -235,7 +256,7 @@ public:
     {
         std::istringstream iss(s);
         boost::archive::binary_iarchive ar(iss, boost::archive::no_header);
-        binary_details::deserialize(ar,t);
+        binary_details::bdeserialize(ar,t);
     }
 };
 

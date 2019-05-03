@@ -37,6 +37,7 @@ using namespace epee;
 #include "serialization/binary_utils.h"
 
 #include "lib/graft/jsonrpc.h"
+#include <cstring>
 
 namespace
 {
@@ -269,3 +270,149 @@ TEST(InOut, serialization)
 #endif
 }
 
+namespace
+{
+
+GRAFT_DEFINE_IO_STRUCT(DisqualificationItem,
+                       (uint64_t, block_height),
+                       (crypto::hash, block_hash),
+                       (crypto::public_key, id)
+                       );
+/*
+GRAFT_DEFINE_IO_STRUCT(DisqualificationVotes,
+                       (uint64_t, block_height),
+                       (crypto::hash, block_hash),
+                       (crypto::public_key, signer_id),
+                       (std::vector<crypto::public_key>, ids),
+                       (std::vector<crypto::signature>, signs) //signs of DisqualificationItem with correcponding ids
+//                       (std::vector<SignedDisqualificationItem>, items)
+                       );
+*/
+
+GRAFT_DEFINE_IO_STRUCT(SignerItem,
+                       (crypto::public_key, signer_id),
+                       (crypto::signature, sign)
+                       );
+
+GRAFT_DEFINE_IO_STRUCT(Disqualification,
+                       (DisqualificationItem, item),
+                       (std::vector<SignerItem>, signers)
+                       );
+
+struct tx_extra_graft_disqualification
+{
+    struct disqualification_item
+    {
+      uint64_t block_height;
+      crypto::hash block_hash;
+      crypto::public_key id;
+      BEGIN_SERIALIZE()
+        FIELD(block_height)
+        FIELD(block_hash)
+        FIELD(id)
+      END_SERIALIZE()
+    };
+
+    struct signer_item
+    {
+      crypto::public_key signer_id;
+      crypto::signature sign;
+      BEGIN_SERIALIZE()
+        FIELD(signer_id)
+        FIELD(sign)
+      END_SERIALIZE()
+    };
+
+  disqualification_item item;
+  std::vector<signer_item> signs;
+  BEGIN_SERIALIZE()
+    FIELD(item)
+    FIELD(signs)
+  END_SERIALIZE()
+};
+
+
+template<typename T>
+static void bin_serialize(const T& t, std::string& str)
+{
+    graft::Output out;
+    out.loadT<graft::serializer::Binary>(t);
+    str = out.body;
+}
+
+template<typename T>
+static std::string bin_deserialize(const std::string& str, T& t)
+{
+    graft::Input in;
+    in.body = str;
+    try
+    {
+        in.getT<graft::serializer::Binary>(t);
+    }
+    catch(std::exception& ex)
+    {
+        return ex.what();
+    }
+    return "";
+}
+
+} //namespace
+
+TEST(InOut, serialization1)
+{
+    using namespace graft;
+    namespace serial = graft::serializer;
+#define ZPOD(X) std::memset(&X, 0, sizeof(X));
+    crypto::public_key pub;
+    crypto::secret_key sec;
+    crypto::generate_keys(pub, sec);
+
+    Disqualification d;
+    d.item.block_height = 1;
+    ZPOD(d.item.block_hash)
+    d.item.block_hash.data[0] = 2;
+    ZPOD(d.item.id);
+    d.item.id.data[0] = 3;
+    {
+        SignerItem si;
+        ZPOD(si);
+        si.signer_id.data[0] = 4;
+        *(char*)&si.sign = 5;
+        d.signers.push_back(std::move(si));
+    }
+    std::string d_str;
+    bin_serialize(d, d_str);
+
+    Disqualification d1;
+    bin_deserialize(d_str, d1);
+    EXPECT_EQ(d.item.block_height, d1.item.block_height);
+    EXPECT_EQ(d.item.block_hash, d1.item.block_hash);
+    EXPECT_EQ(d.item.id, d1.item.id);
+    EXPECT_EQ(d.signers.size(), d1.signers.size());
+    EXPECT_EQ(d.signers.size(), 1);
+    EXPECT_EQ(d.signers[0].signer_id, d1.signers[0].signer_id);
+    EXPECT_EQ(d.signers[0].sign, d1.signers[0].sign);
+
+    tx_extra_graft_disqualification dx;
+    dx.item.block_height = 1;
+    ZPOD(dx.item.block_hash)
+    dx.item.block_hash.data[0] = 2;
+    ZPOD(dx.item.id);
+    dx.item.id.data[0] = 3;
+    {
+        tx_extra_graft_disqualification::signer_item si;
+        ZPOD(si);
+        si.signer_id.data[0] = 4;
+        *(char*)&si.sign = 5;
+
+        std::string si_str;
+        ::serialization::dump_binary(si, si_str);
+        dx.signs.push_back(std::move(si));
+    }
+    std::string dx_str;
+    ::serialization::dump_binary(dx, dx_str);
+
+//    std::cout << "---> d:\n" << d_str << "\n---> dx:\n" << dx_str;
+
+    EXPECT_EQ(d_str, dx_str);
+}
