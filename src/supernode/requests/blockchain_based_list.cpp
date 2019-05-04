@@ -32,16 +32,23 @@
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
 #include <utils/cryptmsg.h>
-#include "supernode/graft_wallet2.h"
+//#include "supernode/graft_wallet2.h"
 #include "lib/graft/binary_serialize.h"
 
 #include <misc_log_ex.h>
 #include <boost/shared_ptr.hpp>
 
-#include "../../../../modules/cryptonode/src/supernode/api/pending_transaction.h"
+//#include "../../../../modules/cryptonode/src/supernode/api/pending_transaction.h"
+//#include "wallet/wallet2_api.h"
+#include "wallet/wallet2.h"
+
+#define tst true
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.blockchainbasedlistrequest"
+
+extern constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT = 10;
+extern constexpr size_t DISQUALIFICATION_DURATION_BLOCK_COUNT = 10;
 
 namespace
 {
@@ -79,9 +86,9 @@ GRAFT_DEFINE_IO_STRUCT(SignerItem,
                        (crypto::signature, sign)
                        );
 
-GRAFT_DEFINE_IO_STRUCT(DisqualificationRequest,
+GRAFT_DEFINE_IO_STRUCT(Disqualification,
                        (DisqualificationItem, item),
-                       (std::vector<SignerItem>, siners)
+                       (std::vector<SignerItem>, signers)
                        );
 
 } //namespace
@@ -105,11 +112,11 @@ class BBLDisqualificator
         phases_count
     };
 
-    std::mutex m_mutex;
+    static std::mutex m_mutex;
 
     bool m_started = false;
 
-    uint64_t m_block_height;
+    uint64_t m_block_height = 0;
     crypto::hash m_block_hash;
     //Blockchain Based Qualification Sample, exclude itself
     std::vector<crypto::public_key> m_bbqs_ids;
@@ -211,15 +218,15 @@ class BBLDisqualificator
     }
 ///////////////////// phases
 
-    graft::Status do_phase1(graft::Context& ctx, uint64_t block_height, const std::string& block_hash)
+//    graft::Status do_phase1(graft::Context& ctx, uint64_t block_height, const std::string& block_hash)
+    graft::Status do_phase1(graft::Context& ctx, uint64_t block_height)
     {
-        std::lock_guard<std::mutex> lk(m_mutex);
-
         m_started = true;
         m_block_height = block_height;
+/*
         bool res = epee::string_tools::hex_to_pod(block_hash, m_block_hash);
         assert(res);
-
+*/
         {//get m_supernode_id & m_
             ctx.global.apply<graft::SupernodePtr>("supernode",
                 [this](graft::SupernodePtr& supernode)->bool
@@ -235,13 +242,19 @@ class BBLDisqualificator
         {//generate BBQS & QCL
             graft::FullSupernodeList::supernode_array suBBQS, suQCL;
             bool res = ctx.global.apply<boost::shared_ptr<graft::FullSupernodeList>>("fsl",
-                [&suBBQS, &suQCL, block_height](boost::shared_ptr<graft::FullSupernodeList>& fsl)->bool
+                [this, &suBBQS, &suQCL](boost::shared_ptr<graft::FullSupernodeList>& fsl)->bool
             {
                 if(!fsl) return false;
                 uint64_t tmp_block_number;
-                bool res = fsl->buildDisqualificationSamples(block_height, suBBQS, suQCL, tmp_block_number);
-                assert(res);
-                assert(tmp_block_number == block_height);
+                bool res = fsl->buildDisqualificationSamples(m_block_height+BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT, suBBQS, suQCL, tmp_block_number);
+                if(!res) return false; //block_height can be old
+//                assert(res);
+                assert(tmp_block_number == m_block_height);
+                m_block_height = tmp_block_number;
+                std::string block_hash;
+                fsl->getBlockHash(m_block_height, block_hash);
+                bool res1 = epee::string_tools::hex_to_pod(block_hash, m_block_hash);
+                assert(res1);
                 return true;
             });
             if(!res) return graft::Status::Error;
@@ -286,8 +299,6 @@ class BBLDisqualificator
 
     graft::Status do_phase2(graft::Context& ctx, graft::Output& output)
     {
-        std::lock_guard<std::mutex> lk(m_mutex);
-
         if(!m_started) return graft::Status::Ok;
         m_collectVotes = m_in_bbqs;
         if(m_collectVotes) m_votes.clear();
@@ -329,8 +340,6 @@ class BBLDisqualificator
 
     graft::Status handle_phase2(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
-        std::lock_guard<std::mutex> lk(m_mutex);
-
         if(!m_started || !m_collectPings) return graft::Status::Ok;
         assert(m_in_bbqs);
 
@@ -392,8 +401,6 @@ class BBLDisqualificator
 
     graft::Status do_phase3(graft::Context& ctx, graft::Output& output)
     {
-        std::lock_guard<std::mutex> lk(m_mutex);
-
         if(!m_started || !m_in_bbqs) return graft::Status::Ok;
         m_collectPings = false;
 
@@ -430,6 +437,7 @@ class BBLDisqualificator
                 crypto::signature sig;
                 sign(di_str, sig);
                 dv.ids.push_back(it);
+//                dv.signs.push_back(std::move(sig));
                 dv.signs.push_back(sig);
             }
         }
@@ -467,8 +475,6 @@ class BBLDisqualificator
 
     graft::Status handle_phase3(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
-        std::lock_guard<std::mutex> lk(m_mutex);
-
         if(!m_started || !m_collectVotes) return graft::Status::Ok;
         assert(m_in_bbqs);
 
@@ -555,8 +561,6 @@ class BBLDisqualificator
 
     graft::Status do_phase4(graft::Context& ctx, graft::Output& output)
     {
-        std::lock_guard<std::mutex> lk(m_mutex);
-
         if(!m_started || !m_in_bbqs) return graft::Status::Ok;
         m_collectVotes = false;
 
@@ -570,33 +574,103 @@ class BBLDisqualificator
             else ++it;
         }
         if(m_votes.empty()) return graft::Status::Ok;
-        //
-        std::vector<DisqualificationRequest> drs;
-        drs.reserve(m_votes.size());
+
+        //create disqualifications
+        std::vector<Disqualification> ds;
+        ds.reserve(m_votes.size());
         for(auto& [id, vec] : m_votes)
         {
-            DisqualificationRequest dr;
-            dr.item.block_height = m_block_height;
-            dr.item.block_hash = m_block_hash;
-            dr.item.id = id;
-            dr.siners.reserve(vec.size());
+            Disqualification d;
+            d.item.block_height = m_block_height;
+            d.item.block_hash = m_block_hash;
+            d.item.id = id;
+            d.signers.reserve(vec.size());
             for(auto& [siner_id, sign] : vec)
             {
                 SignerItem si;
                 si.signer_id = siner_id;
                 si.sign = sign;
-                dr.siners.push_back(std::move(si) );
+                d.signers.push_back(std::move(si) );
             }
-            drs.push_back(std::move(dr));
+            ds.push_back(std::move(d));
+        }
+
+        //create extras from disqualifications
+        using extra2_t = std::vector<uint8_t>;
+        std::vector<extra2_t> extra2s;
+        extra2s.reserve(ds.size());
+        for(auto& d : ds)
+        {
+            extra2_t ext;
+            ext.push_back(TX_EXTRA_GRAFT_DISQUALIFICATION_TAG);
+            std::string d_str;
+            bin_serialize(d, d_str);
+            static_assert(sizeof(d_str[0]) == sizeof(uint8_t));
+            std::copy(d_str.begin(), d_str.end(), std::back_inserter(ext));
+            extra2s.push_back(std::move(ext));
+        }
+
+        //create transactions from extras
+        uint32_t unlock_time = m_block_height + DISQUALIFICATION_DURATION_BLOCK_COUNT;
+        std::vector<tools::wallet2::pending_tx> txes;
+        txes.reserve(extra2s.size());
+        for(auto& extra2 : extra2s)
+        {
+            tools::wallet2::pending_tx ptx;
+            cryptonote::transaction& tx = ptx.tx;
+            tx.version = 123;
+            tx.extra = extra2;
+            tx.extra2 = extra2;
+
+            crypto::public_key tmp;
+            crypto::generate_keys(tmp, ptx.tx_key);
+
+            ptx.construction_data.extra = tx.extra;
+            ptx.construction_data.unlock_time = unlock_time;
+            ptx.construction_data.use_rct = false;
+
+            txes.push_back(std::move(ptx));
         }
 
         //create wallet
         std::string addr = ctx.global["cryptonode_rpc_address"];
         bool testnet = ctx.global["testnet"];
+/*
         auto pos = addr.find(':');
         assert(pos != std::string::npos);
         std::string nodeIp = addr.substr(0, pos);
         int nodePort = std::stoi(addr.substr(pos+1));
+*/
+        tools::wallet2 wallet(testnet);
+        wallet.init(addr);
+        wallet.set_refresh_from_block_height(m_block_height);
+        wallet.set_seed_language("English");
+
+        try
+        {
+            wallet.commit_tx(txes);
+        }
+        catch(std::exception& ex)
+        {
+            return setError(ctx, ex.what());
+        }
+
+/*
+        WalletManager* wman = WalletManagerFactory::getWalletManager();
+        if (!wman)
+        {
+            return setError(ctx, "cannot get wallet manager");
+        }
+        Wallet* wallet = wman->createNewWallet("", "English", testnet);
+        if (!wallet)
+        {
+            return setError(ctx, "cannot create temporal wallet");
+        }
+*/
+//        wallet->setDaemonAddress(addr);
+//        wallet->set_refresh_from_block_height(m_block_height);
+
+/*
         std::unique_ptr<tools::GraftWallet2> wal =
                 tools::GraftWallet2::createWallet("", nodeIp, nodePort, "", testnet);
         wal->set_refresh_from_block_height(m_block_height);
@@ -614,23 +688,23 @@ class BBLDisqualificator
         {
             return setError(ctx, "cannot generate_graft with temporal wallet");
         }
-
-
+*/
+/*
         //TODO: fill this
         uint32_t unlock_time;
         uint32_t priority = PendingTransaction::Priority_Low;
         bool trusted_daemon;
         using extra2_t = std::vector<uint8_t>;
         std::vector<extra2_t> extra2s;
-        extra2s.reserve(drs.size());
-        for(auto& dr : drs)
+        extra2s.reserve(ds.size());
+        for(auto& d : ds)
         {
             extra2_t ext;
             ext.push_back(TX_EXTRA_GRAFT_DISQUALIFICATION_TAG);
-            std::string dr_str;
-            bin_serialize(dr, dr_str);
-            static_assert(sizeof(dr_str[0]) == sizeof(uint8_t));
-            std::copy(dr_str.begin(), dr_str.end(), std::back_inserter(ext));
+            std::string d_str;
+            bin_serialize(d, d_str);
+            static_assert(sizeof(d_str[0]) == sizeof(uint8_t));
+            std::copy(d_str.begin(), d_str.end(), std::back_inserter(ext));
             extra2s.push_back(std::move(ext));
         }
 
@@ -642,7 +716,9 @@ class BBLDisqualificator
         {
             tools::GraftWallet2::pending_tx ptx;
             cryptonote::transaction& tx = ptx.tx;
-            tx.extra = extra2s[0];
+            tx.version = 123;
+            tx.extra = extra2;
+            tx.extra2 = extra2;
 
             crypto::public_key tmp;
             crypto::generate_keys(tmp, ptx.tx_key);
@@ -654,11 +730,19 @@ class BBLDisqualificator
             txes.push_back(std::move(ptx));
         }
 //from PendingTransaction *GraftWallet2::createTransaction(
+*/
+
+/*
         Monero::GraftPendingTransactionImpl *transaction = new Monero::GraftPendingTransactionImpl(wal.get());
 
         transaction->setPendingTx(txes);
+*/
 
-        wal->commit_tx(txes);
+//        wal->commit_tx(txes);
+//        wallet->createTransaction()
+
+//        wman->closeWallet(wallet);
+
 /*
         tools::GraftWallet2::pending_tx ptx;
 //        tools::wallet2::pending_tx ptx;
@@ -693,9 +777,142 @@ class BBLDisqualificator
         return graft::Status::Ok;
     }
 
+#if(tst)
     graft::Status handle_test(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        if(!m_started) return graft::Status::Error;
+
+        //
+        std::vector<Disqualification> ds;
+        {
+            Disqualification d;
+            d.item.block_height = m_block_height;
+            d.item.block_hash = m_block_hash;
+            d.item.id = m_supernode_id; //self disqualification
+            {
+                SignerItem si;
+                si.signer_id = m_supernode_id;
+                //sign
+                std::string item_str;
+                bin_serialize(d.item, item_str);
+                sign(item_str, si.sign);
+
+                d.signers.push_back(std::move(si) );
+            }
+            ds.push_back(std::move(d));
+        }
+
+        //create extras from disqualifications
+        using extra2_t = std::vector<uint8_t>;
+        std::vector<extra2_t> extra2s;
+        extra2s.reserve(ds.size());
+        for(auto& d : ds)
+        {
+            extra2_t ext;
+            ext.push_back(TX_EXTRA_GRAFT_DISQUALIFICATION_TAG);
+            std::string d_str;
+            bin_serialize(d, d_str);
+            static_assert(sizeof(d_str[0]) == sizeof(uint8_t));
+            std::copy(d_str.begin(), d_str.end(), std::back_inserter(ext));
+            extra2s.push_back(std::move(ext));
+        }
+
+        //create transactions from extras
+        uint32_t unlock_time = m_block_height + DISQUALIFICATION_DURATION_BLOCK_COUNT;
+        std::vector<tools::wallet2::pending_tx> txes;
+        txes.reserve(extra2s.size());
+        for(auto& extra2 : extra2s)
+        {
+            tools::wallet2::pending_tx ptx;
+            cryptonote::transaction& tx = ptx.tx;
+            tx.version = 123;
+            tx.extra = extra2;
+            tx.extra2 = extra2;
+
+            crypto::public_key tmp;
+            crypto::generate_keys(tmp, ptx.tx_key);
+
+            ptx.construction_data.extra = tx.extra;
+            ptx.construction_data.unlock_time = unlock_time;
+            ptx.construction_data.use_rct = false;
+
+            txes.push_back(std::move(ptx));
+        }
+
+        //create wallet
+        std::string addr = ctx.global["cryptonode_rpc_address"];
+        bool testnet = ctx.global["testnet"];
 /*
+        auto pos = addr.find(':');
+        assert(pos != std::string::npos);
+        std::string nodeIp = addr.substr(0, pos);
+        int nodePort = std::stoi(addr.substr(pos+1));
+*/
+        tools::wallet2 wallet(testnet);
+        bool ok = wallet.init(addr);
+        if(!ok)
+        {
+            return setError(ctx, "cannot create temporal wallet");
+        }
+        wallet.set_refresh_from_block_height(m_block_height);
+        wallet.set_seed_language("English");
+
+        try
+        {
+            wallet.commit_tx(txes);
+        }
+        catch(std::exception& ex)
+        {
+            return setError(ctx, ex.what());
+        }
+
+/*
+        std::unique_ptr<tools::GraftWallet2> wal =
+                tools::GraftWallet2::createWallet("", nodeIp, nodePort, "", testnet);
+        wal->set_refresh_from_block_height(m_block_height);
+        if (!wal)
+        {
+            return setError(ctx, "cannot create temporal wallet");
+        }
+        wal->set_seed_language("English");
+        try
+        {
+            crypto::secret_key dummy_key;
+            wal->generate_graft("", dummy_key, false, false);
+        }
+        catch (const std::exception& e)
+        {
+            return setError(ctx, "cannot generate_graft with temporal wallet");
+        }
+*/
+
+/*
+        //TODO: fill this
+        uint32_t unlock_time = 10;
+        uint32_t priority = PendingTransaction::Priority_Low;
+//        bool trusted_daemon;
+        using extra2_t = std::vector<uint8_t>;
+        std::vector<extra2_t> extra2s;
+        extra2s.reserve(ds.size());
+        for(auto& d : ds)
+        {
+            extra2_t ext;
+            ext.push_back(TX_EXTRA_GRAFT_DISQUALIFICATION_TAG);
+            std::string d_str;
+            bin_serialize(d, d_str);
+            static_assert(sizeof(d_str[0]) == sizeof(uint8_t));
+            std::copy(d_str.begin(), d_str.end(), std::back_inserter(ext));
+            extra2s.push_back(std::move(ext));
+        }
+*/
+        return graft::Status::Ok;
+    }
+#endif
+
+/*
+    graft::Status handle_test(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        if(!m_started) return graft::Status::Error;
         //create wallet
         std::string addr = ctx.global["cryptonode_rpc_address"];
         bool testnet = ctx.global["testnet"];
@@ -721,22 +938,40 @@ class BBLDisqualificator
             return setError(ctx, "cannot generate_graft with temporal wallet");
         }
 
+        std::vector<Disqualification> ds;
+        {
+            Disqualification d;
+            d.item.block_height = m_block_height;
+            d.item.block_hash = m_block_hash;
+            d.item.id = m_supernode_id; //self disqualification
+            {
+                SignerItem si;
+                si.signer_id = m_supernode_id;
+                //sign
+                std::string item_str;
+                bin_serialize(d.item, item_str);
+                sign(item_str, si.sign);
+
+                d.signers.push_back(std::move(si) );
+            }
+            ds.push_back(std::move(d));
+        }
 
         //TODO: fill this
-        uint32_t unlock_time;
+        uint32_t unlock_time = 10;
         uint32_t priority = PendingTransaction::Priority_Low;
-        bool trusted_daemon;
+//        bool trusted_daemon;
         using extra2_t = std::vector<uint8_t>;
         std::vector<extra2_t> extra2s;
-        extra2s.reserve(drs.size());
-        for(auto& dr : drs)
+        extra2s.reserve(ds.size());
+        for(auto& d : ds)
         {
             extra2_t ext;
             ext.push_back(TX_EXTRA_GRAFT_DISQUALIFICATION_TAG);
-            std::string dr_str;
-            bin_serialize(dr, dr_str);
-            static_assert(sizeof(dr_str[0]) == sizeof(uint8_t));
-            std::copy(dr_str.begin(), dr_str.end(), std::back_inserter(ext));
+            std::string d_str;
+            bin_serialize(d, d_str);
+            static_assert(sizeof(d_str[0]) == sizeof(uint8_t));
+            std::copy(d_str.begin(), d_str.end(), std::back_inserter(ext));
             extra2s.push_back(std::move(ext));
         }
 
@@ -748,7 +983,9 @@ class BBLDisqualificator
         {
             tools::GraftWallet2::pending_tx ptx;
             cryptonote::transaction& tx = ptx.tx;
-            tx.extra = extra2s[0];
+            tx.version = 123;
+            tx.extra = extra2;
+            tx.extra2 = extra2;
 
             crypto::public_key tmp;
             crypto::generate_keys(tmp, ptx.tx_key);
@@ -760,14 +997,25 @@ class BBLDisqualificator
             txes.push_back(std::move(ptx));
         }
 //from PendingTransaction *GraftWallet2::createTransaction(
-        Monero::GraftPendingTransactionImpl *transaction = new Monero::GraftPendingTransactionImpl(wal.get());
+//        Monero::GraftPendingTransactionImpl *transaction = new Monero::GraftPendingTransactionImpl(wal.get());
 
-        transaction->setPendingTx(txes);
-
-        wal->commit_tx(txes);
-*/
+//        transaction->setPendingTx(txes);
+        {
+            std::string blob = epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(txes[0].tx));
+            LOG_PRINT_L0("Serialized transaction tx_blob '") << blob << "'";
+        }
+//        req.tx_as_hex = epee::string_tools::buff_to_hex_nodelimer(tx_to_blob(ptx.tx));
+        try
+        {
+            wal->commit_tx(txes);
+        }
+        catch(std::exception& ex)
+        {
+            return setError(ctx, ex.what());
+        }
         return graft::Status::Ok;
     }
+*/
 
     graft::Status do_process(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
@@ -782,11 +1030,25 @@ class BBLDisqualificator
             return Status::Error;
         }
 
+        uint64_t res_block_height = req.params.block_height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+/*
+        if(req.params.block_height == m_block_height) return graft::Status::Ok;
+        if(req.params.block_height < m_block_height)
+*/
+        if(res_block_height == m_block_height) return graft::Status::Ok;
+        if(res_block_height < m_block_height)
+        {
+            MDEBUG("Old block_height ") << res_block_height << " current " << m_block_height;
+            return graft::Status::Error;
+        }
+
+//        int phase = req.params.block_height % phases_count;
         int phase = req.params.block_height % phases_count;
 
         switch(phase)
         {
-        case phase_1: return do_phase1(ctx, req.params.block_height, req.params.block_hash);
+//        case phase_1: return do_phase1(ctx, req.params.block_height, req.params.block_hash);
+        case phase_1: return do_phase1(ctx, res_block_height);
         case phase_2: return do_phase2(ctx, output);
         case phase_3: return do_phase3(ctx, output);
         case phase_4: return do_phase4(ctx, output);
@@ -797,17 +1059,21 @@ class BBLDisqualificator
 public:
     static graft::Status process(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        std::lock_guard<std::mutex> lk(m_mutex);
+
         if(!ctx.global.hasKey("BBLDisqualificator"))
         {
             std::shared_ptr<BBLDisqualificator> bbld = std::make_shared<BBLDisqualificator>();
             ctx.global["BBLDisqualificator"] = bbld;
         }
         std::shared_ptr<BBLDisqualificator> bbld = ctx.global["BBLDisqualificator"];
-        return bbld->process(vars, input, ctx, output);
+        return bbld->do_process(vars, input, ctx, output);
     }
 
     static graft::Status phase2Handler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        std::lock_guard<std::mutex> lk(m_mutex);
+
         if(!ctx.global.hasKey("BBLDisqualificator")) return graft::Status::Ok;
         std::shared_ptr<BBLDisqualificator> bbld = ctx.global["BBLDisqualificator"];
         return bbld->handle_phase2(vars, input, ctx, output);
@@ -815,21 +1081,29 @@ public:
 
     static graft::Status phase3Handler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        std::lock_guard<std::mutex> lk(m_mutex);
+
         if(!ctx.global.hasKey("BBLDisqualificator")) return graft::Status::Ok;
         std::shared_ptr<BBLDisqualificator> bbld = ctx.global["BBLDisqualificator"];
         return bbld->handle_phase3(vars, input, ctx, output);
     }
 
+#if(tst)
     static graft::Status testHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        std::lock_guard<std::mutex> lk(m_mutex);
+
         if(!ctx.global.hasKey("BBLDisqualificator")) return graft::Status::Ok;
         std::shared_ptr<BBLDisqualificator> bbld = ctx.global["BBLDisqualificator"];
         return bbld->handle_test(vars, input, ctx, output);
     }
+#endif
 
     static constexpr const char* ROUTE_PING_RESULT = "/cryptonode/ping_result";
     static constexpr const char* ROUTE_VOTES = "/cryptonode/votes";
 };
+
+std::mutex BBLDisqualificator::m_mutex;
 
 } //namespace
 } //namespace graft::supernode::request
@@ -898,6 +1172,8 @@ Status blockchainBasedListHandler
     fsl->setBlockchainBasedList(req.params.block_height, FullSupernodeList::blockchain_based_list_ptr(
       new FullSupernodeList::blockchain_based_list(std::move(bbl))));
 
+    BBLDisqualificator::process(vars, input, ctx, output);
+
     return Status::Ok;
 }
 
@@ -914,7 +1190,9 @@ void registerBlockchainBasedListRequest(graft::Router &router)
     router.addRoute(BBLDisqualificator::ROUTE_PING_RESULT, METHOD_POST, {nullptr, BBLDisqualificator::phase2Handler , nullptr});
     router.addRoute(BBLDisqualificator::ROUTE_VOTES, METHOD_POST, {nullptr, BBLDisqualificator::phase3Handler , nullptr});
 
-    router.addRoute("disqualTest", METHOD_GET | METHOD_POST, {nullptr, BBLDisqualificator::testHandler , nullptr});
+#if(tst)
+    router.addRoute("/disqualTest", METHOD_GET | METHOD_POST, {nullptr, BBLDisqualificator::testHandler , nullptr});
+#endif
 }
 
 }

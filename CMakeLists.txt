@@ -37,6 +37,7 @@ endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
 set(CMAKE_C_FLAGS "-march=x86-64")
 set(CMAKE_CXX_FLAGS "-march=x86-64 -ftemplate-backtrace-limit=0")
+#set(CMAKE_CXX_FLAGS "-march=x86-64")
 
 project(graft_server)
 
@@ -312,6 +313,8 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
+#    ${PROJECT_SOURCE_DIR}/modules/cryptonode/src/supernode/graft_wallet2.cpp
+#    ${PROJECT_SOURCE_DIR}/modules/cryptonode/src/supernode/api/pending_transaction.cpp
     )
 
 target_include_directories(supernode_common PRIVATE
@@ -358,6 +361,7 @@ target_include_directories(supernode PRIVATE
 target_link_libraries(supernode PRIVATE
     graft
     supernode_common
+#    supernode
     )
 
 add_dependencies(supernode graft supernode_common)
@@ -407,17 +411,17 @@ if (OPT_BUILD_TESTS)
             )
 
         add_executable(supernode_test
-            ${PROJECT_SOURCE_DIR}/test/upstream_test.cpp
-            ${PROJECT_SOURCE_DIR}/test/blacklist_test.cpp
-            ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
-            ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
-            ${PROJECT_SOURCE_DIR}/test/thread_pool_test.cpp
-            ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
-            ${PROJECT_SOURCE_DIR}/test/json_test.cpp
-            ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
-            ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
-            ${PROJECT_SOURCE_DIR}/test/sys_info.cpp
-            ${PROJECT_SOURCE_DIR}/test/strand_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/upstream_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/blacklist_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/graftlets_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/thread_pool_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/json_rpc_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/json_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/cryptonode_handlers_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
+#            ${PROJECT_SOURCE_DIR}/test/sys_info.cpp
+#            ${PROJECT_SOURCE_DIR}/test/strand_test.cpp
             ${PROJECT_SOURCE_DIR}/test/serialize_test.cpp
             ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
