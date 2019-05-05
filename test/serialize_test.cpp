@@ -278,16 +278,6 @@ GRAFT_DEFINE_IO_STRUCT(DisqualificationItem,
                        (crypto::hash, block_hash),
                        (crypto::public_key, id)
                        );
-/*
-GRAFT_DEFINE_IO_STRUCT(DisqualificationVotes,
-                       (uint64_t, block_height),
-                       (crypto::hash, block_hash),
-                       (crypto::public_key, signer_id),
-                       (std::vector<crypto::public_key>, ids),
-                       (std::vector<crypto::signature>, signs) //signs of DisqualificationItem with correcponding ids
-//                       (std::vector<SignedDisqualificationItem>, items)
-                       );
-*/
 
 GRAFT_DEFINE_IO_STRUCT(SignerItem,
                        (crypto::public_key, signer_id),
@@ -324,10 +314,10 @@ struct tx_extra_graft_disqualification
     };
 
   disqualification_item item;
-  std::vector<signer_item> signs;
+  std::vector<signer_item> signers;
   BEGIN_SERIALIZE()
     FIELD(item)
-    FIELD(signs)
+    FIELD(signers)
   END_SERIALIZE()
 };
 
@@ -407,7 +397,7 @@ TEST(InOut, serialization1)
 
         std::string si_str;
         ::serialization::dump_binary(si, si_str);
-        dx.signs.push_back(std::move(si));
+        dx.signers.push_back(std::move(si));
     }
     std::string dx_str;
     ::serialization::dump_binary(dx, dx_str);
