@@ -39,29 +39,50 @@ namespace graft { namespace serializer {
 namespace binary_details
 {
 
+template<typename T>
+using naked_t = std::remove_cv_t< std::remove_reference_t<T> >;
+
 template<typename ...>
 using to_void = void; // maps everything to void, used in non-evaluated contexts
 
 template<typename C, typename = void>
-struct is_container : std::false_type
+struct is_container_exact : std::false_type
 {};
 
 template<typename C>
-struct is_container<C,
+struct is_container_exact<C,
         to_void<decltype(std::declval<C>().begin()),
                 decltype(std::declval<C>().end()),
                 typename C::value_type
         >> : std::true_type // will  be enabled for iterable objects
 {};
 
+template<typename T>
+using is_container = is_container_exact< naked_t<T> >;
+
 static_assert( is_container<std::string>::value );
 static_assert( is_container<std::vector<int>>::value );
+static_assert( is_container<const std::vector<int>>::value );
+static_assert( is_container<const std::vector<int>&>::value );
+
+template<typename T>
+inline constexpr bool is_container_v = is_container<T>::value;
+
+template<typename T>
+inline constexpr bool is_serializable_v = std::is_base_of<ReflectiveRapidJSON::JsonSerializable<naked_t<T>>, naked_t<T>>::value;
+
+template<typename T>
+struct is_trivial_class { static constexpr bool value = std::is_trivially_copyable<naked_t<T>>::value && std::is_class<naked_t<T>>::value; };
+
+template<typename T>
+inline constexpr bool is_trivial_class_v = is_trivial_class<T>::value;
+
 ///////////////////////
 /*! \brief write_varint adopted from cryptonode.
  */
 template<typename Arch, typename V>
 // Requires T to be both an integral type and unsigned, should be a compile error if it is not
-static void write_varint(Arch& ar, V i) {
+void write_varint(Arch& ar, V i) {
   // Make sure that there is one after this
   while (i >= 0x80) {
     char ch = (static_cast<char>(i) & 0x7f) | 0x80;
@@ -81,7 +102,7 @@ static void write_varint(Arch& ar, V i) {
 /*! \brief read_varint adopted from cryptonode.
  */
 template<typename Arch, typename V>
-static bool read_varint(Arch& ar, V& write)
+bool read_varint(Arch& ar, V& write)
 {
   constexpr int bits = std::numeric_limits<V>::digits;
   int read = 0;
@@ -122,33 +143,31 @@ static bool read_varint(Arch& ar, V& write)
 //////////////
 // forward declarations
 template<typename Arch, typename V>
-static void bserialize(Arch& ar, V& v);
+void bserialize(Arch& ar, V& v);
 
 template<typename Arch, typename V>
-static void bdeserialize(Arch& ar, V& v);
+void bdeserialize(Arch& ar, V& v);
 //////////////
 template<typename Arch, typename V>
-static void ser(Arch& ar, V& v)
+void ser(Arch& ar, V& v)
 {
-    static_assert(!(std::is_trivially_copyable<int>::value && std::is_class<int>::value));
-    if constexpr(is_container<V>::value)
+    if constexpr( is_container_v<V> )
     {
         size_t size = v.size();
         write_varint(ar, size);
         std::for_each(v.begin(), v.end(), [&](auto& item)
         {
-            using naked_member_t = std::remove_cv_t<std::remove_reference_t<decltype(item)>>;
-            if constexpr(!std::is_base_of<ReflectiveRapidJSON::JsonSerializable<naked_member_t>, naked_member_t>::value)
-            {
-                ser(ar, item);
-            }
-            else
+            if constexpr( is_serializable_v<decltype(item)> )
             {
                 bserialize(ar, item);
             }
+            else
+            {
+                ser(ar, item);
+            }
         });
     }
-    else if constexpr(std::is_trivially_copyable<V>::value && std::is_class<V>::value)
+    else if constexpr( is_trivial_class_v<V> )
     {
         const uint8_t* p = reinterpret_cast<const uint8_t*>(&v);
         for(int i=0; i<sizeof(V); ++i, ++p)
@@ -163,7 +182,7 @@ static void ser(Arch& ar, V& v)
 }
 
 template<typename Arch, typename V>
-static void deser(Arch& ar, V& v)
+void deser(Arch& ar, V& v)
 {
     if constexpr(is_container<V>::value)
     {
@@ -172,18 +191,17 @@ static void deser(Arch& ar, V& v)
         v.resize(size);
         std::for_each(v.begin(), v.end(), [&](auto& item)
         {
-            using naked_member_t = std::remove_cv_t<std::remove_reference_t<decltype(item)>>;
-            if constexpr(!std::is_base_of<ReflectiveRapidJSON::JsonSerializable<naked_member_t>, naked_member_t>::value)
-            {
-                deser(ar, item);
-            }
-            else
+            if constexpr( is_serializable_v<decltype(item)> )
             {
                 bdeserialize(ar, item);
             }
+            else
+            {
+                deser(ar, item);
+            }
         });
     }
-    else if constexpr(std::is_trivially_copyable<V>::value && std::is_class<V>::value)
+    else if constexpr( is_trivial_class_v<V> )
     {
         uint8_t* p = reinterpret_cast<uint8_t*>(&v);
         for(int i=0; i<sizeof(V); ++i, ++p)
@@ -198,37 +216,35 @@ static void deser(Arch& ar, V& v)
 }
 
 template<typename Arch, typename V>
-static void bserialize(Arch& ar, V& v)
+void bserialize(Arch& ar, V& v)
 {
     boost::hana::for_each(boost::hana::keys(v), [&](auto key)
     {
         const auto& member = boost::hana::at_key(v, key);
-        using naked_member_t = std::remove_cv_t<std::remove_reference_t<decltype(member)>>;
-        if constexpr(!std::is_base_of<ReflectiveRapidJSON::JsonSerializable<naked_member_t>, naked_member_t>::value)
+        if constexpr( is_serializable_v<decltype(member)> )
         {
-            ser(ar, member);
+            bserialize(ar, member);
         }
         else
         {
-            bserialize(ar, member);
+            ser(ar, member);
         }
     });
 }
 
 template<typename Arch, typename V>
-static void bdeserialize(Arch& ar, V& v)
+void bdeserialize(Arch& ar, V& v)
 {
     boost::hana::for_each(boost::hana::keys(v), [&](auto key)
     {
         auto& member = boost::hana::at_key(v, key);
-        using naked_member_t = std::remove_cv_t<std::remove_reference_t<decltype(member)>>;
-        if constexpr(!std::is_base_of<ReflectiveRapidJSON::JsonSerializable<naked_member_t>, naked_member_t>::value)
+        if constexpr( is_serializable_v<decltype(member)> )
         {
-            deser(ar, member);
+            bdeserialize(ar, member);
         }
         else
         {
-            bdeserialize(ar, member);
+            deser(ar, member);
         }
     });
 }
