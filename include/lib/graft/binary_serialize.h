@@ -148,105 +148,101 @@ void bserialize(Arch& ar, V& v);
 template<typename Arch, typename V>
 void bdeserialize(Arch& ar, V& v);
 //////////////
+
 template<typename Arch, typename V>
-void ser(Arch& ar, V& v)
+typename std::enable_if< !is_serializable_v<V> && !is_container_v<V> && !is_trivial_class_v<V> >::type
+ser(Arch& ar, V& v)
 {
-    if constexpr( is_container_v<V> )
+    ar << v;
+}
+
+template<typename Arch, typename V>
+typename std::enable_if< !is_serializable_v<V> && !is_container_v<V> && is_trivial_class_v<V> >::type
+ser(Arch& ar, V& v)
+{
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(&v);
+    for(int i=0; i<sizeof(V); ++i, ++p)
     {
-        size_t size = v.size();
-        write_varint(ar, size);
-        std::for_each(v.begin(), v.end(), [&](auto& item)
-        {
-            if constexpr( is_serializable_v<decltype(item)> )
-            {
-                bserialize(ar, item);
-            }
-            else
-            {
-                ser(ar, item);
-            }
-        });
-    }
-    else if constexpr( is_trivial_class_v<V> )
-    {
-        const uint8_t* p = reinterpret_cast<const uint8_t*>(&v);
-        for(int i=0; i<sizeof(V); ++i, ++p)
-        {
-            ar << *p;
-        }
-    }
-    else
-    {
-        ar << v;
+        ar << *p;
     }
 }
 
 template<typename Arch, typename V>
-void deser(Arch& ar, V& v)
+typename std::enable_if< is_container_v<V> >::type //it means also !is_serializable_v<V>
+ser(Arch& ar, V& v)
 {
-    if constexpr(is_container<V>::value)
+    size_t size = v.size();
+    write_varint(ar, size);
+    std::for_each(v.begin(), v.end(), [&](auto& item)
     {
-        size_t size;
-        read_varint(ar, size);
-        v.resize(size);
-        std::for_each(v.begin(), v.end(), [&](auto& item)
-        {
-            if constexpr( is_serializable_v<decltype(item)> )
-            {
-                bdeserialize(ar, item);
-            }
-            else
-            {
-                deser(ar, item);
-            }
-        });
-    }
-    else if constexpr( is_trivial_class_v<V> )
+        bserialize(ar, item);
+    });
+}
+
+template<typename Arch, typename V>
+typename std::enable_if< is_serializable_v<V> >::type
+ser(Arch& ar, V& v)
+{
+    boost::hana::for_each(boost::hana::keys(v), [&](auto key)
     {
-        uint8_t* p = reinterpret_cast<uint8_t*>(&v);
-        for(int i=0; i<sizeof(V); ++i, ++p)
-        {
-            ar >> *p;
-        }
-    }
-    else
-    {
-        ar >> v;
-    }
+        const auto& member = boost::hana::at_key(v, key);
+        ser(ar, member);
+    });
 }
 
 template<typename Arch, typename V>
 void bserialize(Arch& ar, V& v)
 {
-    boost::hana::for_each(boost::hana::keys(v), [&](auto key)
+    ser(ar, v);
+}
+
+template<typename Arch, typename V>
+typename std::enable_if< !is_serializable_v<V> && !is_container_v<V> && !is_trivial_class_v<V> >::type
+deser(Arch& ar, V& v)
+{
+    ar >> v;
+}
+
+template<typename Arch, typename V>
+typename std::enable_if< !is_serializable_v<V> && !is_container_v<V> && is_trivial_class_v<V> >::type
+deser(Arch& ar, V& v)
+{
+    uint8_t* p = reinterpret_cast<uint8_t*>(&v);
+    for(int i=0; i<sizeof(V); ++i, ++p)
     {
-        const auto& member = boost::hana::at_key(v, key);
-        if constexpr( is_serializable_v<decltype(member)> )
-        {
-            bserialize(ar, member);
-        }
-        else
-        {
-            ser(ar, member);
-        }
+        ar >> *p;
+    }
+}
+
+template<typename Arch, typename V>
+typename std::enable_if< is_container_v<V> >::type //it means also !is_serializable_v<V>
+deser(Arch& ar, V& v)
+{
+    size_t size;
+    read_varint(ar, size);
+    v.resize(size);
+    std::for_each(v.begin(), v.end(), [&](auto& item)
+    {
+        bdeserialize(ar, item);
     });
 }
 
 template<typename Arch, typename V>
-void bdeserialize(Arch& ar, V& v)
+typename std::enable_if< is_serializable_v<V> >::type
+deser(Arch& ar, V& v)
 {
     boost::hana::for_each(boost::hana::keys(v), [&](auto key)
     {
         auto& member = boost::hana::at_key(v, key);
-        if constexpr( is_serializable_v<decltype(member)> )
-        {
-            bdeserialize(ar, member);
-        }
-        else
-        {
-            deser(ar, member);
-        }
+        deser(ar, member);
     });
+}
+
+
+template<typename Arch, typename V>
+void bdeserialize(Arch& ar, V& v)
+{
+    deser(ar, v);
 }
 
 } //namespace binary_details
