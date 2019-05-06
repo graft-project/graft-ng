@@ -17,7 +17,6 @@
 
 constexpr size_t STAKES_RECV_TIMEOUT_SECONDS                = 600;
 constexpr size_t BLOCKCHAIN_BASED_LIST_RECV_TIMEOUT_SECONDS = 180;
-constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT    = 10;
 constexpr size_t REPEATED_REQUEST_DELAY_SECONDS             = 10;
 
 namespace fs = boost::filesystem;
