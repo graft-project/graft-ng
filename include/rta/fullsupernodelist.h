@@ -33,6 +33,7 @@ public:
     static constexpr int32_t DISQUALIFICATION_CANDIDATES_SIZE = AUTH_SAMPLE_SIZE;
     static constexpr int64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
     static constexpr int64_t ANNOUNCE_TTL_SECONDS = 60 * 60; // if more than ANNOUNCE_TTL_SECONDS passed from last annouce - supernode excluded from auth sample selection
+    static constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT = 10; // count of blocks to step back in history to get stable picture of supernodes subsets, it used for generation of BBQS and QCL
 
     FullSupernodeList(const std::string &daemon_address, bool testnet = false);
     ~FullSupernodeList();

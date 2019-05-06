@@ -44,9 +44,6 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.blockchainbasedlistrequest"
 
-extern constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT = 10;
-extern constexpr size_t DISQUALIFICATION_DURATION_BLOCK_COUNT = 10;
-
 namespace
 {
 
@@ -98,6 +95,8 @@ class BBLDisqualificator
     static constexpr int32_t DESIRED_BBQS_SIZE = graft::FullSupernodeList::DISQUALIFICATION_SAMPLE_SIZE;
     static constexpr int32_t DESIRED_QCL_SIZE = graft::FullSupernodeList::DISQUALIFICATION_CANDIDATES_SIZE;
     static constexpr int32_t REQUIRED_BBQS_VOTES = (DESIRED_BBQS_SIZE*2 + (3-1))/3;
+    static constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT = graft::FullSupernodeList::BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+    static constexpr size_t DISQUALIFICATION_DURATION_BLOCK_COUNT = 10;
 
     enum Phases : int
     {
