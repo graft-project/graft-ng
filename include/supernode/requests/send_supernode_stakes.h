@@ -17,7 +17,8 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeStake,
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeStakes,
                               (uint64_t, block_height, 0),
-                              (std::vector<SupernodeStake>, stakes, std::vector<SupernodeStake>())
+                              (std::vector<SupernodeStake>, stakes, std::vector<SupernodeStake>()),
+                              (std::vector<std::string>, disqualifications, {}) //tx_extra_graft_disqualification;
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SendSupernodeStakesResponse,
