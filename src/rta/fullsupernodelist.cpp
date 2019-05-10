@@ -1,5 +1,7 @@
 #include "rta/fullsupernodelist.h"
+#include "lib/graft/graft_exception.h"
 
+#include <utils/sample_generator.h>
 #include <wallet/api/wallet_manager.h>
 #include <cryptonote_basic/cryptonote_basic_impl.h>
 #include <cryptonote_protocol/blobdatatype.h>
@@ -10,7 +12,9 @@
 
 #include <algorithm>
 #include <iostream>
-#include <future>
+//TODO: is it required?
+//#include <future>
+//#include <boost/thread.hpp>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.fullsupernodelist"
@@ -67,6 +71,8 @@ namespace {
 
 namespace graft {
 
+//TODO: is it required?
+/*
 namespace utils {
 
 class ThreadPool
@@ -120,7 +126,7 @@ std::future<void> ThreadPool::runAsync()
 }
 
 } // namespace utils;
-
+*/
 
 #ifndef __cpp_inline_variables
 constexpr int32_t FullSupernodeList::TIERS, FullSupernodeList::ITEMS_PER_TIER, FullSupernodeList::AUTH_SAMPLE_SIZE;
@@ -131,7 +137,7 @@ FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
     : m_daemon_address(daemon_address)
     , m_testnet(testnet)
     , m_rpc_client(daemon_address, "", "")
-    , m_tp(new utils::ThreadPool())
+//    , m_tp(new utils::ThreadPool())
     , m_blockchain_based_list_max_block_number()
     , m_stakes_max_block_number()
     , m_next_recv_stakes(boost::date_time::not_a_date_time)
@@ -241,37 +247,31 @@ SupernodePtr FullSupernodeList::get(const string &address) const
 
 bool FullSupernodeList::selectSupernodes(size_t items_count, const blockchain_based_list_tier& src_array, supernode_array& dst_array)
 {
-    size_t src_array_size = src_array.size();
-
-    if (items_count > src_array_size)
-        items_count = src_array_size;
-
-    for (size_t i=0; i<src_array_size; i++)
+    //generate and select subset of indices
+    std::vector<size_t> indices;
     {
-        auto supernode_it = m_list.find(src_array[i].supernode_public_id);
+        indices.reserve(src_array.size());
+        size_t idx = 0;
+        std::generate_n(std::back_inserter(indices), src_array.size(), [&idx]()->size_t{ return idx++; });
 
-        if (supernode_it == m_list.end())
+        std::vector<size_t> subset;
+        subset.reserve(items_count);
+        generator::uniform_select(generator::do_not_seed{}, items_count, indices, subset);
+        indices.swap(subset);
+    }
+
+    for (auto idx : indices)
+    {
+        auto supernode_it = m_list.find(src_array[idx].supernode_public_id);
+        assert(supernode_it != m_list.end());
+        if(supernode_it == m_list.end())
         {
-            LOG_ERROR("attempt to select unknown supernode " << src_array[i].supernode_public_id);
-            return false;
+            std::ostringstream oss;
+            oss << "attempt to select unknown supernode " << src_array[idx].supernode_public_id;
+            throw graft::exit_error(oss.str());
         }
-
-        SupernodePtr supernode = supernode_it->second;    
-        
-        size_t random_value = m_rng();
-
-        MDEBUG(".....select random value " << random_value << " items count is " << items_count << " with clamp to " << (src_array_size - i) << " items; result is " << (random_value % (src_array_size - i)));
-
-        random_value %= src_array_size - i;
-
-        if (random_value >= items_count)
-            continue;
-
-        MDEBUG(".....supernode " << src_array[i].supernode_public_id << " has been selected");
-
+        SupernodePtr supernode = supernode_it->second;
         dst_array.push_back(supernode);
-
-        items_count--;
     }
 
     return true;
@@ -414,14 +414,8 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
        //seed RNG
-
-    std::seed_seq seed(reinterpret_cast<const unsigned char*>(payment_id.c_str()),
-                       reinterpret_cast<const unsigned char*>(payment_id.c_str() + payment_id.size()));
-
-    m_rng.seed(seed);
-
+    generator::seed_uniform_select( payment_id );
       //build sample
-
     return buildSample(bbl, AUTH_SAMPLE_SIZE, "auth", out);
 }
 
@@ -448,14 +442,8 @@ bool FullSupernodeList::buildDisqualificationSamples(uint64_t height, supernode_
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
        //seed RNG
-
-    std::seed_seq seed(reinterpret_cast<const unsigned char*>(bbl.block_hash.c_str()),
-                       reinterpret_cast<const unsigned char*>(bbl.block_hash.c_str() + bbl.block_hash.size()));
-
-    m_rng.seed(seed);
-
+    generator::seed_uniform_select(bbl.block_hash);
       //build sample
-
     return buildSample(bbl, DISQUALIFICATION_SAMPLE_SIZE, "disqualification", out_disqualification_sample) &&
            buildSample(bbl, DISQUALIFICATION_CANDIDATES_SIZE, "disqualification candidates", out_disqualification_candidates);
 }
@@ -477,6 +465,8 @@ bool FullSupernodeList::getBlockHash(uint64_t height, string &hash)
     return result;
 }
 
+//TODO: is it required?
+/*
 std::future<void> FullSupernodeList::refreshAsync()
 {
     m_refresh_counter = 0;
@@ -495,6 +485,7 @@ std::future<void> FullSupernodeList::refreshAsync()
 
     return m_tp->runAsync();
 }
+*/
 
 size_t FullSupernodeList::refreshedItems() const
 {

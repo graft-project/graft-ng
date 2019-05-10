@@ -1,7 +1,4 @@
-#ifndef FULLSUPERNODELIST_H
-#define FULLSUPERNODELIST_H
-
-#include <random>
+#pragma once
 
 #include "rta/supernode.h"
 #include "rta/DaemonRpcClient.h"
@@ -9,19 +6,18 @@
 #include <cryptonote_config.h>
 #include <string>
 #include <vector>
-#include <future>
 #include <unordered_map>
 
 #include <boost/shared_ptr.hpp>
-#include <boost/thread.hpp>
-
 
 namespace graft {
 
+//TODO: is it required?
+/*
 namespace utils {
     class ThreadPool;
 }
-
+*/
 
 class FullSupernodeList
 {
@@ -131,7 +127,8 @@ public:
      *
      * \return             - std::future to wait for result
      */
-    std::future<void> refreshAsync();
+    //TODO: is it required?
+//    std::future<void> refreshAsync();
 
     /*!
      * \brief refreshedItems - returns number of refreshed supernodes
@@ -238,12 +235,11 @@ private:
     bool m_testnet;
     mutable DaemonRpcClient m_rpc_client;
     mutable boost::shared_mutex m_access;
-    std::unique_ptr<utils::ThreadPool> m_tp;
+//    std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
     uint64_t m_blockchain_based_list_max_block_number;
     uint64_t m_stakes_max_block_number;
     blockchain_based_list_map m_blockchain_based_lists;
-    std::mt19937_64 m_rng;
     boost::posix_time::ptime m_next_recv_stakes;
     boost::posix_time::ptime m_next_recv_blockchain_based_list;
 };
@@ -254,5 +250,3 @@ std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> super
 
 
 } // namespace graft
-
-#endif // FULLSUPERNODELIST_H
