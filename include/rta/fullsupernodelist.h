@@ -100,12 +100,12 @@ public:
     /*!
      * \brief buildDisqualificationSamples - builds disqualification samples for given block height
      * \param height                       - block height used to perform selectio
-     * \param out_disqualification_sample  - vector of supernode pointers which should check other nodes
-     * \param out_nodes_for_check          - vector of supernode pointers which should be checked
+     * \param out_bbqs                     - vector of supernode pointers which should check other nodes
+     * \param out_qcl                      - vector of supernode pointers which should be checked
      * \param out_block_number             - block number which was used for samples
      * \return                             - true on success
      */
-    bool buildDisqualificationSamples(uint64_t height, supernode_array &out_disqualification_sample, supernode_array &out_disqualification_candidates, uint64_t &out_block_number);
+    bool buildDisqualificationSamples(uint64_t height, supernode_array &out_bbqs, supernode_array &out_qcl, uint64_t &out_block_number);
 
     /*!
      * \brief items - returns address list of known supernodes
