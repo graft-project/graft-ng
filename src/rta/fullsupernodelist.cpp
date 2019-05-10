@@ -67,7 +67,7 @@ namespace {
         return result;
     }
 
-}
+} //namespace
 
 namespace graft {
 
@@ -127,6 +127,51 @@ std::future<void> ThreadPool::runAsync()
 
 } // namespace utils;
 */
+
+namespace
+{
+
+using TI = std::pair<size_t,size_t>; //tier, index in the tier
+constexpr int32_t TIERS = FullSupernodeList::TIERS;
+using blockchain_based_list = FullSupernodeList::blockchain_based_list;
+using supernode_array = FullSupernodeList::supernode_array;
+using m_list_t = std::unordered_map<std::string, SupernodePtr>;
+
+std::array<std::vector<TI>, TIERS> makeBBLindexes(const blockchain_based_list& bbl)
+{
+    std::array<std::vector<TI>, TIERS> res;
+    for(size_t t=0; t<TIERS; ++t)
+    {
+        auto& v = res[t];
+        v.reserve(bbl.tiers[t].size());
+        size_t idx = 0;
+        std::generate_n(std::back_inserter(v), bbl.tiers[t].size(), [t,&idx]()->TI{ return std::make_pair(t, idx++); } );
+    }
+    return res;
+}
+
+supernode_array fromIndexes(const blockchain_based_list& bbl, const std::vector<TI>& idxs, const m_list_t& m_list)
+{
+    supernode_array res;
+    res.reserve(idxs.size());
+    for(auto& [t,i] : idxs)
+    {
+        auto& supernode_public_id = bbl.tiers[t][i].supernode_public_id;
+
+        auto supernode_it = m_list.find(supernode_public_id);
+        if(supernode_it == m_list.end())
+        {
+            std::ostringstream oss;
+            oss << "attempt to select unknown supernode " << supernode_public_id;
+            throw graft::exit_error(oss.str());
+        }
+        const SupernodePtr& supernode = supernode_it->second;
+        res.push_back(supernode);
+    }
+    return res;
+}
+
+} //namespace
 
 #ifndef __cpp_inline_variables
 constexpr int32_t FullSupernodeList::TIERS, FullSupernodeList::ITEMS_PER_TIER, FullSupernodeList::AUTH_SAMPLE_SIZE;
@@ -291,35 +336,13 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
 
 bool FullSupernodeList::buildSample(const blockchain_based_list& bbl, size_t sample_size, const char* prefix, supernode_array &out)
 {
-    using TI = std::pair<size_t,size_t>; //tier, index in the tier
-    std::array<std::vector<TI>, TIERS> src;
-    for(size_t t=0; t<TIERS; ++t)
-    {
-        auto& v = src[t];
-        v.reserve(bbl.tiers[t].size());
-        size_t idx = 0;
-        std::generate_n(std::back_inserter(v), bbl.tiers[t].size(), [t,&idx]()->TI{ return std::make_pair(t, idx++); } );
-    }
+    std::array<std::vector<TI>, TIERS> idxs = makeBBLindexes(bbl);
 
     std::vector<TI> dst;
-    bool res = generator::selectSample(sample_size, src, dst, prefix);
+    bool res = generator::selectSample(sample_size, idxs, dst, prefix);
 
-    out.clear();
-    out.reserve(dst.size());
-    for(auto& [t,i] : dst)
-    {
-        auto& supernode_public_id = bbl.tiers[t][i].supernode_public_id;
-
-        auto supernode_it = m_list.find(supernode_public_id);
-        if(supernode_it == m_list.end())
-        {
-            std::ostringstream oss;
-            oss << "attempt to select unknown supernode " << supernode_public_id;
-            throw graft::exit_error(oss.str());
-        }
-        SupernodePtr& supernode = supernode_it->second;
-        out.push_back(supernode);
-    }
+    supernode_array sa = fromIndexes(bbl, dst, m_list);
+    out.swap(sa);
     return res;
 }
 
@@ -351,28 +374,36 @@ bool FullSupernodeList::buildAuthSample(const string &payment_id, FullSupernodeL
     return buildAuthSample(getBlockchainBasedListMaxBlockNumber(), payment_id, out, out_auth_block_number);
 }
 
-bool FullSupernodeList::buildDisqualificationSamples(uint64_t height, supernode_array &out_disqualification_sample, supernode_array &out_disqualification_candidates, uint64_t &out_auth_block_number)
+bool FullSupernodeList::buildDisqualificationSamples(uint64_t height, supernode_array &out_bbqs, supernode_array &out_qcl, uint64_t &out_block_number)
 {
     blockchain_based_list bbl;
 
-    out_auth_block_number = getBlockchainBasedListForAuthSample(height, bbl);
+    out_block_number = getBlockchainBasedListForAuthSample(height, bbl);
 
-    if (!out_auth_block_number)
+    if (!out_block_number)
     {
         LOG_ERROR("unable to build disqualification samples for block height " << height << " (blockchain_based_list_height=" << (height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT) << ") "
           ". Blockchain based list for this block is absent, latest block is " << getBlockchainBasedListMaxBlockNumber());
         return false;
     }
 
-    MDEBUG("building disqualification samples for height " << height << " (blockchain_based_list_height=" << out_auth_block_number << ") and hash=" << bbl.block_hash);
+    MDEBUG("building disqualification samples for height " << height << " (blockchain_based_list_height=" << out_block_number << ") and hash=" << bbl.block_hash);
+
+    std::array<std::vector<TI>, TIERS> idxs = makeBBLindexes(bbl);
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
-       //seed RNG
-    generator::seed_uniform_select(bbl.block_hash);
-      //build sample
-    return buildSample(bbl, DISQUALIFICATION_SAMPLE_SIZE, "disqualification", out_disqualification_sample) &&
-           buildSample(bbl, DISQUALIFICATION_CANDIDATES_SIZE, "disqualification candidates", out_disqualification_candidates);
+    crypto::hash block_hash;
+    bool ok = epee::string_tools::hex_to_pod(bbl.block_hash, block_hash);
+    assert(ok);
+
+    std::vector<TI> idxs_bbqs, idxs_qcl;
+    bool res = generator::select_BBQS_QCL(block_hash, idxs, idxs_bbqs, idxs_qcl);
+
+    out_bbqs = fromIndexes(bbl, idxs_bbqs, m_list);
+    out_qcl = fromIndexes(bbl, idxs_qcl, m_list);
+
+    return res;
 }
 
 vector<string> FullSupernodeList::items() const
