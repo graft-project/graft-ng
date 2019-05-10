@@ -245,38 +245,6 @@ SupernodePtr FullSupernodeList::get(const string &address) const
     return SupernodePtr(nullptr);
 }
 
-bool FullSupernodeList::selectSupernodes(size_t items_count, const blockchain_based_list_tier& src_array, supernode_array& dst_array)
-{
-    //generate and select subset of indices
-    std::vector<size_t> indices;
-    {
-        indices.reserve(src_array.size());
-        size_t idx = 0;
-        std::generate_n(std::back_inserter(indices), src_array.size(), [&idx]()->size_t{ return idx++; });
-
-        std::vector<size_t> subset;
-        subset.reserve(items_count);
-        generator::uniform_select(generator::do_not_seed{}, items_count, indices, subset);
-        indices.swap(subset);
-    }
-
-    for (auto idx : indices)
-    {
-        auto supernode_it = m_list.find(src_array[idx].supernode_public_id);
-        assert(supernode_it != m_list.end());
-        if(supernode_it == m_list.end())
-        {
-            std::ostringstream oss;
-            oss << "attempt to select unknown supernode " << src_array[idx].supernode_public_id;
-            throw graft::exit_error(oss.str());
-        }
-        SupernodePtr supernode = supernode_it->second;
-        dst_array.push_back(supernode);
-    }
-
-    return true;
-}
-
 uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list) const
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
@@ -323,77 +291,36 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
 
 bool FullSupernodeList::buildSample(const blockchain_based_list& bbl, size_t sample_size, const char* prefix, supernode_array &out)
 {
-    std::array<supernode_array, TIERS> tier_supernodes;
-
-        //select supernodes for a full supernode list
-
-    for (size_t i=0, tiers_count=bbl.tiers.size(); i<TIERS && i<tiers_count; i++)
+    using TI = std::pair<size_t,size_t>; //tier, index in the tier
+    std::array<std::vector<TI>, TIERS> src;
+    for(size_t t=0; t<TIERS; ++t)
     {
-        const blockchain_based_list_tier& src_array = bbl.tiers[i];
-        supernode_array&                  dst_array = tier_supernodes[i];
-        
-        dst_array.reserve(sample_size);
-
-        if (!selectSupernodes(sample_size, src_array, dst_array))
-        {
-          LOG_ERROR("unable to select supernodes for " << prefix << " sample");
-          return false;
-        }
-
-        MDEBUG("..." << dst_array.size() << " supernodes has been selected for tier " << (i + 1) << " from blockchain based list with " << src_array.size() << " supernodes");
+        auto& v = src[t];
+        v.reserve(bbl.tiers[t].size());
+        size_t idx = 0;
+        std::generate_n(std::back_inserter(v), bbl.tiers[t].size(), [t,&idx]()->TI{ return std::make_pair(t, idx++); } );
     }
 
-    array<int, TIERS> select;
-    select.fill(ITEMS_PER_TIER);
-    // If we are short of the needed SNs on any tier try selecting additional SNs from the highest
-    // tier with surplus SNs.  For example, if tier 2 is short by 1, look for a surplus first at
-    // tier 4, then tier 3, then tier 1.
-    for (int i = 0; i < TIERS; i++) {
-        int deficit_i = select[i] - int(tier_supernodes[i].size());
-        for (int j = TIERS-1; deficit_i > 0 && j >= 0; j--) {
-            if (i == j) continue;
-            int surplus_j = int(tier_supernodes[j].size()) - select[j];
-            if (surplus_j > 0) {
-                // Tier j has more SNs than needed, so select an extra SN from tier j to make up for
-                // the deficiency at tier i.
-                int transfer = std::min(deficit_i, surplus_j);
-                select[i] -= transfer;
-                select[j] += transfer;
-                deficit_i -= transfer;
-            }
-        }
-        // If we still have a deficit then no other tier has a surplus; we'll just have to work with
-        // a smaller sample because there aren't enough SNs on the entire network.
-        if (deficit_i > 0)
-            select[i] -= deficit_i;
-    }
+    std::vector<TI> dst;
+    bool res = generator::selectSample(sample_size, src, dst, prefix);
 
     out.clear();
-    out.reserve(ITEMS_PER_TIER * TIERS);
-    auto out_it = back_inserter(out);
-    for (int i = 0; i < TIERS; i++) {
-        std::copy(tier_supernodes[i].begin(), tier_supernodes[i].begin() + select[i], out_it);
-    }
+    out.reserve(dst.size());
+    for(auto& [t,i] : dst)
+    {
+        auto& supernode_public_id = bbl.tiers[t][i].supernode_public_id;
 
-    if (VLOG_IS_ON(2)) {
-        std::string sample_str, tier_sample_str;
-        for (const auto &a : out) {
-            sample_str += a->idKeyAsString() + "\n";
+        auto supernode_it = m_list.find(supernode_public_id);
+        if(supernode_it == m_list.end())
+        {
+            std::ostringstream oss;
+            oss << "attempt to select unknown supernode " << supernode_public_id;
+            throw graft::exit_error(oss.str());
         }
-        for (size_t i = 0; i < select.size(); i++) {
-            if (i > 0) tier_sample_str += ", ";
-            tier_sample_str += std::to_string(select[i]) + " T"  + std::to_string(i+1);
-        }
-        MDEBUG("selected " << tier_sample_str << " supernodes of " << size() << " for " << prefix << " sample");
-        MTRACE(prefix << " sample: \n" << sample_str);
+        SupernodePtr& supernode = supernode_it->second;
+        out.push_back(supernode);
     }
-
-    if (out.size() > sample_size)
-      out.resize(sample_size);
-
-    MDEBUG("..." << out.size() << " supernodes has been selected");
-
-    return out.size() == sample_size;
+    return res;
 }
 
 bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number)
