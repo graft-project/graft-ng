@@ -29,15 +29,15 @@
 #include "supernode/requests/blockchain_based_list.h"
 #include "supernode/requestdefines.h"
 #include "supernode/requests/multicast.h"
+#include "supernode/requests/disqualificator.h"
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
-#include <utils/cryptmsg.h>
 #include "lib/graft/binary_serialize.h"
 
 #include <misc_log_ex.h>
 #include <boost/shared_ptr.hpp>
 
-#include "wallet/wallet2.h"
+#include <wallet/wallet2.h>
 
 #define tst false
 
@@ -90,7 +90,7 @@ namespace graft::supernode::request {
 
 namespace {
 
-class BBLDisqualificator
+class BBLDisqualificator : public BBLDisqualificatorBase
 {
     static constexpr int32_t DESIRED_BBQS_SIZE = graft::FullSupernodeList::DISQUALIFICATION_SAMPLE_SIZE;
     static constexpr int32_t DESIRED_QCL_SIZE = graft::FullSupernodeList::DISQUALIFICATION_CANDIDATES_SIZE;
@@ -151,8 +151,9 @@ class BBLDisqualificator
 
 ///////////////////// tools return error message if any
 
-    static graft::Status setError(graft::Context& ctx, const std::string& msg)
+    static graft::Status setError(graft::Context& ctx, const std::string& msg, int code = 0)
     {
+        count_errors(msg, code);
         LOG_ERROR(msg);
         ctx.local.setError(msg.c_str(), graft::Status::Error);
         return graft::Status::Error;
@@ -211,75 +212,115 @@ class BBLDisqualificator
         crypto::cn_fast_hash(str.data(), str.size(), hash);
         return crypto::check_signature(hash, id, sig);
     }
-///////////////////// phases
 
-//    graft::Status do_phase1(graft::Context& ctx, uint64_t block_height, const std::string& block_hash)
+//////////
+
+    void getSupenodeKeys(graft::Context& ctx, crypto::public_key& pub, crypto::secret_key& sec)
+    {
+        if(fnGetSupernodeKeys)
+        {
+            fnGetSupernodeKeys(pub, sec);
+            return;
+        }
+        //get m_supernode_id & m_supernode_str_id & m_secret_key
+        ctx.global.apply<graft::SupernodePtr>("supernode",
+            [&pub,&sec](graft::SupernodePtr& supernode)->bool
+        {
+            assert(supernode);
+            pub = supernode->idKey();
+            sec = supernode->secretKey();
+            return true;
+        });
+    }
+
+    bool getBBQSandQCL(graft::Context& ctx, uint64_t& block_height, crypto::hash& block_hash, std::vector<crypto::public_key>& bbqs, std::vector<crypto::public_key>& qcl)
+    {
+        if(fnGetBBQSandQCL)
+        {
+            uint64_t tmp_block_number = block_height + BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+            fnGetBBQSandQCL(tmp_block_number, block_hash, bbqs, qcl);
+            assert(tmp_block_number == block_height);
+            block_height = tmp_block_number;
+            return true;
+        }
+        graft::FullSupernodeList::supernode_array suBBQS, suQCL;
+        bool res = ctx.global.apply<boost::shared_ptr<graft::FullSupernodeList>>("fsl",
+            [&](boost::shared_ptr<graft::FullSupernodeList>& fsl)->bool
+        {
+            if(!fsl) return false;
+            uint64_t tmp_block_number;
+            bool res = fsl->buildDisqualificationSamples(block_height+BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT, suBBQS, suQCL, tmp_block_number);
+            if(!res) return false; //block_height can be old
+            assert(tmp_block_number == block_height);
+            block_height = tmp_block_number;
+            std::string block_hash_str;
+            fsl->getBlockHash(block_height, block_hash_str);
+            bool res1 = epee::string_tools::hex_to_pod(block_hash_str, block_hash);
+            assert(res1);
+            return true;
+        });
+        if(!res) return false;
+
+        bbqs.clear();
+        bbqs.reserve(suBBQS.size());
+        for(auto& item : suBBQS)
+        {
+            bbqs.push_back(item->idKey());
+        }
+
+        qcl.clear();
+        qcl.reserve(suQCL.size());
+        for(auto& item : suQCL)
+        {
+            qcl.push_back(item->idKey());
+        }
+    }
+
+///////////////////// phases
+protected:
     graft::Status do_phase1(graft::Context& ctx, uint64_t block_height)
     {
         m_started = true;
         m_block_height = block_height;
 
         {//get m_supernode_id & m_supernode_str_id & m_secret_key
-            ctx.global.apply<graft::SupernodePtr>("supernode",
-                [this](graft::SupernodePtr& supernode)->bool
-            {
-                assert(supernode);
-                m_supernode_id = supernode->idKey();
-                m_supernode_str_id = epee::string_tools::pod_to_hex(m_supernode_id);
-                m_secret_key = supernode->secretKey();
-                return true;
-            });
+            getSupenodeKeys(ctx, m_supernode_id, m_secret_key);
+            m_supernode_str_id = epee::string_tools::pod_to_hex(m_supernode_id);
         }
 
         {//generate BBQS & QCL
-            graft::FullSupernodeList::supernode_array suBBQS, suQCL;
-            bool res = ctx.global.apply<boost::shared_ptr<graft::FullSupernodeList>>("fsl",
-                [this, &suBBQS, &suQCL](boost::shared_ptr<graft::FullSupernodeList>& fsl)->bool
-            {
-                if(!fsl) return false;
-                uint64_t tmp_block_number;
-                bool res = fsl->buildDisqualificationSamples(m_block_height+BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT, suBBQS, suQCL, tmp_block_number);
-                if(!res) return false; //block_height can be old
-                assert(tmp_block_number == m_block_height);
-                m_block_height = tmp_block_number;
-                std::string block_hash;
-                fsl->getBlockHash(m_block_height, block_hash);
-                bool res1 = epee::string_tools::hex_to_pod(block_hash, m_block_hash);
-                assert(res1);
-                return true;
-            });
+            m_block_height = block_height;
+            bool res = getBBQSandQCL(ctx, m_block_height, m_block_hash, m_bbqs_ids, m_qcl_ids);
             if(!res) return graft::Status::Error;
+        }
 
-            m_bbqs_ids.clear();
-            m_bbqs_ids.reserve(suBBQS.size());
-            m_bbqs_str_ids.clear();
-            m_bbqs_str_ids.reserve(suBBQS.size());
-            for(auto& item : suBBQS)
-            {
-                auto& pub_key = item->idKey();
-                if(m_supernode_id == pub_key)
-                {
-                    m_in_bbqs = true;
-                    continue;
-                }
-                m_bbqs_ids.push_back(pub_key);
-                m_bbqs_str_ids.push_back( epee::string_tools::pod_to_hex(pub_key) );
-            }
-            std::sort(m_bbqs_ids.begin(), m_bbqs_ids.end(), less_mem<crypto::public_key>{});
+        std::sort(m_bbqs_ids.begin(), m_bbqs_ids.end(), less_mem<crypto::public_key>{});
+        std::sort(m_qcl_ids.begin(), m_qcl_ids.end(), less_mem<crypto::public_key>{});
 
-            m_qcl_ids.clear();
-            m_qcl_ids.reserve(suQCL.size());
-            for(auto& item : suQCL)
+        {//set m_in_bbqs
+            auto pair = std::equal_range(m_bbqs_ids.begin(), m_bbqs_ids.end(), m_supernode_id, less_mem<crypto::public_key>{});
+            assert(pair.first == pair.second || std::distance(pair.first, pair.second) == 1 );
+            m_in_bbqs = (pair.first != pair.second);
+            if(m_in_bbqs)
             {
-                auto& pub_key = item->idKey();
-                if(m_supernode_id == pub_key)
-                {
-                    m_in_qcl = true;
-                    continue;
-                }
-                m_qcl_ids.push_back(pub_key);
+                m_bbqs_ids.erase(pair.first, pair.second);
             }
-            std::sort(m_qcl_ids.begin(), m_qcl_ids.end(), less_mem<crypto::public_key>{});
+        }
+        {//set m_in_qcl
+            auto pair = std::equal_range(m_qcl_ids.begin(), m_qcl_ids.end(), m_supernode_id, less_mem<crypto::public_key>{});
+            assert(pair.first == pair.second || std::distance(pair.first, pair.second) == 1 );
+            m_in_qcl = (pair.first != pair.second);
+            if(m_in_qcl)
+            {
+                m_qcl_ids.erase(pair.first, pair.second);
+            }
+        }
+
+        //make m_bbqs_str_ids
+        m_bbqs_str_ids.reserve(m_bbqs_ids.size());
+        for(auto& id : m_bbqs_ids)
+        {
+            m_bbqs_str_ids.push_back( epee::string_tools::pod_to_hex(id) );
         }
 
         m_answered_ids.clear();
@@ -319,7 +360,7 @@ class BBLDisqualificator
         req.params.receiver_addresses = m_bbqs_str_ids;
         req.method = "multicast";
         req.params.callback_uri = ROUTE_PING_RESULT; //"/cryptonode/ping_result";
-        req.params.data = message;
+        req.params.data = graft::utils::base64_encode(message);
         req.params.sender_address = m_supernode_str_id;
 
         output.load(req);
@@ -332,7 +373,10 @@ class BBLDisqualificator
     graft::Status handle_phase2(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
         if(!m_started || !m_collectPings) return graft::Status::Ok;
-        assert(m_in_bbqs);
+        if(!m_in_bbqs)
+        {
+            return setError(ctx, "unexpected call of handle_phase2, not in BBQS");
+        }
 
         MulticastRequestJsonRpc req;
         bool res1 = input.get(req);
@@ -341,8 +385,9 @@ class BBLDisqualificator
             return setError(ctx, "cannot deserialize MulticastRequestJsonRpc");
         }
 
+        std::string message = graft::utils::base64_decode(req.params.data);
         std::string plain;
-        bool res2 = graft::crypto_tools::decryptMessage(req.params.data, m_secret_key, plain);
+        bool res2 = graft::crypto_tools::decryptMessage(message, m_secret_key, plain);
         if(!res2)
         {
             return setError(ctx, "cannot decrypt, the message is not for me");
@@ -358,14 +403,19 @@ class BBLDisqualificator
         }
 
         //check reliability
-        if(spm.pm.block_height != m_block_height || spm.pm.block_hash != m_block_hash)
+        if(spm.pm.block_height != m_block_height)
         {
             std::ostringstream oss;
-            oss << "invalid block_height " << spm.pm.block_height << " expected " << m_block_height
-                << " or block_hash " << spm.pm.block_hash << " expected " << m_block_hash;
+            oss << "invalid block_height " << spm.pm.block_height << " expected " << m_block_height;
+            return setError(ctx, oss.str(), 201);
+        }
+        if(spm.pm.block_hash != m_block_hash)
+        {
+            std::ostringstream oss;
+            oss << "invalid block block_hash " << spm.pm.block_hash << " expected " << m_block_hash;
             return setError(ctx, oss.str());
         }
-        if(!std::any_of(m_qcl_ids.begin(), m_qcl_ids.end(), [&spm](auto& it){ return it == spm.pm.id; } ))
+        if(std::none_of(m_qcl_ids.begin(), m_qcl_ids.end(), [&spm](auto& it){ return it == spm.pm.id; } ))
         {
             std::ostringstream oss; oss << "the id '" << spm.pm.id << "' is not in QCL";
             return setError(ctx, oss.str());
@@ -453,7 +503,7 @@ class BBLDisqualificator
         req.params.receiver_addresses = m_bbqs_str_ids;
         req.method = "multicast";
         req.params.callback_uri = ROUTE_VOTES;
-        req.params.data = message;
+        req.params.data = graft::utils::base64_encode(message);
         req.params.sender_address = m_supernode_str_id;
 
         output.load(req);
@@ -466,7 +516,10 @@ class BBLDisqualificator
     graft::Status handle_phase3(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
         if(!m_started || !m_collectVotes) return graft::Status::Ok;
-        assert(m_in_bbqs);
+        if(!m_in_bbqs)
+        {
+            return setError(ctx, "unexpected call of handle_phase3, not in BBQS");
+        }
 
         MulticastRequestJsonRpc req;
         bool res = input.get(req);
@@ -475,8 +528,9 @@ class BBLDisqualificator
             return setError(ctx, "cannot deserialize MulticastRequestJsonRpc");
         }
 
+        std::string message = graft::utils::base64_decode(req.params.data);
         std::string dv_str;
-        bool res2 = graft::crypto_tools::decryptMessage(req.params.data, m_secret_key, dv_str);
+        bool res2 = graft::crypto_tools::decryptMessage(message, m_secret_key, dv_str);
         if(!res2)
         {
             return setError(ctx, "cannot decrypt, the message is not for me");
@@ -492,11 +546,16 @@ class BBLDisqualificator
         }
 
         //check reliability
-        if(dv.block_height != m_block_height || dv.block_hash != m_block_hash)
+        if(dv.block_height != m_block_height)
         {
             std::ostringstream oss;
-            oss << "invalid block_height " << dv.block_height << " expected " << m_block_height
-                << " or block_hash " << dv.block_hash << " expected " << m_block_hash;
+            oss << "invalid block_height " << dv.block_height << " expected " << m_block_height;
+            return setError(ctx, oss.str(), 301);
+        }
+        if(dv.block_hash != m_block_hash)
+        {
+            std::ostringstream oss;
+            oss << " invalid block_hash " << dv.block_hash << " expected " << m_block_hash;
             return setError(ctx, oss.str());
         }
         if(dv.ids.empty() || dv.signs.size() != dv.ids.size())
@@ -559,6 +618,8 @@ class BBLDisqualificator
         {
             if(it->second.size() < REQUIRED_BBQS_VOTES)
             {
+                MWARNING("Not enough votes to disqualify '") << epee::string_tools::pod_to_hex(it->first)
+                    << "' got " << it->second.size() << " required " << REQUIRED_BBQS_VOTES;
                 it = m_votes.erase(it);
             }
             else ++it;
@@ -620,6 +681,12 @@ class BBLDisqualificator
             ptx.construction_data.use_rct = false;
 
             txes.push_back(std::move(ptx));
+        }
+
+        if(fnCollectTxs)
+        {
+            fnCollectTxs(&txes);
+            return graft::Status::Ok;
         }
 
         //create wallet
@@ -761,6 +828,7 @@ class BBLDisqualificator
         case phase_4: return do_phase4(ctx, output);
         default: assert(false);
         }
+
         return graft::Status::Error;
     }
 public:
@@ -812,7 +880,92 @@ public:
 
 std::mutex BBLDisqualificator::m_mutex;
 
+class BBLDisqualificatorTest : public BBLDisqualificator
+{
+    graft::GlobalContextMap globalContextMap;
+    graft::Context ctx = graft::Context(globalContextMap);
+    virtual void process_command(const command& cmd, std::vector<crypto::public_key>& forward, std::string& body, std::string& callback_uri) override
+    {
+        graft::Status res;
+        graft::Output output;
+        if(cmd.uri.empty())
+        {
+            BlockchainBasedListJsonRpcRequest req;
+            req.params.block_height = cmd.block_height;
+            req.params.block_hash = epee::string_tools::pod_to_hex(cmd.block_hash);
+            graft::Output o; o.load(req);
+            graft::Input in; in.body = o.body;
+            res = do_process({}, in, ctx, output);
+        }
+        else
+        {
+            graft::Input in; in.body = cmd.body;
+            if(cmd.uri == ROUTE_PING_RESULT)
+            {
+                res = handle_phase2({}, in, ctx, output);
+            }
+            else
+            {
+                res = handle_phase3({}, in, ctx, output);
+            }
+        }
+        if(res == graft::Status::Forward)
+        {
+            body = output.body;
+            MulticastRequestJsonRpc req;
+            graft::Input in; in.body = output.body; in.getT(req);
+            callback_uri = req.params.callback_uri;
+            for(auto& id_str : req.params.receiver_addresses)
+            {
+                crypto::public_key id; epee::string_tools::hex_to_pod(id_str, id);
+                forward.push_back(std::move(id));
+            }
+        }
+    }
+public:
+    static std::mutex m_err_mutex;
+    static std::map<int, int> m_errors;
+
+    BBLDisqualificatorTest()
+    {
+        ctx.global["fsl"] = nullptr;
+    }
+};
+
+std::mutex BBLDisqualificatorTest::m_err_mutex;
+std::map<int, int> BBLDisqualificatorTest::m_errors;
+
 } //namespace
+
+std::unique_ptr<BBLDisqualificatorBase> BBLDisqualificatorBase::createTestBBLDisqualificator(
+    GetSupernodeKeys fnGetSupernodeKeys,
+    GetBBQSandQCL fnGetBBQSandQCL,
+    CollectTxs fnCollectTxs
+)
+{
+    auto disq = std::make_unique<BBLDisqualificatorTest>();
+    disq->fnGetSupernodeKeys = fnGetSupernodeKeys;
+    disq->fnGetBBQSandQCL = fnGetBBQSandQCL;
+    disq->fnCollectTxs = fnCollectTxs;
+    return disq;
+}
+
+void BBLDisqualificatorBase::count_errors(const std::string& msg, int code)
+{
+    std::lock_guard<std::mutex> lk(BBLDisqualificatorTest::m_err_mutex);
+    ++BBLDisqualificatorTest::m_errors[code];
+}
+
+const std::map<int, int>& BBLDisqualificatorBase::get_errors()
+{
+    return BBLDisqualificatorTest::m_errors;
+}
+
+void BBLDisqualificatorBase::clear_errors()
+{
+    return BBLDisqualificatorTest::m_errors.clear();
+}
+
 } //namespace graft::supernode::request
 
 namespace graft::supernode::request {
