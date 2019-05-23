@@ -26,6 +26,31 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+/////////////// phases scheme
+/// 	on the trigger of blockchain increased
+/// n+1 -----------------------
+/// get Blockchain-based List
+/// get hash(es) of previous Blockchain-based List(s)
+/// create BBQS & QCL from BBL
+/// n+2 -----------------------
+/// if the supernode in the QCL it Forward "multicast" MRME (self sing (SN ID | block_height)) to BBQS
+/// n+3 -----------------------
+/// if SN is in BBQS
+///     make list of non-answered IDs (DL(n+1) = (QCL(n+1) - (answered IDs))
+///     Forward "multicast" MRME (DL(n+)) to BBQS
+/// n+4 -----------------------
+/// if SN is in BBQS
+///     make disqualification list with sign set of each item. (id (signes > 66% of BBQS))
+///     create disqualification transaction (type 1)
+///     send it to the blockchain
+///
+/// n+5 = (n+4) + 1
+///
+/// a handler that validates and collects "ping" responses (if SN is in BBQS) [n+1..n+3).
+///
+/// a handler that validates and collects DLs (if SN is in BBQS) [n+2..n+4).
+///
+
 #include "supernode/requests/blockchain_based_list.h"
 #include "supernode/requestdefines.h"
 #include "supernode/requests/multicast.h"
@@ -920,6 +945,10 @@ class BBLDisqualificatorTest : public BBLDisqualificator
                 crypto::public_key id; epee::string_tools::hex_to_pod(id_str, id);
                 forward.push_back(std::move(id));
             }
+        }
+        else
+        {
+            forward.clear(); body.clear(); callback_uri.clear();
         }
     }
 public:

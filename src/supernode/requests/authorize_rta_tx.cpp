@@ -51,7 +51,7 @@ namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeSignature,
                               (std::string, id_key, std::string()),
-                              (std::string, result_signature, std::string()), // signarure for tx_id + result
+                              (std::string, result_signature, std::string()), // signature for tx_id + result
                               (std::string, tx_signature, std::string())      // signature for tx_id only
                               );
 
