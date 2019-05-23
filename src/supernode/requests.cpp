@@ -23,6 +23,8 @@ namespace graft::request::system_info { void register_request(Router& router); }
 
 namespace graft::supernode::request {
 
+void registerAuthSDisqualificatorRequest(graft::Router &router);
+
 void registerRTARequests(graft::Router &router)
 {
     registerSaleRequest(router);
@@ -37,6 +39,7 @@ void registerRTARequests(graft::Router &router)
     registerSendSupernodeAnnounceRequest(router);
     registerSendSupernodeStakesRequest(router);
     registerBlockchainBasedListRequest(router);
+    registerAuthSDisqualificatorRequest(router);
 }
 
 void registerWalletApiRequests(graft::Router &router)

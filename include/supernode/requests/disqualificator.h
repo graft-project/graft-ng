@@ -28,7 +28,7 @@
 
 #pragma once
 
-#include "lib/graft/inout.h"
+#include "lib/graft/router.h"
 
 #include <utils/cryptmsg.h>
 
@@ -44,7 +44,9 @@ class BBLDisqualificatorBase
 public:
     using GetSupernodeKeys = std::function<void (crypto::public_key& pub, crypto::secret_key& sec)>;
     using GetBBQSandQCL = std::function<void (uint64_t& block_height, crypto::hash& block_hash, std::vector<crypto::public_key>& bbqs, std::vector<crypto::public_key>& qcl)>;
+    using GetAuthSample = std::function<void (uint64_t& block_height, const std::string& payment_id, crypto::hash& block_hash, std::vector<crypto::public_key>& auths)>;
     using CollectTxs = std::function<void (void* ptxs)>;
+    using AddPeriodic = std::function<bool (const graft::Router::Handler& h_worker, std::chrono::milliseconds interval_ms, std::chrono::milliseconds initial_interval_ms, double random_factor)>;
 
     static std::unique_ptr<BBLDisqualificatorBase> createTestBBLDisqualificator(
             GetSupernodeKeys fnGetSupernodeKeys,
@@ -52,17 +54,34 @@ public:
             CollectTxs fnCollectTxs
         );
 
+    static std::unique_ptr<BBLDisqualificatorBase> createTestAuthSDisqualificator(
+            GetSupernodeKeys fnGetSupernodeKeys,
+            GetAuthSample fnGetAuthSample,
+            CollectTxs fnCollectTxs,
+            std::chrono::milliseconds addPeriodic_interval_ms
+        );
+
+    static void waitForTestAuthSDisqualificator();
+
     struct command
     {
         std::string uri; //process if empty
-            // uri.empty()
+            // if uri.empty()
         uint64 block_height;
         crypto::hash block_hash;
-            // !uri.empty()
+            // if !uri.empty()
         std::string body;
+            // if !payment_id.empty() it is command for auth sample
+        std::string payment_id;
+        std::vector<crypto::public_key> ids; //ids to disqualify, startDisqualify if not empty, initDisqualify otherwise
 
         command() = default;
+        //for bbl disqualification
         command(uint64 block_height, const crypto::hash& block_hash) : block_height(block_height), block_hash(block_hash) { }
+        //for auth sample disqualification
+        command(const std::string& payment_id, const std::vector<crypto::public_key>& ids, uint64 block_height, const crypto::hash& block_hash)
+            : payment_id(payment_id), ids(ids), block_height(block_height), block_hash(block_hash) { }
+        //
         command(const std::string& uri, const std::string& body) : uri(uri), body(body) { }
     };
 
@@ -77,8 +96,10 @@ public:
 protected:
     GetSupernodeKeys fnGetSupernodeKeys;
     GetBBQSandQCL fnGetBBQSandQCL;
+    GetAuthSample fnGetAuthSample;
     CollectTxs fnCollectTxs;
+    AddPeriodic fnAddPeriodic;
+    std::chrono::milliseconds addPeriodic_interval_ms;
 };
-
 
 } //namespace graft::supernode::request
