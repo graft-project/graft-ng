@@ -857,6 +857,14 @@ protected:
         return graft::Status::Error;
     }
 public:
+
+    //for test only
+    graft::Status processTest(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        return do_process(vars, input, ctx, output);
+    }
+
     static graft::Status process(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
         std::lock_guard<std::mutex> lk(m_mutex);
@@ -899,8 +907,8 @@ public:
     }
 #endif
 
-    static constexpr const char* ROUTE_PING_RESULT = "/cryptonode/ping_result";
-    static constexpr const char* ROUTE_VOTES = "/cryptonode/votes";
+    static constexpr const char* ROUTE_PING_RESULT = "/supernode/disqualify/ping_result";
+    static constexpr const char* ROUTE_VOTES = "/supernode/disqualify/votes";
 };
 
 std::mutex BBLDisqualificator::m_mutex;
@@ -920,7 +928,9 @@ class BBLDisqualificatorTest : public BBLDisqualificator
             req.params.block_hash = epee::string_tools::pod_to_hex(cmd.block_hash);
             graft::Output o; o.load(req);
             graft::Input in; in.body = o.body;
-            res = do_process({}, in, ctx, output);
+//TODO: Something wrong, it is required attention
+//            res = do_process({}, in, ctx, output);
+            res = processTest({}, in, ctx, output);
         }
         else
         {

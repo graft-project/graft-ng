@@ -306,6 +306,7 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/authorize_rta_tx.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/auth_sample_disqualificator.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/get_info.cpp
@@ -430,6 +431,7 @@ if (OPT_BUILD_TESTS)
             ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
             ${PROJECT_SOURCE_DIR}/test/sys_info.cpp
             ${PROJECT_SOURCE_DIR}/test/strand_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/disqualification_test.cpp
             ${PROJECT_SOURCE_DIR}/test/serialize_test.cpp
             ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
