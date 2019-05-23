@@ -35,8 +35,8 @@
 #include "rta/supernode.h"
 #include "lib/graft/graft_exception.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
-#include "cryptonote_protocol/blobdatatype.h"
-#include "file_io_utils.h"
+#include "cryptonote_basic/blobdatatype.h"
+#include "string_tools.h"
 
 #include<cassert>
 
@@ -70,14 +70,14 @@ graft::Status WalletAddress::getWalletAddressHandler(const graft::Router::vars_t
 
     if (ctx.local.getLastStatus() != graft::Status::None) {
         graft::supernode::request::GetWalletAddressErrorResponse err;
-        err.error = string("internal error: wrong status: " + to_string((int)ctx.local.getLastStatus()));
+        err.error = std::string("internal error: wrong status: " + std::to_string((int)ctx.local.getLastStatus()));
         return graft::Status::Error;
     }
 
     graft::SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr());
     if (!supernode) {
         graft::supernode::request::GetWalletAddressErrorResponse err;
-        err.error = string("supernode was not setup correctly");
+        err.error = std::string("supernode was not setup correctly");
         return graft::Status::Error;
     }
 

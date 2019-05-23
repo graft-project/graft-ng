@@ -33,7 +33,7 @@ bool prepareSaleDetailsResponse(const SaleDetailsRequest &req, graft::Context &c
 
     if (!ctx.global.hasKey(req.PaymentID + CONTEXT_KEY_SALE)) {
         error.code = ERROR_PAYMENT_ID_INVALID;
-        error.message = string("sale data missing for payment: ") + req.PaymentID;
+        error.message = std::string("sale data missing for payment: ") + req.PaymentID;
         LOG_ERROR(__FUNCTION__ << " " << error.message);
         return false;
     }
@@ -97,7 +97,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         return Status::Ok;
     }
 
-    vector<SupernodePtr> authSample;
+    std::vector<SupernodePtr> authSample;
     uint64_t auth_sample_block_number = 0;
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
@@ -131,7 +131,7 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
                             return sn->idKeyAsString() == supernode->idKeyAsString();
                         }) != authSample.end()) {
 
-            ostringstream oss; oss << authSample;
+            std::ostringstream oss; oss << authSample;
             std::string msg = "Internal error: our supernode is in auth sample but no sale details found for " + in.PaymentID
                    + ", auth_sample: " + oss.str();
             LOG_ERROR(msg);
@@ -178,20 +178,20 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
 
 
     if (ctx.local.getLastStatus() != Status::Postpone) {
-        string msg = string("Expected postponed status but status is : " + to_string(int(ctx.local.getLastStatus())));
+        std::string msg = std::string("Expected postponed status but status is : " + std::to_string(int(ctx.local.getLastStatus())));
         LOG_ERROR(msg);
         return errorInternalError(msg, output);
     }
 
-    string task_id = boost::uuids::to_string(ctx.getId());
+    std::string task_id = boost::uuids::to_string(ctx.getId());
     if (!ctx.global.hasKey(task_id + CONTEXT_SALE_DETAILS_RESULT)) {
-        string msg = "no sale details response found for id: " + task_id;
+        std::string msg = "no sale details response found for id: " + task_id;
         LOG_ERROR(msg);
         return errorInternalError(msg, output);
     }
 
     Input inputLocal;
-    inputLocal.load(ctx.global.get(task_id + CONTEXT_SALE_DETAILS_RESULT, string()));
+    inputLocal.load(ctx.global.get(task_id + CONTEXT_SALE_DETAILS_RESULT, std::string()));
     UnicastRequestJsonRpc in;
 
 
@@ -202,12 +202,12 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
 
     UnicastRequest unicastReq = in.params;
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
-    string payment_id = ctx.local["payment_id"];
+    std::string payment_id = ctx.local["payment_id"];
     MDEBUG("received sale details from remote supernode: " << unicastReq.sender_address
            << ", payment: " << payment_id);
 
     if (unicastReq.receiver_address != supernode->idKeyAsString()) {
-        string msg =  string("wrong receiver id: " + unicastReq.receiver_address + ", expected id: " + supernode->idKeyAsString());
+        std::string msg =  std::string("wrong receiver id: " + unicastReq.receiver_address + ", expected id: " + supernode->idKeyAsString());
         LOG_ERROR(msg);
         return errorInternalError(msg, output);
     }
@@ -269,7 +269,7 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
     if (unicastReq.receiver_address != supernode->idKeyAsString()) {
-        string msg =  string("wrong receiver id: " + supernode->idKeyAsString());
+        std::string msg =  std::string("wrong receiver id: " + supernode->idKeyAsString());
         LOG_ERROR(msg);
         return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
     }
@@ -285,7 +285,7 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
         return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
     }
 
-    vector<SupernodePtr> authSample;
+    std::vector<SupernodePtr> authSample;
     uint64_t auth_sample_block_number = 0;
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
 
@@ -375,7 +375,7 @@ Status saleDetailsCallbackHandler(const Router::vars_t& vars, const graft::Input
 {
 
     if (vars.count("id") == 0) {
-        string msg = string("Can't parse request id from URL");
+        std::string msg = std::string("Can't parse request id from URL");
         LOG_ERROR(msg);
         return errorInternalError(msg, output);
     }

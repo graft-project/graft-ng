@@ -10,6 +10,8 @@
 #include "lib/graft/graft_exception.h"
 
 #include <boost/property_tree/ini_parser.hpp>
+//#include <boost/filesystem/path.hpp>
+#include <boost/filesystem/operations.hpp>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.supernode"

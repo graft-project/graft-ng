@@ -139,7 +139,7 @@ void putRtaSignaturesToTx(cryptonote::transaction &tx, const std::vector<Superno
 bool signAuthResponse(AuthorizeRtaTxResponse &arg, const SupernodePtr &supernode)
 {
     crypto::signature sign;
-    supernode->signMessage(arg.tx_id + ":" + to_string(arg.result), sign);
+    supernode->signMessage(arg.tx_id + ":" + std::to_string(arg.result), sign);
     arg.signature.result_signature = epee::string_tools::pod_to_hex(sign);
     crypto::hash tx_id;
     epee::string_tools::hex_to_pod(arg.tx_id, tx_id);
@@ -177,7 +177,7 @@ bool validateAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr 
 
 
 
-    std::string msg = arg.tx_id + ":" + to_string(arg.result);
+    std::string msg = arg.tx_id + ":" + std::to_string(arg.result);
     crypto::public_key id_key;
     epee::string_tools::hex_to_pod(arg.signature.id_key, id_key);
     bool r1 = supernode->verifySignature(msg, id_key, sign_result);
@@ -195,7 +195,7 @@ Status storeRequestAndReplyOk(const Router::vars_t& vars, const graft::Input& in
     // here request parsed for the logging purposes. normally we don't need to parse it here;
     MulticastRequestJsonRpc req;
     if (!input.get(req)) { // can't parse request
-        return errorCustomError(string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
+        return errorCustomError(std::string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
     }
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
@@ -240,12 +240,12 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
     }
 
     graft::Input input;
-    string body = ctx.local["request"];
+    std::string body = ctx.local["request"];
     input.body = body;
 
     MulticastRequestJsonRpc req;
     if (!input.get(req)) { // can't parse request
-        return errorCustomError(string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
+        return errorCustomError(std::string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
     }
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
@@ -273,7 +273,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
         return errorInvalidTransaction(authReq.tx_hex, output);
     }
 
-    string tx_id_str = epee::string_tools::pod_to_hex(tx_hash);
+    std::string tx_id_str = epee::string_tools::pod_to_hex(tx_hash);
     MDEBUG("incoming auth req for payment: " << authReq.payment_id
            << ", tx_id: " << tx_id_str);
     // check if we already processed this tx
@@ -350,7 +350,7 @@ Status handleCryptonodeMulticastStatus(const Router::vars_t& vars, const graft::
     if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
         return  errorInternalError("Error multicasting request", output);
     }
-    string payment_id_local = ctx.local["payment_id"];
+    std::string payment_id_local = ctx.local["payment_id"];
     MDEBUG("tx auth response multicast ask received for payment: " << payment_id_local);
 
     AuthorizeRtaTxRequestJsonRpcResponse out;
@@ -379,7 +379,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
 
         if (!input.get(req)) { // can't parse request
             LOG_ERROR("failed to parse request: " + input.data());
-            return errorCustomError(string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
+            return errorCustomError(std::string("failed to parse request: ")  + input.data(), ERROR_INVALID_REQUEST, output);
         }
 
         // TODO: check if our address is listed in "receiver_addresses"
@@ -403,13 +403,13 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         }
 
 
-        string ctx_payment_id_key = rtaAuthResp.tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID;
+        std::string ctx_payment_id_key = rtaAuthResp.tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID;
 
         if (!ctx.global.hasKey(ctx_payment_id_key)) {
             LOG_ERROR("no payment_id for tx: " << rtaAuthResp.tx_id);
-            return errorCustomError(string("unknown tx: ") + rtaAuthResp.tx_id, ERROR_INTERNAL_ERROR, output);
+            return errorCustomError(std::string("unknown tx: ") + rtaAuthResp.tx_id, ERROR_INTERNAL_ERROR, output);
         }
-        string payment_id = ctx.global.get(ctx_payment_id_key, std::string());
+        std::string payment_id = ctx.global.get(ctx_payment_id_key, std::string());
         MDEBUG("incoming tx auth response payment: " << payment_id
                      << ", tx_id: " << rtaAuthResp.tx_id
                      << ", from: " << rtaAuthResp.signature.id_key
@@ -421,7 +421,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         // validate signature
         bool signOk = validateAuthResponse(rtaAuthResp, supernode);
         if (!signOk) {
-            string msg = "failed to validate signature for rta auth response";
+            std::string msg = "failed to validate signature for rta auth response";
             LOG_ERROR(msg);
             return errorCustomError(msg,
                                     ERROR_RTA_SIGNATURE_FAILED,
@@ -429,14 +429,14 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         }
         // stop handling it if we already processed response
         RtaAuthResult authResult;
-        string ctx_tx_to_auth_resp = rtaAuthResp.tx_id + CONTEXT_KEY_AUTH_RESULT_BY_TXID;
+        std::string ctx_tx_to_auth_resp = rtaAuthResp.tx_id + CONTEXT_KEY_AUTH_RESULT_BY_TXID;
         if (ctx.global.hasKey(ctx_tx_to_auth_resp)) {
             authResult = ctx.global.get(ctx_tx_to_auth_resp, authResult);
         }
 
         if (authResult.alreadyApproved(rtaAuthResp.signature.id_key)
                 || authResult.alreadyRejected(rtaAuthResp.signature.id_key)) {
-            return errorCustomError(string("supernode: ") + rtaAuthResp.signature.id_key + " already processed",
+            return errorCustomError(std::string("supernode: ") + rtaAuthResp.signature.id_key + " already processed",
                                     ERROR_ADDRESS_INVALID, output);
         }
 
@@ -452,7 +452,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
         // store result in context
         ctx.global.set(ctx_tx_to_auth_resp, authResult, RTA_TX_TTL);
         if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_AMOUNT_BY_TX_ID)) {
-            string msg = string("no amount found for tx id: ") + rtaAuthResp.tx_id;
+            std::string msg = std::string("no amount found for tx id: ") + rtaAuthResp.tx_id;
             LOG_ERROR(msg);
             return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
         }
@@ -468,7 +468,7 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
 
 
         if (!ctx.global.hasKey(rtaAuthResp.tx_id + CONTEXT_KEY_TX_BY_TXID)) {
-            string msg = string("rta auth response processed but no tx found for tx id: ") + rtaAuthResp.tx_id;
+            std::string msg = std::string("rta auth response processed but no tx found for tx id: ") + rtaAuthResp.tx_id;
             LOG_ERROR(msg);
             return errorCustomError(msg, ERROR_INTERNAL_ERROR, output);
         }
@@ -528,11 +528,11 @@ Status handleRtaAuthResponseMulticast(const Router::vars_t& vars, const graft::I
 
     } catch (const std::exception &e) {
         LOG_ERROR("std::exception  catched: " << e.what());
-        return errorInternalError(string("exception in cryptonode/authorize_rta_tx_response handler: ") +  e.what(),
+        return errorInternalError(std::string("exception in cryptonode/authorize_rta_tx_response handler: ") +  e.what(),
                                   output);
     } catch (...) {
         LOG_ERROR("unhandled exception");
-        return errorInternalError(string("unknown exception in cryptonode/authorize_rta_tx_response handler"),
+        return errorInternalError(std::string("unknown exception in cryptonode/authorize_rta_tx_response handler"),
                                   output);
     }
 }
@@ -544,12 +544,12 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
 {
 
     MDEBUG(__FUNCTION__ << " begin for task: " << boost::uuids::to_string(ctx.getId()));
-    string payment_id_local = ctx.local["payment_id"];
+    std::string payment_id_local = ctx.local["payment_id"];
     MDEBUG("processing sendrawtransaction reply for payment: " << payment_id_local);
 
     SendRawTxResponse resp;
     // check if we have tx_id in local context
-    string tx_id = ctx.local[CONTEXT_TX_ID];
+    std::string tx_id = ctx.local[CONTEXT_TX_ID];
 
     if (tx_id.empty()) {
         LOG_ERROR("internal erorr, tx_id key not found in local context");
@@ -557,7 +557,7 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
     }
 
     // obtain payment id for given tx_id
-    string payment_id = ctx.global.get(tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID, std::string());
+    std::string payment_id = ctx.global.get(tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID, std::string());
     if (payment_id.empty()) {
         LOG_ERROR("Internal error, payment id not found for tx id: " << tx_id);
     }
@@ -611,7 +611,7 @@ Status handleStatusBroadcastResponse(const Router::vars_t& vars, const graft::In
 {
     // TODO: check if cryptonode broadcasted status
     MDEBUG(__FUNCTION__ << " begin");
-    string payment_id_local = ctx.local["payment_id"];
+    std::string payment_id_local = ctx.local["payment_id"];
     MDEBUG("received status broadcasting result for payment: " << payment_id_local);
     BroadcastResponseFromCryptonodeJsonRpc in;
     JsonRpcErrorResponse error;
@@ -654,7 +654,7 @@ Status authorizeRtaTxRequestHandler(const Router::vars_t& vars, const graft::Inp
             MDEBUG("cyptonode reply, payload: " << input.data());
             return handleCryptonodeMulticastStatus(vars, input, ctx, output);
         default: // internal error
-            return errorInternalError(string("authorize_rta_tx_request: unhandled state: ") + to_string(int(state)),
+            return errorInternalError(std::string("authorize_rta_tx_request: unhandled state: ") + std::to_string(int(state)),
                                       output);
         };
     } catch (const std::exception &e) {

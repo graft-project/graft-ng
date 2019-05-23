@@ -308,17 +308,17 @@ bool Supernode::saveKeys(const string &filename, bool force)
     return true;
 }
 
-const public_key &Supernode::idKey() const
+const crypto::public_key &Supernode::idKey() const
 {
     return m_id_key;
 }
 
-const secret_key &Supernode::secretKey() const
+const crypto::secret_key &Supernode::secretKey() const
 {
     return m_secret_key;
 }
 
-string Supernode::idKeyAsString() const
+std::string Supernode::idKeyAsString() const
 {
     return epee::string_tools::pod_to_hex(m_id_key);
 }

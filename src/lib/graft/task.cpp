@@ -8,6 +8,8 @@
 #include "lib/graft/sys_info.h"
 #include "lib/graft/common/utils.h"
 
+#include <boost/uuid/uuid_io.hpp>
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.task"
 
@@ -722,7 +724,7 @@ void TaskManager::postponeTask(BaseTaskPtr bt)
         assert(res.second.getInputPtr());
         bt->getParams().input = *res.second.getInputPtr();
         m_readyToResume.push_back(bt);
-        LOG_PRINT_RQS_BT(2,bt,"for the task with uuid '" << uuid << "' an answer found; it will be resumed.");
+        LOG_PRINT_RQS_BT(2,bt,"for the task with uuid '" << boost::uuids::to_string(uuid) << "' an answer found; it will be resumed.");
         return;
     }
 

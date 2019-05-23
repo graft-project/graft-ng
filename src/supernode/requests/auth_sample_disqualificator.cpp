@@ -349,7 +349,7 @@ protected:
                     //create wallet
                     std::string addr = ctx.global["cryptonode_rpc_address"];
                     bool testnet = ctx.global["testnet"];
-                    tools::wallet2 wallet(testnet);
+                    tools::wallet2 wallet(testnet? cryptonote::TESTNET : cryptonote::MAINNET );
                     wallet.init(addr);
                     wallet.set_refresh_from_block_height(coll.di.item.block_height);
                     wallet.set_seed_language("English");
