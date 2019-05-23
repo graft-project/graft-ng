@@ -48,7 +48,7 @@ struct less_mem
 };
 
 
-TEST(Disqualificator, common)
+TEST(Disqualificator, BBL)
 {
     using namespace graft::supernode::request;
 
@@ -58,6 +58,7 @@ TEST(Disqualificator, common)
         std::deque<BBLDisqualificatorBase::command> deque;
     };
 
+    //N - count or running SNs, DB - dead (never runnign) SNs that in BBQS, DQ - dead SNs that in QCL
     const int N = 14, DB = 2, DQ = 3;
     crypto::public_key pubs[N+DB+DQ];
     crypto::secret_key secs[N+DB+DQ];
