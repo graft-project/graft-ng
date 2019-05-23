@@ -16,6 +16,7 @@
 
 
 #include "lib/graft/ConfigIni.h"
+#include <boost/filesystem/operations.hpp>
 
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
