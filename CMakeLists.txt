@@ -89,7 +89,8 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DARCH=x86-64 -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
+#    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DARCH=x86-64 -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DARCH=x86-64 -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
     )
 
 set(CMAKE_CXX_STANDARD 17)
@@ -174,7 +175,7 @@ endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 # cryptonode dependencies
 # TODO: modify cryptonode CMakeLists.txt so it installs all required headers/libs
-include_directories(${CRYPTONODE_INCLUDE_DIRS} "${CMAKE_BINARY_DIR}/version")
+include_directories("${CMAKE_BINARY_DIR}/version" ${CRYPTONODE_INCLUDE_DIRS})
 link_directories(${CRYPTONODE_LIB_DIRS})
 
 ### graftlet_lib

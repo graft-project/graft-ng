@@ -4,6 +4,8 @@
 #include "lib/graft/sys_info.h"
 #include "lib/graft/graft_exception.h"
 
+#include <boost/uuid/uuid_io.hpp>
+
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.connection"
 
