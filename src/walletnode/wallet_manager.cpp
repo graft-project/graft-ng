@@ -551,8 +551,10 @@ void WalletManager::requestTransactionHistory
           Transfer transfer;
 
           transfer.Amount  = d.amount;
+
           // TODO: modify so it works with subadress
           transfer.Address = cryptonote::get_account_address_as_str(wallet.testnet()? cryptonote::TESTNET : cryptonote::MAINNET, false, d.addr);
+
           info.Transfers.emplace_back(std::move(transfer));
       }
 
