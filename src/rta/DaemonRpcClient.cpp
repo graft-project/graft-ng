@@ -63,11 +63,6 @@ DaemonRpcClient::~DaemonRpcClient()
 
 bool DaemonRpcClient::get_tx_from_pool(const string &hash_str, cryptonote::transaction &out_tx)
 {
-    crypto::hash hash;
-    if (!epee::string_tools::hex_to_pod(hash_str, hash)) {
-        LOG_ERROR("error parsing input hash");
-        return false;
-    }
 
     // get the pool state
     cryptonote::COMMAND_RPC_GET_TRANSACTION_POOL_HASHES::request req;
@@ -80,7 +75,7 @@ bool DaemonRpcClient::get_tx_from_pool(const string &hash_str, cryptonote::trans
     }
 
     MDEBUG("got pool");
-    const auto it = std::find(res.tx_hashes.begin(), res.tx_hashes.end(), hash);
+    const auto it = std::find(res.tx_hashes.begin(), res.tx_hashes.end(), hash_str);
     if (it == res.tx_hashes.end()) {
        MWARNING("tx: " << hash_str << " was not found in pool");
        return false;

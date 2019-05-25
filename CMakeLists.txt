@@ -89,8 +89,7 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-#    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DARCH=x86-64 -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DARCH=x86-64 -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DARCH=x86-64 -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
     )
 
 set(CMAKE_CXX_STANDARD 17)
@@ -110,6 +109,7 @@ set(GRAFT_INCLUDE_DIRS
 
 set(CRYPTONODE_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/external/rapidjson/include
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/external/easylogging++
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/external
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/src
@@ -119,6 +119,7 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/unbound
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/db_drivers/liblmdb
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/lib
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/common
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/crypto
@@ -128,6 +129,10 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/ringct
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/wallet
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/utils
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/multisig
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/device
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/checkpoints
+
     )
 
 set(CRYPTONODE_LIBS
@@ -135,13 +140,19 @@ set(CRYPTONODE_LIBS
     wallet
     utils
     mnemonics
-    ringct
     epee
     cryptonote_core
     cryptonote_basic
+    cncrypto
+    multisig
+    ringct
+    ringct_basic
     common
     unbound
-    cncrypto
+    device
+    sodium
+    checkpoints
+    lmdb
     )
 
 if(STATIC_LINK)

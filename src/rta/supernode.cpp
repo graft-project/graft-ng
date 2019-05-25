@@ -207,8 +207,9 @@ bool Supernode::getPaymentIdFromTx(const cryptonote::transaction &tx, string &pa
 
 bool Supernode::validateAddress(const string &address, bool testnet)
 {
-    cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-    return address.size() > 0 && cryptonote::get_account_address_from_str(acc, testnet, address);
+    cryptonote::address_parse_info addr_parse_info;
+    cryptonote::network_type net_type = testnet ? cryptonote::TESTNET : cryptonote::MAINNET;
+    return address.size() > 0 && cryptonote::get_account_address_from_str(addr_parse_info, net_type, address);
 }
 
 int64_t Supernode::lastUpdateTime() const
