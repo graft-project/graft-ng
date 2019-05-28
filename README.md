@@ -1,5 +1,12 @@
 # Graft Supernode (graft-ng)
 
+Supernodes represent the Proof-of-Stake Network layer for GRAFT Network.  
+Their main function is instant authorizations.  Instant authorizations are accomplished via supernode sample-based consensus. Supernodes get rewarded with part of the sale transaction fee for their work.  Supernodes also provide DAPI into GRAFT Network, supporting various transaction types including and most notably a "Sale" transaction compatible with the Point-of-Sale environments. 
+
+GRAFT Network itself is an attempt at building a payment network that functions similarly to other credit card networks with instant authorizations, merchant paid (greately reduced) transaction proportionate fees, multiple transaction types that are compatible with point-of-sale workflows, adaptable to regulatory environments and with unlimited TPS via decentralization.
+
+
+
 ## Compiling Graft Supernode from Source
 
 ### Dependencies
