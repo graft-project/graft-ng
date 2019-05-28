@@ -19,6 +19,7 @@
 #include <misc_log_ex.h>
 
 #include <deque>
+#include <boost/uuid/uuid_io.hpp>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
