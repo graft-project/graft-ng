@@ -191,20 +191,25 @@ TEST_F(CryptonodeHandlersTest, sendrawtx)
 
     // open wallet
     const std::string wallet_path = "test_wallet";
-    tools::wallet2 wallet(true);
+    tools::wallet2 wallet(cryptonote::TESTNET);
 
     wallet.load(wallet_path, "");
     wallet.init("localhost:28881");
-    wallet.refresh();
+//TODO:
+//    wallet.refresh();
+    wallet.refresh(true);
     wallet.store();
-    std::cout << "wallet addr: " <<  wallet.get_account().get_public_address_str(true) << std::endl;
+    std::cout << "wallet addr: " <<  wallet.get_account().get_public_address_str(cryptonote::TESTNET) << std::endl;
 
     const uint64_t AMOUNT_1_GRFT = 10000000000000;
     // send to itself
-    cryptonote::tx_destination_entry de (AMOUNT_1_GRFT, wallet.get_account().get_keys().m_account_address);
+    // TODO: modify to support subadress
+    cryptonote::tx_destination_entry de (AMOUNT_1_GRFT, wallet.get_account().get_keys().m_account_address, false);
     std::vector<cryptonote::tx_destination_entry> dsts; dsts.push_back(de);
     std::vector<uint8_t> extra;
-    std::vector<tools::wallet2::pending_tx> ptx = wallet.create_transactions_2(dsts, 4, 0, 0, extra, true);
+    std::set<uint32_t> subaddr_indices;
+    // TODO: modify so it works with subaddresses
+    std::vector<tools::wallet2::pending_tx> ptx = wallet.create_transactions_2(dsts, 4, 0, 0, extra, 0, subaddr_indices, true);
     ASSERT_TRUE(ptx.size() == 1);
     SendRawTxRequest req;
     ASSERT_TRUE(createSendRawTxRequest(ptx.at(0), req));
