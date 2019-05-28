@@ -176,7 +176,7 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
             MDEBUG("about to refresh supernode: " << supernode->idKeyAsString());
 
             if (!supernode->refresh()) {
-                return errorCustomError(string("failed to refresh supernode: ") + supernode->idKeyAsString(),
+                return errorCustomError(std::string("failed to refresh supernode: ") + supernode->idKeyAsString(),
                                         ERROR_INTERNAL_ERROR, output);
             }
 
@@ -184,7 +184,7 @@ Status sendAnnounce(const graft::Router::vars_t& vars, const graft::Input& input
 
             SendSupernodeAnnounceJsonRpcRequest req;
             if (!supernode->prepareAnnounce(req.params)) {
-                return errorCustomError(string("failed to prepare announce: ") + supernode->idKeyAsString(),
+                return errorCustomError(std::string("failed to prepare announce: ") + supernode->idKeyAsString(),
                                         ERROR_INTERNAL_ERROR, output);
             }
 

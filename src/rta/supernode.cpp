@@ -207,8 +207,9 @@ bool Supernode::getPaymentIdFromTx(const cryptonote::transaction &tx, string &pa
 
 bool Supernode::validateAddress(const string &address, bool testnet)
 {
-    cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-    return address.size() > 0 && cryptonote::get_account_address_from_str(acc, testnet, address);
+    cryptonote::address_parse_info addr_parse_info;
+    cryptonote::network_type net_type = testnet ? cryptonote::TESTNET : cryptonote::MAINNET;
+    return address.size() > 0 && cryptonote::get_account_address_from_str(addr_parse_info, net_type, address);
 }
 
 int64_t Supernode::lastUpdateTime() const
@@ -308,17 +309,17 @@ bool Supernode::saveKeys(const string &filename, bool force)
     return true;
 }
 
-const public_key &Supernode::idKey() const
+const crypto::public_key &Supernode::idKey() const
 {
     return m_id_key;
 }
 
-const secret_key &Supernode::secretKey() const
+const crypto::secret_key &Supernode::secretKey() const
 {
     return m_secret_key;
 }
 
-string Supernode::idKeyAsString() const
+std::string Supernode::idKeyAsString() const
 {
     return epee::string_tools::pod_to_hex(m_id_key);
 }

@@ -29,7 +29,7 @@ GRAFT_DEFINE_IO_STRUCT(SaleDataMulticast,
                        (SaleData, sale_data),
                        (std::string, paymentId),
                        (int, status),
-                       (string, details)
+                       (std::string, details)
                        );
 
 enum class SaleHandlerState : int
@@ -144,7 +144,7 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
-    string payment_id = ctx.local["payment_id"];
+    std::string payment_id = ctx.local["payment_id"];
     int status = ctx.global.get(payment_id + CONTEXT_KEY_STATUS, static_cast<int>((RTAStatus::Waiting)));
 
     buildBroadcastSaleStatusOutput(payment_id, status, supernode, output);
@@ -170,7 +170,7 @@ Status handleSaleStatusBroadcastReply(const Router::vars_t& vars, const graft::I
 
     // prepare reply to the client
     SaleData data = ctx.local["sale_data"];
-    string payment_id = ctx.local["payment_id"];
+    std::string payment_id = ctx.local["payment_id"];
     SaleResponseJsonRpc out;
     out.result.BlockNumber = data.BlockNumber;
     out.result.PaymentID = payment_id;

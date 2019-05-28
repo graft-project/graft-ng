@@ -57,22 +57,22 @@ struct URL
 
   URL(const std::string& url_s)
   {
-    const string prot_end("://");
+    const std::string prot_end("://");
 
-    string::const_iterator prot_i = search(url_s.begin(), url_s.end(), prot_end.begin(), prot_end.end());
+    std::string::const_iterator prot_i = search(url_s.begin(), url_s.end(), prot_end.begin(), prot_end.end());
 
     protocol.reserve(distance(url_s.begin(), prot_i));
 
-    transform(url_s.begin(), prot_i, back_inserter(protocol), ptr_fun<int,int>(tolower)); // protocol is icase
+    transform(url_s.begin(), prot_i, back_inserter(protocol), std::ptr_fun<int,int>(tolower)); // protocol is icase
 
     if( prot_i == url_s.end() )
         return;
 
     advance(prot_i, prot_end.length());
 
-    string::const_iterator port_i = find(prot_i, url_s.end(), ':');
+    std::string::const_iterator port_i = find(prot_i, url_s.end(), ':');
 
-    string::const_iterator path_i = find(prot_i, url_s.end(), '/');
+    std::string::const_iterator path_i = find(prot_i, url_s.end(), '/');
 
     if (port_i == url_s.end())
     {
@@ -80,18 +80,18 @@ struct URL
 
       port = "80"; //todo: make port based on protocol
 
-      transform(prot_i, path_i, back_inserter(host), ptr_fun<int,int>(tolower)); // host is icase
+      transform(prot_i, path_i, back_inserter(host), std::ptr_fun<int,int>(tolower)); // host is icase
     }
     else
     {
       host.reserve(distance(prot_i, port_i));
 
-      transform(prot_i, port_i, back_inserter(host), ptr_fun<int,int>(tolower)); // host is icase
+      std::transform(prot_i, port_i, back_inserter(host), std::ptr_fun<int,int>(tolower)); // host is icase
 
       port.assign(port_i + 1, path_i);
     }
 
-    string::const_iterator query_i = find(path_i, url_s.end(), '?');
+    std::string::const_iterator query_i = find(path_i, url_s.end(), '?');
 
     path.assign(path_i, query_i);
 
@@ -169,7 +169,7 @@ struct WalletManager::WalletHolder
   StrandX            strand;
 
   WalletHolder(ThreadPoolX& thread_pool, bool testnet)
-    : wallet(testnet)
+    : wallet(testnet? cryptonote::TESTNET : cryptonote::MAINNET)
     , strand(thread_pool, WALLET_TRANSACTIONS_QUEUE_SIZE)
   {
   }
@@ -233,7 +233,9 @@ void WalletManager::runAsyncForWallet
 
       wallet->wallet.load_cache(cache_file_name);
 
-      wallet->wallet.refresh();
+//TODO:
+//      wallet->wallet.refresh();
+      wallet->wallet.refresh(true);
 
       WebHookCallback callback(callback_url.c_str());
 
@@ -309,14 +311,14 @@ void WalletManager::createAccount(Context& context, const std::string& password,
     crypto::secret_key secret_key = wallet->wallet.generateFromData(password);
     std::string account_data = wallet->wallet.getAccountData(password);
     const cryptonote::account_base& account = wallet->wallet.get_account();
-    std::string public_address = account.get_public_address_str(m_testnet);
+    std::string public_address = account.get_public_address_str(m_testnet? cryptonote::TESTNET : cryptonote::MAINNET);
     std::string view_key (&account.get_keys().m_view_secret_key.data[0], sizeof(account.get_keys().m_view_secret_key.data));
-    std::string seed;
+    epee::wipeable_string seed;
 
     if (!wallet->wallet.get_seed(seed))
       throw std::runtime_error("Can't get seed for new wallet");
 
-    LOG_PRINT_L1("Seed is '" << seed << "'");
+    LOG_PRINT_L1("Seed is '" << seed.data() << "'");
     LOG_PRINT_L1("AccountData is '" << account_data << "'");
 
     std::string cache_file_name = getWalletCacheFileName(public_address);
@@ -335,7 +337,7 @@ void WalletManager::createAccount(Context& context, const std::string& password,
     out.Address  = public_address;
     out.ViewKey  = view_key;
     out.Account  = account_data;
-    out.Seed     = seed;
+    out.Seed     = std::string(seed.data());
     out.WalletId = public_address;
 
     result.load(out);
@@ -369,10 +371,10 @@ void WalletManager::restoreAccount(Context& context, const std::string& password
 
     crypto::secret_key secret_key = wallet->wallet.generateFromData(password, recovery_key, true);
     const cryptonote::account_base& account = wallet->wallet.get_account();
-    std::string public_address = account.get_public_address_str(m_testnet);
+    std::string public_address = account.get_public_address_str(m_testnet? cryptonote::TESTNET : cryptonote::MAINNET);
     std::string account_data = wallet->wallet.getAccountData(password);    
     std::string view_key (&account.get_keys().m_view_secret_key.data[0], sizeof(account.get_keys().m_view_secret_key.data));
-    std::string seed;
+    epee::wipeable_string seed;
 
     if (!wallet->wallet.get_seed(seed))
       throw std::runtime_error("Can't get seed for new wallet");
@@ -393,7 +395,7 @@ void WalletManager::restoreAccount(Context& context, const std::string& password
     out.Address  = public_address;
     out.ViewKey  = view_key;
     out.Account  = account_data;
-    out.Seed     = seed;
+    out.Seed     = std::string(seed.data());
     out.WalletId = public_address;
 
     result.load(out);
@@ -410,8 +412,9 @@ void WalletManager::requestBalance(Context& context, const WalletId& wallet_id, 
     WalletBalanceCallbackRequest out;
 
     out.Result          = 0;
-    out.Balance         = std::to_string(wallet.balance());
-    out.UnlockedBalance = std::to_string(wallet.unlocked_balance());
+    // TODO: modify this method for account index
+    out.Balance         = std::to_string(wallet.balance(0));
+    out.UnlockedBalance = std::to_string(wallet.unlocked_balance(0));
 
     result.load(out);
   });
@@ -432,8 +435,8 @@ void WalletManager::prepareTransfer(Context& context, const WalletId& wallet_id,
       assert(dest.address.size() >= sizeof(address.m_spend_public_key.data));
 
       memcpy(&address.m_spend_public_key.data[0], dest.address.c_str(), sizeof(address.m_spend_public_key.data));
-
-      destinations.push_back(cryptonote::tx_destination_entry(dest.amount, address));
+      // TODO: modify to support subadress
+      destinations.push_back(cryptonote::tx_destination_entry(dest.amount, address, false));
   }
 
   runAsyncForWallet(context, wallet_id, account_data, password, callback_url, [this, wallet_id, destinations, callback_url](tools::GraftWallet& wallet, OutHttp& result) {
@@ -443,9 +446,11 @@ void WalletManager::prepareTransfer(Context& context, const WalletId& wallet_id,
     const uint64_t unlock_time = 0;
     const uint32_t priority = 0;
     const std::vector<uint8_t> extra;
-    const bool trusted_daemon = true;
+    std::set<uint32_t> subaddr_indices;
 
-    std::vector<tools::GraftWallet::pending_tx> transactions = wallet.create_transactions(destinations, fake_outs_count, unlock_time, priority, extra, trusted_daemon);
+    // TODO: modify so it works with subaddresses
+    std::vector<tools::GraftWallet::pending_tx> transactions = wallet.create_transactions_2(destinations, fake_outs_count, unlock_time, priority, extra,
+                                                                                          0, subaddr_indices);
 
     std::vector<std::string> serialized_transactions;
 
@@ -546,7 +551,8 @@ void WalletManager::requestTransactionHistory
           Transfer transfer;
 
           transfer.Amount  = d.amount;
-          transfer.Address = get_account_address_as_str(wallet.testnet(), d.addr);
+          // TODO: modify so it works with subadress
+          transfer.Address = cryptonote::get_account_address_as_str(wallet.testnet()? cryptonote::TESTNET : cryptonote::MAINNET, false, d.addr);
 
           info.Transfers.emplace_back(std::move(transfer));
       }
@@ -590,7 +596,8 @@ void WalletManager::requestTransactionHistory
 
     std::list<std::pair<crypto::hash, tools::wallet2::payment_details>> upayments;
 
-    wallet.get_unconfirmed_payments(upayments);
+    // TODO: modify so it works with new api
+    // wallet.get_unconfirmed_payments(upayments);
 
     for (std::list<std::pair<crypto::hash, tools::wallet2::payment_details>>::const_iterator it = upayments.begin(); it != upayments.end(); ++it)
     {

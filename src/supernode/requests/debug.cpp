@@ -11,7 +11,7 @@
 #include "rta/fullsupernodelist.h"
 
 #include <misc_log_ex.h>
-#include <cryptonote_protocol/blobdatatype.h>
+#include <cryptonote_basic/blobdatatype.h>
 #include <cryptonote_basic/cryptonote_format_utils.h>
 
 #include <string>
