@@ -12,7 +12,7 @@
 #include "rta/fullsupernodelist.h"
 
 #include <misc_log_ex.h>
-#include <cryptonote_protocol/blobdatatype.h>
+#include <cryptonote_basic/blobdatatype.h>
 #include <cryptonote_basic/cryptonote_format_utils.h>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -127,7 +127,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
         return errorBuildAuthSample(output);
     }
 
-    string tx_hex;
+    std::string tx_hex;
     if (in.Transactions.empty()) {
         if (in.Account.empty()) {
             return errorInvalidTransaction("tx empty", output);
@@ -198,7 +198,7 @@ Status handleWaitingTxReply(const Router::vars_t& vars, const graft::Input& inpu
     PayRequest payData = ctx.local[scPayClientHandlerKey];
 
     // TODO: !implement tx vector in every interface!
-    string tx_hex = res.Transactions[0];
+    std::string tx_hex = res.Transactions[0];
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
@@ -273,7 +273,7 @@ Status handleStatusBroadcastReply(const Router::vars_t& vars, const graft::Input
     }
 
     // prepare reply to the client
-    string payment_id = ctx.local["payment_id"];
+    std::string payment_id = ctx.local["payment_id"];
     MDEBUG("status broadcast ask received for payment: " << payment_id);
     PayResponseJsonRpc out;
     out.result.Result = STATUS_OK;

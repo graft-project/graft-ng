@@ -6,6 +6,7 @@
 #include "lib/graft/graft_exception.h"
 #include "version.h"
 
+#include <boost/algorithm/string/trim.hpp>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <regex>

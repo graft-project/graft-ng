@@ -109,6 +109,7 @@ set(GRAFT_INCLUDE_DIRS
 
 set(CRYPTONODE_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/contrib/epee/include
+    ${PROJECT_SOURCE_DIR}/modules/cryptonode/external/rapidjson/include
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/external/easylogging++
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/external
     ${PROJECT_SOURCE_DIR}/modules/cryptonode/src
@@ -118,6 +119,7 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/contrib/epee/src
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/unbound
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/db_drivers/liblmdb
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/lib
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/common
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/crypto
@@ -127,6 +129,10 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/ringct
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/wallet
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/utils
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/multisig
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/device
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/checkpoints
+
     )
 
 set(CRYPTONODE_LIBS
@@ -134,13 +140,19 @@ set(CRYPTONODE_LIBS
     wallet
     utils
     mnemonics
-    ringct
     epee
     cryptonote_core
     cryptonote_basic
+    cncrypto
+    multisig
+    ringct
+    ringct_basic
     common
     unbound
-    cncrypto
+    device
+    sodium
+    checkpoints
+    lmdb
     )
 
 if(STATIC_LINK)
@@ -174,7 +186,7 @@ endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 # cryptonode dependencies
 # TODO: modify cryptonode CMakeLists.txt so it installs all required headers/libs
-include_directories(${CRYPTONODE_INCLUDE_DIRS} "${CMAKE_BINARY_DIR}/version")
+include_directories("${CMAKE_BINARY_DIR}/version" ${CRYPTONODE_INCLUDE_DIRS})
 link_directories(${CRYPTONODE_LIB_DIRS})
 
 ### graftlet_lib
