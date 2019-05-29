@@ -19,6 +19,7 @@
 #include <misc_log_ex.h>
 
 #include <deque>
+#include <boost/uuid/uuid_io.hpp>
 
 GRAFT_DEFINE_IO_STRUCT(Payment,
       (uint64, amount),
@@ -78,76 +79,6 @@ TEST(InOut, common)
     //remove all spaces
     s.erase(std::remove_if(s.begin(), s.end(), isspace), s.end());
     EXPECT_EQ(s_out, s);
-}
-
-namespace graft { namespace serializer {
-
-template<typename T>
-struct Nothing
-{
-    static std::string serialize(const T& t)
-    {
-        return "";
-    }
-    static void deserialize(const std::string& s, T& t)
-    {
-    }
-};
-
-} }
-
-TEST(InOut, serialization)
-{
-    using namespace graft;
-
-    GRAFT_DEFINE_IO_STRUCT(J,
-        (int,x),
-        (int,y)
-    );
-
-    J j;
-
-    Input input;
-    input.body = "{\"x\":1,\"y\":2}";
-        j.x = 5; j.y = 6;
-    j = input.get<J, serializer::JSON<J>>();
-        EXPECT_EQ(j.x, 1); EXPECT_EQ(j.y, 2);
-    j = input.get<J>();
-        EXPECT_EQ(j.x, 1); EXPECT_EQ(j.y, 2);
-        j.x = 5; j.y = 6;
-    j = input.getT<serializer::JSON, J>();
-        EXPECT_EQ(j.x, 1); EXPECT_EQ(j.y, 2);
-
-    Output output;
-    output.load<J, serializer::JSON<J>>(j);
-    output.load<J>(j);
-    output.load<>(j);
-        EXPECT_EQ(input.body, output.body);
-        output.body.clear();
-    output.load(j);
-        EXPECT_EQ(input.body, output.body);
-    output.body.clear();
-    output.loadT<serializer::JSON, J>(j);
-    output.loadT<serializer::JSON>(j);
-    output.loadT<>(j);
-        EXPECT_EQ(input.body, output.body);
-        output.body.clear();
-    output.loadT(j);
-        EXPECT_EQ(input.body, output.body);
-
-    struct A
-    {
-        int x;
-        int y;
-    };
-
-    A a;
-
-    a = input.get<A, serializer::Nothing<A>>();
-    a = input.getT<serializer::Nothing, A>();
-    output.load<A, serializer::Nothing<A>>(a);
-    output.loadT<serializer::Nothing, A>(a);
-    output.loadT<serializer::Nothing>(a);
 }
 
 TEST(InOut, makeUri)
