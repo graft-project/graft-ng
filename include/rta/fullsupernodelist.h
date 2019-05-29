@@ -1,7 +1,4 @@
-#ifndef FULLSUPERNODELIST_H
-#define FULLSUPERNODELIST_H
-
-#include <random>
+#pragma once
 
 #include "rta/supernode.h"
 #include "rta/DaemonRpcClient.h"
@@ -9,19 +6,18 @@
 #include <cryptonote_config.h>
 #include <string>
 #include <vector>
-#include <future>
 #include <unordered_map>
 
 #include <boost/shared_ptr.hpp>
-#include <boost/thread.hpp>
-
 
 namespace graft {
 
+//TODO: is it required?
+/*
 namespace utils {
     class ThreadPool;
 }
-
+*/
 
 class FullSupernodeList
 {
@@ -29,8 +25,11 @@ public:
     static constexpr int32_t TIERS = 4;
     static constexpr int32_t ITEMS_PER_TIER = 2;
     static constexpr int32_t AUTH_SAMPLE_SIZE = TIERS * ITEMS_PER_TIER;
+    static constexpr int32_t DISQUALIFICATION_SAMPLE_SIZE = AUTH_SAMPLE_SIZE;
+    static constexpr int32_t DISQUALIFICATION_CANDIDATES_SIZE = AUTH_SAMPLE_SIZE;
     static constexpr int64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
     static constexpr int64_t ANNOUNCE_TTL_SECONDS = 60 * 60; // if more than ANNOUNCE_TTL_SECONDS passed from last annouce - supernode excluded from auth sample selection
+    static constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT = 10; // count of blocks to step back in history to get stable picture of supernodes subsets, it used for generation of BBQS and QCL
 
     FullSupernodeList(const std::string &daemon_address, bool testnet = false);
     ~FullSupernodeList();
@@ -99,6 +98,16 @@ public:
     bool buildAuthSample(const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number);
 
     /*!
+     * \brief buildDisqualificationSamples - builds disqualification samples for given block height
+     * \param height                       - block height used to perform selectio
+     * \param out_bbqs                     - vector of supernode pointers which should check other nodes
+     * \param out_qcl                      - vector of supernode pointers which should be checked
+     * \param out_block_number             - block number which was used for samples
+     * \return                             - true on success
+     */
+    bool buildDisqualificationSamples(uint64_t height, supernode_array &out_bbqs, supernode_array &out_qcl, uint64_t &out_block_number);
+
+    /*!
      * \brief items - returns address list of known supernodes
      * \return
      */
@@ -118,7 +127,8 @@ public:
      *
      * \return             - std::future to wait for result
      */
-    std::future<void> refreshAsync();
+    //TODO: is it required?
+//    std::future<void> refreshAsync();
 
     /*!
      * \brief refreshedItems - returns number of refreshed supernodes
@@ -143,8 +153,18 @@ public:
     };
     
     typedef std::vector<blockchain_based_list_entry> blockchain_based_list_tier;
-    typedef std::vector<blockchain_based_list_tier>  blockchain_based_list;
-    typedef std::shared_ptr<blockchain_based_list>   blockchain_based_list_ptr;
+    typedef std::vector<blockchain_based_list_tier>  blockchain_based_list_tier_array;
+
+    struct blockchain_based_list
+    {
+      std::string                      block_hash;
+      blockchain_based_list_tier_array tiers;
+
+      blockchain_based_list() {}
+      blockchain_based_list(const std::string& in_block_hash) : block_hash(in_block_hash) {}
+    };
+
+    typedef std::shared_ptr<blockchain_based_list> blockchain_based_list_ptr;
 
     /*!
      * \brief setBlockchainBasedList - updates full list of supernodes
@@ -203,7 +223,7 @@ public:
 private:
     // bool loadWallet(const std::string &wallet_path);
     void addImpl(SupernodePtr item);
-    bool selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array);    
+    bool buildSample(const blockchain_based_list& bbl, size_t sample_size, const char* prefix, supernode_array &out);
 
     typedef std::unordered_map<uint64_t, blockchain_based_list_ptr> blockchain_based_list_map;
 
@@ -214,12 +234,11 @@ private:
     bool m_testnet;
     mutable DaemonRpcClient m_rpc_client;
     mutable boost::shared_mutex m_access;
-    std::unique_ptr<utils::ThreadPool> m_tp;
+//    std::unique_ptr<utils::ThreadPool> m_tp;
     std::atomic_size_t m_refresh_counter;
     uint64_t m_blockchain_based_list_max_block_number;
     uint64_t m_stakes_max_block_number;
     blockchain_based_list_map m_blockchain_based_lists;
-    std::mt19937_64 m_rng;
     boost::posix_time::ptime m_next_recv_stakes;
     boost::posix_time::ptime m_next_recv_blockchain_based_list;
 };
@@ -230,5 +249,3 @@ std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> super
 
 
 } // namespace graft
-
-#endif // FULLSUPERNODELIST_H
