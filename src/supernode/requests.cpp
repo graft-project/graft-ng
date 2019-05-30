@@ -4,7 +4,6 @@
 #include "supernode/requests/get_info.h"
 
 #include "supernode/requests/sale_details.h"
-#include "supernode/requests/pay.h"
 #include "supernode/requests/pay_status.h"
 #include "supernode/requests/reject_pay.h"
 #include "supernode/requests/send_transfer.h"
@@ -29,7 +28,6 @@ void registerRTARequests(graft::Router &router)
     registerRejectSaleRequest(router);
     registerGetInfoRequest(router);
     registerSaleDetailsRequest(router);
-    registerPayRequest(router);
     registerPayStatusRequest(router);
     registerRejectPayRequest(router);
     registerAuthorizeRtaTxRequests(router);

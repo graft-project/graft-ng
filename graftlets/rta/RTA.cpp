@@ -1,4 +1,4 @@
-// Copyright (c) 2018, The Graft Project
+// Copyright (c) 2019, The Graft Project
 //
 // All rights reserved.
 //
@@ -36,6 +36,7 @@
 #include "requests/presale.h"
 #include "requests/sale.h"
 #include "requests/storepaymentdata.h"
+#include "requests/pay.h"
 
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
@@ -136,6 +137,10 @@ private:
         return supernode::request::storePaymentDataRequest(vars, input, ctx, output);
     }
 
+    Status handlePayRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return supernode::request::handlePayRequest(vars, input, ctx, output);
+    }
 };
 
 GRAFTLET_EXPORTS_BEGIN("RTA", GRAFTLET_MKVER(1,1));
@@ -143,8 +148,4 @@ GRAFTLET_PLUGIN(RtaGraftlet, IGraftlet, "RTA");
 GRAFTLET_EXPORTS_END
 
 GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(0,3))
-
-
-
-
 
