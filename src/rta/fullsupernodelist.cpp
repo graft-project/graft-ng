@@ -125,7 +125,6 @@ std::future<void> ThreadPool::runAsync()
 
 #ifndef __cpp_inline_variables
 constexpr int32_t FullSupernodeList::TIERS, FullSupernodeList::ITEMS_PER_TIER, FullSupernodeList::AUTH_SAMPLE_SIZE;
-constexpr int64_t FullSupernodeList::AUTH_SAMPLE_HASH_HEIGHT, FullSupernodeList::ANNOUNCE_TTL_SECONDS;
 #endif
 
 FullSupernodeList::FullSupernodeList(const string &daemon_address, bool testnet)
@@ -301,12 +300,6 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
             auto it = m_list.find(entry.supernode_public_id);
 
             if (it == m_list.end())
-                return false;
-
-            const SupernodePtr& sn              = it->second;
-            uint64_t            last_update_age = static_cast<unsigned>(std::time(nullptr)) - sn->lastUpdateTime();
-
-            if (FullSupernodeList::ANNOUNCE_TTL_SECONDS < last_update_age)
                 return false;
 
             return true;
