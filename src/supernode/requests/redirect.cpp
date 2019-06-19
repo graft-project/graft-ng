@@ -336,9 +336,10 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
             myIDstr = epee::string_tools::pod_to_hex(pubID);
         }
         tst_myIDstr = myIDstr;
-        tst_IDs.push_back("c2e3c8e7adf55ac6be9b9ac62e2cf96b239299b9b3a6ac152fbe4de121188452");
-        tst_IDs.push_back("a638e97d174c4f7af32f613a485ceec22394486ac3ed7d8720129f3c40f4260e");
-        tst_IDs.push_back("3cad1a7a0b34bba7def142666d454dbc6690624bb643f12d26cc69525591615a");
+        tst_IDs.push_back("7f06eb8659c594c3f654a6814a2fac91c07a3ac711df993da1d00cab1bb4a33b");
+        tst_IDs.push_back("cb350e34fa8c8913db902e7210ed55d0fda3f95c5636caa61cbc46d26c42a2e8");
+        tst_IDs.push_back("6da61691a3841ddc2e4c02868aba623132953d2d8150dafecc34efacbb54abca");
+        tst_IDs.push_back("ab59657817fda347aad9bda78184863737b422f09910089127cf9e6480d83665");
     }
 
     {
@@ -597,12 +598,19 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
             //register ID of another supernode to redirect
             SupernodeRedirectIdsJsonRpcRequest oreq;
             oreq.params.id = ID;
+            oreq.params.my_id = my_pubIDstr;
 
             oreq.method = "redirect_supernode_id";
             oreq.id = 0;
+
+            ctx.local["oreq"] = oreq;
+            return graft::Status::Again;
+        } break;
+        case graft::Status::Again:
+        {
+            SupernodeRedirectIdsJsonRpcRequest oreq = ctx.local["oreq"];
             output.load(oreq);
             output.path = "/json_rpc/rta";
-
             return graft::Status::Forward;
         } break;
         case graft::Status::Forward:

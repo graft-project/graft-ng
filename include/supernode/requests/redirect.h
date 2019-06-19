@@ -47,7 +47,8 @@ GRAFT_DEFINE_IO_STRUCT(UDHTInfoResponse,
 ///////
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIds,
-                              (std::string, id, std::string())
+                              (std::string, id, std::string()),
+                              (std::string, my_id, std::string())
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIdsResponse,
