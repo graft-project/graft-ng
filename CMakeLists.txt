@@ -321,7 +321,7 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_raw_tx.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
+#    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_stakes.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/blockchain_based_list.cpp

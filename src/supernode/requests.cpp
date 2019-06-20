@@ -14,7 +14,6 @@
 
 #include "supernode/requests/send_raw_tx.h"
 #include "supernode/requests/authorize_rta_tx.h"
-#include "supernode/requests/send_supernode_announce.h"
 #include "supernode/requests/send_supernode_stakes.h"
 #include "supernode/requests/blockchain_based_list.h"
 #include "supernode/requests/redirect.h"
@@ -35,7 +34,6 @@ void registerRTARequests(graft::Router &router)
     registerPayStatusRequest(router);
     registerRejectPayRequest(router);
     registerAuthorizeRtaTxRequests(router);
-    registerSendSupernodeAnnounceRequest(router);
     registerSendSupernodeStakesRequest(router);
     registerRedirectRequests(router);
     registerBlockchainBasedListRequest(router);

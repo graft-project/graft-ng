@@ -4,7 +4,6 @@
 #include "supernode/requests.h"
 #include "lib/graft/sys_info.h"
 #include "supernode/requestdefines.h"
-#include "supernode/requests/send_supernode_announce.h"
 #include "supernode/requests/redirect.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
@@ -201,14 +200,7 @@ void Supernode::startSupernodePeriodicTasks()
 
     if (m_configEx.stake_wallet_refresh_interval_ms > 0) {
         size_t initial_interval_ms = 1000;
-/*
-        getLooper().addPeriodicTask(
-                    graft::Router::Handler3(nullptr, graft::supernode::request::sendAnnounce, nullptr),
-                    std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
-                    std::chrono::milliseconds(initial_interval_ms),
-                    m_configEx.stake_wallet_refresh_interval_random_factor
-                    );
-*/
+
         getLooper().addPeriodicTask(
                     graft::Router::Handler3(nullptr, graft::supernode::request::periodicRegisterSupernode, nullptr),
 #if tst
