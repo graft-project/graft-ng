@@ -2,6 +2,7 @@
 #include "lib/graft/inout.h"
 #include "lib/graft/jsonrpc.h"
 #include "supernode/requests/broadcast.h"
+#include "supernode/requests/multicast.h"
 #include "supernode/requests/send_supernode_announce.h"
 #include "supernode/requests/pay.h"
 #include "supernode/requestdefines.h"

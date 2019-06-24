@@ -1,6 +1,6 @@
 
 #include "supernode/requests/sale_details.h"
-#include "supernode/requests/broadcast.h"
+#include "supernode/requests/unicast.h"
 #include "supernode/requestdefines.h"
 #include "lib/graft/jsonrpc.h"
 #include "lib/graft/router.h"
@@ -144,30 +144,23 @@ Status handleClientRequest(const Router::vars_t& vars, const graft::Input& input
         Output innerOut;
         in.callback_uri = "/cryptonode/callback/sale_details/" + boost::uuids::to_string(ctx.getId());
         innerOut.loadT<serializer::JSON_B64>(in);
-        BroadcastRequestJsonRpc broadcastReq;
-        broadcastReq.params.sender_address = supernode->idKeyAsString();
+        UnicastRequestJsonRpc unicastReq;
+        unicastReq.params.sender_address = supernode->idKeyAsString();
         size_t maxIndex = authSample.size() - 1;
         size_t randomIndex = utils::random_number<size_t>(0, maxIndex);
-        broadcastReq.params.receiver_addresses.emplace_back( authSample.at(randomIndex)->idKeyAsString() );
-
-        std::string addresses;
-        {
-            std::ostringstream oss;
-            for(auto& addr : broadcastReq.params.receiver_addresses) { oss << addr << " "; }
-            addresses = oss.str();
-        }
+        unicastReq.params.receiver_address = authSample.at(randomIndex)->idKeyAsString();
         MDEBUG("requesting sale details from remote supernode: "
-               << addresses
+               << unicastReq.params.receiver_address
                << ", for payment: " << in.PaymentID);
 
-        broadcastReq.params.data = innerOut.data();
-        broadcastReq.params.callback_uri = "/cryptonode/sale_details/";
-        broadcastReq.method = "broadcast";
+        unicastReq.params.data = innerOut.data();
+        unicastReq.params.callback_uri = "/cryptonode/sale_details/";
+        unicastReq.method = "unicast";
 
-        output.load(broadcastReq);
+        output.load(unicastReq);
         output.path = "/json_rpc/rta";
 
-        MDEBUG("broadcasting: " << output.data());
+        MDEBUG("unicasting: " << output.data());
     }
     MDEBUG(__FUNCTION__ << " end");
 
@@ -199,7 +192,7 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
 
     Input inputLocal;
 
-    inputLocal.load(ctx.global.get(task_id + CONTEXT_SALE_DETAILS_RESULT, std::string()));
+    inputLocal.load(ctx.global.get(task_id + CONTEXT_SALE_DETAILS_RESULT, string()));
     UnicastRequestJsonRpc in;
 
     // BroadcastRequestJsonRpc in; // there's only BroadcastRequest in new transport
@@ -209,14 +202,16 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
         return errorInternalError("Failed to parse response", output);
     }
 
+
     // BroadcastRequest broadcastReq = in.params;
     UnicastRequest unicastReq = in.params;
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
+
     std::string payment_id = ctx.local["payment_id"];
     MDEBUG("received sale details from remote supernode: " << unicastReq.sender_address
-           << ", payment: " << payment_id);
 
+           << ", payment: " << payment_id);
 
     if (unicastReq.receiver_address != supernode->idKeyAsString()) {
         std::string msg =  std::string("wrong receiver id: " + unicastReq.receiver_address + ", expected id: " + supernode->idKeyAsString());
@@ -236,7 +231,7 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
         oss << ", expected id: " + supernode->idKeyAsString();
         LOG_ERROR(oss.str());
         return errorInternalError(oss.str(), output);
-    }
+        }
     */
 
     Input innerIn;
@@ -267,12 +262,12 @@ Status handleSaleDetailsResponse(const Router::vars_t& vars, const graft::Input&
 Status handleUnicastAcknowledge(const Router::vars_t& vars, const graft::Input& input,
                                 graft::Context& ctx, graft::Output& output)
 {
-    BroadcastResponseFromCryptonodeJsonRpc resp;
+    UnicastResponseFromCryptonodeJsonRpc resp;
 
     JsonRpcErrorResponse error;
     if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
         error.error.code = ERROR_INTERNAL_ERROR;
-        error.error.message = "Error broadcasting request";
+        error.error.message = "Error unicasting request";
         output.load(error);
         return Status::Error;
     }
@@ -285,14 +280,14 @@ Status handleUnicastAcknowledge(const Router::vars_t& vars, const graft::Input& 
 Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::Input& input,
                                         graft::Context& ctx, graft::Output& output)
 {
-    BroadcastRequestJsonRpc in;
+    UnicastRequestJsonRpc in;
     MDEBUG(__FUNCTION__ << " begin");
     if (!input.get(in)) {
         LOG_ERROR("Failed to parse response: " << input.data());
         return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
     }
 
-    BroadcastRequest broadcastReq = in.params;
+    UnicastRequest unicastReq = in.params;
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
 
@@ -313,12 +308,31 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
         oss << ", expected id: " + supernode->idKeyAsString();
         LOG_ERROR(oss.str());
 
+||||||| 565e668... unicast and multicast were replaced by broadcast
+    if (broadcastReq.receiver_addresses.size() != 1
+            || *broadcastReq.receiver_addresses.begin() != supernode->idKeyAsString()) {
+        std::ostringstream oss;
+        oss << "wrong receiver single id, ids: ";
+        for(auto& addr : broadcastReq.receiver_addresses)
+        {
+            oss << addr << " ";
+        }
+        oss << ", expected id: " + supernode->idKeyAsString();
+        LOG_ERROR(oss.str());
+        return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
+=======
+    if (unicastReq.receiver_address != supernode->idKeyAsString()) {
+        string msg =  string("wrong receiver id: " + supernode->idKeyAsString());
+        LOG_ERROR(msg);
+        return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
+>>>>>>> parent of 565e668... unicast and multicast were replaced by broadcast
     }
 */
 
 
+
     Input innerIn;
-    innerIn.load(broadcastReq.data);
+    innerIn.load(unicastReq.data);
 
     SaleDetailsRequest sdr;
 
@@ -331,7 +345,7 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
     uint64_t auth_sample_block_number = 0;
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
 
-    MDEBUG("sale_details request from remote supernode: " << broadcastReq.sender_address
+    MDEBUG("sale_details request from remote supernode: " << unicastReq.sender_address
            << ", payment: " << sdr.PaymentID
            << ", block: " << sdr.BlockNumber);
 
@@ -352,19 +366,19 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
             LOG_ERROR("Error preparing sale details response for payment: " << sdr.PaymentID);
             return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
         } else {
-            BroadcastRequestJsonRpc callbackReq;
+            UnicastRequestJsonRpc callbackReq;
             Output innerOut;
             innerOut.loadT<serializer::JSON_B64>(resp);
 
             callbackReq.params.data = innerOut.data();
             callbackReq.params.callback_uri = sdr.callback_uri;
             callbackReq.params.sender_address = supernode->idKeyAsString();
-            callbackReq.params.receiver_addresses.emplace_back( broadcastReq.sender_address );
-            callbackReq.method = "broadcast";
+            callbackReq.params.receiver_address = unicastReq.sender_address;
+            callbackReq.method = "unicast";
             output.load(callbackReq);
             output.path = "/json_rpc/rta";
             MDEBUG("unicasting sale details callback, remote URI: " << sdr.callback_uri
-                   << ", remote addr: " << broadcastReq.sender_address
+                   << ", remote addr: " << unicastReq.sender_address
                    << ", payment: " << sdr.PaymentID);
             MDEBUG(__FUNCTION__ << " end");
             return Status::Forward;
