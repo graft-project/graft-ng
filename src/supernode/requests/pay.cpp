@@ -5,7 +5,6 @@
 #include "supernode/requestdefines.h"
 #include "lib/graft/requesttools.h"
 #include "supernode/requests/broadcast.h"
-#include "supernode/requests/multicast.h"
 #include "supernode/requests/sale_status.h"
 #include "supernode/requests/authorize_rta_tx.h"
 #include "rta/supernode.h"
@@ -63,7 +62,7 @@ Status processAuthorizationRequest(const std::string &tx_hex, const PayRequest &
                    pay_request.PaymentID, RTA_TX_TTL);
 
     // send multicast to /cryptonode/authorize_rta_tx_request
-    MulticastRequestJsonRpc cryptonode_req;
+    BroadcastRequestJsonRpc cryptonode_req;
     for (const auto & sn : authSample) {
         cryptonode_req.params.receiver_addresses.push_back(sn->idKeyAsString());
     }
@@ -76,7 +75,7 @@ Status processAuthorizationRequest(const std::string &tx_hex, const PayRequest &
     authTxReq.amount = pay_request.Amount;
 
     innerOut.loadT<serializer::JSON_B64>(authTxReq);
-    cryptonode_req.method = "multicast";
+    cryptonode_req.method = "broadcast";
     cryptonode_req.params.callback_uri =  "/cryptonode/authorize_rta_tx_request";
     cryptonode_req.params.data = innerOut.data();
     cryptonode_req.params.sender_address = supernode->idKeyAsString();
@@ -230,7 +229,7 @@ Status handleTxAuthReply(const Router::vars_t& vars, const graft::Input& input,
 {
     // check cryptonode reply
     MDEBUG(__FUNCTION__ << " begin");
-    MulticastResponseFromCryptonodeJsonRpc resp;
+    BroadcastResponseFromCryptonodeJsonRpc resp;
     std::string payment_id = ctx.local["payment_id"];
 
     JsonRpcErrorResponse error;

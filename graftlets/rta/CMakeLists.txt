@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(graftlet)
+project(graftlet_rta)
 
 set (CMAKE_CXX_STANDARD 17)
 
@@ -21,27 +21,22 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 ######## Graftlets
 
 include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    ${PROJECT_SOURCE_DIR}/../modules/libr3/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/requests/include
+    ${PROJECT_SOURCE_DIR}/../../modules/libr3/include
+    ${CMAKE_CURRENT_SOURCE_DIR}
+
 )
 
 
-add_library(graftlet_walletAddress SHARED
-    WalletAddress.cpp
+add_library(graftlet_rta SHARED
+    RTA.cpp
+    requests/presale.cpp
+    requests/sale.cpp
+    requests/common.cpp
+    requests/storepaymentdata.cpp
 )
 set_target_properties(graftlet_walletAddress PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode
 )
 
-if (OPT_BUILD_TESTS)
-    message("==> Test graftlets included")
-
-    add_library(graftlet_plugin SHARED
-        TestGraftlet.cpp
-    )
-
-    add_library(graftlet_plugin1 SHARED
-        TestGraftlet1.cpp
-    )
-
-endif()

@@ -16,45 +16,37 @@ using namespace graft::supernode::request;
 
 Status errorInvalidPaymentID(Output& output)
 {
-    JsonRpcError err;
+    ErrorResponse err;
     err.code = ERROR_PAYMENT_ID_INVALID;
     err.message = MESSAGE_PAYMENT_ID_INVALID;
-    JsonRpcErrorResponse resp;
-    resp.error = err;
-    output.load(resp);
+    output.load(err);
     return Status::Error;
 }
 
 Status errorInvalidAmount(Output& output)
 {
-    JsonRpcError err;
+    ErrorResponse err;
     err.code = ERROR_AMOUNT_INVALID;
     err.message = MESSAGE_AMOUNT_INVALID;
-    JsonRpcErrorResponse resp;
-    resp.error = err;
-    output.load(resp);
+    output.load(err);
     return Status::Error;
 }
 
 Status errorInvalidAddress(Output& output)
 {
-    JsonRpcError err;
+    ErrorResponse err;
     err.code = ERROR_ADDRESS_INVALID;
     err.message = MESSAGE_ADDRESS_INVALID;
-    JsonRpcErrorResponse resp;
-    resp.error = err;
-    output.load(resp);
+    output.load(err);
     return Status::Error;
 }
 
 Status errorBuildAuthSample(Output& output)
 {
-    JsonRpcError err;
+    ErrorResponse err;
     err.code = ERROR_INTERNAL_ERROR;
     err.message = MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE;
-    JsonRpcErrorResponse resp;
-    resp.error = err;
-    output.load(resp);
+    output.load(err);
     return Status::Error;
 }
 
@@ -96,24 +88,28 @@ Status errorInvalidTransaction(const std::string& tx_data, Output& output)
 
 Status errorInternalError(const std::string& message, Output& output)
 {
-    JsonRpcError err;
+    ErrorResponse err;
     err.code = ERROR_INTERNAL_ERROR;
     err.message = message;
-    JsonRpcErrorResponse resp;
-    resp.error = err;
-    output.load(resp);
+    output.load(err);
     return Status::Error;
 }
 
 Status errorCustomError(const std::string& message, int code, Output& output)
 {
-    JsonRpcError err;
+    ErrorResponse err;
     err.code = code;
     err.message = message;
-    JsonRpcErrorResponse resp;
-    resp.error = err;
-    LOG_ERROR(__FUNCTION__ << " called with " << message << code);
-    output.load(resp);
+    output.load(err);
+    return Status::Error;
+}
+
+Status errorInvalidSignature(Output &output)
+{
+    ErrorResponse err;
+    err.code = ERROR_INVALID_SIGNATURE;
+    err.message = MESSAGE_INVALID_SIGNATURE;
+    output.load(err);
     return Status::Error;
 }
 

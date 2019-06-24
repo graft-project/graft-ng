@@ -5,6 +5,7 @@
 #include "lib/graft/sys_info.h"
 #include "supernode/requestdefines.h"
 #include "supernode/requests/send_supernode_announce.h"
+#include "supernode/requests/redirect.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "lib/graft/graft_exception.h"
@@ -12,6 +13,10 @@
 #include <boost/property_tree/ini_parser.hpp>
 //#include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
+
+
+#include "lib/graft/ConfigIni.h"
+
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.supernode"
@@ -27,6 +32,24 @@ namespace graft
 namespace snd
 {
 
+namespace
+{
+
+std::string exec(const std::string& cmd)
+{
+    std::array<char, 16> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.data(), "r"), pclose);
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+
+}//namespace
 
 bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& configOpts)
 {
@@ -36,19 +59,66 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
     ConfigOptsEx& coptsex = static_cast<ConfigOptsEx&>(configOpts);
     assert(&m_configEx == &coptsex);
 
-    boost::property_tree::ptree config;
-    boost::property_tree::ini_parser::read_ini(m_configEx.config_filename, config);
+    m_configEx.mandatory_graftlet_dependencies = "walletAddress : 1.1";
 
-    const boost::property_tree::ptree& server_conf = config.get_child("server");
+    ConfigIniSubtree config = ConfigIniSubtree::create(m_configEx.common.config_filename);
+
+    const ConfigIniSubtree server_conf = config.get_child("server");
     m_configEx.stake_wallet_name = server_conf.get<std::string>("stake-wallet-name", "stake-wallet");
     m_configEx.stake_wallet_refresh_interval_ms = server_conf.get<size_t>("stake-wallet-refresh-interval-ms",
                                                                       consts::DEFAULT_STAKE_WALLET_REFRESH_INTERFAL_MS);
     m_configEx.stake_wallet_refresh_interval_random_factor = server_conf.get<double>("stake-wallet-refresh-interval-random-factor", 0);
 
+    {//get external address
+        //try get from [stun]
+        std::optional<ConfigIniSubtree> stun_conf = config.get_child_optional("stun");
+        bool ok = !!stun_conf;
+        if(ok)
+        {
+            bool stun_enabled = stun_conf.value().get<bool>("enabled", false);
+            ok = stun_enabled;
+        }
+        if(ok)
+        {//using stun
+            std::string server = stun_conf.value().get<std::string>("server", "");
+            std::string port = stun_conf.value().get<std::string>("port", "");
+            std::string cmd = stun_conf.value().get<std::string>("cmd", "");
+
+            std::string env = "stun_server=" + server + " " + "stun_port=" + port + "; ";
+            std::string external_address = exec(env + cmd);
+            if(external_address.empty())
+            {
+                throw graft::exit_error("Obtaining external IP address using the stun has failed. Maybe you should install 'stuntman-client' package and correct parameters. Or disable the stun and set external-address manually.");
+            }
+            assert(!m_configEx.http_address.empty());
+            auto pos = m_configEx.http_address.find(':');
+            if(pos != std::string::npos)
+            {
+                external_address += ":" + m_configEx.http_address.substr(pos);
+            }
+            m_configEx.external_address = external_address;
+        }
+        else
+        {//external-address or http-address
+            m_configEx.external_address = server_conf.get<std::string>("external-address", "");
+            if(m_configEx.external_address.empty())
+            {
+                assert(!m_configEx.http_address.empty());
+                m_configEx.external_address = m_configEx.http_address;
+            }
+        }
+    }
+
     if(m_configEx.common.wallet_public_address.empty())
     {
         throw graft::exit_error("Configuration parameter 'wallet-public-address' cannot be empty.");
     }
+    m_configEx.jump_node_coefficient = server_conf.get<double>("jump-node-coefficient", .3);
+    if(m_configEx.jump_node_coefficient < .0001 || 1.0001 < m_configEx.jump_node_coefficient)
+    {
+        throw graft::exit_error("invalid value of jump-node-coefficient.");
+    }
+    m_configEx.redirect_timeout_ms = server_conf.get<uint32_t>("redirect-timeout-ms", 50*60*1000);
     return res;
 }
 
@@ -77,39 +147,11 @@ void Supernode::prepareSupernode()
     m_configEx.watchonly_wallets_path = watchonly_wallets_path.string();
 
     MINFO("data path: " << data_path.string());
-    MINFO("stake wallet path: " << stake_wallet_path.string());
-
-    // create supernode instance and put it into global context
-    graft::SupernodePtr supernode = boost::make_shared<graft::Supernode>(
-                    m_configEx.common.wallet_public_address,
-                    crypto::public_key(),
-                    m_configEx.cryptonode_rpc_address,
-                    m_configEx.common.testnet
-                    );
-    std::string keyfilename = (data_path / "supernode.keys").string();
-    if (!supernode->loadKeys(keyfilename)) {
-        // supernode is not initialized, generating key
-        supernode->initKeys();
-        if (!supernode->saveKeys(keyfilename)) {
-            MERROR("Failed to save keys");
-            throw std::runtime_error("Failed to save keys");
-        }
-    }
-
-    supernode->setNetworkAddress(m_configEx.http_address + "/dapi/v2.0");
-
-    // create fullsupernode list instance and put it into global context
-    graft::FullSupernodeListPtr fsl = boost::make_shared<graft::FullSupernodeList>(
-                m_configEx.cryptonode_rpc_address, m_configEx.common.testnet);
-    fsl->add(supernode);
-
-    //put fsl into global context
     Context ctx(getLooper().getGcm());
-    ctx.global[CONTEXT_KEY_SUPERNODE] = supernode;
-    ctx.global[CONTEXT_KEY_FULLSUPERNODELIST] = fsl;
-    ctx.global["testnet"] = m_configEx.common.testnet;
-    ctx.global["watchonly_wallets_path"] = m_configEx.watchonly_wallets_path;
-    ctx.global["cryptonode_rpc_address"] = m_configEx.cryptonode_rpc_address;
+
+    ctx.global["external_address"] = m_configEx.external_address;
+    ctx.global["jump_node_coefficient"] = m_configEx.jump_node_coefficient;
+    ctx.global["redirect_timeout_ms"] = m_configEx.redirect_timeout_ms;
 }
 
 void Supernode::initMisc(ConfigOpts& configOpts)
@@ -132,12 +174,42 @@ void Supernode::startSupernodePeriodicTasks()
 
     if (m_configEx.stake_wallet_refresh_interval_ms > 0) {
         size_t initial_interval_ms = 1000;
+
         getLooper().addPeriodicTask(
                     graft::Router::Handler3(nullptr, graft::supernode::request::sendAnnounce, nullptr),
                     std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
                     std::chrono::milliseconds(initial_interval_ms),
                     m_configEx.stake_wallet_refresh_interval_random_factor
                     );
+
+        getLooper().addPeriodicTask(
+                    graft::Router::Handler3(nullptr, graft::supernode::request::periodicRegisterSupernode, nullptr),
+#if tst
+                    std::chrono::milliseconds(5*initial_interval_ms),
+#else
+                    std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
+#endif
+                    std::chrono::milliseconds(initial_interval_ms),
+                    m_configEx.stake_wallet_refresh_interval_random_factor
+                    );
+        getLooper().addPeriodicTask(
+                    graft::Router::Handler3(nullptr, graft::supernode::request::periodicUpdateRedirectIds, nullptr),
+#if tst
+                    std::chrono::milliseconds(10*initial_interval_ms),
+#else
+                    std::chrono::milliseconds(m_configEx.stake_wallet_refresh_interval_ms),
+#endif
+                    std::chrono::milliseconds(initial_interval_ms),
+                    m_configEx.stake_wallet_refresh_interval_random_factor
+                    );
+#if tst
+        getLooper().addPeriodicTask(
+                    graft::Router::Handler3(nullptr, graft::supernode::request::test_startBroadcast, nullptr),
+                    std::chrono::milliseconds(15*initial_interval_ms),
+                    std::chrono::milliseconds(initial_interval_ms),
+                    m_configEx.stake_wallet_refresh_interval_random_factor
+                    );
+#endif
     }
 
     // sync with cryptonode

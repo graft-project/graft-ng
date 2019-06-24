@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include "lib/graft/serialize.h"
 #include "lib/graft/router.h"
 
 namespace graft::supernode::request {

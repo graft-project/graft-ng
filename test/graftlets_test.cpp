@@ -177,7 +177,8 @@ TEST(DependencyGraph, dependencies)
 TEST(Graftlets, calls)
 {
     graft::CommonOpts opts;
-    graftlet::GraftletLoader loader(opts);
+    graft::GlobalContextMap gcm;
+    graftlet::GraftletLoader loader(opts, gcm);
 
     loader.findGraftletsInDirectory("./", "so");
     loader.findGraftletsInDirectory("./graftlets", "so");
@@ -261,26 +262,27 @@ TEST(Graftlets, calls)
 TEST(Graftlets, exceptionList)
 {
     graft::CommonOpts opts;
+    graft::GlobalContextMap gcm;
 
 #define VER(a,b) GRAFTLET_MKVER(a,b)
     using GL = graftlet::GraftletLoader;
     {
         GL::setGraftletsExceptionList({});
-        GL loader(opts);
+        GL loader(opts, gcm);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 4);
     }
     {
         GL::setGraftletsExceptionList({ {"myGraftlet", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)}} } });
-        GL loader(opts);
+        GL loader(opts, gcm);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 4);
     }
     {
         GL::setGraftletsExceptionList({ {"myGraftlet1", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)}} } });
-        GL loader(opts);
+        GL loader(opts, gcm);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 2);
@@ -289,7 +291,7 @@ TEST(Graftlets, exceptionList)
         GL::setGraftletsExceptionList({ {"myGraftlet", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,1)}} },
                                         {"myGraftlet1", {{VER(4,2), VER(5,1)}, {VER(1,0), VER(1,0)}} }
                                       });
-        GL loader(opts);
+        GL loader(opts, gcm);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 0);
@@ -303,6 +305,7 @@ TEST(Graftlets, exceptionList)
 TEST(Graftlets, checkFwVersion)
 {
     graft::CommonOpts opts;
+    graft::GlobalContextMap gcm;
 
 #define VER(a,b) GRAFTLET_MKVER(a,b)
     using Version = graftlet::GraftletLoader::Version;
@@ -310,7 +313,7 @@ TEST(Graftlets, checkFwVersion)
     Version save_ver = fwVersion;
 
     {
-        graftlet::GraftletLoader loader(opts);
+        graftlet::GraftletLoader loader(opts, gcm);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 4);
@@ -318,7 +321,7 @@ TEST(Graftlets, checkFwVersion)
 
     {
         graftlet::GraftletLoader::setFwVersion( VER(0,5) );
-        graftlet::GraftletLoader loader(opts);
+        graftlet::GraftletLoader loader(opts, gcm);
         loader.findGraftletsInDirectory("./graftlets", "so");
         IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
         EXPECT_EQ(endpoints.size(), 2);
@@ -359,6 +362,28 @@ TEST_F(GraftServerTest, graftlets)
         std::string res1 = client.get_body();
         EXPECT_EQ(res1, json_data+"123");
     }
+
+    stop_and_wait_for();
+}
+
+TEST_F(GraftServerTest, graftletsPeriodic)
+{
+    m_copts.graftlet_dirs.emplace_back("graftlets");
+    m_copts.timer_poll_interval_ms = 50;
+
+    graft::CommonOpts opts;
+    graft::GlobalContextMap gcm;
+    graftlet::GraftletLoader loader(opts, gcm);
+    loader.findGraftletsInDirectory("./graftlets", "so");
+
+    graftlet::GraftletHandler plugin = loader.buildAndResolveGraftlet("myGraftlet");
+    plugin.invoke<std::string (const std::string& val)>("testGL.resetPeriodic", " ");
+
+    run();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1050));
+    std::string res = plugin.invoke<std::string (const std::string& val)>("testGL.resetPeriodic", "");
+    EXPECT_EQ(res, "count " + std::to_string(10));
 
     stop_and_wait_for();
 }

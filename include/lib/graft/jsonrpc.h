@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include "lib/graft/serialize.h"
 #include "lib/graft/inout.h"
 
 #include <string>

@@ -35,14 +35,21 @@ if(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
 endif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
-set(CMAKE_C_FLAGS "-march=x86-64")
-set(CMAKE_CXX_FLAGS "-march=x86-64")
-
 project(graft_server)
+
+set(COMMON_FLAGS "-march=x86-64")
+#CMAKE_CXX_COMPILER_ID is defined after 'project' statement
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU") # using GCC
+#    set(COMMON_FLAGS "${COMMON_FLAGS} -Werror=return-type -Wall -Wno-reorder -Wno-sign-compare -Wno-unused-function")
+    set(COMMON_FLAGS "${COMMON_FLAGS} -Wreturn-type")
+endif()
+set(CMAKE_C_FLAGS "${COMMON_FLAGS}")
+set(CMAKE_CXX_FLAGS "${COMMON_FLAGS}")
 
 option(OPT_BUILD_TESTS "Build tests." OFF)
 option(ENABLE_SYSLOG "SYSLOG support. It can be compiled for UNIX-like platforms only." OFF)
 option(STATIC_LINK "Link executables and libraries statically" ON)
+option(UDHT_INFO "Include UDHT debug information." OFF)
 
 if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
     # CMAKE_ROOT_SOURCE_DIR variable is required, because CMAKE_SOURCE_DIR works well for include like commands and does not for external projects
@@ -89,12 +96,15 @@ ExternalProject_Add(
     STAMP_DIR ${PROJECT_BINARY_DIR}/STAMP/cryptonode
     TMP_DIR ${PROJECT_BINARY_DIR}/TMP/cryptonode
     INSTALL_DIR ${PROJECT_BINARY_DIR}/BUILD
-    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DARCH=x86-64 -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
+    CMAKE_ARGS ${ExternalProjectCMakeArgs} -DSTATIC=ON -DARCH=x86-64 -DUDHT_INFO=${UDHT_INFO} -DHAVE_EVP_MD_CTX_NEW=YES -DENABLE_SYSLOG=${ENABLE_SYSLOG} -DCMAKE_ROOT_SOURCE_DIR="\"${CMAKE_ROOT_SOURCE_DIR}\""
     )
 
 set(CMAKE_CXX_STANDARD 17)
 
 add_definitions(-DGN_ENABLE_EVENTFD=1 -DMG_USE_READ_WRITE)
+if(UDHT_INFO)
+    add_definitions(-DUDHT_INFO)
+endif(UDHT_INFO)
 
 if(STATIC_LINK)
     set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
@@ -209,13 +219,15 @@ set_target_properties(graftlet_lib PROPERTIES
     )
 
 set(GRAFTLETS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/graftlets)
-add_subdirectory(graftlets ${PROJECT_BINARY_DIR}/BUILD/graftlets)
+add_subdirectory(graftlets/wallet_address ${PROJECT_BINARY_DIR}/BUILD/graftlets/wallet_address)
+add_subdirectory(graftlets/rta ${PROJECT_BINARY_DIR}/BUILD/graftlets/rta)
 
 ### graft library
 add_library(graft STATIC
     ${PROJECT_SOURCE_DIR}/src/lib/graft/common/utils.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/backtrace.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/blacklist.cpp
+    ${PROJECT_SOURCE_DIR}/src/lib/graft/ConfigIni.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/connection.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/context.cpp
     ${PROJECT_SOURCE_DIR}/src/lib/graft/inout.cpp
@@ -314,13 +326,13 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_pay.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_sale.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_details.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_raw_tx.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_stakes.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/blockchain_based_list.cpp
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/redirect.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/supernode.cpp
@@ -419,6 +431,8 @@ if (OPT_BUILD_TESTS)
             )
 
         add_executable(supernode_test
+            ${PROJECT_SOURCE_DIR}/test/configini_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/expiring_set_test.cpp
             ${PROJECT_SOURCE_DIR}/test/upstream_test.cpp
             ${PROJECT_SOURCE_DIR}/test/blacklist_test.cpp
             ${PROJECT_SOURCE_DIR}/test/graft_server_test.cpp
@@ -454,22 +468,13 @@ if (OPT_BUILD_TESTS)
             target_compile_definitions(supernode_test PRIVATE -DELPP_SYSLOG)
         endif()
 
-        if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
-            add_custom_command(
-                TARGET supernode_test POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_SOURCE_DIR}/data/test_wallet.keys
-                ${CMAKE_CURRENT_BINARY_DIR}/test_wallet.keys)
-        endif()
-
 endif (OPT_BUILD_TESTS)
 
-# copy config file to build directory
-if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)
-    add_custom_command(
-        TARGET supernode POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/data/*
-        ${CMAKE_CURRENT_BINARY_DIR}/)
-endif()
-
+# copy data/* to build directory if config.ini absent
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/config.ini
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/data/* ${CMAKE_CURRENT_BINARY_DIR}/
+    DEPENDS "${CMAKE_SOURCE_DIR}/data/config.ini"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Copy ${CMAKE_SOURCE_DIR}/data/ to ${CMAKE_CURRENT_BINARY_DIR}/"
+)
+add_custom_target(copy_data ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/config.ini)

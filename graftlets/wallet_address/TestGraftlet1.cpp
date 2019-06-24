@@ -6,12 +6,12 @@
 #include<cassert>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "graftlet.TestGraftlet"
+#define MONERO_DEFAULT_LOG_CATEGORY "graftlet.TestGraftlet1"
 
-class TestGraftlet: public IGraftlet
+class TestGraftlet1: public IGraftlet
 {
 public:
-    TestGraftlet(const char* name) : IGraftlet(name) { }
+    TestGraftlet1(const char* name) : IGraftlet(name) { }
 
     void testUndefined();
 
@@ -56,24 +56,25 @@ public:
         return graft::Status::Ok;
     }
 
-    virtual void initOnce(const graft::CommonOpts& opts) override
+    virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) override
     {
-//        REGISTER_ACTION(TestGraftlet, testUndefined);
-        REGISTER_ACTION(TestGraftlet, testInt1);
-        REGISTER_ACTION(TestGraftlet, testInt2);
-        REGISTER_ACTION(TestGraftlet, testString1);
-        REGISTER_ACTION(TestGraftlet, testString2);
+//        REGISTER_ACTION(TestGraftlet1, testUndefined);
+        REGISTER_ACTION(TestGraftlet1, testInt1);
+        REGISTER_ACTION(TestGraftlet1, testInt2);
+        REGISTER_ACTION(TestGraftlet1, testString1);
+        REGISTER_ACTION(TestGraftlet1, testString2);
 
-        REGISTER_ENDPOINT("/URI/test/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler);
-        REGISTER_ENDPOINT("/URI/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet, testHandler1);
+        REGISTER_ENDPOINT("/URI1/test/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet1, testHandler);
+        REGISTER_ENDPOINT("/URI1/test1/{id:[0-9]+}", METHOD_GET | METHOD_POST, TestGraftlet1, testHandler1);
     }
 };
 
-GRAFTLET_EXPORTS_BEGIN("myGraftlet", GRAFTLET_MKVER(1,1));
-GRAFTLET_PLUGIN(TestGraftlet, IGraftlet, "testGL");
+GRAFTLET_EXPORTS_BEGIN("myGraftlet1", GRAFTLET_MKVER(4,2));
+GRAFTLET_PLUGIN(TestGraftlet1, IGraftlet, "testGL1");
 GRAFTLET_EXPORTS_END
 
-GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(0,3))
+GRAFTLET_PLUGIN_DEFAULT_CHECK_FW_VERSION(GRAFTLET_MKVER(1,0))
+GRAFTLET_PLUGIN_DEPENDENCIES("myGraftlet")
 
 namespace
 {
@@ -93,5 +94,4 @@ struct Informer
 Informer informer;
 
 } //namespace
-
 
