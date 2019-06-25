@@ -170,13 +170,15 @@ if(STATIC_LINK)
         libssl.a
         libcrypto.a
         libreadline.a
+	pthread.a
         )
 else(STATIC_LINK)
     set(COMMON_LIBS
         ssl
         crypto
         readline
-        )
+	pthread
+	)
 endif(STATIC_LINK)
 
 if(STATIC_LINK)
