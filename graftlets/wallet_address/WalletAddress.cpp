@@ -34,10 +34,10 @@
 #include "supernode/requestdefines.h"
 #include "lib/graft/graft_exception.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
-#include "cryptonote_protocol/blobdatatype.h"
+#include "cryptonote_basic/blobdatatype.h"
 #include "file_io_utils.h"
-
-#include<cassert>
+#include <string_tools.h>
+#include <cassert>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "graftlet.WalletAddress"
@@ -67,6 +67,7 @@ public:
 private:
     graft::Status getWalletAddressHandler(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
     void makeGetWalletAddressResponse(const graft::CommonOpts& opts);
+    // TODO: fix to return bool; check via exception doesn't looks good
     void checkWalletPublicAddress(const graft::CommonOpts& opts);
     void prepareIdKeys(const graft::CommonOpts& opts, crypto::public_key& W, crypto::secret_key& w);
     bool verifySignature();
@@ -153,8 +154,9 @@ bool WalletAddress::verifySignature()
  */
 void WalletAddress::checkWalletPublicAddress(const graft::CommonOpts& opts)
 {
-    cryptonote::account_public_address acc = AUTO_VAL_INIT(acc);
-    if(!cryptonote::get_account_address_from_str(acc, opts.testnet, opts.wallet_public_address))
+    cryptonote::address_parse_info addr_parse_info;
+    cryptonote::network_type net_type = opts.testnet ? cryptonote::TESTNET : cryptonote::MAINNET;
+    if(!cryptonote::get_account_address_from_str(addr_parse_info, net_type, opts.wallet_public_address))
     {
         std::ostringstream oss;
         oss << "invalid wallet-public-address '" << opts.wallet_public_address << "'";

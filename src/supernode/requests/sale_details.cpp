@@ -7,7 +7,11 @@
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
 #include "lib/graft/common/utils.h"
+#include "supernode/requests/request_builder.h"
 
+#include <string>
+
+using namespace std;
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.saledetailsrequest"
@@ -366,17 +370,10 @@ Status handleSaleDetailsUnicastRequest(const Router::vars_t& vars, const graft::
             LOG_ERROR("Error preparing sale details response for payment: " << sdr.PaymentID);
             return sendOkResponseToCryptonode(output); // cryptonode doesn't care about any errors, it's job is only deliver request
         } else {
-            UnicastRequestJsonRpc callbackReq;
             Output innerOut;
             innerOut.loadT<serializer::JSON_B64>(resp);
-
-            callbackReq.params.data = innerOut.data();
-            callbackReq.params.callback_uri = sdr.callback_uri;
-            callbackReq.params.sender_address = supernode->idKeyAsString();
-            callbackReq.params.receiver_address = unicastReq.sender_address;
-            callbackReq.method = "unicast";
-            output.load(callbackReq);
-            output.path = "/json_rpc/rta";
+            UnicastRequestJsonRpc callbackReq;
+            buildOutput(output, callbackReq, supernode, innerOut.data(), sdr.callback_uri, unicastReq.sender_address, "/json_rpc/rta");
             MDEBUG("unicasting sale details callback, remote URI: " << sdr.callback_uri
                    << ", remote addr: " << unicastReq.sender_address
                    << ", payment: " << sdr.PaymentID);
