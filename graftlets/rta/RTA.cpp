@@ -41,6 +41,8 @@
 #include <rta/fullsupernodelist.h>
 #include <lib/graft/ConfigIni.h>
 
+#include <boost/filesystem.hpp>
+
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "graftlet.WalletAddress"
