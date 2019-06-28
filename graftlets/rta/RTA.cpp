@@ -62,7 +62,8 @@ protected:
         prepareSupernode(opts, ctx);
         REGISTER_ENDPOINT("/dapi/v2.0/test", METHOD_GET, RtaGraftlet, test);
         REGISTER_ENDPOINT("/dapi/v2.0/presale", METHOD_POST, RtaGraftlet, handlePresaleRequest);
-
+        REGISTER_ENDPOINT("/dapi/v2.0/sale", METHOD_POST, RtaGraftlet, handleSaleRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/pay", METHOD_POST, RtaGraftlet, handlePayRequest);
     }
 private:
 
