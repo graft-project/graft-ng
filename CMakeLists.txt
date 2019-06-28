@@ -323,7 +323,6 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/get_info.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/pay.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/pay_status.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_pay.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_sale.cpp

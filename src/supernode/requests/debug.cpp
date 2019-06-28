@@ -4,7 +4,6 @@
 #include "supernode/requests/broadcast.h"
 #include "supernode/requests/multicast.h"
 #include "supernode/requests/send_supernode_announce.h"
-#include "supernode/requests/pay.h"
 #include "supernode/requestdefines.h"
 #include "lib/graft/requesttools.h"
 #include "rta/supernode.h"
@@ -74,7 +73,7 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
                 if (supernode_public_id == entry.supernode_public_id)
                     return true;
         }
-       
+
         return false;
     };
 
@@ -250,7 +249,7 @@ Status getBlockchainBasedListImpl(const Router::vars_t& vars, const graft::Input
             dst_tier.emplace_back(std::move(dst_sn));
         }
 
-        resp.result.Items.emplace_back(std::move(dst_tier));        
+        resp.result.Items.emplace_back(std::move(dst_tier));
     }
 
     output.load(resp);
