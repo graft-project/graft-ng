@@ -33,7 +33,7 @@
 #include <boost/algorithm/string/join.hpp>
 
 
-namespace graft::supernode::request {
+namespace graft::supernode::request::utils {
 
 void getRequestHash(const BroadcastRequest &req, crypto::hash &hash)
 {
