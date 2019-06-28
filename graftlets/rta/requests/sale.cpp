@@ -40,7 +40,13 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         return errorInvalidPaymentID(output);
     }
 
+    if (req.paymentData.AuthSampleKeys.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
+        return errorCustomError(MESSAGE_RTA_INVALID_AUTH_SAMLE, ERROR_INVALID_PARAMS, output);
+    }
 
+    if (req.paymentData.EncryptedPayment.empty()) {
+        return errorInvalidParams(output);
+    }
 
     // here we need to perform two actions:
     // 1. multicast sale over auth sample

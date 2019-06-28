@@ -12,7 +12,7 @@
 #define ERROR_RTA_FAILED                    -32071
 #define ERROR_RTA_SIGNATURE_FAILED          -32080
 #define ERROR_TRANSACTION_INVALID           -32090
-#define ERROR_INVALID_SIGNATURE		    -32100
+#define ERROR_INVALID_SIGNATURE             -32100
 
 static const std::string MESSAGE_AMOUNT_INVALID("Amount is invalid.");
 static const std::string MESSAGE_PAYMENT_ID_INVALID("Payment ID is invalid.");
@@ -23,6 +23,7 @@ static const std::string MESSAGE_ADDRESS_INVALID("Address in invalid.");
 static const std::string MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE("Can't build auth sample.");
 static const std::string MESSAGE_INVALID_TRANSACTION("Can't parse transaction");
 static const std::string MESSAGE_INVALID_SIGNATURE("Signature check failed.");
+static const std::string MESSAGE_RTA_INVALID_AUTH_SAMLE("Invalid auth sample");
 
 //Context Keys
 static const std::string CONTEXT_KEY_PAYMENT_DATA(":paymentdata"); // key to get/store encrypted payment data + keys
