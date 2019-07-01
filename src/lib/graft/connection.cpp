@@ -686,6 +686,12 @@ void ConnectionManager::respond(ClientTask* ct, const std::string& s)
         default:                      assert(false);                                      break;
     }
 
+    //override resp_code if it is set
+    if(ct->getOutput().resp_code != 0)
+    {
+        code = ct->getOutput().resp_code;
+    }
+
     auto& client = ct->m_client;
     LOG_PRINT_CLN(2, client, "Reply to client: " << s);
     if(Status::Ok == ctx.local.getLastStatus())
