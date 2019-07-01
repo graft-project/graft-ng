@@ -73,7 +73,7 @@ namespace graft
         std::string method;
         std::string uri;
         std::string proto;
-        int resp_code;
+        int resp_code = 0;
         std::string resp_status_msg;
         std::string query_string;
         //Both headers and extra_headers deal with HTTP headers.
