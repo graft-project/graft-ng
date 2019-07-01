@@ -40,9 +40,10 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         return errorInvalidPaymentID(output);
     }
 
-    if (req.paymentData.AuthSampleKeys.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
-        return errorCustomError(MESSAGE_RTA_INVALID_AUTH_SAMLE, ERROR_INVALID_PARAMS, output);
-    }
+//   looks like AuthSampleKeys will not be used as keys are already embedded into encrypted message blob. Handled internally by graft::crypto_tools::encryptMessage
+//    if (req.paymentData.AuthSampleKeys.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
+//        return errorCustomError(MESSAGE_RTA_INVALID_AUTH_SAMLE, ERROR_INVALID_PARAMS, output);
+//    }
 
     if (req.paymentData.EncryptedPayment.empty()) {
         return errorInvalidParams(output);
