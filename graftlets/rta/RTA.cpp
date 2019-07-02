@@ -64,6 +64,8 @@ protected:
         REGISTER_ENDPOINT("/dapi/v2.0/presale", METHOD_POST, RtaGraftlet, handlePresaleRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/sale", METHOD_POST, RtaGraftlet, handleSaleRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/pay", METHOD_POST, RtaGraftlet, handlePayRequest);
+        // TODO: fix cryptonode logic, it prepends "/dapi/v2.0/" to any "callback_uri"
+        REGISTER_ENDPOINT("/dapi/v2.0/core/store_payment_data", METHOD_POST, RtaGraftlet, handleStorePaymentDataRequest);
     }
 private:
 
@@ -101,7 +103,7 @@ private:
                 throw std::runtime_error("Failed to save keys");
             }
         }
-
+        // TODO: why path is needed here? it's not a part of the "network address" (which is normally hostname:port)
         supernode->setNetworkAddress(supernode_http_address + "/dapi/v2.0");
 
         // create fullsupernode list instance and put it into global context

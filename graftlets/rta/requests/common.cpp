@@ -37,7 +37,11 @@ namespace graft::supernode::request::utils {
 
 void getRequestHash(const BroadcastRequest &req, crypto::hash &hash)
 {
-    std::string msg = boost::algorithm::join(req.receiver_addresses, "") + req.sender_address + req.callback_uri
+    // TODO: forward slashes in callback_uri are escaped as \/ so signature wont match while processing it;
+    // either a) escape on the sender side or b) unescape on receiver side or c) exclude it from hash
+    // (quick-and-dirty, picking "c" for now)
+
+    std::string msg = /*boost::algorithm::join(req.receiver_addresses, "") +*/ req.sender_address /*+ req.callback_uri*/
             + req.data;
     hash = crypto::cn_fast_hash(msg.data(), msg.length());
 }
@@ -45,11 +49,15 @@ void getRequestHash(const BroadcastRequest &req, crypto::hash &hash)
 
 bool signBroadcastMessage(BroadcastRequest &request, const SupernodePtr &supernode)
 {
+
     crypto::hash hash;
     getRequestHash(request, hash);
+
+    MDEBUG("Signing hash: " << hash << " with id: " << request.sender_address << "(" << supernode->idKeyAsString() << ")" );
     crypto::signature sign;
     bool result = supernode->signHash(hash, sign);
     request.signature = epee::string_tools::pod_to_hex(sign);
+
     return result;
 }
 
@@ -58,8 +66,10 @@ bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &public
 {
     crypto::hash hash;
     getRequestHash(request, hash);
+
+    MDEBUG("Verifying hash: " << hash << " with id: " << request.sender_address << "(" << publicId << ")" );
     crypto::signature sign;
-    if (epee::string_tools::hex_to_pod(request.signature, sign)) {
+    if (!epee::string_tools::hex_to_pod(request.signature, sign)) {
         LOG_ERROR("Failed to deserialize signature from: " << request.signature);
         return false;
     }
