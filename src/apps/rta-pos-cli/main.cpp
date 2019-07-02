@@ -257,6 +257,7 @@ int main(int argc, char* argv[])
     // 3.2 encrypt it using one-to-many scheme
     graft::Output out; out.load(payment_info);
     std::vector<crypto::public_key> auth_sample_pubkeys;
+
     for (const auto &key_str : presale_resp.AuthSample) {
         crypto::public_key pkey;
         if (!epee::string_tools::hex_to_pod(key_str, pkey)) {
@@ -264,16 +265,18 @@ int main(int argc, char* argv[])
             return 1;
         }
         auth_sample_pubkeys.push_back(pkey);
+        graft::supernode::request::EncryptedNodeKey item;
+        item.Id = key_str;
+        sale_req.paymentData.AuthSampleKeys.push_back(item);
     }
     std::string encrypted_payment_blob;
-
-
 
     graft::crypto_tools::encryptMessage(out.data(), auth_sample_pubkeys, encrypted_payment_blob);
     // 3.3. Set pos proxy addess and wallet in sale request
     sale_req.paymentData.PosProxy = presale_resp.PosProxy;
     sale_req.paymentData.EncryptedPayment = epee::string_tools::buff_to_hex_nodelimer(encrypted_payment_blob);
     sale_req.PaymentID = payment_id;
+
     // 3.4. call "/sale"
     std::string dummy;
     r = invoke_http_rest("/dapi/v2.0/sale", sale_req, dummy, err_resp, http_client, http_status, rpc_timeout, "POST");
@@ -281,6 +284,9 @@ int main(int argc, char* argv[])
         MERROR("Failed to invoke sale: " << as_json_str(err_resp));
         return 1;
     }
+
+    MDEBUG("/sale response status: " << http_status);
+
     // 4. poll for status change
     // TODO
 

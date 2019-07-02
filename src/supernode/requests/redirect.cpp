@@ -668,7 +668,7 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
         });
 
 #endif //UDHT_INFO
-
+        // TODO: hardcoded path?
         output.path = "dapi/v2.0" + req.params.request.callback_uri;
 
         MDEBUG("Redirect broadcast for supernode id '") << req.params.receiver_id << "' uri:'"

@@ -37,6 +37,8 @@
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include "supernode/requests/broadcast.h"
+#include "utils/cryptmsg.h" // one-to-many message cryptography
+
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.storepaymentdatarequest"
@@ -53,10 +55,14 @@ namespace graft::supernode::request {
 Status storePaymentDataRequest(const Router::vars_t& vars, const graft::Input& input,
                              graft::Context& ctx, graft::Output& output)
 {
-    BroadcastRequest req;
-    if (!input.get(req)) {
+    BroadcastRequestJsonRpc reqjrpc;
+    if (!input.get(reqjrpc)) {
         return errorInvalidParams(output);
     }
+
+    // JSON-RPC envelop, we need to extract actual request;
+
+    BroadcastRequest &req = reqjrpc.params;
 
     if (!utils::verifyBroadcastMessage(req, req.sender_address)) {
         return errorInvalidSignature(output);
@@ -72,14 +78,41 @@ Status storePaymentDataRequest(const Router::vars_t& vars, const graft::Input& i
     }
 
     const std::string &payment_id = saleRequest.PaymentID;
-    MDEBUG("sale request received from multicast for payment id: " << payment_id);
+    MDEBUG("payment data received from multicast for payment id: " << payment_id);
 
-    if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_PAYMENT_DATA)) {
-        // TODO: clenup after payment done;
-        ctx.global.set(payment_id + CONTEXT_KEY_PAYMENT_DATA, saleRequest.paymentData, SALE_TTL);
-    } else {
-        MWARNING("payment " << payment_id << " already known");
-    }
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr(nullptr));
+
+    // check if it addressed to me; decrypt; store if both successful
+    do {
+        if (req.receiver_addresses.empty()
+                || std::find(req.receiver_addresses.begin(),
+                             req.receiver_addresses.end(), supernode->idKeyAsString()) != req.receiver_addresses.end()) {
+
+            std::string decryptedPaymentBlob, encryptedPaymentBlob;
+
+            if (!epee::string_tools::parse_hexstr_to_binbuff(saleRequest.paymentData.EncryptedPayment, encryptedPaymentBlob)) {
+                MERROR("Failed to parse encrypted payment for payment id: " << payment_id);
+                break;
+            }
+
+            if (!graft::crypto_tools::decryptMessage(encryptedPaymentBlob, supernode->secretKey(), decryptedPaymentBlob)) {
+                MERROR("Failed to decrypt payment data for payment id: " << payment_id);
+                break;
+            }
+
+            MDEBUG("decrypted payment : " << decryptedPaymentBlob);
+            Input in; in.load(decryptedPaymentBlob);
+            PaymentInfo pi;
+            in.get(pi);
+
+            if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_PAYMENT_DATA)) {
+                // TODO: clenup after payment done;
+                ctx.global.set(payment_id + CONTEXT_KEY_PAYMENT_DATA, pi, SALE_TTL);
+            } else {
+                MWARNING("payment " << payment_id << " already known");
+            }
+        }
+    } while (false);
 
     BroadcastResponseToCryptonodeJsonRpc resp;
     resp.result.status = "OK";

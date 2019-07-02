@@ -27,6 +27,7 @@ enum class SaleHandlerState : int
     SaleMulticastReply
 };
 
+
 Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
     SaleRequest req;
@@ -40,10 +41,10 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         return errorInvalidPaymentID(output);
     }
 
-//   looks like AuthSampleKeys will not be used as keys are already embedded into encrypted message blob. Handled internally by graft::crypto_tools::encryptMessage
-//    if (req.paymentData.AuthSampleKeys.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
-//        return errorCustomError(MESSAGE_RTA_INVALID_AUTH_SAMLE, ERROR_INVALID_PARAMS, output);
-//    }
+    // looks like AuthSampleKeys will not be used as keys are already embedded into encrypted message blob. Handled internally by graft::crypto_tools::encryptMessage
+    if (req.paymentData.AuthSampleKeys.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
+        return errorCustomError(MESSAGE_RTA_INVALID_AUTH_SAMLE, ERROR_INVALID_PARAMS, output);
+    }
 
     if (req.paymentData.EncryptedPayment.empty()) {
         return errorInvalidParams(output);
@@ -58,16 +59,20 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
+
+
     Output innerOut;
     innerOut.loadT<serializer::JSON_B64>(req);
     BroadcastRequest bcast;
-    bcast.callback_uri = "/core/set_payment_data";
+    bcast.callback_uri = "/core/store_payment_data";
     bcast.sender_address = supernode->idKeyAsString();
     bcast.data = innerOut.data();
 
+#if 0 // broadcast to all while development/debugging // TODO: enable this code
     for (const auto & item : req.paymentData.AuthSampleKeys) {
         bcast.receiver_addresses.push_back(item.Id);
     }
+#endif
     if (!utils::signBroadcastMessage(bcast, supernode)) {
         return errorInternalError("Failed to sign broadcast message", output);
     }
@@ -94,7 +99,7 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
     if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
         return errorCustomError("Error multicasting request", ERROR_INTERNAL_ERROR, output);
     }
-
+    output.reset();
     output.resp_code = 202;
     return Status::Ok;
 }
