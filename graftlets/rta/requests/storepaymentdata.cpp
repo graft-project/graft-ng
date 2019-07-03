@@ -101,13 +101,10 @@ Status storePaymentDataRequest(const Router::vars_t& vars, const graft::Input& i
             }
 
             MDEBUG("decrypted payment : " << decryptedPaymentBlob);
-            Input in; in.load(decryptedPaymentBlob);
-            PaymentInfo pi;
-            in.get(pi);
 
             if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_PAYMENT_DATA)) {
                 // TODO: clenup after payment done;
-                ctx.global.set(payment_id + CONTEXT_KEY_PAYMENT_DATA, pi, SALE_TTL);
+                ctx.global.set(payment_id + CONTEXT_KEY_PAYMENT_DATA, saleRequest.paymentData, SALE_TTL);
             } else {
                 MWARNING("payment " << payment_id << " already known");
             }
