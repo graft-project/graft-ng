@@ -37,6 +37,8 @@
 #include "rta/requests/common.h" //
 #include "supernode/requestdefines.h"
 #include "utils/cryptmsg.h" // one-to-many message cryptography
+#include "lib/graft/serialize.h"
+
 
 #include <net/http_client.h>
 #include <storages/http_abstract_invoke.h>
@@ -58,9 +60,21 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "rta-pos-cli"
 
+using namespace graft::supernode::request;
+
+GRAFT_DEFINE_IO_STRUCT_INITED(WalletDataQrCode,
+                              (NodeAddress, posAddress, NodeAddress()), //
+                              (uint64_t, blockNumber, 0),
+                              (std::string, blockHash, std::string()),
+                              (std::string, paymentId, std::string()),
+                              (std::string, key, std::string()) // key so wallet can decrypt the Payment Data
+                              );
 
 namespace
 {
+
+    static const std::string POS_WALLET_ADDRESS = "F8LHnvFd4EUM9dmoKPoBWiT6BoHbywXxjEwLiidRseH72cejWqy9frB2nxN1soKXUWJhAiZSgaJsfWaeLeTRdoN18RpRVsb";
+
     std::string generate_payment_id(const crypto::public_key &pubkey)
     {
         boost::uuids::basic_random_generator<boost::mt19937> gen;
@@ -141,6 +155,131 @@ using namespace graft::supernode;
 
 //=======================================================
 
+class PoS
+{
+public:
+    PoS(const std::string &qrcode_file, const std::string &supernode_address, const std::string &sale_items_file,
+        uint64_t sale_timeout, const std::string &wallet_address)
+        : m_qrcode_file(qrcode_file)
+        , m_sale_items_file(sale_items_file)
+        , m_sale_timeout(std::chrono::milliseconds(sale_timeout))
+        , m_wallet_address(wallet_address)
+
+    {
+        boost::optional<epee::net_utils::http::login> login{};
+        m_http_client.set_server(supernode_address, login);
+    }
+
+    bool presale()
+    {
+        crypto::generate_keys(m_pub_key, m_secret_key);
+        m_payment_id = generate_payment_id(m_pub_key);
+        request::PresaleRequest presale_req;
+        presale_req.PaymentID = m_payment_id;
+        ErrorResponse err_resp;
+        int http_status = 0;
+
+        bool r = invoke_http_rest("/dapi/v2.0/presale", presale_req, m_presale_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
+        if (!r) {
+            MERROR("Failed to invoke presale: " << as_json_str(err_resp));
+        } else {
+            MDEBUG("response: " << as_json_str(m_presale_resp));
+
+        }
+        return r;
+    }
+
+    bool sale(uint64_t amount)
+    {
+        request::SaleRequest sale_req;
+        request::PaymentInfo payment_info;
+        payment_info.Details = SALE_ITEMS;
+        payment_info.Amount = amount;
+        // 3.2 encrypt it using one-to-many scheme
+        graft::Output out; out.load(payment_info);
+        std::vector<crypto::public_key> auth_sample_pubkeys;
+
+        for (const auto &key_str : m_presale_resp.AuthSample) {
+            crypto::public_key pkey;
+            if (!epee::string_tools::hex_to_pod(key_str, pkey)) {
+                MERROR("Failed to parse public key from : " << key_str);
+                return 1;
+            }
+            auth_sample_pubkeys.push_back(pkey);
+            graft::supernode::request::EncryptedNodeKey item;
+            item.Id = key_str;
+            sale_req.paymentData.AuthSampleKeys.push_back(item);
+        }
+
+        // extra keypair for a wallet, instead of passing session key
+        crypto::public_key wallet_pub_key;
+        crypto::generate_keys(wallet_pub_key, m_wallet_secret_key);
+        auth_sample_pubkeys.push_back(wallet_pub_key);
+
+        std::string encrypted_payment_blob;
+
+        graft::crypto_tools::encryptMessage(out.data(), auth_sample_pubkeys, encrypted_payment_blob);
+        // 3.3. Set pos proxy addess and wallet in sale request
+        sale_req.paymentData.PosProxy = m_presale_resp.PosProxy;
+        sale_req.paymentData.EncryptedPayment = epee::string_tools::buff_to_hex_nodelimer(encrypted_payment_blob);
+        sale_req.PaymentID = m_payment_id;
+
+        // 3.4. call "/sale"
+        std::string dummy;
+        int http_status = 0;
+        ErrorResponse err_resp;
+
+        bool r = invoke_http_rest("/dapi/v2.0/sale", sale_req, dummy, err_resp, m_http_client, http_status, m_network_timeout, "POST");
+        if (!r) {
+            MERROR("Failed to invoke sale: " << as_json_str(err_resp));
+
+        }
+
+        MDEBUG("/sale response status: " << http_status);
+        return r;
+    }
+
+    bool saveQrCodeFile()
+    {
+        WalletDataQrCode qrCode;
+        qrCode.blockHash = m_presale_resp.BlockHash;
+        qrCode.blockNumber = m_presale_resp.BlockNumber;
+        qrCode.key = epee::string_tools::pod_to_hex(m_wallet_secret_key);
+        qrCode.posAddress.Id = epee::string_tools::pod_to_hex(m_pub_key);
+        qrCode.posAddress.WalletAddress = m_wallet_address;
+        qrCode.paymentId = paymentId();
+
+        bool r = epee::file_io_utils::save_string_to_file(m_qrcode_file, as_json_str(qrCode));
+        if (!r) {
+            MERROR("Failed to write qrcode file");
+
+        }
+        return r;
+    }
+
+    const std::string & paymentId() const
+    {
+        return m_payment_id;
+    }
+
+
+
+
+private:
+    std::string m_qrcode_file;
+
+    std::string m_sale_items_file;
+    std::chrono::microseconds m_sale_timeout = std::chrono::milliseconds(5000);
+    crypto::public_key m_pub_key;
+    crypto::secret_key m_secret_key, m_wallet_secret_key;
+    epee::net_utils::http::http_simple_client m_http_client;
+    std::chrono::seconds m_network_timeout = std::chrono::seconds(10);
+    std::string m_wallet_address;
+    std::string m_payment_id;
+    PresaleResponse m_presale_resp;
+};
+
+
 
 
 int main(int argc, char* argv[])
@@ -154,19 +293,14 @@ int main(int argc, char* argv[])
     tools::on_startup();
 
     po::options_description desc_cmd("Command line options");
-    //  desc_cmd.add_options()
-    //       ("help,h", "Help screen")
-    //       ("qrcode-file", po::value<string>()->default_value("wallet-qr-code.json"), "Specify file where to write qr-code")
-    //       ("age", po::value<int>()->notifier(on_age), "Age");
-
-
 
     const command_line::arg_descriptor<std::string> arg_input_file = {"qrcode-file", "Specify file where to write qr-code", "wallet-qr-code.json", false};
     const command_line::arg_descriptor<std::string> arg_log_level   = {"log-level",  "0-4 or categories", "", false};
     const command_line::arg_descriptor<std::string> arg_amount  = {"amount", "Sale amount", "12.345", false};
     const command_line::arg_descriptor<std::string> arg_sale_items_file  = {"sale-items-file", "File where to read sale items", "sale-items.json", false};
-    const command_line::arg_descriptor<size_t>        arg_sale_timeout  = {"sale-timeout", "Sale timeout in millis", 5000, false};
-    const command_line::arg_descriptor<std::string>     arg_supernode_address = {  "supernode-address", "Supernode address", "localhost:28900", false };
+    const command_line::arg_descriptor<size_t>      arg_sale_timeout  = {"sale-timeout", "Sale timeout in millis", 5000, false};
+    const command_line::arg_descriptor<std::string> arg_supernode_address = { "supernode-address", "Supernode address", "localhost:28900", false };
+    const command_line::arg_descriptor<std::string> arg_pos_wallet_address = { "wallet-address", "POS Wallet address", POS_WALLET_ADDRESS, false };
 
 
     command_line::add_arg(desc_cmd, arg_input_file);
@@ -176,6 +310,7 @@ int main(int argc, char* argv[])
     command_line::add_arg(desc_cmd, arg_sale_items_file);
     command_line::add_arg(desc_cmd, arg_sale_timeout);
     command_line::add_arg(desc_cmd, arg_supernode_address);
+    command_line::add_arg(desc_cmd, arg_pos_wallet_address);
     command_line::add_arg(desc_cmd, command_line::arg_help);
 
     po::options_description desc_options("Allowed options");
@@ -212,9 +347,10 @@ int main(int argc, char* argv[])
     std::cout << "qrcode-file: " << command_line::get_arg(vm, arg_input_file) << std::endl;
     std::cout << "log-level: "   << command_line::get_arg(vm, arg_log_level) << std::endl;
     std::cout << "amount: "      << command_line::get_arg(vm, arg_amount) << std::endl;
-    std::cout << "sale-items-file: "   << command_line::get_arg(vm, arg_sale_items_file) << std::endl;
-    std::cout << "sale-itimeout: "     << command_line::get_arg(vm, arg_sale_timeout) << std::endl;
-    std::cout << "supernode-address: " << command_line::get_arg(vm, arg_supernode_address) << std::endl;
+    std::cout << "sale-items-file: "    << command_line::get_arg(vm, arg_sale_items_file) << std::endl;
+    std::cout << "sale-itimeout: "      << command_line::get_arg(vm, arg_sale_timeout) << std::endl;
+    std::cout << "supernode-address: "  << command_line::get_arg(vm, arg_supernode_address) << std::endl;
+    std::cout << "pos-wallet-address: " << command_line::get_arg(vm, arg_pos_wallet_address) << std::endl;
 
     uint64_t amount = 0;
     std::string amount_str = command_line::get_arg(vm, arg_amount);
@@ -223,72 +359,26 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // 1. generate one-time keypair and payment id base;
-    crypto::public_key pub_key;
-    crypto::secret_key secret_key;
-    crypto::generate_keys(pub_key, secret_key);
-    std::string payment_id = generate_payment_id(pub_key);
+    PoS pos(command_line::get_arg(vm, arg_input_file),
+            command_line::get_arg(vm, arg_supernode_address),
+            command_line::get_arg(vm, arg_sale_items_file),
+            command_line::get_arg(vm, arg_sale_timeout),
+            command_line::get_arg(vm, arg_pos_wallet_address)
+            );
 
-    // 2. call presale, process response
-    epee::net_utils::http::http_simple_client http_client;
-    boost::optional<epee::net_utils::http::login> login{};
-    http_client.set_server(command_line::get_arg(vm, arg_supernode_address), login);
-    std::chrono::seconds rpc_timeout = std::chrono::seconds(10);
-    request::PresaleRequest presale_req;
-    presale_req.PaymentID = payment_id;
-    request::PresaleResponse presale_resp;
-    ErrorResponse err_resp;
-    int http_status = 0;
-
-    r = invoke_http_rest("/dapi/v2.0/presale", presale_req, presale_resp, err_resp, http_client, http_status, rpc_timeout, "POST");
-    if (!r) {
-        MERROR("Failed to invoke presale: " << as_json_str(err_resp));
-        return 1;
+    if (!pos.presale()) {
+        return EXIT_FAILURE;
     }
 
-    MDEBUG("response: " << as_json_str(presale_resp));
-
-    // 3. call sale
-    // 3.1. build pay/sale info with amount
-    request::SaleRequest sale_req;
-    request::PaymentInfo payment_info;
-    payment_info.Details = SALE_ITEMS;
-    payment_info.Amount = amount;
-    // 3.2 encrypt it using one-to-many scheme
-    graft::Output out; out.load(payment_info);
-    std::vector<crypto::public_key> auth_sample_pubkeys;
-
-    for (const auto &key_str : presale_resp.AuthSample) {
-        crypto::public_key pkey;
-        if (!epee::string_tools::hex_to_pod(key_str, pkey)) {
-            MERROR("Failed to parse public key from : " << key_str);
-            return 1;
-        }
-        auth_sample_pubkeys.push_back(pkey);
-        graft::supernode::request::EncryptedNodeKey item;
-        item.Id = key_str;
-        sale_req.paymentData.AuthSampleKeys.push_back(item);
-    }
-    std::string encrypted_payment_blob;
-
-    graft::crypto_tools::encryptMessage(out.data(), auth_sample_pubkeys, encrypted_payment_blob);
-    // 3.3. Set pos proxy addess and wallet in sale request
-    sale_req.paymentData.PosProxy = presale_resp.PosProxy;
-    sale_req.paymentData.EncryptedPayment = epee::string_tools::buff_to_hex_nodelimer(encrypted_payment_blob);
-    sale_req.PaymentID = payment_id;
-
-    // 3.4. call "/sale"
-    std::string dummy;
-    r = invoke_http_rest("/dapi/v2.0/sale", sale_req, dummy, err_resp, http_client, http_status, rpc_timeout, "POST");
-    if (!r) {
-        MERROR("Failed to invoke sale: " << as_json_str(err_resp));
-        return 1;
+    if (!pos.sale(amount)) {
+        return EXIT_FAILURE;
     }
 
-    MDEBUG("/sale response status: " << http_status);
+    if (!pos.saveQrCodeFile()) {
+        return EXIT_FAILURE;
+    }
 
-    // 4. poll for status change
-    // TODO
+    // TODO:
 
     return 0;
 
