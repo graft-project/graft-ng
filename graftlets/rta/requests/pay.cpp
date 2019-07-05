@@ -37,6 +37,11 @@
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 
+
+#include <cryptonote_basic/cryptonote_basic.h>
+#include <cryptonote_basic/cryptonote_format_utils.h>
+#include <utils/cryptmsg.h> // one-to-many message cryptography
+
 #include <string>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -52,16 +57,40 @@ enum class PayHandlerState : int
     PayMulticastReply
 };
 
+
+bool decryptTx(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx)
+{
+    // TODO: decrypt transaction from encrypted blob
+    std::string decryptedTxBlob, encryptedTxBlob;
+
+    if (!epee::string_tools::parse_hexstr_to_binbuff(encryptedHex, encryptedTxBlob)) {
+        MERROR("failed to deserialize encrypted tx blob");
+        return false;
+    }
+
+    if (!graft::crypto_tools::decryptMessage(encryptedTxBlob, supernode->secretKey(), decryptedTxBlob)) {
+        MERROR("Failed to decrypt tx");
+        return false;
+    }
+
+    if (!cryptonote::parse_and_validate_tx_from_blob(decryptedTxBlob, tx)) {
+        MERROR("Failed to parse transaction from blob");
+        return false;
+    }
+
+    return true;
+
+}
+
 Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
     PayRequest req;
 
-    if(!input.get(req))
+    if (!input.get(req))
         return errorInvalidParams(output);
 
-    if(req.TxBlob.empty()
-      || req.TxKey.empty()
-      || req.MessageKeys.empty())
+    if (req.TxBlob.empty()
+      || req.TxKey.empty())
         return errorInvalidPaymentID(output);
 
     // we are going to
@@ -69,14 +98,31 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
+    // decrypt transaction
+    cryptonote::transaction tx;
+    if (!decryptTx(req.TxBlob, supernode, tx)) {
+        return errorCustomError("Failed to decrypt tx", ERROR_RTA_FAILED, output);
+    }
+
+    // check if we have rta_header in tx.extra;
+    cryptonote::rta_header rta_hdr;
+    if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
+        return errorCustomError("Failed to get rta_header from tx: " +
+                                epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx)),
+                                ERROR_RTA_FAILED, output);
+    }
+
+    BroadcastRequest bcast;
+    for (const auto &key : rta_hdr.keys) {
+        bcast.receiver_addresses.push_back(epee::string_tools::pod_to_hex(key));
+    }
+
     Output innerOut;
     innerOut.loadT<serializer::JSON_B64>(req);
-    BroadcastRequest bcast;
+
     bcast.sender_address = supernode->idKeyAsString();
     bcast.data = innerOut.data();
-
-    for(const auto& item : req.MessageKeys)
-        bcast.receiver_addresses.push_back(item.Id);
+    bcast.callback_uri = "/dapi/v2.0/core/authorize_rta_tx";
 
     if(!utils::signBroadcastMessage(bcast, supernode))
         return errorInternalError("Failed to sign broadcast message", output);
