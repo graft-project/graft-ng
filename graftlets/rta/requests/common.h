@@ -43,10 +43,9 @@ GRAFT_DEFINE_IO_STRUCT(NodeAddress,
                        (std::string, WalletAddress)
                        );
 
-GRAFT_DEFINE_IO_STRUCT(EncryptedNodeKey,
-                       (std::string, Id),
-                       (std::string, Key)
-                       );
+GRAFT_DEFINE_IO_STRUCT(NodeId,
+                      (std::string, Id)
+                      );
 
 // to be encrypted and used as PaymentData::EncryptedPayment param
 GRAFT_DEFINE_IO_STRUCT_INITED(PaymentInfo,
@@ -57,8 +56,8 @@ GRAFT_DEFINE_IO_STRUCT_INITED(PaymentInfo,
 
 // TODO: move to someting like "requests.h"
 GRAFT_DEFINE_IO_STRUCT_INITED(PaymentData,
-                              (std::string, EncryptedPayment, std::string()), // encrypted payment data (incl amount)
-                              (std::vector<EncryptedNodeKey>, AuthSampleKeys, std::vector<EncryptedNodeKey>()),  // encrypted message keys (one-to-many encryption)
+                              (std::string, EncryptedPayment, std::string()),                  // encrypted payment data (incl amount)
+                              (std::vector<NodeId>, AuthSampleKeys, std::vector<NodeId>()),
                               (NodeAddress, PosProxy, NodeAddress())
                               );
 
