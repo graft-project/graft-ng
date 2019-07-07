@@ -158,5 +158,14 @@ Status storeRequestAndReplyOk(const Router::vars_t& vars, const graft::Input& in
     return Status::Again;
 }
 
+template <typename Req>
+std::string to_json_str(const Req &request)
+{
+    graft::Output out;
+    out.load(request);
+    return out.data();
 }
+
+
+} //namespace graft
 

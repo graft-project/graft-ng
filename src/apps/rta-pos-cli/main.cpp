@@ -135,14 +135,6 @@ namespace
     }
 
 
-    template <typename Req>
-    std::string as_json_str(const Req &request)
-    {
-        graft::Output out;
-        out.load(request);
-        return out.data();
-    }
-
     static const std::string SALE_ITEMS = "SERIALIZED SALE ITEMS HERE";
 
 }
@@ -181,9 +173,9 @@ public:
 
         bool r = invoke_http_rest("/dapi/v2.0/presale", presale_req, m_presale_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
         if (!r) {
-            MERROR("Failed to invoke presale: " << as_json_str(err_resp));
+            MERROR("Failed to invoke presale: " << graft::to_json_str(err_resp));
         } else {
-            MDEBUG("response: " << as_json_str(m_presale_resp));
+            MDEBUG("response: " << graft::to_json_str(m_presale_resp));
 
         }
         return r;
@@ -192,11 +184,9 @@ public:
     bool sale(uint64_t amount)
     {
         request::SaleRequest sale_req;
-        request::PaymentInfo payment_info;
-        payment_info.Details = SALE_ITEMS;
-        payment_info.Amount = amount;
+
         // 3.2 encrypt it using one-to-many scheme
-        graft::Output out; out.load(payment_info);
+
         std::vector<crypto::public_key> auth_sample_pubkeys;
 
         for (const auto &key_str : m_presale_resp.AuthSample) {
@@ -206,7 +196,7 @@ public:
                 return 1;
             }
             auth_sample_pubkeys.push_back(pkey);
-            graft::supernode::request::EncryptedNodeKey item;
+            graft::supernode::request::NodeId item;
             item.Id = key_str;
             sale_req.paymentData.AuthSampleKeys.push_back(item);
         }
@@ -214,10 +204,16 @@ public:
         // extra keypair for a wallet, instead of passing session key
         crypto::public_key wallet_pub_key;
         crypto::generate_keys(wallet_pub_key, m_wallet_secret_key);
-        auth_sample_pubkeys.push_back(wallet_pub_key);
+        std::vector<crypto::public_key> wallet_pub_key_vector {wallet_pub_key};
 
+        // encrypt purchase details with wallet key
+        request::PaymentInfo payment_info;
+        payment_info.Amount = amount;
+        std::string encryptedPurchaseDetails;
+        graft::crypto_tools::encryptMessage(SALE_ITEMS, wallet_pub_key_vector, encryptedPurchaseDetails);
+        payment_info.Details = epee::string_tools::buff_to_hex_nodelimer(encryptedPurchaseDetails);
+        graft::Output out; out.load(payment_info);
         std::string encrypted_payment_blob;
-
         graft::crypto_tools::encryptMessage(out.data(), auth_sample_pubkeys, encrypted_payment_blob);
         // 3.3. Set pos proxy addess and wallet in sale request
         sale_req.paymentData.PosProxy = m_presale_resp.PosProxy;
@@ -231,8 +227,7 @@ public:
 
         bool r = invoke_http_rest("/dapi/v2.0/sale", sale_req, dummy, err_resp, m_http_client, http_status, m_network_timeout, "POST");
         if (!r) {
-            MERROR("Failed to invoke sale: " << as_json_str(err_resp));
-
+            MERROR("Failed to invoke sale: " << graft::to_json_str(err_resp));
         }
 
         MDEBUG("/sale response status: " << http_status);
@@ -249,7 +244,7 @@ public:
         qrCode.posAddress.WalletAddress = m_wallet_address;
         qrCode.paymentId = paymentId();
 
-        bool r = epee::file_io_utils::save_string_to_file(m_qrcode_file, as_json_str(qrCode));
+        bool r = epee::file_io_utils::save_string_to_file(m_qrcode_file, graft::to_json_str(qrCode));
         if (!r) {
             MERROR("Failed to write qrcode file");
 
