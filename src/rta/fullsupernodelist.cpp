@@ -303,8 +303,8 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
             if (it == m_list.end())
                 return false;
 
-            const SupernodePtr& sn              = it->second;
-            uint64_t            last_update_age = static_cast<unsigned>(std::time(nullptr)) - sn->lastUpdateTime();
+            const SupernodePtr& sn = it->second;
+            uint64_t  last_update_age = static_cast<unsigned>(std::time(nullptr)) - sn->lastUpdateTime();
 
             if (FullSupernodeList::ANNOUNCE_TTL_SECONDS < last_update_age)
                 return false;
@@ -432,6 +432,12 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
 bool FullSupernodeList::buildAuthSample(const string &payment_id, FullSupernodeList::supernode_array &out, uint64_t &out_auth_block_number)
 {
     return buildAuthSample(getBlockchainBasedListMaxBlockNumber(), payment_id, out, out_auth_block_number);
+}
+
+bool FullSupernodeList::checkAuthSample(uint64_t block_height, const string &block_hash, const string &payment_id, const std::vector<string> &auth_sample)
+{
+    // TODO: implement me
+    return true;
 }
 
 vector<string> FullSupernodeList::items() const

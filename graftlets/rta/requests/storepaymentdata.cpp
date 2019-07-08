@@ -45,7 +45,7 @@
 
 namespace graft::supernode::request {
 /*!
- * \brief saleCryptonodeRequest - handles /core/store_payment_data - call coming from cryptonode (multicasted), we just need to store "payment_data"
+ * \brief storePaymentDataRequest - handles /core/store_payment_data - call coming from cryptonode (multicasted), we just need to store "payment_data"
  * \param vars
  * \param input
  * \param ctx
@@ -71,7 +71,7 @@ Status storePaymentDataRequest(const Router::vars_t& vars, const graft::Input& i
 
     graft::Input innerInput;
     innerInput.load(req.data);
-    SaleRequest saleRequest;
+    SaleRequest saleRequest;  // re-using sale container
 
     if (!innerInput.getT<serializer::JSON_B64>(saleRequest)) {
         return errorInvalidParams(output);

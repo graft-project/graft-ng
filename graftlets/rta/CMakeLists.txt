@@ -33,6 +33,9 @@ add_library(graftlet_rta SHARED
     requests/sale.cpp
     requests/common.cpp
     requests/storepaymentdata.cpp
+    requests/paymentdatarequest.cpp
+    requests/paymentdataresponse.cpp
+    requests/getpaymentdata.cpp
     requests/pay.cpp
 )
 set_target_properties(graftlet_walletAddress PROPERTIES

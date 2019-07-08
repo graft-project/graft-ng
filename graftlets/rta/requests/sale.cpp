@@ -138,14 +138,5 @@ Status handleSaleRequest(const Router::vars_t& vars, const graft::Input& input,
 
 }
 
-
-//void registerSaleRequest(graft::Router &router)
-//{
-//    Router::Handler3 h1(nullptr, saleClientHandler, nullptr);
-//    router.addRoute("/sale", METHOD_POST, h1);
-//    Router::Handler3 h2(nullptr, saleCryptonodeHandler, nullptr);
-//    router.addRoute("/cryptonode/sale", METHOD_POST, h2);
-//}
-
 }
 

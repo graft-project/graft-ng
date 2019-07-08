@@ -86,6 +86,8 @@ bool signBroadcastMessage(BroadcastRequest &request, const SupernodePtr &superno
  */
 bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &publicId);
 
+
+
 } // namespace utils
 
 } // namepace graft::supernode::request
