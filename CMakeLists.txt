@@ -407,7 +407,6 @@ target_link_libraries(wallet_server PRIVATE
     )
 
 ### rta-pos-cli
-
 set(rta-pos-cli-sources
     ${PROJECT_SOURCE_DIR}/src/apps/rta-pos-cli/main.cpp
     )
@@ -421,15 +420,53 @@ set_target_properties(rta-pos-cli PROPERTIES LINK_FLAGS "-Wl,-E")
 
 target_include_directories(rta-pos-cli PRIVATE
     ${GRAFT_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/src/apps/common
     )
 
-
-message(${GRAFT_INCLUDE_DIRS})
-
 target_link_libraries(rta-pos-cli PRIVATE
-
-    ${CMAKE_THREAD_LIBS_INIT}
     ${CRYPTONODE_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_CHRONO_LIBRARY}
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+
+    # ${COMMON_LIBS}
+    # TODO: figure out the issue with mixing static and dynamic linking
+    # in case uncomment "${COMMON_LIBS} - there will be errors:
+    #    /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/libcrypto.a(dso_dlfcn.o): In function `dlfcn_globallookup':
+    #    (.text+0x11): undefined reference to `dlopen'
+    #    (.text+0x24): undefined reference to `dlsym'
+    #    (.text+0x2f): undefined reference to `dlclose'
+    ssl
+    crypto
+    readline
+    pthread
+)
+
+### rta-wallet-cli
+set(rta-wallet-cli-sources
+    ${PROJECT_SOURCE_DIR}/src/apps/rta-wallet-cli/main.cpp
+    )
+
+add_executable(rta-wallet-cli
+    ${rta-wallet-cli-sources}
+    )
+
+set_target_properties(rta-wallet-cli PROPERTIES LINK_FLAGS "-Wl,-E")
+
+
+target_include_directories(rta-wallet-cli PRIVATE
+    ${GRAFT_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/src/apps/common
+    )
+
+target_link_libraries(rta-wallet-cli PRIVATE
+    ${CRYPTONODE_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
     ${Boost_CHRONO_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
@@ -450,7 +487,8 @@ target_link_libraries(rta-pos-cli PRIVATE
     pthread
 )
 
-## add_dependencies(rta-pos-cli)
+
+
 
 ##################
 ### tests section
