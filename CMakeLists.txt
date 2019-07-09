@@ -151,7 +151,6 @@ set(CRYPTONODE_LIBS
     wallet
     utils
     mnemonics
-    epee
     cryptonote_core
     cryptonote_basic
     cncrypto
@@ -164,6 +163,7 @@ set(CRYPTONODE_LIBS
     sodium
     checkpoints
     lmdb
+    epee
     )
 
 if(STATIC_LINK)
