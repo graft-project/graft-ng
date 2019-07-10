@@ -27,6 +27,7 @@ static const std::string MESSAGE_RTA_INVALID_AUTH_SAMLE("Invalid auth sample");
 
 //Context Keys
 static const std::string CONTEXT_KEY_PAYMENT_DATA(":paymentdata"); // key to get/store encrypted payment data + keys
+static const std::string CONTEXT_KEY_PAYMENT_DATA_PENDING(":paymentdata_pending"); // key to store flag if payment data already requested from remote supernode
 static const std::string CONTEXT_KEY_SALE_DETAILS(":saledetails"); // TODO: remove it
 static const std::string CONTEXT_KEY_SALE(":sale");
 static const std::string CONTEXT_KEY_STATUS(":status");

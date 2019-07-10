@@ -54,8 +54,10 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     // 1. multicast sale over auth sample
     // 2. broadcast sale status
 
+#if 1 // debugging
     ctx.global.set(req.PaymentID + CONTEXT_KEY_PAYMENT_DATA, req.paymentData, SALE_TTL);
     ctx.global.set(req.PaymentID + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
+#endif
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
@@ -68,7 +70,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
     bcast.sender_address = supernode->idKeyAsString();
     bcast.data = innerOut.data();
 
-#if 0 // broadcast to all while development/debugging // TODO: enable this code
+#if 1 // broadcast to all while development/debugging // TODO: enable this code
     for (const auto & item : req.paymentData.AuthSampleKeys) {
         bcast.receiver_addresses.push_back(item.Id);
     }
