@@ -43,6 +43,8 @@
 #include "requests/storepaymentdata.h"
 #include "requests/paymentdatarequest.h"
 #include "requests/paymentdataresponse.h"
+#include "requests/getsupernodeinfo.h"
+
 
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
@@ -75,7 +77,9 @@ protected:
         REGISTER_ENDPOINT("/dapi/v2.0/core/store_payment_data", METHOD_POST, RtaGraftlet, handleStorePaymentDataRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/payment_data_request", METHOD_POST, RtaGraftlet, handlePaymentDataRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/payment_data_response", METHOD_POST, RtaGraftlet, handlePaymentDataResponse);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/get_supernode_info", METHOD_POST, RtaGraftlet, handleSupernodeInfoRequest);
     }
+
 private:
 
     void prepareSupernode(const graft::CommonOpts& opts, graft::Context& ctx)
@@ -172,6 +176,12 @@ private:
     {
         return supernode::request::paymentDataResponse(vars, input, ctx, output);
     }
+
+    Status handleSupernodeInfoRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return supernode::request::handleSupernodeInfoRequest(vars, input, ctx, output);
+    }
+
 
 
 
