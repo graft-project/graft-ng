@@ -56,7 +56,7 @@ GRAFT_DEFINE_IO_STRUCT_INITED(PaymentInfo,
 
 // TODO: move to someting like "requests.h"
 GRAFT_DEFINE_IO_STRUCT_INITED(PaymentData,
-                              (std::string, EncryptedPayment, std::string()),                  // encrypted payment data (incl amount)
+                              (std::string, EncryptedPayment, std::string()),                  // serialized and encrypted PaymentInfo (hexadecimal)
                               (std::vector<NodeId>, AuthSampleKeys, std::vector<NodeId>()),
                               (NodeAddress, PosProxy, NodeAddress())
                               );

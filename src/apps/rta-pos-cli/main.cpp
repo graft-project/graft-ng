@@ -120,7 +120,6 @@ public:
             MERROR("Failed to invoke presale: " << graft::to_json_str(err_resp));
         } else {
             MDEBUG("response: " << graft::to_json_str(m_presale_resp));
-
         }
         return r;
     }
@@ -238,7 +237,7 @@ int main(int argc, char* argv[])
     const command_line::arg_descriptor<std::string> arg_amount  = {"amount", "Sale amount", "12.345", false};
     const command_line::arg_descriptor<std::string> arg_sale_items_file  = {"sale-items-file", "File where to read sale items", "sale-items.json", false};
     const command_line::arg_descriptor<size_t>      arg_sale_timeout  = {"sale-timeout", "Sale timeout in millis", 5000, false};
-    const command_line::arg_descriptor<std::string> arg_supernode_address = { "supernode-address", "Supernode address", "localhost:28900", false };
+    const command_line::arg_descriptor<std::string> arg_supernode_address = { "supernode-address", "Supernode address", "localhost:28690", false };
     const command_line::arg_descriptor<std::string> arg_pos_wallet_address = { "wallet-address", "POS Wallet address", POS_WALLET_ADDRESS, false };
 
 
@@ -316,7 +315,7 @@ int main(int argc, char* argv[])
     if (!pos.saveQrCodeFile()) {
         return EXIT_FAILURE;
     }
-
+    MINFO("Sale initiated: " << pos.paymentId());
     // TODO:
 
     return 0;
