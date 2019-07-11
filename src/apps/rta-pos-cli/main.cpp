@@ -149,15 +149,20 @@ public:
         crypto::generate_keys(wallet_pub_key, m_wallet_secret_key);
         std::vector<crypto::public_key> wallet_pub_key_vector {wallet_pub_key};
 
-        // encrypt purchase details with wallet key
+
+        // encrypt purchase details only with wallet key
         request::PaymentInfo payment_info;
         payment_info.Amount = amount;
         std::string encryptedPurchaseDetails;
         graft::crypto_tools::encryptMessage(SALE_ITEMS, wallet_pub_key_vector, encryptedPurchaseDetails);
         payment_info.Details = epee::string_tools::buff_to_hex_nodelimer(encryptedPurchaseDetails);
-        graft::Output out; out.load(payment_info);
+        // encrypt whole container with auth_sample keys + wallet key;
+        // TODO: by the specs it should be only encrypted with auth sample keys, auth sample should return
+        // plain-text amount and encrypted payment details; for simplicity we just add wallet key to the one-to-many scheme
         std::string encrypted_payment_blob;
-        graft::crypto_tools::encryptMessage(out.data(), auth_sample_pubkeys, encrypted_payment_blob);
+        auth_sample_pubkeys.push_back(wallet_pub_key);
+        graft::crypto_tools::encryptMessage(graft::to_json_str(payment_info), auth_sample_pubkeys, encrypted_payment_blob);
+
         // 3.3. Set pos proxy addess and wallet in sale request
         sale_req.paymentData.PosProxy = m_presale_resp.PosProxy;
         sale_req.paymentData.EncryptedPayment = epee::string_tools::buff_to_hex_nodelimer(encrypted_payment_blob);
