@@ -76,6 +76,8 @@ Status handleClientPaymentDataRequest(const Router::vars_t& vars, const graft::I
         }
         PaymentDataResponse resp;
         resp.paymentData = paymentData;
+        resp.WalletProxy.Id = supernode->idKeyAsString();
+        resp.WalletProxy.WalletAddress = supernode->walletAddress();
         output.load(resp);
         return Status::Ok;
     } else {

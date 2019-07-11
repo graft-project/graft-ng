@@ -47,7 +47,8 @@ GRAFT_DEFINE_IO_STRUCT_INITED(PaymentDataRequest,
 
 // response payload
 GRAFT_DEFINE_IO_STRUCT_INITED(PaymentDataResponse,
-(PaymentData, paymentData, PaymentData())
+(PaymentData, paymentData, PaymentData()),
+(NodeAddress, WalletProxy, NodeAddress())
 );
 
 
