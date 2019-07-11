@@ -65,7 +65,7 @@ Status paymentDataResponse(const Router::vars_t &vars, const Input &input, Conte
     PaymentDataRemoteResponse paymentDataResponse;
 
     if (!innerInput.getT<serializer::JSON_B64>(paymentDataResponse)) {
-        MERROR("Failed parse PaymentDataResponse from : " << input.data());
+        MERROR("Failed parse PaymentDataRemoteResponse from : " << input.data());
         return sendOkResponseToCryptonode(output);
     }
 
