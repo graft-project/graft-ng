@@ -50,18 +50,9 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         return errorInvalidParams(output);
     }
 
-    // here we need to perform two actions:
-    // 1. multicast sale over auth sample
-    // 2. broadcast sale status
-
-#if 1 // debugging
-    ctx.global.set(req.PaymentID + CONTEXT_KEY_PAYMENT_DATA, req.paymentData, SALE_TTL);
-    ctx.global.set(req.PaymentID + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
-#endif
+    // TODO: check if the same payment id has been already processed
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
-
-
 
     Output innerOut;
     innerOut.loadT<serializer::JSON_B64>(req);

@@ -37,8 +37,8 @@ namespace graft::supernode::request {
 
 // Pay request payload
 GRAFT_DEFINE_IO_STRUCT_INITED(PayRequest,
-  (std::string, TxBlob, std::string()), // encrypted serialized tx as hexadecimal string. Includes payment id
-(std::string, TxKey, std::string())  // encrypted tx private key
+    (std::string, TxBlob, std::string()), // encrypted serialized tx as hexadecimal string. Includes payment id
+    (std::string, TxKey, std::string())  // encrypted tx private key
 );
 
 // shared constants

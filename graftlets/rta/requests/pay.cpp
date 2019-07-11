@@ -77,9 +77,7 @@ bool decryptTx(const std::string &encryptedHex, SupernodePtr supernode, cryptono
         MERROR("Failed to parse transaction from blob");
         return false;
     }
-
     return true;
-
 }
 
 Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
@@ -89,9 +87,8 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
     if (!input.get(req))
         return errorInvalidParams(output);
 
-    if (req.TxBlob.empty()
-      || req.TxKey.empty())
-        return errorInvalidPaymentID(output);
+    if (req.TxBlob.empty() || req.TxKey.empty())
+        return errorInvalidParams(output);
 
     // we are going to
     // - multicast pay over auth sample + two proxy
@@ -146,6 +143,7 @@ Status handlePayMulticastReply(const Router::vars_t& vars, const graft::Input& i
     if(!input.get(resp) || resp.error.code || resp.result.status != STATUS_OK)
         return errorCustomError("Error multicasting request", ERROR_INTERNAL_ERROR, output);
 
+    output.reset();
     output.resp_code = 202;
     return Status::Ok;
 }

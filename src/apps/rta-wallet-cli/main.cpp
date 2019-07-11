@@ -37,6 +37,7 @@
 
 #include "rta/requests/pay.h"
 #include "rta/requests/getpaymentdata.h"
+#include "rta/requests/getsupernodeinfo.h"
 #include "rta/requests/common.h"
 #include "supernode/requestdefines.h"
 
@@ -66,6 +67,21 @@ using namespace cryptonote;
 using namespace epee;
 using namespace std;
 using namespace graft::supernode;
+
+
+namespace  {
+    bool append_key_to_rta_hdr(cryptonote::rta_header &rta_hdr, const std::string &key)
+    {
+        crypto::public_key K;
+        if (!epee::string_tools::hex_to_pod(key, K))  {
+            MERROR("Failed to parse key from: " << key);
+            return false;
+        }
+        rta_hdr.keys.push_back(K);
+        return true;
+    }
+
+}
 
 //=======================================================
 class Wallet
@@ -119,14 +135,19 @@ public:
             MERROR("Failed to parse json: " << json);
             return r;
         }
+
+        if (!epee::string_tools::hex_to_pod(m_paymentDetails.key, m_decryption_key)) {
+            MERROR("Failed to deserialize key from: " << m_paymentDetails.key);
+            return false;
+        }
+
         return true;
 
     }
 
-    bool pay()
+    bool getPaymentData()
     {
         PaymentDataRequest req;
-        PaymentDataResponse resp;
         req.PaymentID   = m_paymentDetails.paymentId;
         req.BlockHeight = m_paymentDetails.blockNumber;
         req.BlockHash   = m_paymentDetails.blockHash;
@@ -158,13 +179,151 @@ public:
             return false;
         }
 
-        graft::Input in; in.load(raw_resp);
-        if (!in.get(resp)) {
+
+        if (!graft::from_json_str(raw_resp, m_paymentDataResponse)) {
             MERROR("Failed to parse payment data response: " << raw_resp);
             return false;
         }
 
         MINFO("Payment data received for payment id: " << req.PaymentID << " " << raw_resp);
+
+        std::string encryptedPaymentInfoBlob;
+        if (!epee::string_tools::parse_hexstr_to_binbuff(m_paymentDataResponse.paymentData.EncryptedPayment, encryptedPaymentInfoBlob)) {
+            MERROR("Failed to deserialize EncryptedPayment from: " << m_paymentDataResponse.paymentData.EncryptedPayment);
+            return false;
+        }
+
+        std::string paymentInfoStr;
+        if (!graft::crypto_tools::decryptMessage(encryptedPaymentInfoBlob, m_decryption_key, paymentInfoStr)) {
+            MERROR("Failed to decrypt EncryptedPaymentInfo witrh");
+            return false;
+        }
+
+        if (!graft::from_json_str(paymentInfoStr, m_paymentInfo)) {
+            MERROR("Failed to deserialize payment info from: " << paymentInfoStr);
+        }
+
+        // decrypt payment details
+        if (!epee::string_tools::parse_hexstr_to_binbuff(m_paymentInfo.Details, encryptedPaymentInfoBlob)) {
+            MERROR("Failed to deserialize PaymentInfo from: " << m_paymentInfo.Details);
+            return false;
+        }
+
+        if (!graft::crypto_tools::decryptMessage(encryptedPaymentInfoBlob, m_decryption_key, m_paymentInfo.Details)) {
+            MERROR("Failed to decrypt payment info from "    << paymentInfoStr);
+            return false;
+        }
+
+        MINFO("payment info: " << m_paymentInfo.Details);
+
+        return true;
+    }
+
+    bool pay()
+    {
+      // 1. collect auth sample wallet addresses, WalletProxy and PosProxy wallet addresses
+        SupernodeInfoRequest req;
+        for (const auto &item : m_paymentDataResponse.paymentData.AuthSampleKeys) {
+            req.input.push_back(item.Id);
+        }
+        SupernodeInfoResponse resp;
+        std::string raw_resp;
+        ErrorResponse err_resp;
+        int http_status;
+        bool r = invoke_http_rest("/dapi/v2.0/core/get_supernode_info", req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
+
+        if (!r || http_status != 200) {
+            MERROR("Failed to invoke get_payment_data: " << raw_resp);
+            return false;
+        }
+
+        if (!graft::from_json_str(raw_resp, resp)) {
+            MERROR("Failed to parse supernode info response: " << raw_resp);
+            return false;
+        }
+
+        if (m_paymentDataResponse.paymentData.AuthSampleKeys.size() != resp.output.size()) {
+            MERROR("Wrong amount of supernodes: requested: " << m_paymentDataResponse.paymentData.AuthSampleKeys.size()
+                   << ", got: " << resp.output.size());
+            return false;
+        }
+
+        std::vector<std::string> fee_wallets;
+        fee_wallets.push_back(m_paymentDataResponse.paymentData.PosProxy.WalletAddress);
+        fee_wallets.push_back(m_paymentDataResponse.WalletProxy.WalletAddress);
+        for (const auto &auth_sample_member : resp.output) {
+            fee_wallets.push_back(auth_sample_member.Address);
+        }
+      // 2. create tx;
+        cryptonote::rta_header rta_hdr;
+        rta_hdr.payment_id = m_paymentDetails.paymentId;
+        rta_hdr.auth_sample_height = m_paymentDetails.blockNumber;
+
+        if (!append_key_to_rta_hdr(rta_hdr, m_paymentDetails.posAddress.Id)) { // pos key;
+            return false;
+        }
+        if (!append_key_to_rta_hdr(rta_hdr, m_paymentDataResponse.paymentData.PosProxy.Id)) { // pos proxy
+            return false;
+        }
+        if (!append_key_to_rta_hdr(rta_hdr, m_paymentDataResponse.WalletProxy.Id)) { // wallet proxy
+            return false;
+        }
+
+        for (const auto & item: m_paymentDataResponse.paymentData.AuthSampleKeys) {
+            if (!append_key_to_rta_hdr(rta_hdr, item.Id)) {
+                return false;
+            }
+        }
+
+        std::vector<uint8_t> extra;
+        cryptonote::add_graft_rta_header_to_extra(extra, rta_hdr);
+        uint64_t recepient_amount, fee_per_destination = 0;
+        double fee_ratio = 0.05;
+
+        std::vector<tools::wallet2::pending_tx> ptx_v = m_wallet.create_transactions_graft(
+                    m_paymentDetails.posAddress.WalletAddress,
+                    fee_wallets,
+                    m_paymentInfo.Amount,
+                    fee_ratio,
+                    0,
+                    0,
+                    extra,
+                    0,
+                    {0},
+                    recepient_amount,
+                    fee_per_destination);
+        if (ptx_v.size() < 1 || ptx_v.size() > 1) {
+            MERROR("wrong tx count: " << ptx_v.size());
+            return false;
+        }
+
+        const cryptonote::transaction &tx = ptx_v.at(0).tx;
+
+        MINFO("About to do pay, payment_id:  " << m_paymentDetails.paymentId << ", Total amount: " << print_money(m_paymentInfo.Amount)
+              << ", Merchant amount : " << print_money(recepient_amount)
+              << ", Fee per member: " << print_money(fee_per_destination)
+              << ", Payment details: " << m_paymentInfo.Details
+              << ", tx_id: " << tx.hash);
+
+        // 3. get tx private key
+        std::string buf;
+        PayRequest pay_req;
+
+        std::string tx_buf(reinterpret_cast<const char*>(&ptx_v.at(0).tx_key), sizeof(crypto::secret_key));
+        graft::crypto_tools::encryptMessage(tx_buf, rta_hdr.keys, buf);
+        pay_req.TxKey = epee::string_tools::buff_to_hex_nodelimer(buf);
+        buf.clear();
+        graft::crypto_tools::encryptMessage(cryptonote::tx_to_blob(tx), rta_hdr.keys, buf);
+        pay_req.TxBlob = epee::string_tools::buff_to_hex_nodelimer(buf);
+
+        r = invoke_http_rest("/dapi/v2.0/pay", pay_req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
+
+        if (!r || http_status != 202) {
+            MERROR("Failed to invoke pay: " << raw_resp);
+            return false;
+        }
+
+        MINFO("Pay processed, payment id: " << m_paymentDetails.paymentId << ", tx id: " << tx.hash);
 
         return true;
     }
@@ -184,6 +343,9 @@ private:
     std::string m_payment_id;
     WalletDataQrCode m_paymentDetails;
     tools::wallet2 m_wallet;
+    crypto::secret_key m_decryption_key;
+    PaymentInfo m_paymentInfo;
+    PaymentDataResponse m_paymentDataResponse;
 };
 
 
@@ -267,6 +429,11 @@ int main(int argc, char* argv[])
 
     if (!wallet.readPaymentDetails()) {
         MERROR("Failed to read payment from QR code");
+        return EXIT_FAILURE;
+    }
+
+    if (!wallet.getPaymentData()) {
+        MERROR("Failed to get payment data");
         return EXIT_FAILURE;
     }
 
