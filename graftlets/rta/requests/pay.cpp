@@ -58,27 +58,6 @@ enum class PayHandlerState : int
 };
 
 
-bool decryptTx(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx)
-{
-    // TODO: decrypt transaction from encrypted blob
-    std::string decryptedTxBlob, encryptedTxBlob;
-
-    if (!epee::string_tools::parse_hexstr_to_binbuff(encryptedHex, encryptedTxBlob)) {
-        MERROR("failed to deserialize encrypted tx blob");
-        return false;
-    }
-
-    if (!graft::crypto_tools::decryptMessage(encryptedTxBlob, supernode->secretKey(), decryptedTxBlob)) {
-        MERROR("Failed to decrypt tx");
-        return false;
-    }
-
-    if (!cryptonote::parse_and_validate_tx_from_blob(decryptedTxBlob, tx)) {
-        MERROR("Failed to parse transaction from blob");
-        return false;
-    }
-    return true;
-}
 
 Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
@@ -97,7 +76,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     // decrypt transaction
     cryptonote::transaction tx;
-    if (!decryptTx(req.TxBlob, supernode, tx)) {
+    if (!utils::decryptTxFromHex(req.TxBlob, supernode, tx)) {
         return errorCustomError("Failed to decrypt tx", ERROR_RTA_FAILED, output);
     }
 
@@ -119,7 +98,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     bcast.sender_address = supernode->idKeyAsString();
     bcast.data = innerOut.data();
-    bcast.callback_uri = "/dapi/v2.0/core/authorize_rta_tx";
+    bcast.callback_uri = "/dapi/v2.0/core/authorize_rta_tx_request";
 
     if(!utils::signBroadcastMessage(bcast, supernode))
         return errorInternalError("Failed to sign broadcast message", output);

@@ -86,6 +86,23 @@ bool signBroadcastMessage(BroadcastRequest &request, const SupernodePtr &superno
  */
 bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &publicId);
 
+/*!
+ * \brief decryptTx     - decrypts transaction from encrypted hexadecimal string
+ * \param encryptedHex  - input data
+ * \param supernode     - recipient supernode to decrypt with
+ * \param tx            - output tx
+ * \return              - true on success
+ */
+bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx);
+
+/*!
+ * \brief encryptTxToHex - encrypts transaction using public keys (one-to-many scheme)
+ * \param tx             - transaction to encrypt
+ * \param keys           - keys
+ * \param encryptedHex   - output encoded as hexadecimal string
+ */
+void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto::public_key> &keys, std::string &encryptedHex);
+
 
 
 } // namespace utils

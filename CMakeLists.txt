@@ -320,7 +320,6 @@ add_dependencies(requests_common graft cryptonode)
 add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/authorize_rta_tx.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/get_info.cpp
@@ -450,6 +449,7 @@ target_link_libraries(rta-pos-cli PRIVATE
 ### rta-wallet-cli
 set(rta-wallet-cli-sources
     ${PROJECT_SOURCE_DIR}/src/apps/rta-wallet-cli/main.cpp
+    ${PROJECT_SOURCE_DIR}/graftlets/rta/requests/common.cpp
     )
 
 add_executable(rta-wallet-cli
@@ -474,6 +474,7 @@ target_link_libraries(rta-wallet-cli PRIVATE
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${Boost_REGEX_LIBRARY}
+    supernode_common
     # ${COMMON_LIBS}
     # TODO: figure out the issue with mixing static and dynamic linking
     # in case uncomment "${COMMON_LIBS} - there will be errors:

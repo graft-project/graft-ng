@@ -30,6 +30,10 @@
 
 #include <string_tools.h> // graftnoded's contrib/epee/include
 #include <misc_log_ex.h>  // graftnoded's log macros
+
+#include <cryptonote_basic/cryptonote_basic.h>
+#include <cryptonote_basic/cryptonote_format_utils.h>
+#include <utils/cryptmsg.h> // one-to-many message cryptography
 #include <boost/algorithm/string/join.hpp>
 
 
@@ -80,6 +84,37 @@ bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &public
     }
     return Supernode::verifyHash(hash, pkey, sign);
 }
+
+bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx)
+{
+    // TODO: decrypt transaction from encrypted blob
+    std::string decryptedTxBlob, encryptedTxBlob;
+
+    if (!epee::string_tools::parse_hexstr_to_binbuff(encryptedHex, encryptedTxBlob)) {
+        MERROR("failed to deserialize encrypted tx blob");
+        return false;
+    }
+
+    if (!graft::crypto_tools::decryptMessage(encryptedTxBlob, supernode->secretKey(), decryptedTxBlob)) {
+        MERROR("Failed to decrypt tx");
+        return false;
+    }
+
+    if (!cryptonote::parse_and_validate_tx_from_blob(decryptedTxBlob, tx)) {
+        MERROR("Failed to parse transaction from blob");
+        return false;
+    }
+    return true;
+}
+
+void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto::public_key> &keys, std::string &encryptedHex)
+{
+    std::string buf;
+    graft::crypto_tools::encryptMessage(cryptonote::tx_to_blob(tx), keys, buf);
+    encryptedHex = epee::string_tools::buff_to_hex_nodelimer(buf);
+
+}
+
 
 
 } // namespace graft::supernode::request
