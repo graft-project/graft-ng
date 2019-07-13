@@ -3,7 +3,6 @@
 #include "supernode/requests/reject_sale.h"
 #include "supernode/requests/get_info.h"
 
-#include "supernode/requests/sale_details.h"
 #include "supernode/requests/pay_status.h"
 #include "supernode/requests/reject_pay.h"
 #include "supernode/requests/send_transfer.h"
@@ -11,7 +10,7 @@
 #include "lib/graft/requests/health_check.h"
 
 #include "supernode/requests/send_raw_tx.h"
-#include "supernode/requests/authorize_rta_tx.h"
+
 #include "supernode/requests/send_supernode_announce.h"
 #include "supernode/requests/send_supernode_stakes.h"
 #include "supernode/requests/blockchain_based_list.h"
@@ -27,14 +26,8 @@ void registerRTARequests(graft::Router &router)
     registerSaleStatusRequest(router);
     registerRejectSaleRequest(router);
     registerGetInfoRequest(router);
-    registerSaleDetailsRequest(router);
     registerPayStatusRequest(router);
     registerRejectPayRequest(router);
-    registerAuthorizeRtaTxRequests(router);
-    registerSendSupernodeAnnounceRequest(router);
-    registerSendSupernodeStakesRequest(router);
-    registerRedirectRequests(router);
-    registerBlockchainBasedListRequest(router);
 }
 
 void registerWalletApiRequests(graft::Router &router)
