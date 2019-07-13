@@ -45,7 +45,7 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.getpaymentdatarequest"
 
-namespace graft::supernode::request {
+namespace graft::supernode::request::getpaymentdata {
 
 Status handleClientPaymentDataRequest(const Router::vars_t& vars, const graft::Input& input,
                              graft::Context& ctx, graft::Output& output)
@@ -141,6 +141,11 @@ Status handleCryptonodeReply(const Router::vars_t& vars, const graft::Input& inp
     return Status::Ok;
 }
 
+} // namespace graft::supernode::request::getpaymentdata
+
+
+namespace graft::supernode::request {
+
 Status getPaymentDataRequest(const Router::vars_t &vars, const Input &input, Context &ctx, Output &output)
 {
     enum class GetPaymentDataHandlerState : int
@@ -156,18 +161,18 @@ Status getPaymentDataRequest(const Router::vars_t &vars, const Input &input, Con
     // client requested "/get_payment_data"
     case GetPaymentDataHandlerState::ClientRequest:
         ctx.local[__FUNCTION__] = GetPaymentDataHandlerState::CryptonodeReply;
-        return handleClientPaymentDataRequest(vars, input, ctx, output);
+        return getpaymentdata::handleClientPaymentDataRequest(vars, input, ctx, output);
     case GetPaymentDataHandlerState::CryptonodeReply:
         // handle "unicast" response from cryptonode, check it's status;
         MDEBUG("GetPaymentData unicast response from cryptonode: " << input.data());
         MDEBUG("status: " << (int)ctx.local.getLastStatus());
-        return handleCryptonodeReply(vars, input, ctx, output);
+        return getpaymentdata::handleCryptonodeReply(vars, input, ctx, output);
     default:
         LOG_ERROR("Internal error: unhandled state");
         abort();
     };
 }
 
-
 }
+
 
