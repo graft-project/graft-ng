@@ -60,7 +60,7 @@ Status handlePaymentDataRequestUnicast(const Router::vars_t &vars, const Input &
 
     if (!utils::verifyBroadcastMessage(req, req.sender_address)) {
         MERROR("Failed to verify signature for message: " << input.data());
-        return Status::Ok;
+        return sendOkResponseToCryptonode(output);
     }
 
     graft::Input innerInput;

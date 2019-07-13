@@ -53,6 +53,9 @@ static const double AUTHSAMPLE_FEE_PERCENTAGE = 0.5;
 static const std::string CONTEXT_KEY_CONFIG_OPTS(":config-opts");
 static const std::string CONTEXT_KEY_RUNTIME_SYS_INFO(":runtime-sys-info");
 
+// key to store if we already processed rta tx
+static const std::string CONTEXT_KEY_RTA_TX_STATE(":rta-tx-state");
+
 namespace graft {
 
 static const std::chrono::seconds RTA_TX_TTL(60);
@@ -69,6 +72,7 @@ Status errorInternalError(const std::string &message, Output &output);
 Status errorCustomError(const std::string &message, int code, Output &output);
 Status errorInvalidSignature(Output &output);
 Status sendOkResponseToCryptonode(Output &output);
+Status sendAgainResponseToCryptonode(Output &output);
 
 
 bool errorFinishedPayment(int status, Output &output);

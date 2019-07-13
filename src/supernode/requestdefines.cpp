@@ -156,8 +156,17 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(ResultResponseJsonRpc, ResultResponse);
 Status sendOkResponseToCryptonode(Output& output)
 {
     ResultResponseJsonRpc res;
+    res.result.Result = STATUS_OK;
     output.load(res);
     return Status::Ok;
+}
+
+Status sendAgainResponseToCryptonode(Output& output)
+{
+    ResultResponseJsonRpc res;
+    res.result.Result = STATUS_OK;
+    output.load(res);
+    return Status::Again;
 }
 
 bool isFiniteRtaStatus(RTAStatus status)
