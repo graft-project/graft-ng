@@ -87,7 +87,6 @@ bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &public
 
 bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx)
 {
-    // TODO: decrypt transaction from encrypted blob
     std::string decryptedTxBlob, encryptedTxBlob;
 
     if (!epee::string_tools::parse_hexstr_to_binbuff(encryptedHex, encryptedTxBlob)) {
@@ -114,6 +113,33 @@ void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto:
     encryptedHex = epee::string_tools::buff_to_hex_nodelimer(buf);
 
 }
+
+bool decryptTxKeyFromHex(const std::string &encryptedHex, SupernodePtr supernode, crypto::secret_key &tx_key)
+{
+    std::string decryptedBlob, encryptedBlob;
+    if (!epee::string_tools::parse_hexstr_to_binbuff(encryptedHex, encryptedBlob)) {
+        MERROR("failed to deserialize encrypted tx key blob");
+        return false;
+    }
+
+    if (!graft::crypto_tools::decryptMessage(encryptedBlob, supernode->secretKey(), decryptedBlob)) {
+        MERROR("Failed to decrypt tx");
+        return false;
+    }
+
+    memcpy(&tx_key, decryptedBlob.c_str(), decryptedBlob.size());
+    return true;
+}
+
+
+void encryptTxKeyToHex(const crypto::secret_key &tx_key, const std::vector<crypto::public_key> &keys, std::string &encryptedHex)
+{
+    std::string buf;
+    std::string tx_buf(reinterpret_cast<const char*>(&tx_key), sizeof(crypto::secret_key));
+    graft::crypto_tools::encryptMessage(tx_buf, keys, buf);
+    encryptedHex = epee::string_tools::buff_to_hex_nodelimer(buf);
+}
+
 
 
 

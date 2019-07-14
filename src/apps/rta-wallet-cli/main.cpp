@@ -306,13 +306,12 @@ public:
               << ", tx_id: " << tx.hash);
 
         // 3. get tx private key
-        std::string buf;
+
         PayRequest pay_req;
 
-        std::string tx_buf(reinterpret_cast<const char*>(&ptx_v.at(0).tx_key), sizeof(crypto::secret_key));
-        graft::crypto_tools::encryptMessage(tx_buf, rta_hdr.keys, buf);
-        pay_req.TxKey = epee::string_tools::buff_to_hex_nodelimer(buf);
+        utils::encryptTxKeyToHex(ptx_v.at(0).tx_key, rta_hdr.keys, pay_req.TxKey);
         utils::encryptTxToHex(tx, rta_hdr.keys, pay_req.TxBlob);
+
         r = invoke_http_rest("/dapi/v2.0/pay", pay_req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
 
         if (!r || http_status != 202) {

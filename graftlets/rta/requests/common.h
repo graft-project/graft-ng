@@ -104,6 +104,33 @@ bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, c
 void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto::public_key> &keys, std::string &encryptedHex);
 
 
+bool decryptTxKeyFromHex(const std::string &encryptedHex, SupernodePtr supernode, crypto::secret_key &tx_key);
+void encryptTxKeyToHex(const crypto::secret_key &tx_key, const std::vector<crypto::public_key> &keys, std::string &encryptedHex);
+
+
+template <typename Request>
+void buildBroadcastOutput(const Request &req, SupernodePtr & supernode, const std::vector<std::string> &destinations,
+                          const std::string &path, const std::string &callback_uri, Output &output)
+{
+    Output innerOut;
+    innerOut.loadT<serializer::JSON_B64>(req);
+    BroadcastRequest bcast;
+    bcast.callback_uri = callback_uri;
+    bcast.sender_address = supernode->idKeyAsString();
+    bcast.data = innerOut.data();
+    bcast.receiver_addresses = destinations;
+
+    utils::signBroadcastMessage(bcast, supernode);
+
+    BroadcastRequestJsonRpc bcast_jsonrpc;
+    bcast_jsonrpc.method = "broadcast";
+    bcast_jsonrpc.params = std::move(bcast);
+
+    output.load(bcast_jsonrpc);
+    output.path = path;
+
+}
+
 
 } // namespace utils
 
