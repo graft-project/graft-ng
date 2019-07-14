@@ -46,6 +46,7 @@
 #include "requests/getsupernodeinfo.h"
 #include "requests/authorizertatx.h"
 #include "requests/updatepaymentstatus.h"
+#include "requests/getpaymentstatus.h"
 
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
@@ -74,11 +75,14 @@ protected:
         REGISTER_ENDPOINT("/dapi/v2.0/sale", METHOD_POST, RtaGraftlet, handleSaleRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/pay", METHOD_POST, RtaGraftlet, handlePayRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/get_payment_data", METHOD_POST, RtaGraftlet, handleGetPaymentDataRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/get_payment_status", METHOD_POST, RtaGraftlet, handleGetPaymentStatusRequest);
+
         // TODO: fix cryptonode logic, it prepends "/dapi/v2.0/" to any "callback_uri"
         REGISTER_ENDPOINT("/dapi/v2.0/core/store_payment_data", METHOD_POST, RtaGraftlet, handleStorePaymentDataRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/payment_data_request", METHOD_POST, RtaGraftlet, handlePaymentDataRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/payment_data_response", METHOD_POST, RtaGraftlet, handlePaymentDataResponse);
         REGISTER_ENDPOINT("/dapi/v2.0/core/get_supernode_info", METHOD_POST, RtaGraftlet, handleSupernodeInfoRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/update_payment_status", METHOD_POST, RtaGraftlet, handleUpdatePaymentStatusRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/authorize_rta_tx_request", METHOD_POST, RtaGraftlet, handleAuthorizeRtaTxRequest);
     }
 
@@ -160,6 +164,12 @@ private:
     Status handleGetPaymentDataRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
         return supernode::request::getPaymentDataRequest(vars, input, ctx, output);
+    }
+
+
+    Status handleGetPaymentStatusRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return supernode::request::getPaymentStatusRequest(vars, input, ctx, output);
     }
 
 

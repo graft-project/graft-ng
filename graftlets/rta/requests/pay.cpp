@@ -97,7 +97,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     bcast.sender_address = supernode->idKeyAsString();
     bcast.data = innerOut.data();
-    bcast.callback_uri = "/dapi/v2.0/core/authorize_rta_tx_request";
+    bcast.callback_uri = "/core/authorize_rta_tx_request";
 
     if(!utils::signBroadcastMessage(bcast, supernode))
         return errorInternalError("Failed to sign broadcast message", output);

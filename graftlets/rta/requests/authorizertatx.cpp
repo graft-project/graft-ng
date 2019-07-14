@@ -28,6 +28,8 @@
 
 #include "authorizertatx.h"
 #include "pay.h"
+#include "sale.h"
+#include "updatepaymentstatus.h"
 #include "lib/graft/jsonrpc.h"
 #include "common.h"
 #include "supernode/requestdefines.h"
@@ -35,6 +37,7 @@
 #include "supernode/requests/send_raw_tx.h"
 #include "supernode/requests/broadcast.h"
 #include "rta/supernode.h"
+#include "rta/fullsupernodelist.h"
 #include <misc_log_ex.h>
 #include <exception>
 
@@ -45,9 +48,65 @@
 namespace {
     static const size_t RTA_VOTES_TO_REJECT  =  1/*2*/; // TODO: 1 and 3 while testing
     static const size_t RTA_VOTES_TO_APPROVE =  4/*7*/; //
+    static const std::string RTA_TX_REQ_HANDLER_STATE_KEY = "rta_tx_req_handler_state";
+    static const std::string RTA_TX_REQ_TX_KEY = "rta_tx_req_tx_key"; // key to store transaction
+    static const std::string RTA_TX_REQ_TX_KEY_KEY = "rta_tx_req_tx_key_key"; // key to store transaction private key
+
+    // reading transaction directly from context throws "bad_cast"
+    void putTxToContext(const cryptonote::transaction &tx,  graft::Context &ctx)
+    {
+        cryptonote::blobdata txblob = cryptonote::tx_to_blob(tx);
+        ctx.local[RTA_TX_REQ_TX_KEY] = txblob;
+    }
+
+    bool getTxFromContext(graft::Context &ctx, cryptonote::transaction &tx)
+    {
+        if (!ctx.local.hasKey(RTA_TX_REQ_TX_KEY)) {
+            MWARNING("RTA_TX_REQ_TX_KEY not found in context");
+            return false;
+        }
+        cryptonote::blobdata txblob = ctx.local[RTA_TX_REQ_TX_KEY];
+        return cryptonote::parse_and_validate_tx_from_blob(txblob, tx);
+    }
+
+    void putTxKeyToContext(const crypto::secret_key &key, graft::Context &ctx)
+    {
+        ctx.local[RTA_TX_REQ_TX_KEY_KEY] = epee::string_tools::pod_to_hex(key);
+    }
+
+    bool getTxKeyFromContext(graft::Context &ctx, crypto::secret_key &key)
+    {
+        if (!ctx.local.hasKey(RTA_TX_REQ_TX_KEY_KEY)) {
+            MWARNING("RTA_TX_REQ_TX_KEY_KEY not found in context");
+            return false;
+        }
+        std::string tx_str = ctx.local[RTA_TX_REQ_TX_KEY_KEY];
+        return epee::string_tools::hex_to_pod(tx_str, key);
+    }
+
 }
 
 namespace graft::supernode::request {
+
+
+
+enum class AuthorizeRtaTxRequestHandlerState : int {
+    IncomingRequest = 0,    // incoming request from client, store it and return Status::Again
+    RequestStored,          // request stored, waiting to be processed: check if already processed
+    StatusUpdateSent,       // "payment status update" broadcast sent
+    KeyImagesRequestSent,   // "is_key_image_spent" request sent to cryptonode;
+    TxResposeSent           // "authorize_rta_tx_response" mullticast sent
+};
+
+
+
+
+enum class RtaTxState {
+    Processing = 0,
+    AlreadyProcessedApproved,
+    AlreadyProcessedRejected
+};
+
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeSignature,
                               (std::string, id_key, std::string()),
@@ -74,6 +133,30 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(AuthorizeRtaTxRequestJsonRpcResponse, Auth
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(AuthorizeRtaTxResponseJsonRpcResponse, AuthorizeRtaTxResponseResponse);
 
 
+GRAFT_DEFINE_IO_STRUCT_INITED(IsKeyImageSpentRequest,
+                              (std::vector<std::string>, key_images, std::vector<std::string>())
+                              );
+
+GRAFT_DEFINE_IO_STRUCT_INITED(IsKeyImageSpentResponse,
+                              (std::vector<unsigned int>, spent_status, std::vector<unsigned int>()),
+                              (std::string, status, std::string()),
+                              (bool, untrusted, false)
+                              );
+
+
+int get_rta_key_index(const cryptonote::rta_header &rta_hdr, SupernodePtr supernode)
+{
+    int result = -1;
+    for (size_t i = 0; i < rta_hdr.keys.size(); ++i) {
+        if (rta_hdr.keys.at(i) == supernode->idKey()) {
+            result = i;
+            break;
+        }
+    }
+    return result;
+}
+
+
 enum class RtaAuthResponseHandlerState : int {
     // Multicast call from cryptonode auth rta auth response
     RtaAuthReply = 0,
@@ -82,6 +165,8 @@ enum class RtaAuthResponseHandlerState : int {
     // Status broadcast reply
     StatusBroadcastReply
 };
+
+
 
 struct RtaAuthResult
 {
@@ -134,18 +219,18 @@ void putRtaSignaturesToTx(cryptonote::transaction &tx, const std::vector<Superno
  * \param supernode
  * \return
  */
-bool signAuthResponse(AuthorizeRtaTxResponse &arg, const SupernodePtr &supernode)
-{
-    crypto::signature sign;
-    supernode->signMessage(arg.tx_id + ":" + std::to_string(arg.result), sign);
-    arg.signature.result_signature = epee::string_tools::pod_to_hex(sign);
-    crypto::hash tx_id;
-    epee::string_tools::hex_to_pod(arg.tx_id, tx_id);
-    supernode->signHash(tx_id, sign);
-    arg.signature.tx_signature = epee::string_tools::pod_to_hex(sign);
-    arg.signature.id_key = supernode->idKeyAsString();
-    return true;
-}
+//bool signAuthResponse(AuthorizeRtaTxResponse &arg, const SupernodePtr &supernode)
+//{
+//    crypto::signature sign;
+//    supernode->signMessage(arg.tx_id + ":" + std::to_string(arg.result), sign);
+//    arg.signature.result_signature = epee::string_tools::pod_to_hex(sign);
+//    crypto::hash tx_id;
+//    epee::string_tools::hex_to_pod(arg.tx_id, tx_id);
+//    supernode->signHash(tx_id, sign);
+//    arg.signature.tx_signature = epee::string_tools::pod_to_hex(sign);
+//    arg.signature.id_key = supernode->idKeyAsString();
+//    return true;
+//}
 
 /*!
  * \brief validateAuthResponse - validates (checks) RTA auth result signed by supernode
@@ -182,33 +267,168 @@ bool validateAuthResponse(const AuthorizeRtaTxResponse &arg, const SupernodePtr 
     return r1 && r2;
 }
 
-/*!
- * \brief validateRtaTx - validates rta
- * \param tx
- * \param err_msg
- * \return
- */
-bool validateRtaTxByAuthSampleNode(cryptonote::transaction &tx, std::string &err_msg)
+
+bool isProxySupernode(const cryptonote::rta_header &rta_hdr, const SupernodePtr &supernode)
 {
-    return false;
+   return std::find(rta_hdr.keys.begin(), rta_hdr.keys.begin() + 3, supernode->idKey()) != rta_hdr.keys.begin() + 3;
 }
 
-bool validateRtaTxByProxyNode(cryptonote::transaction &tx, std::string &err_msg)
+bool isAuthSampleSupernode(const cryptonote::rta_header &rta_hdr, const SupernodePtr &supernode)
 {
-    return false;
+   return std::find(rta_hdr.keys.begin() + 3, rta_hdr.keys.end(), supernode->idKey()) != rta_hdr.keys.end();
 }
 
-Status processNewRtaTx(cryptonote::transaction &tx, graft::Context& ctx, graft::Output &output)
+bool isAuthSampleValid(const cryptonote::rta_header &rta_hdr, graft::Context &ctx)
 {
-
+    if (!ctx.global.hasKey(rta_hdr.payment_id + CONTEXT_KEY_PAYMENT_DATA)) {
+        MERROR("Payment unknown: " << rta_hdr.payment_id);
+        return false;
+    }
+    // TODO: implement me
+    return true;
 }
 
 
-Status processKnownRtaTx(cryptonote::transaction &tx, graft::Context& ctx, graft::Output &output)
+bool checkMyFee(const cryptonote::transaction &tx, const crypto::secret_key &tx_key, const cryptonote::rta_header &rta_hdr,
+                 SupernodePtr supernode, graft::Context &ctx)
 {
+    if (!ctx.global.hasKey(rta_hdr.payment_id + CONTEXT_KEY_PAYMENT_DATA)) {
+        MERROR("Payment unknown: " << rta_hdr.payment_id);
+        return false;
+    }
+
+    // TODO implement me;
+    return  true;
+}
+
+
+
+
+Status signRtaTxAndSendResponse(cryptonote::transaction &tx, const crypto::secret_key &tx_key, graft::Context& ctx, graft::Output &output)
+{
+    cryptonote::rta_header rta_hdr;
+    if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
+        MERROR("Failed to get rta_header from tx: " << cryptonote::get_transaction_hash(tx));
+        return Status::Ok;
+    }
+
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+    std::vector<cryptonote::rta_signature> rta_signatures(FullSupernodeList::AUTH_SAMPLE_SIZE + 3);
+    int key_index = get_rta_key_index(rta_hdr, supernode);
+    if (key_index < 0) {
+        MERROR("Internal error: tx doesn't contain our key " << cryptonote::get_transaction_hash(tx));
+        return Status::Ok;
+    }
+
+    cryptonote::rta_signature &rta_sign = rta_signatures.at(key_index);
+    rta_sign.key_index = key_index;
+
+    crypto::hash tx_hash = cryptonote::get_transaction_hash(tx);
+    supernode->signHash(tx_hash, rta_sign.signature);
+
+    cryptonote::add_graft_rta_signatures_to_extra2(tx.extra2, rta_signatures);
+
+    PayRequest pay_req;
+    utils::encryptTxToHex(tx, rta_hdr.keys, pay_req.TxBlob);
+    utils::encryptTxKeyToHex(tx_key, rta_hdr.keys, pay_req.TxKey);
+    std::vector<std::string> destinations;
+
+    for (const auto & key : rta_hdr.keys) {
+        destinations.push_back(epee::string_tools::pod_to_hex(key));
+    }
+
+    utils::buildBroadcastOutput(pay_req, supernode, destinations, "json_rpc/rta", "/core/authorize_rta_tx_response", output);
+    ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::TxResposeSent;
+    // store payment id for a logging purposes
+    ctx.local["payment_id"] = rta_hdr.payment_id;
+    MDEBUG("calling authorize_rta_tx_response");
+    return Status::Forward;
 
 }
 
+Status processNewRtaTx(cryptonote::transaction &tx, const crypto::secret_key &tx_key, graft::Context& ctx, graft::Output &output)
+{
+    cryptonote::rta_header rta_hdr;
+    if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
+        MERROR("Failed to get rta_header from tx: " << cryptonote::get_transaction_hash(tx));
+        return Status::Ok;
+    }
+
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+
+    // sanity check if we're proxy supernode or auth sample supernode
+    if (!isProxySupernode(rta_hdr, supernode) && !isAuthSampleSupernode(rta_hdr, supernode)) {
+        MERROR("Internal error: authorize_rta_tx_request handled by non-proxy non-auth-sample supernode: " << rta_hdr.payment_id);
+        return Status::Ok;
+    }
+
+    if (!checkMyFee(tx, tx_key, rta_hdr, supernode, ctx)) {
+        MERROR("Failed to validate supernode fee for payment: " << rta_hdr.payment_id);
+        return Status::Ok;
+    }
+
+    // in case we're auth sample supernode
+    if (isAuthSampleSupernode(rta_hdr, supernode)) {
+        // check if auth sample valid
+        if (!isAuthSampleValid(rta_hdr, ctx)) {
+            MERROR("Invalid auth sample for payment: " << rta_hdr.payment_id);
+            return Status::Ok;
+        }
+        // check if key images spent
+        IsKeyImageSpentRequest req;
+        for (const cryptonote::txin_v& tx_input : tx.vin) {
+          if (tx_input.type() == typeid(cryptonote::txin_to_key)) {
+              crypto::key_image k_image = boost::get<cryptonote::txin_to_key>(tx_input).k_image;
+              req.key_images.push_back(epee::string_tools::pod_to_hex(k_image));
+          }
+        }
+        output.path = "/is_key_image_spent";
+        output.load(req);
+        ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::KeyImagesRequestSent;
+        MDEBUG("sending /is_key_image_spent: " << output.data());
+        return Status::Forward; // send request to cryptonode
+    }
+
+    return signRtaTxAndSendResponse(tx, tx_key, ctx, output);
+}
+
+
+Status processKeyImagesReply(const Router::vars_t& vars, const graft::Input& input,
+                            graft::Context& ctx, graft::Output& output) noexcept
+{
+    IsKeyImageSpentResponse resp;
+    if (!input.get(resp)) {
+        MERROR("Failed to parse is_key_images_spent response");
+        return Status::Ok;
+    }
+
+    if (resp.status != "OK") {
+        MERROR("is_key_images_spent returned failure" << input.data());
+        return Status::Ok;
+    }
+
+    for (const auto spent_status : resp.spent_status) {
+        if (spent_status != 0) {
+            MERROR("some of the key images spent, status: " << spent_status);
+            return Status::Ok;
+        }
+    }
+
+    cryptonote::transaction tx;
+    if (!getTxFromContext(ctx, tx)) {
+        MERROR("Failed to read tx from context");
+        return Status::Ok;
+    }
+
+    crypto::secret_key tx_key;
+    if (!getTxKeyFromContext(ctx, tx_key)) {
+        MERROR("Failed to read tx_key from context");
+        return Status::Ok;
+    }
+    // all good, multicast authorize_rta_tx_response
+    MDEBUG("key images check passed, signing rta tx");
+    return signRtaTxAndSendResponse(tx, tx_key, ctx, output);
+}
 
 Status storeRtaTxAndReplyOk(const Router::vars_t& vars, const graft::Input& input,
                             graft::Context& ctx, graft::Output& output) noexcept
@@ -223,7 +443,6 @@ Status storeRtaTxAndReplyOk(const Router::vars_t& vars, const graft::Input& inpu
         // cryptonode isn't supposed to handle any errors, it's job just to deliver a message
         MERROR("Failed to parse request");
         return sendOkResponseToCryptonode(output);
-
     }
 
     BroadcastRequest &req = reqjrpc.params;
@@ -243,9 +462,6 @@ Status storeRtaTxAndReplyOk(const Router::vars_t& vars, const graft::Input& inpu
         return sendOkResponseToCryptonode(output);
     }
 
-
-
-
     MDEBUG("incoming tx auth request from: " << req.sender_address);
     ctx.local["request"] = tx_req;
     MDEBUG(__FUNCTION__ << " end");
@@ -253,7 +469,7 @@ Status storeRtaTxAndReplyOk(const Router::vars_t& vars, const graft::Input& inpu
 }
 
 /*!
- * \brief handleTxAuthRequest - handles RTA auth request multicasted over auth sample.
+ * \brief handleTxAuthRequestNew - handles RTA auth request multicasted over auth sample.
  * \param vars
  * \param input
  * \param ctx
@@ -261,18 +477,9 @@ Status storeRtaTxAndReplyOk(const Router::vars_t& vars, const graft::Input& inpu
  * \return
  */
 
-Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*input*/,
+Status handleTxAuthRequestNew(const Router::vars_t& vars, const graft::Input& /*input*/,
                             graft::Context& ctx, graft::Output& output) noexcept
 {
-
-    // 1. check signatures
-    // 2.
-    enum class RtaTxState {
-        New = 0,
-        AlreadyProcessedApproved,
-        AlreadyProcessedRejected
-    };
-
     MDEBUG(__FUNCTION__ << " begin");
     assert(ctx.local.getLastStatus() == Status::Again);
 
@@ -281,9 +488,7 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
         return Status::Error;
     }
 
-
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
-
     PayRequest pay_req = ctx.local["request"];
 
     cryptonote::transaction tx;
@@ -291,6 +496,13 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
         MERROR("Failed to decrypt tx from: " << pay_req.TxBlob);
         return Status::Ok;
     }
+
+    crypto::secret_key tx_key;
+   if (!utils::decryptTxKeyFromHex(pay_req.TxKey, supernode, tx_key)) {
+       MERROR("Failed to decrypt tx key from: " << pay_req.TxKey);
+       return Status::Ok;
+   }
+
 
     crypto::hash tx_hash = cryptonote::get_transaction_hash(tx);
     cryptonote::rta_header rta_hdr;
@@ -313,66 +525,53 @@ Status handleTxAuthRequest(const Router::vars_t& vars, const graft::Input& /*inp
 
     // if new one:
     if (!ctx.global.hasKey(rta_hdr.payment_id + CONTEXT_KEY_RTA_TX_STATE)) { // new tx;
-        return processNewRtaTx(tx, ctx, output);
+        // update payment status
+        ctx.global.set(rta_hdr.payment_id + CONTEXT_KEY_RTA_TX_STATE, RtaTxState::Processing, SALE_TTL);
+        UpdatePaymentStatusRequest req;
+        req.PaymentID = rta_hdr.payment_id;
+        req.Status = static_cast<int>(RTAStatus::InProgress);
+        utils::buildBroadcastOutput(req, supernode, std::vector<std::string>(), "json_rpc/rta", "/core/update_payment_status", output);
+        ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::StatusUpdateSent;
+        putTxToContext(tx, ctx);
+        if (!getTxFromContext(ctx, tx)) {
+            abort();
+        }
+        putTxKeyToContext(tx_key, ctx);
+        MDEBUG("tx stored in local context for payment: " << rta_hdr.payment_id);
+
+        return Status::Forward;
     } else {
-        return processKnownRtaTx(tx, ctx, output);
+        MDEBUG("payment id auth request already processed: " << rta_hdr.payment_id);
     }
 
+    return Status::Ok;
+
+}
 
 
+Status handleTxAuthRequestStatusUpdated(const Router::vars_t& vars, const graft::Input& input,
+                            graft::Context& ctx, graft::Output& output) noexcept
+{
+    BroadcastResponseFromCryptonodeJsonRpc resp;
 
-//    // check if we already processed this tx
+    JsonRpcErrorResponse error;
+    if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
+        return  errorInternalError("Error multicasting payment status update", output);
+    }
 
-//    std::string tx_id_str = epee::string_tools::pod_to_hex(tx_hash);
-//    if (ctx.global.hasKey(tx_id_str + CONTEXT_KEY_TX_BY_TXID)) {
-//        LOG_ERROR("tx already processed: " << tx_id_str);
-//        return errorCustomError("tx already processed", ERROR_INVALID_PARAMS, output);
-//    }
+    cryptonote::transaction tx;
+    if (!getTxFromContext(ctx, tx)) {
+        MERROR("Failed to get tx from context");
+        return Status::Ok;
+    }
 
-//    // store tx amount in global context
-//    MDEBUG("storing amount for payment: " << authReq.payment_id
-//           << ", tx_id: " << tx_id_str << ", amount: " << authReq.amount);
-//    ctx.global.set(tx_id_str + CONTEXT_KEY_AMOUNT_BY_TX_ID, authReq.amount, RTA_TX_TTL);
-//    // check if we have a fee assigned by sender wallet
-//    uint64 amount = 0;
-//    if (!supernode->getAmountFromTx(tx, amount)) {
-//        LOG_ERROR("can't parse supernode fee for tx: " << tx_id_str);
-//        return errorCustomError("can't parse supernode fee for tx", ERROR_INVALID_PARAMS, output);
-//    }
+    crypto::secret_key tx_key;
+    if (!getTxKeyFromContext(ctx, tx_key)) {
+        MERROR("Failed to get tx key from context");
+        return Status::Ok;
+    }
 
-//   // TODO: read payment id from transaction, map tx_id to payment_id
-//    MulticastRequestJsonRpc authResponseMulticast;
-//    authResponseMulticast.method = "multicast";
-//    authResponseMulticast.params.sender_address = supernode->idKeyAsString();
-//    authResponseMulticast.params.receiver_addresses = req.params.receiver_addresses;
-//    authResponseMulticast.params.callback_uri = "/core/authorize_rta_tx";
-//    AuthorizeRtaTxResponse authResponse;
-//    authResponse.tx_id = tx_id_str;
-//    authResponse.result = static_cast<int>(amount > 0 && tx.type == cryptonote::transaction::tx_type_rta ?
-//                                             RTAAuthResult::Approved
-//                                           : RTAAuthResult::Rejected);
-//    signAuthResponse(authResponse, supernode);
-//    authResponse.signature.id_key  = supernode->idKeyAsString();
-
-//    // store tx
-//    ctx.global.set(authResponse.tx_id + CONTEXT_KEY_TX_BY_TXID, tx, RTA_TX_TTL);
-//    // TODO: remove it when payment id will be in tx.extra
-//    ctx.global.set(authResponse.tx_id + CONTEXT_KEY_PAYMENT_ID_BY_TXID, authReq.payment_id, RTA_TX_TTL);
-
-//    // store payment id in local ctx for the logging purposes
-//    ctx.local["payment_id"] = authReq.payment_id;
-
-//    Output innerOut;
-//    innerOut.loadT<serializer::JSON_B64>(authResponse);
-//    authResponseMulticast.params.data = innerOut.data();
-//    output.load(authResponseMulticast);
-//    output.path = "/json_rpc/rta";
-//    MDEBUG("payment: " << authReq.payment_id << ", validate result: " << authResponse.result);
-
-//    MDEBUG("multicasting: " << output.data());
-
-//    MDEBUG(__FUNCTION__ << " end");
-//    return Status::Forward;
+    return processNewRtaTx(tx, tx_key, ctx, output);
 }
 
 /*!
@@ -703,26 +902,22 @@ Status handleAuthorizeRtaTxRequest(const Router::vars_t& vars, const graft::Inpu
                                  graft::Context& ctx, graft::Output& output) noexcept
 {
 
-
-    enum class HandlerState : int {
-        IncomingRequest = 0, // incoming request from client, store it and return Status::Again
-        RequestStored,       // request stored, waiting to be processed: check if already processed
-        RequestProcessed    // request processed - status update multicasted
-        //CryptonodeReply      // cryptonode replied to milticast
-    };
-
     try {
-        HandlerState state = ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : HandlerState::IncomingRequest;
+        AuthorizeRtaTxRequestHandlerState state = ctx.local.hasKey(RTA_TX_REQ_HANDLER_STATE_KEY) ? ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY]
+                                                                                                   : AuthorizeRtaTxRequestHandlerState::IncomingRequest;
         switch (state) {
-        case HandlerState::IncomingRequest: //
-            ctx.local[__FUNCTION__] = HandlerState::RequestStored;
+        case AuthorizeRtaTxRequestHandlerState::IncomingRequest: //
+            ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::RequestStored;
             return storeRtaTxAndReplyOk(vars, input, ctx, output);
-        case HandlerState::RequestStored:
+        case AuthorizeRtaTxRequestHandlerState::RequestStored:
             // ctx.local[__FUNCTION__] = HandlerState::CryptonodeReply;
-            return handleTxAuthRequest(vars, input, ctx, output);
-        // case HandlerState::CryptonodeReply:
-        //    MDEBUG("cyptonode reply, payload: " << input.data());
-        //    return handleCryptonodeMulticastStatus(vars, input, ctx, output);
+            return handleTxAuthRequestNew(vars, input, ctx, output);
+        case AuthorizeRtaTxRequestHandlerState::StatusUpdateSent: // status update broadcast sent;
+            return handleTxAuthRequestStatusUpdated(vars, input, ctx, output);
+        case AuthorizeRtaTxRequestHandlerState::KeyImagesRequestSent: // is_key_images_spent request sent;
+            return processKeyImagesReply(vars, input, ctx, output);
+        case AuthorizeRtaTxRequestHandlerState::TxResposeSent:
+            return handleCryptonodeReply(vars, input, ctx, output);
         default: // internal error
             return errorInternalError(std::string("authorize_rta_tx_request: unhandled state: ") + std::to_string(int(state)),
                                       output);

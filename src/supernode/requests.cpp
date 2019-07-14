@@ -26,6 +26,10 @@ void registerRTARequests(graft::Router &router)
     registerRejectSaleRequest(router);
     registerGetInfoRequest(router);
     registerRejectPayRequest(router);
+    registerBlockchainBasedListRequest(router);
+    registerSendSupernodeAnnounceRequest(router);
+    registerSendSupernodeStakesRequest(router);
+    registerRedirectRequests(router);
 }
 
 void registerWalletApiRequests(graft::Router &router)
