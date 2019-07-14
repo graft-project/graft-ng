@@ -45,6 +45,7 @@
 #include "requests/paymentdataresponse.h"
 #include "requests/getsupernodeinfo.h"
 #include "requests/authorizertatx.h"
+#include "requests/updatepaymentstatus.h"
 
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
@@ -187,6 +188,12 @@ private:
     {
         return supernode::request::handleAuthorizeRtaTxRequest(vars, input, ctx, output);
     }
+
+    Status handleUpdatePaymentStatusRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return supernode::request::handleUpdatePaymentStatusRequest(vars, input, ctx, output);
+    }
+
 
 
 

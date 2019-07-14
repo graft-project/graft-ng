@@ -30,7 +30,6 @@
 #include "common.h"
 
 #include "supernode/requests/broadcast.h"
-#include "supernode/requests/pay_status.h"
 
 #include "supernode/requestdefines.h"
 #include "lib/graft/requesttools.h"
