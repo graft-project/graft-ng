@@ -124,6 +124,7 @@ public:
     bool readPaymentDetails()
     {
         std::string json;
+        MWARNING("Reading payment details from QR code...");
         bool r = epee::file_io_utils::load_file_to_string(m_qrcode_file, json);
         if (!r) {
             MERROR("Failed to reaf file: " << m_qrcode_file);
@@ -160,6 +161,8 @@ public:
 
         do {
 
+            MWARNING("Requesting payment data for payment: " << m_paymentDetails.paymentId);
+
             bool r = invoke_http_rest("/dapi/v2.0/get_payment_data", req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
             if (!r) {
                 MERROR("Failed to invoke sale: " << graft::to_json_str(err_resp));
@@ -185,7 +188,8 @@ public:
             return false;
         }
 
-        MINFO("Payment data received for payment id: " << req.PaymentID << " " << raw_resp);
+        // MWARNING("Payment data received for payment id: " << req.PaymentID << " " << raw_resp);
+        MWARNING("Payment data received for payment id: " << req.PaymentID);
 
         std::string encryptedPaymentInfoBlob;
         if (!epee::string_tools::parse_hexstr_to_binbuff(m_paymentDataResponse.paymentData.EncryptedPayment, encryptedPaymentInfoBlob)) {
@@ -214,7 +218,7 @@ public:
             return false;
         }
 
-        MINFO("payment info: " << m_paymentInfo.Details);
+        MWARNING("payment details: " << m_paymentInfo.Details);
 
         return true;
     }
@@ -230,6 +234,7 @@ public:
         std::string raw_resp;
         ErrorResponse err_resp;
         int http_status;
+        MWARNING("Collecting auth sample id keys...");
         bool r = invoke_http_rest("/dapi/v2.0/core/get_supernode_info", req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
 
         if (!r || http_status != 200) {
@@ -258,6 +263,8 @@ public:
         cryptonote::rta_header rta_hdr;
         rta_hdr.payment_id = m_paymentDetails.paymentId;
         rta_hdr.auth_sample_height = m_paymentDetails.blockNumber;
+
+        MWARNING("Building transaction...");
 
         if (!append_key_to_rta_hdr(rta_hdr, m_paymentDetails.posAddress.Id)) { // pos key;
             return false;
@@ -299,13 +306,17 @@ public:
 
         const cryptonote::transaction &tx = ptx_v.at(0).tx;
 
-        MINFO("About to do pay, payment_id:  " << m_paymentDetails.paymentId << ", Total amount: " << print_money(m_paymentInfo.Amount)
+        MWARNING("About to do pay, payment_id:  " << m_paymentDetails.paymentId << ", Total amount: " << print_money(m_paymentInfo.Amount)
               << ", Merchant amount : " << print_money(recepient_amount)
               << ", Fee per member: " << print_money(fee_per_destination)
               << ", Payment details: " << m_paymentInfo.Details
               << ", tx_id: " << tx.hash);
 
         // 3. get tx private key
+        if (tx.version != 3) {
+            MERROR("expected version 3: " << tx.version);
+            abort();
+        }
 
         PayRequest pay_req;
 
@@ -319,8 +330,7 @@ public:
             return false;
         }
 
-        MINFO("Pay processed, payment id: " << m_paymentDetails.paymentId << ", tx id: " << tx.hash);
-
+        MWARNING("Payment sent, payment id: " << m_paymentDetails.paymentId << ", tx id: " << tx.hash);
         return true;
     }
 
