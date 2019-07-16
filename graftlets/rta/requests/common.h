@@ -32,11 +32,24 @@
 #include "lib/graft/serialize.h"
 #include "rta/supernode.h"
 #include "supernode/requests/broadcast.h"
-
+#include <cryptonote_basic/cryptonote_basic.h>
+#include <cryptonote_basic/cryptonote_format_utils.h>
 #include <chrono>
 
 
 namespace graft::supernode::request {
+
+static const std::string RTA_TX_REQ_HANDLER_STATE_KEY = "rta_tx_req_handler_state";
+static const std::string CONTEXT_RTA_TX_REQ_TX_KEY = "rta_tx_req_tx_key"; // key to store transaction
+static const std::string CONTEXT_RTA_TX_REQ_TX_KEY_KEY = "rta_tx_req_tx_key_key"; // key to store transaction private key
+
+static const std::string RTA_TX_RESP_HANDLER_STATE_KEY = "rta_tx_resp_handler_state";
+static const std::string CONTEXT_RTA_TX_RESP_TX_KEY = "rta_tx_resp_tx_key"; // key to store transaction
+static const std::string CONTEXT_RTA_TX_RESP_TX_KEY_KEY = "rta_tx_resp_tx_key_key"; // key to store transaction private key
+
+// shared constants
+extern const std::chrono::seconds SALE_TTL;
+
 
 GRAFT_DEFINE_IO_STRUCT(NodeAddress,
                        (std::string, Id),
@@ -95,6 +108,8 @@ bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &public
  */
 bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx);
 
+bool decryptTxFromHex(const std::string &encryptedHex, const crypto::secret_key &key, cryptonote::transaction &tx);
+
 /*!
  * \brief encryptTxToHex - encrypts transaction using public keys (one-to-many scheme)
  * \param tx             - transaction to encrypt
@@ -105,6 +120,10 @@ void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto:
 
 
 bool decryptTxKeyFromHex(const std::string &encryptedHex, SupernodePtr supernode, crypto::secret_key &tx_key);
+
+bool decryptTxKeyFromHex(const std::string &encryptedHex, const crypto::secret_key &key, crypto::secret_key &tx_key);
+
+
 void encryptTxKeyToHex(const crypto::secret_key &tx_key, const std::vector<crypto::public_key> &keys, std::string &encryptedHex);
 
 
@@ -130,6 +149,19 @@ void buildBroadcastOutput(const Request &req, SupernodePtr & supernode, const st
     output.path = path;
 
 }
+
+
+void putTxToGlobalContext(const cryptonote::transaction &tx,  graft::Context &ctx, const std::string &key, std::chrono::seconds ttl);
+
+bool getTxFromGlobalContext(graft::Context &ctx, cryptonote::transaction &tx, const std::string &key);
+
+void putTxKeyToContext(const crypto::secret_key &txkey, graft::Context &ctx, const std::string &key, std::chrono::seconds ttl);
+
+bool getTxKeyFromContext(graft::Context &ctx, crypto::secret_key &key, const std::string &payment_id);
+
+
+
+
 
 
 } // namespace utils

@@ -34,6 +34,7 @@ static const std::string CONTEXT_KEY_STATUS(":status");
 static const std::string CONTEXT_KEY_PAY(":pay");
 static const std::string CONTEXT_KEY_SUPERNODE("supernode");
 static const std::string CONTEXT_KEY_FULLSUPERNODELIST("fsl");
+static const std::string CONTEXT_KEY_TX(":tx");
 // key to maintain auth responses from supernodes for given tx id
 static const std::string CONTEXT_KEY_AUTH_RESULT_BY_TXID(":tx_id_to_auth_resp");
 // key to map tx_id -> payment_id
@@ -55,6 +56,9 @@ static const std::string CONTEXT_KEY_RUNTIME_SYS_INFO(":runtime-sys-info");
 
 // key to store if we already processed rta tx
 static const std::string CONTEXT_KEY_RTA_TX_STATE(":rta-tx-state");
+
+// key to store tx with signatures
+static const std::string CONTEXT_KEY_RTA_VOTING_TX(":rta-voting-tx");
 
 namespace graft {
 

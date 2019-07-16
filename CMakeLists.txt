@@ -327,7 +327,6 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_sale.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_details.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_raw_tx.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_stakes.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
@@ -407,6 +406,7 @@ target_link_libraries(wallet_server PRIVATE
 ### rta-pos-cli
 set(rta-pos-cli-sources
     ${PROJECT_SOURCE_DIR}/src/apps/rta-pos-cli/main.cpp
+    ${PROJECT_SOURCE_DIR}/graftlets/rta/requests/common.cpp
     )
 
 add_executable(rta-pos-cli
@@ -431,7 +431,7 @@ target_link_libraries(rta-pos-cli PRIVATE
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${Boost_REGEX_LIBRARY}
-
+    supernode_common
     # ${COMMON_LIBS}
     # TODO: figure out the issue with mixing static and dynamic linking
     # in case uncomment "${COMMON_LIBS} - there will be errors:

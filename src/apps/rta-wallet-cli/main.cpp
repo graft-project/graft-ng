@@ -285,7 +285,7 @@ public:
         std::vector<uint8_t> extra;
         cryptonote::add_graft_rta_header_to_extra(extra, rta_hdr);
         uint64_t recepient_amount, fee_per_destination = 0;
-        double fee_ratio = 0.05;
+        double fee_ratio = 0.5;
 
         std::vector<tools::wallet2::pending_tx> ptx_v = m_wallet.create_transactions_graft(
                     m_paymentDetails.posAddress.WalletAddress,

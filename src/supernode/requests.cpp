@@ -8,7 +8,6 @@
 #include "supernode/requests/forward.h"
 #include "lib/graft/requests/health_check.h"
 
-#include "supernode/requests/send_raw_tx.h"
 
 #include "supernode/requests/send_supernode_announce.h"
 #include "supernode/requests/send_supernode_stakes.h"

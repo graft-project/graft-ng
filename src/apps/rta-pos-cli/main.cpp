@@ -30,14 +30,22 @@
 #include "misc_log_ex.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_core.h"
+#include "cryptonote_basic/cryptonote_basic_impl.h"
+
 #include "serialization/binary_utils.h" // dump_binary(), parse_binary()
 #include "serialization/json_utils.h" // dump_json()
 #include "include_base_utils.h"
 #include "rta/requests/sale.h" // sale request struct
 #include "rta/requests/presale.h" //
 #include "rta/requests/common.h" //
+#include "rta/requests/gettx.h" //
+#include "rta/requests/getpaymentstatus.h"
+#include "rta/requests/approvepaymentrequest.h"
+#include "rta/fullsupernodelist.h"
+
 #include "supernode/requestdefines.h"
 #include "utils/cryptmsg.h" // one-to-many message cryptography
+#include "utils/utils.h" // decode amount from tx
 #include "lib/graft/serialize.h"
 
 
@@ -104,6 +112,11 @@ public:
     {
         boost::optional<epee::net_utils::http::login> login{};
         m_http_client.set_server(supernode_address, login);
+        address_parse_info address_pi;
+        if (!cryptonote::get_account_address_from_str(address_pi, cryptonote::TESTNET, m_wallet_address)) {
+            throw std::runtime_error("failed to parse wallet address ");
+        }
+        m_account = address_pi.address;
     }
 
     bool presale()
@@ -122,6 +135,11 @@ public:
             MDEBUG("response: " << graft::to_json_str(m_presale_resp));
         }
         return r;
+    }
+
+    static uint64_t get_total_fee(uint64_t tx_amount)
+    {
+        return tx_amount - (tx_amount / 1000 * 5);
     }
 
     bool sale(uint64_t amount)
@@ -205,12 +223,137 @@ public:
         return m_payment_id;
     }
 
+    bool waitForStatus(int status, std::chrono::seconds timeout)
+    {
+
+        request::PaymentStatusRequest req;
+        req.PaymentID = paymentId();
+
+        std::string raw_resp;
+        int http_status = 0;
+        ErrorResponse err_resp;
+        chrono::steady_clock::time_point start = chrono::steady_clock::now();
+        chrono::milliseconds elapsed;
+
+        do {
+
+            MWARNING("Requesting payment status for payment: " << paymentId());
+
+            bool r = invoke_http_rest("/dapi/v2.0/get_payment_status", req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
+            if (!r) {
+                MERROR("Failed to invoke get_payment_status: " << graft::to_json_str(err_resp));
+            }
+
+            if (http_status == 200 && !raw_resp.empty()) {
+                request::PaymentStatusResponse resp;
+                if (!graft::from_json_str(raw_resp, resp)) {
+                    MERROR("Failed to parse payment status response: " << raw_resp);
+                    return false;
+                }
+
+                if (resp.Status == status)
+                    return true;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(chrono::steady_clock::now() - start);
+
+        } while (elapsed < timeout);
+
+        return  false;
+    }
+
+    bool requestTx()
+    {
+        request::GetTxRequest req;
+        crypto::signature sign;
+        crypto::hash hash;
+
+        req.PaymentID = paymentId();
+        crypto::cn_fast_hash(req.PaymentID.data(), req.PaymentID.size(), hash);
+        crypto::generate_signature(hash, m_pub_key, m_secret_key, sign);
+        req.Signature = epee::string_tools::pod_to_hex(sign);
+        std::string raw_resp;
+        int http_status = 0;
+        ErrorResponse err_resp;
+
+        bool r = invoke_http_rest("/dapi/v2.0/get_tx", req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
+        if (!r) {
+            MERROR("Failed to invoke get_tx: " << graft::to_json_str(err_resp));
+            return r;
+        }
+
+        GetTxResponse resp;
+        if (!graft::from_json_str(raw_resp, resp)) {
+            MERROR("Failed to parse tx response: " << raw_resp);
+            return false;
+        }
 
 
+        if (!utils::decryptTxFromHex(resp.TxBlob, m_secret_key, m_tx)) {
+            MERROR("Failed to decrypt tx");
+            return false;
+        }
+
+        if (!utils::decryptTxKeyFromHex(resp.TxKeyBlob, m_secret_key, m_txkey)) {
+            MERROR("Failed to decrypt tx key");
+            return false;
+        }
+        return true;
+
+    }
+
+    bool validateTx(uint64_t sale_amount)
+    {
+        std::vector<std::pair<size_t, uint64_t>> outputs;
+        uint64_t tx_amount = 0;
+
+        if (!Utils::get_tx_amount(m_account, m_txkey, m_tx, outputs, tx_amount)) {
+            MERROR("Failed to get amount from tx");
+            return false;
+        }
+        MINFO("sale amount: " << sale_amount << ", tx_amount : " << tx_amount << ", expected amount: " << get_total_fee(sale_amount));
+        return tx_amount == get_total_fee(sale_amount); //
+    }
+
+    bool approvePayment()
+    {
+        ApprovePaymentRequest req;
+
+        std::vector<cryptonote::rta_signature> rta_signatures;
+        cryptonote::rta_header rta_hdr;
+
+        if (!cryptonote::get_graft_rta_header_from_extra(m_tx, rta_hdr)) {
+            MERROR("Failed to read rta_hdr from tx");
+            return false;
+        }
+
+        rta_signatures.resize(graft::FullSupernodeList::AUTH_SAMPLE_SIZE + 3);
+        crypto::signature &sig = rta_signatures.at(cryptonote::rta_header::POS_KEY_INDEX).signature;
+        crypto::hash hash = cryptonote::get_transaction_hash(m_tx);
+        crypto::generate_signature(hash, m_pub_key, m_secret_key, sig);
+
+        m_tx.extra2.clear();
+        cryptonote::add_graft_rta_signatures_to_extra2(m_tx.extra2, rta_signatures);
+        utils::encryptTxToHex(m_tx, rta_hdr.keys, req.TxBlob);
+
+        std::string raw_resp;
+        int http_status = 0;
+        ErrorResponse err_resp;
+
+        bool r = invoke_http_rest("/dapi/v2.0/approve_payment", req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
+        if (!r) {
+            MERROR("Failed to invoke get_tx: " << graft::to_json_str(err_resp));
+            return r;
+        }
+        MINFO("approve_payment returned: " << raw_resp);
+        return true;
+
+    }
 
 private:
-    std::string m_qrcode_file;
 
+    std::string m_qrcode_file;
     std::string m_sale_items_file;
     std::chrono::microseconds m_sale_timeout = std::chrono::milliseconds(5000);
     crypto::public_key m_pub_key;
@@ -218,8 +361,11 @@ private:
     epee::net_utils::http::http_simple_client m_http_client;
     std::chrono::seconds m_network_timeout = std::chrono::seconds(10);
     std::string m_wallet_address;
+    cryptonote::account_public_address m_account;
     std::string m_payment_id;
     PresaleResponse m_presale_resp;
+    cryptonote::transaction m_tx;
+    crypto::secret_key m_txkey;
 };
 
 
@@ -320,8 +466,41 @@ int main(int argc, char* argv[])
     if (!pos.saveQrCodeFile()) {
         return EXIT_FAILURE;
     }
+
+
     MINFO("Sale initiated: " << pos.paymentId());
-    // TODO:
+
+
+    if (!pos.waitForStatus(int(graft::RTAStatus::InProgress), std::chrono::seconds(20))) {
+        MERROR("Expected in-progress status");
+        return EXIT_FAILURE;
+    }
+
+    MINFO("Sale status changed: " << int(graft::RTAStatus::InProgress) << ", " << pos.paymentId());
+    // TODO: request tx, validate it
+    if (!pos.requestTx()) {
+        return EXIT_FAILURE;
+    }
+
+    MINFO("Sale tx received for payment: " << pos.paymentId());
+
+    if (!pos.validateTx(amount)) {
+        return EXIT_FAILURE;
+    }
+
+    MINFO("Sale tx validated for payment: " << pos.paymentId());
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+    if (!pos.approvePayment()) {
+        return EXIT_FAILURE;
+    }
+
+    // wait for status = Success;
+    if (!pos.waitForStatus(int(graft::RTAStatus::Success), std::chrono::seconds(20))) {
+        MERROR("Expected Success status");
+        return EXIT_FAILURE;
+    }
+
+    MWARNING("Payment: " << pos.paymentId() << "processed successfully..");
 
     return 0;
 

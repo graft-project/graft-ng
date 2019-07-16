@@ -33,13 +33,46 @@
 #include "common.h"
 #include "supernode/requests/broadcast.h"
 #include "lib/graft/jsonrpc.h"
-#include <misc_log_ex.h>
+#include <string_tools.h> // graftnoded's contrib/epee/include
+#include <misc_log_ex.h>  // graftnoded's log macros
+
+#include <cryptonote_basic/cryptonote_basic.h>
+#include <cryptonote_basic/cryptonote_format_utils.h>
+
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.updatepaymentstatusrequest"
 
 namespace graft::supernode::request {
 
+
+bool isSenderValid(const std::string &address, graft::Context &ctx, const std::string &payment_id)
+{
+    cryptonote::transaction tx;
+    if (!utils::getTxFromGlobalContext(ctx, tx, payment_id + CONTEXT_RTA_TX_REQ_TX_KEY)) {
+        MERROR("Failed to find transaction for payment id: " << payment_id);
+        return false;
+    }
+
+    cryptonote::rta_header rta_hdr;
+    if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr))  {
+        MERROR("Failed to read rta_header from tx, payment id: " << payment_id);
+        return false;
+    }
+
+    crypto::public_key needle;
+    if (!epee::string_tools::hex_to_pod(address, needle)) {
+        MERROR("Failed to parse public key: " << address);
+        return false;
+    }
+
+    for (const auto &key : rta_hdr.keys) {
+        if (key == needle)
+            return true;
+    }
+    return false;
+
+}
 
 Status handleUpdatePaymentStatusRequest(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
@@ -52,14 +85,12 @@ Status handleUpdatePaymentStatusRequest(const Router::vars_t& vars, const graft:
     }
 
     // JSON-RPC envelop, we need to extract actual request;
-
     BroadcastRequest &req = reqjrpc.params;
 
     if (!utils::verifyBroadcastMessage(req, req.sender_address)) {
         MERROR("Signature verification failed: " << input.data());
         return sendOkResponseToCryptonode(output);
     }
-
 
     graft::Input innerInput;
     innerInput.load(req.data);
@@ -71,6 +102,13 @@ Status handleUpdatePaymentStatusRequest(const Router::vars_t& vars, const graft:
     }
 
     const std::string &payment_id = updateStatusRequest.PaymentID;
+
+    // check if it signed by auth sample or pos/pos proxy/wallet proxy
+    if (!isSenderValid(req.sender_address, ctx, updateStatusRequest.PaymentID)) {
+        MERROR("Status update sent by invalid sender: " << req.sender_address);
+        return sendOkResponseToCryptonode(output);
+    }
+
     MDEBUG("update payment status received from broadcast: " << payment_id << ", New status: " << updateStatusRequest.Status);
 
     ctx.global.set(payment_id + CONTEXT_KEY_STATUS, updateStatusRequest.Status, SALE_TTL);

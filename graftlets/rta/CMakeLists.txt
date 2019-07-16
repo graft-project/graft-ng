@@ -41,6 +41,9 @@ add_library(graftlet_rta SHARED
     requests/authorizertatx.cpp
     requests/updatepaymentstatus.cpp
     requests/getpaymentstatus.cpp
+    requests/gettx.cpp
+    requests/approvepaymentrequest.cpp
+    requests/send_raw_tx.cpp
 )
 set_target_properties(graftlet_walletAddress PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode

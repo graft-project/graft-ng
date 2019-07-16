@@ -26,27 +26,46 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
+#include "getpaymentstatus.h"
 #include "common.h"
-#include "lib/graft/router.h"
-#include "lib/graft/jsonrpc.h"
+
+#include "supernode/requests/sale_status.h"
+
 #include "supernode/requestdefines.h"
+#include "lib/graft/requesttools.h"
+#include "rta/supernode.h"
+#include "rta/fullsupernodelist.h"
+#include "lib/graft/common/utils.h"
+#include "supernode/requests/broadcast.h"
+#include "utils/cryptmsg.h" // one-to-many message cryptography
+
+
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.getpaymentstatusrequest"
+
 
 namespace graft::supernode::request {
 
-// Pay request payload
-// TODO: rename rta tx request
-GRAFT_DEFINE_IO_STRUCT_INITED(PayRequest,
-    (std::string, TxBlob, std::string()), // encrypted serialized tx as hexadecimal string. Includes payment id
-    (std::string, TxKey, std::string())  // encrypted tx private key
-);
+Status getPaymentStatusRequest(const Router::vars_t &vars, const Input &input, Context &ctx, Output &output)
+{
+    PaymentStatusRequest req;
+    if (!input.get(req)) {
+        return errorInvalidParams(output);
+    }
 
-// shared constants
-extern const std::chrono::seconds PAY_TTL;
+    // we have payment data
+    if (!ctx.global.hasKey(req.PaymentID + CONTEXT_KEY_STATUS)) {
+        return errorInvalidPaymentID(output);  // TODO: consider to change protocol to return 404?
+    }
+    MDEBUG("payment status found for payment id: " << req.PaymentID);
+    PaymentStatusResponse resp;
 
-Status handlePayRequest(const Router::vars_t& vars, const graft::Input& input,
-                         graft::Context& ctx, graft::Output& output);
+    resp.Status = ctx.global.get(req.PaymentID + CONTEXT_KEY_STATUS, 0);
+
+    output.load(resp);
+    return Status::Ok;
+}
 
 }
+
 

@@ -36,6 +36,11 @@
 #include <utils/cryptmsg.h> // one-to-many message cryptography
 #include <boost/algorithm/string/join.hpp>
 
+namespace graft::supernode::request {
+
+    const std::chrono::seconds SALE_TTL = std::chrono::seconds(60);
+
+}
 
 namespace graft::supernode::request::utils {
 
@@ -85,7 +90,7 @@ bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &public
     return Supernode::verifyHash(hash, pkey, sign);
 }
 
-bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx)
+bool decryptTxFromHex(const std::string &encryptedHex, const crypto::secret_key &key, cryptonote::transaction &tx)
 {
     std::string decryptedTxBlob, encryptedTxBlob;
 
@@ -94,7 +99,7 @@ bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, c
         return false;
     }
 
-    if (!graft::crypto_tools::decryptMessage(encryptedTxBlob, supernode->secretKey(), decryptedTxBlob)) {
+    if (!graft::crypto_tools::decryptMessage(encryptedTxBlob, key, decryptedTxBlob)) {
         MERROR("Failed to decrypt tx");
         return false;
     }
@@ -105,6 +110,12 @@ bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, c
     }
     return true;
 }
+bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx)
+{
+    return decryptTxFromHex(encryptedHex, supernode->secretKey(), tx);
+}
+
+
 
 void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto::public_key> &keys, std::string &encryptedHex)
 {
@@ -116,13 +127,18 @@ void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto:
 
 bool decryptTxKeyFromHex(const std::string &encryptedHex, SupernodePtr supernode, crypto::secret_key &tx_key)
 {
+    return decryptTxKeyFromHex(encryptedHex, supernode->secretKey(), tx_key);
+}
+
+bool decryptTxKeyFromHex(const std::string &encryptedHex, const crypto::secret_key &key, crypto::secret_key &tx_key)
+{
     std::string decryptedBlob, encryptedBlob;
     if (!epee::string_tools::parse_hexstr_to_binbuff(encryptedHex, encryptedBlob)) {
         MERROR("failed to deserialize encrypted tx key blob");
         return false;
     }
 
-    if (!graft::crypto_tools::decryptMessage(encryptedBlob, supernode->secretKey(), decryptedBlob)) {
+    if (!graft::crypto_tools::decryptMessage(encryptedBlob, key, decryptedBlob)) {
         MERROR("Failed to decrypt tx");
         return false;
     }
@@ -131,13 +147,44 @@ bool decryptTxKeyFromHex(const std::string &encryptedHex, SupernodePtr supernode
     return true;
 }
 
-
 void encryptTxKeyToHex(const crypto::secret_key &tx_key, const std::vector<crypto::public_key> &keys, std::string &encryptedHex)
 {
     std::string buf;
     std::string tx_buf(reinterpret_cast<const char*>(&tx_key), sizeof(crypto::secret_key));
     graft::crypto_tools::encryptMessage(tx_buf, keys, buf);
     encryptedHex = epee::string_tools::buff_to_hex_nodelimer(buf);
+}
+
+
+void putTxToGlobalContext(const cryptonote::transaction &tx,  graft::Context &ctx, const std::string &key, std::chrono::seconds ttl)
+{
+    cryptonote::blobdata txblob = cryptonote::tx_to_blob(tx);
+    ctx.global.set(key, txblob, ttl);
+}
+
+bool getTxFromGlobalContext(graft::Context &ctx, cryptonote::transaction &tx, const std::string &key)
+{
+    if (!ctx.global.hasKey(key)) {
+        MWARNING("key not found in context: " << key);
+        return false;
+    }
+    cryptonote::blobdata txblob = ctx.global[key];
+    return cryptonote::parse_and_validate_tx_from_blob(txblob, tx);
+}
+
+void putTxKeyToContext(const crypto::secret_key &txkey, graft::Context &ctx, const std::string &key, std::chrono::seconds ttl)
+{
+    ctx.global.set(key, epee::string_tools::pod_to_hex(txkey), ttl);
+}
+
+bool getTxKeyFromContext(graft::Context &ctx, crypto::secret_key &txkey, const std::string &key)
+{
+    if (!ctx.global.hasKey(key)) {
+        MWARNING("key not found in context: " << key);
+        return false;
+    }
+    std::string tx_str = ctx.global.get(key, std::string());
+    return epee::string_tools::hex_to_pod(tx_str, txkey);
 }
 
 

@@ -19,7 +19,7 @@
 
 namespace graft::supernode::request {
 
-const std::chrono::seconds SALE_TTL = std::chrono::seconds(60);
+
 
 enum class SaleHandlerState : int
 {
