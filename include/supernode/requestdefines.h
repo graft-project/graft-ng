@@ -56,6 +56,9 @@ static const std::string CONTEXT_KEY_RUNTIME_SYS_INFO(":runtime-sys-info");
 // key to store if we already processed rta tx
 static const std::string CONTEXT_KEY_RTA_TX_STATE(":rta-tx-state");
 
+// key to store tx with signatures
+static const std::string CONTEXT_KEY_RTA_VOTING_TX(":rta-voting-tx");
+
 namespace graft {
 
 static const std::chrono::seconds RTA_TX_TTL(60);

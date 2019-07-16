@@ -84,6 +84,7 @@ protected:
         REGISTER_ENDPOINT("/dapi/v2.0/core/get_supernode_info", METHOD_POST, RtaGraftlet, handleSupernodeInfoRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/update_payment_status", METHOD_POST, RtaGraftlet, handleUpdatePaymentStatusRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/authorize_rta_tx_request", METHOD_POST, RtaGraftlet, handleAuthorizeRtaTxRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/authorize_rta_tx_response", METHOD_POST, RtaGraftlet, handleAuthorizeRtaTxResponse);
     }
 
 private:
@@ -197,6 +198,11 @@ private:
     Status handleAuthorizeRtaTxRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
         return supernode::request::handleAuthorizeRtaTxRequest(vars, input, ctx, output);
+    }
+
+    Status handleAuthorizeRtaTxResponse(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return supernode::request::handleAuthorizeRtaTxResponse(vars, input, ctx, output);
     }
 
     Status handleUpdatePaymentStatusRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)

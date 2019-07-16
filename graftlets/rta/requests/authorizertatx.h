@@ -38,6 +38,8 @@ namespace graft::supernode::request {
 Status handleAuthorizeRtaTxRequest(const Router::vars_t& vars, const graft::Input& input,
                                                 graft::Context& ctx, graft::Output& output) noexcept;
 
+Status handleAuthorizeRtaTxResponse(const Router::vars_t& vars, const graft::Input& input,
+                                                graft::Context& ctx, graft::Output& output) noexcept;
 
 
 } // namespace
