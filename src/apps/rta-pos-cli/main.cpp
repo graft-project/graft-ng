@@ -223,7 +223,7 @@ public:
         return m_payment_id;
     }
 
-    bool waitForStatus(int status, std::chrono::seconds timeout)
+    bool waitForStatus(int expectedStatus, int &receivedStatus, std::chrono::seconds timeout)
     {
 
         request::PaymentStatusRequest req;
@@ -251,8 +251,14 @@ public:
                     return false;
                 }
 
-                if (resp.Status == status)
+                receivedStatus = resp.Status;
+                if (expectedStatus == receivedStatus) {
                     return true;
+                }
+
+                if (graft::isFiniteRtaStatus((graft::RTAStatus)receivedStatus)) {
+                    return false;
+                }
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -389,7 +395,7 @@ int main(int argc, char* argv[])
     const command_line::arg_descriptor<std::string> arg_sale_items_file  = {"sale-items-file", "File where to read sale items", "sale-items.json", false};
     const command_line::arg_descriptor<size_t>      arg_sale_timeout  = {"sale-timeout", "Sale timeout in millis", 5000, false};
     const command_line::arg_descriptor<std::string> arg_supernode_address = { "supernode-address", "Supernode address", "localhost:28690", false };
-    const command_line::arg_descriptor<std::string> arg_pos_wallet_address = { "wallet-address", "POS Wallet address", POS_WALLET_ADDRESS, false };
+    const command_line::arg_descriptor<std::string> arg_pos_wallet_address = { "wallet-address", "POS Wallet address", "", false };
 
 
     command_line::add_arg(desc_cmd, arg_input_file);
@@ -441,6 +447,7 @@ int main(int argc, char* argv[])
     std::cout << "supernode-address: "  << command_line::get_arg(vm, arg_supernode_address) << std::endl;
     std::cout << "pos-wallet-address: " << command_line::get_arg(vm, arg_pos_wallet_address) << std::endl;
 
+
     uint64_t amount = 0;
     std::string amount_str = command_line::get_arg(vm, arg_amount);
     if (!cryptonote::parse_amount(amount, amount_str)) {
@@ -470,9 +477,9 @@ int main(int argc, char* argv[])
 
     MINFO("Sale initiated: " << pos.paymentId());
 
-
-    if (!pos.waitForStatus(int(graft::RTAStatus::InProgress), std::chrono::seconds(20))) {
-        MERROR("Expected in-progress status");
+    int actualStatus = 0;
+    if (!pos.waitForStatus(int(graft::RTAStatus::InProgress), actualStatus, std::chrono::seconds(20))) {
+        MERROR("Expected in-progress status, got: " << actualStatus);
         return EXIT_FAILURE;
     }
 
@@ -495,8 +502,8 @@ int main(int argc, char* argv[])
     }
 
     // wait for status = Success;
-    if (!pos.waitForStatus(int(graft::RTAStatus::Success), std::chrono::seconds(20))) {
-        MERROR("Expected Success status");
+    if (!pos.waitForStatus(int(graft::RTAStatus::Success), actualStatus, std::chrono::seconds(20))) {
+        MERROR("Expected Success status, got: " << actualStatus);
         return EXIT_FAILURE;
     }
 
