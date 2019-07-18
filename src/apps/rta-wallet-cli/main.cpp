@@ -118,6 +118,10 @@ public:
         m_wallet.init(cryptonode_address);
         m_wallet.store();
         MINFO("wallet opened: " << m_wallet.get_address_as_str());
+        m_wallet.refresh(true);
+        std::cout << "Wallet opened, balance:  " << print_money(m_wallet.balance_all()) << std::endl;
+        std::cout << "Press <Return> to continue.." <<  std::endl;
+        std::cin.get();
         // open wallet;
     }
 
@@ -308,7 +312,7 @@ public:
 
         MWARNING("About to do pay, payment_id:  " << m_paymentDetails.paymentId << ", Total amount: " << print_money(m_paymentInfo.Amount)
               << ", Merchant amount : " << print_money(recepient_amount)
-              << ", Fee per member: " << print_money(fee_per_destination)
+              << ", Fee per supernode: " << print_money(fee_per_destination)
               << ", Payment details: " << m_paymentInfo.Details
               << ", tx_id: " << tx.hash);
 
