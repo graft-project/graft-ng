@@ -49,7 +49,7 @@
 
 namespace {
     static const size_t RTA_VOTES_TO_REJECT  =  1/*2*/; // TODO: 1 and 3 while testing
-    static const size_t RTA_VOTES_TO_APPROVE =  4/*7*/; //
+    static const size_t RTA_VOTES_TO_APPROVE =  6/*7*/; //
 
 
     epee::critical_section vote_lock;
@@ -84,8 +84,8 @@ namespace {
             MERROR("failed to read rta_signatures from tx: " << cryptonote::get_transaction_hash(tx));
             return;
         }
-        for (int i = 0; i < rta_hdr.keys.size(); ++i) {
-            MDEBUG(rta_hdr.keys.at(i) << ":" << rta_signs.at(i).signature);
+        for (int i = 0; i < rta_signs.size(); ++i) {
+            MDEBUG(rta_hdr.keys.at(rta_signs.at(i).key_index) << ":" << rta_signs.at(i).signature);
         }
     }
 
@@ -215,6 +215,40 @@ std::vector<int> get_rta_key_indexes(const cryptonote::rta_header &rta_hdr, Supe
     return result;
 }
 
+
+bool removeInvalidSignatures(cryptonote::transaction &tx)
+{
+
+    cryptonote::rta_header rta_hdr;
+    if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
+        MERROR("failed get rta header from tx: " << cryptonote::get_transaction_hash(tx));
+        return false;
+    }
+    std::vector<cryptonote::rta_signature> rta_signatures;
+    if (!cryptonote::get_graft_rta_signatures_from_extra2(tx, rta_signatures)) {
+        MERROR("failed to get rta signatures from tx");
+        return false;
+    }
+    if (rta_hdr.keys.size() != rta_signatures.size()) {
+        MERROR("number of keys and signatures mismatch, keys: " << rta_hdr.keys.size() << ", signatures: " << rta_signatures.size());
+        return false;
+    }
+    crypto::hash tx_hash = cryptonote::get_transaction_hash(tx);
+
+    std::vector<cryptonote::rta_signature> cleaned_signatures;
+    for (size_t i  = 0; i < rta_hdr.keys.size(); ++i) {
+        if (Supernode::verifyHash(tx_hash, rta_hdr.keys.at(i), rta_signatures.at(i).signature)) {
+            cryptonote::rta_signature sig;
+            sig.key_index = i;
+            sig.signature = rta_signatures.at(i).signature;
+            cleaned_signatures.push_back(sig);
+        }
+    }
+
+    tx.extra2.clear();
+    cryptonote::add_graft_rta_signatures_to_extra2(tx.extra2, cleaned_signatures);
+    return true;
+}
 
 
 bool getQuorumState(const cryptonote::transaction &tx, size_t &auth_sample_votes, size_t &pos_and_proxy_votes)
@@ -699,11 +733,17 @@ Status handleRtaAuthResponse(const Router::vars_t& vars, const graft::Input& inp
         MDEBUG("voting status: auth_sample_votes: " << auth_sample_votes << ", proxy_votes: " << proxy_votes);
 
 
-        if (auth_sample_votes >= 6 && proxy_votes == 3) { // TODO: magic numbers to constants
+        if (auth_sample_votes >= RTA_VOTES_TO_APPROVE && proxy_votes == 3) { // TODO: magic numbers to constants
             MDEBUG("CoA matches for payment: " << rta_hdr.payment_id
                    << " , pushing tx to pool");
             SendRawTxRequest req;
+
+            if (!removeInvalidSignatures(local_tx)) {
+                MERROR("Failed to clean up invalid signatures");
+                return sendOkResponseToCryptonode(output); // stop processing
+            }
             createSendRawTxRequest(local_tx, req);
+            dumpSignatures(local_tx);
 
             output.load(req);
             output.path = "/sendrawtransaction";
