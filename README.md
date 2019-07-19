@@ -85,6 +85,6 @@ Then execute *graft_server_test* to run the tests.
 #### MacOS
 #### Windows
 
-## Detailed Installation Instructions
+## Detailed Installation [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions)
 See [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions) for more details.
 
