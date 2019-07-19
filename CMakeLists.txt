@@ -432,6 +432,7 @@ target_link_libraries(rta-pos-cli PRIVATE
     ${Boost_THREAD_LIBRARY}
     ${Boost_REGEX_LIBRARY}
     supernode_common
+    graftlet_lib
     # ${COMMON_LIBS}
     # TODO: figure out the issue with mixing static and dynamic linking
     # in case uncomment "${COMMON_LIBS} - there will be errors:
