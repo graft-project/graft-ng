@@ -282,7 +282,12 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
 
-    uint64_t blockchain_based_list_height = block_number - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+    uint64_t blockchain_based_list_height = block_number;
+
+    if (block_number == 0) {
+        block_number = this->getBlockchainBasedListMaxBlockNumber();
+        blockchain_based_list_height = block_number - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+    }
 
     blockchain_based_list_map::const_iterator it = m_blockchain_based_lists.find(block_number);
 
