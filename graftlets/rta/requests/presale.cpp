@@ -35,7 +35,7 @@ Status handlePresaleRequest(const Router::vars_t& vars, const graft::Input& inpu
 
     std::vector<SupernodePtr> sample;
 
-    if (!fsl->buildAuthSample(fsl->getBlockchainBasedListMaxBlockNumber(), req.PaymentID, sample, resp.BlockNumber)) {
+    if (!fsl->buildAuthSample(0, req.PaymentID, sample, resp.BlockNumber)) {
         return errorCustomError(MESSAGE_RTA_CANT_BUILD_AUTH_SAMPLE, ERROR_INVALID_PARAMS, output);
     }
 
@@ -58,13 +58,6 @@ Status handlePresaleRequest(const Router::vars_t& vars, const graft::Input& inpu
 
 
 
-
-
-void registerPreSaleRequest(graft::Router &router)
-{
-    Router::Handler3 h1(nullptr, handlePresaleRequest, nullptr);
-    router.addRoute("/presale", METHOD_POST, h1);
-}
 
 }
 
