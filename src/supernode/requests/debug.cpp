@@ -154,6 +154,54 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
     return Status::Ok;
 }
 
+Status getAuthSample2(const Router::vars_t& vars, const graft::Input& input,
+                        graft::Context& ctx, graft::Output& output)
+{
+
+
+    FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
+    std::vector<SupernodePtr> sample;
+    uint64_t sample_block_number = 0;
+    uint64_t height = 0;
+
+    std::string payment_id;
+
+    try
+    {
+        payment_id = vars.find("payment_id")->second;
+        height = std::stoll(vars.find("height")->second);
+    }
+    catch(...)
+    {
+        return errorInternalError("invalid input", output);
+    }
+
+    SupernodeListJsonRpcResult resp;
+
+    const bool ok = fsl->buildAuthSample(height, payment_id, sample, sample_block_number);
+    if(!ok)
+    {
+        return errorInternalError("failed to build auth sample", output);
+    }
+
+    resp.result.height = sample_block_number;
+
+    for(auto& sPtr : sample)
+    {
+        DbSupernode sn;
+        sn.Address = sPtr->walletAddress();
+        sn.PublicId = sPtr->idKeyAsString();
+        sn.StakeAmount = sPtr->stakeAmount();
+        sn.LastUpdateAge = static_cast<unsigned>(std::time(nullptr)) - sPtr->lastUpdateTime();
+        resp.result.items.push_back(sn);
+    }
+
+    output.load(resp);
+
+    return Status::Ok;
+}
+
+
 Status doAnnounce(const Router::vars_t& vars, const graft::Input& input,
                         graft::Context& ctx, graft::Output& output)
 {
@@ -274,6 +322,7 @@ void __registerDebugRequests(Router &router)
     router.addRoute("/debug/announce", METHOD_POST, _HANDLER(doAnnounce));
     router.addRoute("/debug/close_wallets/", METHOD_POST, _HANDLER(closeStakeWallets));
     router.addRoute("/debug/auth_sample/{payment_id:[0-9a-zA-Z]+}", METHOD_GET, _HANDLER(getAuthSample));
+    router.addRoute("/debug/auth_sample2/{payment_id:[0-9a-zA-Z]+}/{height:[0-9]+}", METHOD_GET, _HANDLER(getAuthSample2));
 }
 
 }
