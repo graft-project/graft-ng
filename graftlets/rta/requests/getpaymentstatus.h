@@ -40,12 +40,14 @@ namespace graft::supernode::request {
 
 // request payload
 GRAFT_DEFINE_IO_STRUCT_INITED(PaymentStatusRequest,
-(std::string, PaymentID, std::string())
+                              (std::string, PaymentID, std::string())
 );
 
 // response payload
 GRAFT_DEFINE_IO_STRUCT_INITED(PaymentStatusResponse,
-(int, Status, 0)
+                            (std::string, PaymentID, std::string()),
+                            (int, Status, 0),
+                            (std::string, Signature, std::string())
 );
 
 

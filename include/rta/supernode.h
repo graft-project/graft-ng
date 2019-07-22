@@ -123,8 +123,13 @@ public:
      */
     bool signMessage(const std::string &msg, crypto::signature &signature) const;
 
+    static bool signMessage(const std::string &msg, const crypto::public_key &pkey, const crypto::secret_key &skey,
+                            crypto::signature &signature);
+
 
     bool signHash(const crypto::hash &hash, crypto::signature &signature) const;
+    static void signHash(const crypto::hash &hash, const crypto::public_key &pkey, const crypto::secret_key &skey,
+                         crypto::signature &signature);
     /*!
      * \brief verifySignature - verifies signature
      * \param msg             - message to verify
@@ -141,6 +146,8 @@ public:
      */
 
     static bool verifyHash(const crypto::hash &hash, const crypto::public_key &pkey, const crypto::signature &signature);
+
+
 
 
     void getScoreHash(const crypto::hash &block_hash, crypto::hash &result) const;

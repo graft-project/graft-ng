@@ -27,10 +27,9 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
-
+#include "supernode/requestdefines.h"
 #include <string_tools.h> // graftnoded's contrib/epee/include
 #include <misc_log_ex.h>  // graftnoded's log macros
-
 #include <cryptonote_basic/cryptonote_basic.h>
 #include <cryptonote_basic/cryptonote_format_utils.h>
 #include <utils/cryptmsg.h> // one-to-many message cryptography
@@ -38,7 +37,59 @@
 
 namespace graft::supernode::request {
 
-    const std::chrono::seconds SALE_TTL = std::chrono::seconds(60);
+const std::chrono::seconds SALE_TTL = std::chrono::seconds(60);
+
+
+bool paymentStatusEncrypt(const PaymentStatus &in, const std::vector<crypto::public_key> &keys,  EncryptedPaymentStatus &out)
+{
+    std::string paymentStatusJson = graft::to_json_str(in);
+    std::string encryptedBlob;
+    graft::crypto_tools::encryptMessage(paymentStatusJson, keys, encryptedBlob);
+    out.PaymentStatusBlob = epee::string_tools::buff_to_hex_nodelimer(encryptedBlob);
+    return true;
+}
+
+bool paymentStatusDecrypt(const EncryptedPaymentStatus &in, const crypto::secret_key &key, PaymentStatus &out)
+{
+
+    std::string paymentStatusJson;
+    std::string encryptedBlob;
+    epee::string_tools::parse_hexstr_to_binbuff(in.PaymentStatusBlob, encryptedBlob);
+    if (!graft::crypto_tools::decryptMessage(encryptedBlob, key, paymentStatusJson)) {
+        return false;
+    }
+
+    if (!graft::from_json_str(paymentStatusJson, out)) {
+        MERROR("Failed to parse payment status from: " << paymentStatusJson);
+        return false;
+    }
+    return true;
+}
+
+crypto::hash paymentStatusGetHash(const  PaymentStatus &req)
+{
+    std::string msg = req.PaymentID + std::to_string(req.Status) + std::to_string(req.PaymentBlock);
+    crypto::hash result;
+    crypto::cn_fast_hash(msg.data(), msg.size(), result);
+    return result;
+}
+
+bool paymentStatusSign(SupernodePtr supernode, PaymentStatus &req)
+{
+    return paymentStatusSign(supernode->idKey(), supernode->secretKey(), req);
+}
+
+bool paymentStatusSign(const crypto::public_key &pkey, const crypto::secret_key &skey, PaymentStatus &req)
+{
+    crypto::hash hash = paymentStatusGetHash(req);
+    crypto::signature sig;
+    Supernode::signHash(hash, pkey, skey, sig);
+    req.Signature = epee::string_tools::pod_to_hex(sig);
+    return true;
+}
+
+
+
 
 }
 

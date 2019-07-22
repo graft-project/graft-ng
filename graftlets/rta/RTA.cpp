@@ -40,6 +40,7 @@
 #include "requests/getpaymentdata.h"
 #include "requests/gettx.h"
 #include "requests/approvepaymentrequest.h"
+#include "requests/posrejectpaymentrequest.h"
 
 // core endpoints
 #include "requests/storepaymentdata.h"
@@ -84,6 +85,7 @@ protected:
         REGISTER_ENDPOINT("/dapi/v2.0/get_payment_status", METHOD_POST, RtaGraftlet, handleGetPaymentStatusRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/get_tx", METHOD_POST, RtaGraftlet, handleGetTxRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/approve_payment", METHOD_POST, RtaGraftlet, handleApprovePaymentRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/pos_reject_payment", METHOD_POST, RtaGraftlet, handlePosRejectPaymentRequest);
 
         // TODO: fix cryptonode logic, it prepends "/dapi/v2.0/" to any "callback_uri"
         REGISTER_ENDPOINT("/dapi/v2.0/core/store_payment_data", METHOD_POST, RtaGraftlet, handleStorePaymentDataRequest);
@@ -91,6 +93,7 @@ protected:
         REGISTER_ENDPOINT("/dapi/v2.0/core/payment_data_response", METHOD_POST, RtaGraftlet, handlePaymentDataResponse);
         REGISTER_ENDPOINT("/dapi/v2.0/core/get_supernode_info", METHOD_POST, RtaGraftlet, handleSupernodeInfoRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/update_payment_status", METHOD_POST, RtaGraftlet, handleUpdatePaymentStatusRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/update_payment_status_encrypted", METHOD_POST, RtaGraftlet, handleUpdatePaymentStatusEncryptedRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/authorize_rta_tx_request", METHOD_POST, RtaGraftlet, handleAuthorizeRtaTxRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/authorize_rta_tx_response", METHOD_POST, RtaGraftlet, handleAuthorizeRtaTxResponse);
         REGISTER_ENDPOINT("/cryptonode/sendrawtx", METHOD_POST, RtaGraftlet, handleSendRawTx);
@@ -193,6 +196,12 @@ private:
         return graft::supernode::request::handleApprovePaymentRequest(vars, input, ctx, output);
     }
 
+    Status handlePosRejectPaymentRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::handlePosRejectPaymentRequest(vars, input, ctx, output);
+    }
+
+
 
 
     // core endpoints
@@ -229,6 +238,11 @@ private:
     Status handleUpdatePaymentStatusRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
         return graft::supernode::request::handleUpdatePaymentStatusRequest(vars, input, ctx, output);
+    }
+
+    Status handleUpdatePaymentStatusEncryptedRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::handleUpdatePaymentStatusRequestEx(vars, input, ctx, output);
     }
 
     Status handleSendRawTx(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)

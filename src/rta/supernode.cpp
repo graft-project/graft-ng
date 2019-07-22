@@ -135,10 +135,18 @@ Supernode* Supernode::createFromStake(const supernode_stake& stake, const std::s
 bool Supernode::signMessage(const string &msg, crypto::signature &signature) const
 {
     crypto::hash hash;
-
     crypto::cn_fast_hash(msg.data(), msg.size(), hash);
-    MDEBUG("signing message: " << msg << ", hash: " << hash);
-    return this->signHash(hash, signature);
+    Supernode::signHash(hash, m_id_key, m_secret_key, signature);
+    return true;
+}
+
+bool Supernode::signMessage(const string &msg, const crypto::public_key &pkey, const crypto::secret_key &skey, crypto::signature &signature)
+{
+    crypto::hash hash;
+    crypto::cn_fast_hash(msg.data(), msg.size(), hash);
+    Supernode::signHash(hash, pkey, skey, signature);
+    return true;
+
 }
 
 bool Supernode::signHash(const crypto::hash &hash, crypto::signature &signature) const
@@ -148,8 +156,14 @@ bool Supernode::signHash(const crypto::hash &hash, crypto::signature &signature)
         return false;
     }
 
-    crypto::generate_signature(hash, m_id_key, m_secret_key, signature);
+    Supernode::signHash(hash, m_id_key, m_secret_key, signature);
     return true;
+}
+
+void Supernode::signHash(const crypto::hash &hash, const crypto::public_key &pkey, const crypto::secret_key &skey, crypto::signature &signature)
+{
+    crypto::generate_signature(hash, pkey, skey, signature);
+
 }
 
 bool Supernode::verifySignature(const string &msg, const crypto::public_key &pkey, const crypto::signature &signature)

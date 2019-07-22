@@ -38,6 +38,7 @@
 #include "lib/graft/common/utils.h"
 #include "supernode/requests/broadcast.h"
 #include "utils/cryptmsg.h" // one-to-many message cryptography
+#include "updatepaymentstatus.h"
 
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -57,10 +58,14 @@ Status getPaymentStatusRequest(const Router::vars_t &vars, const Input &input, C
     if (!ctx.global.hasKey(req.PaymentID + CONTEXT_KEY_STATUS)) {
         return errorInvalidPaymentID(output);  // TODO: consider to change protocol to return 404?
     }
+
     MDEBUG("payment status found for payment id: " << req.PaymentID);
+    PaymentStatus paymentStatus = ctx.global.get(req.PaymentID + CONTEXT_KEY_STATUS, PaymentStatus());
     PaymentStatusResponse resp;
 
-    resp.Status = ctx.global.get(req.PaymentID + CONTEXT_KEY_STATUS, 0);
+    resp.PaymentID = paymentStatus.PaymentID;
+    resp.Status = paymentStatus.Status;
+    resp.Signature = paymentStatus.Signature;
 
     output.load(resp);
     return Status::Ok;

@@ -559,19 +559,33 @@ Status handleTxAuthRequestNew(const Router::vars_t& vars, const graft::Input& /*
     if (!ctx.global.hasKey(rta_hdr.payment_id + CONTEXT_KEY_RTA_TX_STATE)) { // new tx;
         // update payment status
         ctx.global.set(rta_hdr.payment_id + CONTEXT_KEY_RTA_TX_STATE, RtaTxState::Processing, SALE_TTL);
-        UpdatePaymentStatusRequest req;
-        req.PaymentID = rta_hdr.payment_id;
-        req.Status = static_cast<int>(RTAStatus::InProgress);
-        utils::buildBroadcastOutput(req, supernode, std::vector<std::string>(), "json_rpc/rta", "/core/update_payment_status", output);
-        ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::StatusUpdateSent;
-        ctx.local["payment_id"] = rta_hdr.payment_id;
+
+
+
         putTxToLocalContext(tx, ctx, CONTEXT_RTA_TX_REQ_TX_KEY); // TODO remove this duplicate tx, use only one from global context
         // store tx and tx key key
         utils::putTxToGlobalContext(tx, ctx, rta_hdr.payment_id + CONTEXT_RTA_TX_REQ_TX_KEY, SALE_TTL);
         utils::putTxKeyToContext(tx_key, ctx, rta_hdr.payment_id + CONTEXT_RTA_TX_REQ_TX_KEY_KEY, SALE_TTL);
         MDEBUG("tx stored in local context for payment: " << rta_hdr.payment_id);
+        ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::StatusUpdateSent;
+        ctx.local["payment_id"] = rta_hdr.payment_id;
+        if (isAuthSampleSupernode(rta_hdr, supernode)) { // we can update status only if we're auth sample member
+            PaymentStatus req;
+            req.PaymentID = rta_hdr.payment_id;
+            req.Status = static_cast<int>(RTAStatus::InProgress);
+            if (!paymentStatusSign(supernode, req)) {
+                MERROR("Failed to sign UpdateStatusBroadcast, payment id: " << req.PaymentID);
+                return Status::Ok;
+            }
+            utils::buildBroadcastOutput(req, supernode, std::vector<std::string>(), "json_rpc/rta", "/core/update_payment_status", output);
+            MDEBUG("Broadcasting status update: " << graft::to_json_str(req));
+            return Status::Forward;
+        }
+        // in case we're proxy node - we can't broadcast status update but still need the state machine working
+        // (re-using the same state machine, so handler invoked same way as we've sent the status)
+        return Status::Again;
 
-        return Status::Forward;
+
     } else {
         MDEBUG("payment id auth request already processed: " << rta_hdr.payment_id);
     }
@@ -679,9 +693,12 @@ Status handleRtaAuthResponse(const Router::vars_t& vars, const graft::Input& inp
         ctx.local["payment_id"] = rta_hdr.payment_id;
 
         // check if payment already processed
-        RTAStatus status = static_cast<RTAStatus>(ctx.global.get(rta_hdr.payment_id + CONTEXT_KEY_STATUS, int(RTAStatus::None)));
-        if (isFiniteRtaStatus(status)) {
-            MINFO("Payment: " << rta_hdr.payment_id << " is already in finite state: " << (int)status);
+        PaymentStatus paymentStatus = ctx.global.get(rta_hdr.payment_id + CONTEXT_KEY_STATUS, PaymentStatus());
+
+        // RTAStatus status = static_cast<RTAStatus>(ctx.global.get(rta_hdr.payment_id + CONTEXT_KEY_STATUS, int(RTAStatus::None)));
+
+        if (isFiniteRtaStatus(RTAStatus(paymentStatus.Status))) {
+            MINFO("Payment: " << rta_hdr.payment_id << " is already in finite state: " << paymentStatus.Status);
             return Status::Ok;
         }
 
@@ -790,8 +807,10 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
 
     // cryptonote::get_transaction_hash(tx);
 
-    RTAStatus status = static_cast<RTAStatus>(ctx.global.get(rta_hdr.payment_id + CONTEXT_KEY_STATUS, int(RTAStatus::None)));
-    if (status == RTAStatus::None) {
+    // RTAStatus status = static_cast<RTAStatus>(ctx.global.get(rta_hdr.payment_id + CONTEXT_KEY_STATUS, int(RTAStatus::None)));
+    PaymentStatus paymentStatus = ctx.global.get(rta_hdr.payment_id + CONTEXT_KEY_STATUS, PaymentStatus());
+
+    if (RTAStatus(paymentStatus.Status) == RTAStatus::None) {
         LOG_ERROR("can't find status for payment_id: " << rta_hdr.payment_id);
         return Status::Ok;
     }
@@ -803,8 +822,8 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
         return Status::Ok;
     }
 
-    if (isFiniteRtaStatus(status)) {
-        MWARNING("payment: " << rta_hdr.payment_id << ", most likely already processed,  status: " << int(status));
+    if (isFiniteRtaStatus(RTAStatus(paymentStatus.Status))) {
+        MWARNING("payment: " << rta_hdr.payment_id << ", most likely already processed,  status: " << paymentStatus.Status);
         return sendOkResponseToCryptonode(output);
     }
 
@@ -815,20 +834,23 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
             LOG_ERROR("double spend for payment: " << rta_hdr.payment_id << ", tx: " << cryptonote::get_transaction_hash(tx));
             return sendOkResponseToCryptonode(output);
         }
-        status = RTAStatus::Fail;
+        paymentStatus.Status = static_cast<int>(RTAStatus::Fail);
         // LOG_ERROR("failed to put tx to pool: " << tx_id << ", reason: " << resp.reason);
         LOG_ERROR("failed to put tx to pool: " << cryptonote::get_transaction_hash(tx) << ", input: " << input.data());
     } else {
-        status = RTAStatus::Success;
+        paymentStatus.Status = static_cast<int>(RTAStatus::Success);
     }
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
-    MDEBUG("broadcasting status for payment id: " << rta_hdr.payment_id << ", status : " << int(status));
-    UpdatePaymentStatusRequest req;
-    req.PaymentID = rta_hdr.payment_id;
-    req.Status = static_cast<int>(status);
-    utils::buildBroadcastOutput(req, supernode, std::vector<std::string>(), "json_rpc/rta", "/core/update_payment_status", output);
+    MDEBUG("broadcasting status for payment id: " << rta_hdr.payment_id << ", status : " << paymentStatus.Status);
+
+    if (!paymentStatusSign(supernode, paymentStatus)) {
+        MERROR("Failed to sign update payment status: " << paymentStatus.PaymentID);
+        return Status::Ok;
+    }
+
+    utils::buildBroadcastOutput(paymentStatus, supernode, std::vector<std::string>(), "json_rpc/rta", "/core/update_payment_status", output);
 
     ctx.local[RTA_TX_RESP_HANDLER_STATE_KEY] = AuthorizeRtaAuthResponseHandlerState::StatusBroadcastSent;
     MDEBUG(__FUNCTION__ << " end");

@@ -41,6 +41,9 @@
 #include "rta/requests/gettx.h" //
 #include "rta/requests/getpaymentstatus.h"
 #include "rta/requests/approvepaymentrequest.h"
+#include "rta/requests/posrejectpaymentrequest.h"
+#include "rta/requests/updatepaymentstatus.h"
+
 #include "rta/fullsupernodelist.h"
 
 #include "supernode/requestdefines.h"
@@ -349,12 +352,47 @@ public:
 
         bool r = invoke_http_rest("/dapi/v2.0/approve_payment", req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
         if (!r) {
-            MERROR("Failed to invoke get_tx: " << graft::to_json_str(err_resp));
+            MERROR("Failed to invoke approve_payment: " << graft::to_json_str(err_resp));
             return r;
         }
         MINFO("approve_payment returned: " << raw_resp);
         return true;
+    }
 
+    bool rejectPayment()
+    {
+        EncryptedPaymentStatus req;
+        PaymentStatus paymentStatus;
+        paymentStatus.Status = static_cast<int>(graft::RTAStatus::RejectedByPOS);
+        paymentStatus.PaymentID = m_payment_id;
+        paymentStatusSign(m_pub_key, m_secret_key, paymentStatus);
+
+
+        MDEBUG("about to send status update: " <<  graft::to_json_str(paymentStatus));
+
+        cryptonote::rta_header rta_hdr;
+
+        if (!cryptonote::get_graft_rta_header_from_extra(m_tx, rta_hdr)) {
+            MERROR("Failed to read rta_hdr from tx");
+            return false;
+        }
+
+
+        req.PaymentID = m_payment_id;
+        paymentStatusEncrypt(paymentStatus, rta_hdr.keys, req);
+
+        std::string raw_resp;
+        int http_status = 0;
+        ErrorResponse err_resp;
+
+        bool r = invoke_http_rest("/dapi/v2.0/pos_reject_payment", req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
+        if (!r) {
+            MERROR("Failed to invoke pos_reject_payment: " << graft::to_json_str(err_resp));
+            return r;
+        }
+
+        MINFO("pos_reject_payment returned: " << raw_resp);
+        return true;
     }
 
 private:
@@ -497,6 +535,7 @@ int main(int argc, char* argv[])
 
     MINFO("Sale tx validated for payment: " << pos.paymentId());
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+#if 1
     if (!pos.approvePayment()) {
         return EXIT_FAILURE;
     }
@@ -507,7 +546,21 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    MWARNING("Payment: " << pos.paymentId() << "processed successfully..");
+#endif
+
+#if 0
+    if (!pos.rejectPayment()) {
+        return EXIT_FAILURE;
+    }
+
+    // wait for status = Success;
+    if (!pos.waitForStatus(int(graft::RTAStatus::RejectedByPOS), actualStatus, std::chrono::seconds(20))) {
+        MERROR("Expected RejectedByPOS status, got: " << actualStatus);
+        return EXIT_FAILURE;
+    }
+#endif
+
+    MWARNING("Payment: " << pos.paymentId() << "  processed, status: " << actualStatus);
 
     return 0;
 

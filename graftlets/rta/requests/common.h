@@ -74,6 +74,27 @@ GRAFT_DEFINE_IO_STRUCT_INITED(PaymentData,
                               (NodeAddress, PosProxy, NodeAddress())
                               );
 
+
+GRAFT_DEFINE_IO_STRUCT_INITED(PaymentStatus, // TODO: duplicate: same struct defined in 'getpaymentstatus.h'
+    (std::string, PaymentID, std::string()),
+    (uint64_t, PaymentBlock, 0),
+    (int, Status, 0),
+    (std::string, Signature, std::string()) // signature's hash is contatenated paymentid + to_string(Status)
+);
+
+
+GRAFT_DEFINE_IO_STRUCT(EncryptedPaymentStatus,
+(std::string, PaymentID),
+(std::string, PaymentStatusBlob)  // encrypted PaymentStatus
+);
+
+
+crypto::hash paymentStatusGetHash(const PaymentStatus &req);
+bool paymentStatusSign(graft::SupernodePtr supernode, PaymentStatus &req);
+bool paymentStatusSign(const crypto::public_key &pkey, const crypto::secret_key &skey, PaymentStatus &req);
+bool paymentStatusEncrypt(const PaymentStatus &in, const std::vector<crypto::public_key> &keys,  EncryptedPaymentStatus &out);
+bool paymentStatusDecrypt(const EncryptedPaymentStatus &in, const crypto::secret_key &key, PaymentStatus &out);
+
 namespace utils {
 
 /*!

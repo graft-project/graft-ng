@@ -26,24 +26,24 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
 #pragma once
 
-#include "lib/graft/serialize.h"
-#include "lib/graft/router.h"
-#include "crypto/hash.h"
-#include "rta/supernode.h"
 #include "common.h"
-
+#include "lib/graft/router.h"
+#include "lib/graft/jsonrpc.h"
+#include "supernode/requestdefines.h"
 
 namespace graft::supernode::request {
+// TODO:
+// 1. rename it as EncryptedPaymentStatus
+// 2. move to common.h
+// 3. provide function to decrypt
 
 
 
-Status handleUpdatePaymentStatusRequest(const Router::vars_t& vars, const graft::Input& input,
-graft::Context& ctx, graft::Output& output);
-Status handleUpdatePaymentStatusRequestEx(const Router::vars_t& vars, const graft::Input& input,
-graft::Context& ctx, graft::Output& output);
+
+Status handlePosRejectPaymentRequest(const Router::vars_t& vars, const graft::Input& input,
+                         graft::Context& ctx, graft::Output& output);
 
 }
 

@@ -119,7 +119,7 @@ public:
         m_wallet.store();
         MINFO("wallet opened: " << m_wallet.get_address_as_str());
         m_wallet.refresh(true);
-        std::cout << "Wallet opened, balance:  " << print_money(m_wallet.balance_all()) << std::endl;
+        std::cout << "Wallet opened, balance:  " << print_money(m_wallet.unlocked_balance_all()) << std::endl;
         std::cout << "Press <Return> to continue.." <<  std::endl;
         std::cin.get();
         // open wallet;
@@ -209,6 +209,7 @@ public:
 
         if (!graft::from_json_str(paymentInfoStr, m_paymentInfo)) {
             MERROR("Failed to deserialize payment info from: " << paymentInfoStr);
+            return false;
         }
 
         // decrypt payment details
@@ -375,7 +376,7 @@ int main(int argc, char* argv[])
 
     const command_line::arg_descriptor<std::string> arg_input_file = {"qrcode-file", "Specify file where to write qr-code", "wallet-qr-code.json", false};
     const command_line::arg_descriptor<std::string> arg_log_level   = {"log-level",  "0-4 or categories", "", false};
-    const command_line::arg_descriptor<size_t>      arg_sale_timeout  = {"sale-timeout", "Sale timeout in millis", 5000, false};
+    const command_line::arg_descriptor<size_t>      arg_sale_timeout  = {"sale-timeout", "Sale timeout in millis", 10000, false};
     const command_line::arg_descriptor<std::string> arg_supernode_address = { "supernode-address", "Supernode address", "localhost:28690", false };
     const command_line::arg_descriptor<std::string> arg_cryptonode_address = { "cryptonode-address", "Cryptonode address", "localhost:28681", false };
     const command_line::arg_descriptor<std::string> arg_wallet_path = { "wallet-path", "Wallet path", "wallet", false };
