@@ -99,6 +99,7 @@ Status handleClientPaymentDataRequest(const Router::vars_t& vars, const graft::I
             MERROR(msg);
             return errorCustomError(msg, ERROR_RTA_FAILED, output);
         }
+
         // select random supernode
         // TODO: extract this as a template method
         PaymentDataRemoteRequest innerReq;
@@ -112,10 +113,9 @@ Status handleClientPaymentDataRequest(const Router::vars_t& vars, const graft::I
         out.params.sender_address = supernode->idKeyAsString();
         size_t maxIndex = auth_sample.size() - 1;
         size_t randomIndex = graft::utils::random_number<size_t>(0, maxIndex);
-#if    0
+
         out.params.receiver_addresses.push_back(auth_sample.at(randomIndex)->idKeyAsString());
-#endif
-        out.params.receiver_addresses.push_back("217c474a2394584a74051a7dd579c496dd3bc0768e8c56c69659ac93c8f78023");
+
         MDEBUG("requesting from remote peer: " << out.params.receiver_addresses.at(0));
         utils::signBroadcastMessage(out.params, supernode);
         output.load(out);
