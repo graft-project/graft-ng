@@ -10,6 +10,7 @@ We are rolling out RTA testing gradually, focusing first on basic functionality 
 
 _**There’s also a [QuickStart guide](https://github.com/yidakee/docs/blob/master/Graft_Supernode_Testnet_Simple-step-by-step-setup-instructions-July2019.md) that the community has put together.**_
 
+
 # Graft Supernode (graft-ng)
 
 Supernodes represent the Proof-of-Stake Network layer for GRAFT Network.  
@@ -93,10 +94,6 @@ Then execute *graft_server_test* to run the tests.
 ```bash
 <build directory>/graft_server_test
 ```
-
-#### MacOS
-#### Windows
-
 
 ## Detailed Installation [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions)
 See [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions) for more details.
