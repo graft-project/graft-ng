@@ -4,16 +4,14 @@ RTA is a foundational feature of GRAFT Network, which allows real-time payments 
 
 The other fundamental feature that RTA brings to the world of r/etail payments is predictable fees for the merchant and minimized fees to the buyer. Predictability (both in time and fees) and the overall smooth, point-of-sale friendly experience are key to having a functional payment network that can compete with traditional credit/debit payment networks like VISA, MC, Amex.
 
+RTA implements the RTA transaction validation flow as described in: https://github.com/graft-project/DesignDocuments/blob/develop/RFCs/%5BRFC-003-RTVF%5D-RTA-Transaction-Validation-Flow.md
+
+
 ## Testing RTA
 
 We are rolling out RTA testing gradually, focusing first on basic functionality and ramping up the testing scope from there to focus more on vulnerability and performance (there will be bounty programs), followed by beta testnet, security audit, and finally mainnet.
 
 _**There’s also a [QuickStart guide](https://github.com/yidakee/docs/blob/master/Graft_Supernode_Testnet_Simple-step-by-step-setup-instructions-July2019.md) that the community has put together.**_
-
-
-## About
-
-RTA implements the RTA transaction validation flow as described in: https://github.com/graft-project/DesignDocuments/blob/develop/RFCs/%5BRFC-003-RTVF%5D-RTA-Transaction-Validation-Flow.md
 
 
 ## Known issues:
