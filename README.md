@@ -1,3 +1,15 @@
+# About RTA
+
+RTA is a foundational feature of GRAFT Network, which allows real-time payments to be done at the point of sale, something that traditional blockchains aren’t capable of themselves. Being able to have predictable transaction time is fundamental to having digital currency work at the point of sale.
+
+The other fundamental feature that RTA brings to the world of r/etail payments is predictable fees for the merchant and minimized fees to the buyer. Predictability (both in time and fees) and the overall smooth, point-of-sale friendly experience are key to having a functional payment network that can compete with traditional credit/debit payment networks like VISA, MC, Amex.
+
+## Testing RTA
+
+We are rolling out RTA testing gradually, focusing first on basic functionality and ramping up the testing scope from there to focus more on vulnerability and performance (there will be bounty programs), followed by beta testnet, security audit, and finally mainnet.
+
+There’s also a [QuickStart guide](https://github.com/yidakee/docs/blob/master/Graft_Supernode_Testnet_Simple-step-by-step-setup-instructions-July2019.md) that the community has put together.
+
 # Graft Supernode (graft-ng)
 
 Supernodes represent the Proof-of-Stake Network layer for GRAFT Network.  
@@ -84,3 +96,7 @@ Then execute *graft_server_test* to run the tests.
 
 #### MacOS
 #### Windows
+
+## Detailed Installation [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions)
+See [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions) for more details.
+
