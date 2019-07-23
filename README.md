@@ -11,89 +11,72 @@ We are rolling out RTA testing gradually, focusing first on basic functionality 
 _**There’s also a [QuickStart guide](https://github.com/yidakee/docs/blob/master/Graft_Supernode_Testnet_Simple-step-by-step-setup-instructions-July2019.md) that the community has put together.**_
 
 
-# Graft Supernode (graft-ng)
+## About
 
-Supernodes represent the Proof-of-Stake Network layer for GRAFT Network.  
-Their main function is instant authorizations.  Instant authorizations are accomplished via supernode sample-based consensus. Supernodes get rewarded with part of the sale transaction fee for their work.  Supernodes also provide DAPI into GRAFT Network, supporting various transaction types including and most notably a "Sale" transaction compatible with the Point-of-Sale environments. 
-
-GRAFT Network itself is an attempt at building a payment network that functions similarly to other credit card networks with instant authorizations, merchant paid (greately reduced) transaction proportionate fees, multiple transaction types that are compatible with point-of-sale workflows, adaptable to regulatory environments and with unlimited TPS via decentralization.
+RTA implements the RTA transaction validation flow as described in: https://github.com/graft-project/DesignDocuments/blob/develop/RFCs/%5BRFC-003-RTVF%5D-RTA-Transaction-Validation-Flow.md
 
 
+## Known issues:
+- Disqualification transactions implementation not merged yet
+- Jump-list communications implementation not merged yet
+- RTA validation on cryptonode is shortcut temporarily
+- Transaction rejection by POS is not implemented yet
 
-## Compiling Graft Supernode from Source
+## Building and installation
 
-### Dependencies
+>  NOTE: you can use prebuilt Ubuntu 18.04 x64 binaries: http://graftmainnet.s3.us-east-2.amazonaws.com/rta-devnet-0719/rta_beta20190722_1.tar.gz 
 
-**Due to gcc 7.3.0 being a hard requirement, we strongly recommend to use Ubuntu 18.04 as a build platform***
+1. Follow the instructions on how to build supernode in https://github.com/graft-project/graft-ng/wiki/Supernode-Install-&-Usage-Instruction, using _**develop-rta0719**_ branch
 
-| Dependency     | Min. Version  | Debian/Ubuntu Pkg  | Arch Pkg       | Optional | Purpose                |
-| -------------- | ------------- | ------------------ | -------------- | -------- | ---------------------- |
-| GCC            | 7.3.0         | `build-essential`  | `base-devel`   | NO       |                        |
-| CMake          | 3.10.2        | `cmake`^           | `cmake`        | NO       |                        |
-| pkg-config     | any           | `pkg-config`       | `base-devel`   | NO       |                        |
-| Boost          | 1.65          | `libboost-all-dev` | `boost`        | NO       | C++ libraries          |
-| OpenSSL        | basically any | `libssl-dev`       | `openssl`      | NO       |                        |
-| autoconf       | any           | `autoconf`         |                | NO       | libr3 dependency       |
-| automake       | any           | `automake`         |                | NO       | libr3 dependency       |
-| check          | any           | `check`            |                | NO       | libr3 dependency       |
-| PCRE3          | any           | `libpcre3-dev`     |                | NO       | libr3 dependency       |
-| RapidJson      | 1.1.0         | `rapidjson-dev`    |                | NO       |                        |
-| Readline       | 7.0           | `libreadline-dev`  |                | NO       | command line interface |
+2. Create directory e.g. `$HOME/graft/rta-beta0719`
+```ruby
+mkdir -p $HOME/graft/rta-beta0719
+```
+3. [_optional_] download rta blockchain: http://graftmainnet.s3.us-east-2.amazonaws.com/rta-devnet-0719/lmdb.tar.gz 
 
-[^] Some Debian/Ubuntu versions (for example, Ubuntu 16.04) don't support CMake 3.10.2 from the package. To install it manually see **Install non-standard dependencies** bellow.
-
-### Install non-standard dependencies
-
-#### CMake 3.10.2
-Go to the download page on the CMake official site https://cmake.org/download/ and download sources (.tar.gz) or installation script (.sh) for CMake 3.10.2 or later.
-
-If you downloaded sources, unpack them and follow the installation instruction from CMake. If you downloaded installation script, run following command to install CMake:
-
-```bash
-sudo /bin/sh cmake-3.10.2-Linux-x86_64.sh --prefix=/opt/cmake --skip-license
+```ruby
+wget http://graftmainnet.s3.us-east-2.amazonaws.com/rta-devnet-0719/lmdb.tar.gz
 ```
 
-If you don't want to download the installation script manually, you can simply run following command from the command line (it requires curl and you must accept license by yourself):
+4. Unpack it to `$HOME/graft/rta-beta0719/node_data/testnet/lmdb`
 
-```bash
-curl -s https://cmake.org/files/v3.12/cmake-3.10.2-Linux-x86_64.sh | bash -e
+5. Copy binaries  `$BUILDDIR/supernode`, `$BUILDDIR/config.ini`, `$BUILDDIR/rta-pos-cli`, `$BUILDDIR/rta-wallet-cli`, `$BUILDDIR/BUILD/bin/*` to `$HOME/graft/rta-beta0719` .
+ Copy directory `$BUILDDIR/graftlets` to `$HOME/graft/rta-beta0719`
+
+ 
+6. Use following config file to run graftnoded: https://github.com/graft-project/graft-ng/blob/develop-rta0719/data/rta-devnet-0719/graft.conf  - copy it to `$HOME/graft/rta-beta0719/node_data/testnet`.  
+We also prepared the script to run cryptonode: https://github.com/graft-project/graft-ng/blob/develop-rta0719/data/rta-devnet-0719/start_node_rta.sh . Copy it to `$HOME/graft/rta-beta0719/` and run;  Make sure your graftnoded synced with this network: http://54.88.179.186:8081/
+
+7. Create wallet and request funds by contacting admins in the main TG group. 
+
+> Please note - cryptonode started with config above runs RPC on port 28681 so you'll have to specify it explicitly while working with wallet (`--daemon-address localhost:28681`)
+
+8. Create wallets for supernode,  PoS and Wallet
+
+9. Setup supernode using manual: https://github.com/graft-project/graft-ng/wiki/Supernode-Install-&-Usage-Instruction#graft-supernode-configuration
+
+10.[_optional_] Send stake amount to supernode's wallet
+
+11. Send some amount to the Wallet's wallet
+
+## Running and testing
+
+1. Make sure cryptonode and supernode running, check your local supernode with request:
+```ruby
+curl http://localhost:28690/debug/supernode_list/1
 ```
+Make sure you see your supernode in the output
 
-### Prepare sources
-
-Clone repository:
-
-```bash
-git clone --recurse-submodules https://github.com/graft-project/graft-ng.git
+2. Open another terminal (or new window in tmux/screen), go to directory where you copied binaries (`$BINDIR`), copy wallet files you created previously here and run **"rta-wallet-cli"** like this:
+```ruby
+./rta-wallet-cli --wallet-path <your-wallet-name>
 ```
+By default it expects supernode available at `localhost:28690`, cryptonode's RPC at `localhost:28681`. It will open wallet, refresh it,  print the balance and wait for a user pressed `<Return>` key to continue processing
 
-### Build instructions
-
-#### Linux (Ubuntu)
-
-To build graft_server, please run the following commands:
-
-```bash
-mkdir -p <build directory>
-cd <build directory>
-cmake  <project root>
-make
+3. Open one more terminal (or new window in tmux/screen), pick wallet address you created for a PoS, go to directory with binaries (`$BINDIR`), and run:
+```ruby
+./rta-pos-cli --wallet-address <wallet-address-PoS> --amount <sale-amount>
 ```
+This will initiate the sale. Right after this switch to the terminal with "waiting" **rta-wallet-cli** app and press `<Return>`. This will process the payment.
 
-If you want to build unit test suit as well, run *cmake* with additional parameter:
-
-```bash
-mkdir -p <build directory>
-cd <build directory>
-cmake  <project root> -DOPT_BUILD_TESTS=ON
-make all
-```
-
-Then execute *graft_server_test* to run the tests.
-
-```bash
-<build directory>/graft_server_test
-```
-
-## Detailed Installation [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions)
-See [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions) for more details.
+4. Next switch to the terminal with **rta-pos-cli** and see how Sale is processed.
