@@ -8,7 +8,7 @@ The other fundamental feature that RTA brings to the world of r/etail payments i
 
 We are rolling out RTA testing gradually, focusing first on basic functionality and ramping up the testing scope from there to focus more on vulnerability and performance (there will be bounty programs), followed by beta testnet, security audit, and finally mainnet.
 
-There’s also a [QuickStart guide](https://github.com/yidakee/docs/blob/master/Graft_Supernode_Testnet_Simple-step-by-step-setup-instructions-July2019.md) that the community has put together.
+_**There’s also a [QuickStart guide](https://github.com/yidakee/docs/blob/master/Graft_Supernode_Testnet_Simple-step-by-step-setup-instructions-July2019.md) that the community has put together.**_
 
 # Graft Supernode (graft-ng)
 
@@ -97,6 +97,6 @@ Then execute *graft_server_test* to run the tests.
 #### MacOS
 #### Windows
 
+
 ## Detailed Installation [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions)
 See [Instructions](https://github.com/graft-project/graft-ng/wiki/Instructions) for more details.
-
