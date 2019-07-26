@@ -11,9 +11,9 @@ RTA implements the RTA transaction validation flow as described in: https://gith
 
 We are rolling out RTA testing gradually, focusing first on basic functionality and ramping up the testing scope from there to focus more on vulnerability and performance (there will be bounty programs), followed by beta testnet, security audit, and finally mainnet.
 
-_**There’s also a [QuickStart guide](https://github.com/yidakee/docs/blob/master/Graft_Supernode_Testnet_Simple-step-by-step-setup-instructions-July2019.md) that the community has put together.**_
+### See Community [QuickStart guide](https://github.com/yidakee/docs/blob/master/Graft_Supernode_Testnet_Simple-step-by-step-setup-instructions-July2019.md)
 
-### Join RTA Testnet group on Telegram for more assistance: https://t.me/joinchat/EneBww1Ih29jITqGv7bfLw
+### Join RTA Testnet group on [Telegram](https://t.me/joinchat/EneBww1Ih29jITqGv7bfLw) for more assistance: 
 
 
 ## Known issues:
