@@ -13,6 +13,8 @@ We are rolling out RTA testing gradually, focusing first on basic functionality 
 
 _**There’s also a [QuickStart guide](https://github.com/yidakee/docs/blob/master/Graft_Supernode_Testnet_Simple-step-by-step-setup-instructions-July2019.md) that the community has put together.**_
 
+### Join RTA Testnet group on Telegram for more assistance: https://t.me/joinchat/EneBww1Ih29jITqGv7bfLw
+
 
 ## Known issues:
 - Disqualification transactions implementation not merged yet
