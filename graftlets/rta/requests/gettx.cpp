@@ -109,52 +109,10 @@ Status handleClientTxRequest(const Router::vars_t& vars, const graft::Input& inp
         output.load(resp);
         return Status::Ok;
     } else {
-        // TODO: implement requesting transaction from remote supernode, but it's not really necessary as rta tx sent to PosProxy
+        // TODO: implement requesting transaction from remote supernode, but it's not really necessary as rta tx always sent to PosProxy
         std::string msg = "Internal error: no tx for payment id: " + req.PaymentID;
         MERROR(msg);
         return errorCustomError(msg, ERROR_RTA_FAILED, output);
-
-        // we don't have a payment data for given payment id, request it from one of the randomly selected supernode from auth sample;
-        // do not process the same request multiple times
-//        bool pending_request = ctx.global.get(req.PaymentID + CONTEXT_KEY_PAYMENT_DATA_PENDING, false);
-//        if (pending_request) {
-//            output.reset();
-//            output.resp_code = 202;
-//            return Status::Ok;
-//        }
-//        ctx.global.set(req.PaymentID + CONTEXT_KEY_PAYMENT_DATA_PENDING, true, SALE_TTL);
-
-//        MDEBUG("payment data NOT found for payment id: " << req.PaymentID);
-//        FullSupernodeList::supernode_array auth_sample;
-//        uint64_t block_num = 0;
-//        if (!fsl->buildAuthSample(req.BlockHeight, req.PaymentID, auth_sample, block_num)) {
-//            std::string msg = "Failed to build auth sample for payment id: " + req.PaymentID;
-//            MERROR(msg);
-//            return errorCustomError(msg, ERROR_RTA_FAILED, output);
-//        }
-//        // select random supernode
-//        // TODO: extract this as a template method
-//        PaymentDataRemoteRequest innerReq;
-//        innerReq.PaymentID = req.PaymentID;
-//        Output innerOut;
-//        innerOut.loadT<serializer::JSON_B64>(innerReq);
-//        BroadcastRequestJsonRpc out;
-//        out.method = "broadcast";
-//        out.params.callback_uri = "/core/payment_data_request";
-//        out.params.data = innerOut.data();
-//        out.params.sender_address = supernode->idKeyAsString();
-//        size_t maxIndex = auth_sample.size() - 1;
-//        size_t randomIndex = graft::utils::random_number<size_t>(0, maxIndex);
-//#if    0
-//        out.params.receiver_addresses.push_back(auth_sample.at(randomIndex)->idKeyAsString());
-//#endif
-//        out.params.receiver_addresses.push_back("217c474a2394584a74051a7dd579c496dd3bc0768e8c56c69659ac93c8f78023");
-//        MDEBUG("requesting from remote peer: " << out.params.receiver_addresses.at(0));
-//        utils::signBroadcastMessage(out.params, supernode);
-//        output.load(out);
-//        output.path = "/json_rpc/rta";
-//        MDEBUG("unicasting: " << output.data());
-//        return Status::Forward;
     }
 }
 

@@ -82,8 +82,6 @@ Status handlePaymentDataRequestUnicast(const Router::vars_t &vars, const Input &
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr(nullptr));
 
-
-
     PaymentData paymentData = ctx.global.get(payment_id + CONTEXT_KEY_PAYMENT_DATA, PaymentData());
     std::string plain_msg = to_json_str(paymentData);
     std::string cypher_msg, cypher_msg_b64;
@@ -107,10 +105,6 @@ Status handlePaymentDataRequestUnicast(const Router::vars_t &vars, const Input &
     output.path = "/json_rpc/rta";
 
     utils::signBroadcastMessage(callbackReq.params, supernode);
-
-//    MDEBUG("unicasting payment data response " <<callbackReq.params.callback_uri
-//           << ", remote addr: " << callbackReq.params.receiver_addresses.at(0)
-//           << ", payment: " << payment_id);
 
     output.load(callbackReq);
     MDEBUG("unicasting payment data response: " << output.data());

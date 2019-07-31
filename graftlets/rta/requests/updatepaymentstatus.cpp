@@ -252,7 +252,6 @@ Status handleUpdatePaymentStatusRequestEx(const Router::vars_t& vars, const graf
 
     switch(state) // state machine to perform a) multicast to cryptonode
     {
-        // client requested "/pay"
         case UpdateStatusExHandlerState::ClientRequest:
             ctx.local[__FUNCTION__] = UpdateStatusExHandlerState::ClientRequestStored;
             ctx.local["request"] = input;

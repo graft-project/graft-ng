@@ -35,8 +35,7 @@
 
 namespace graft::supernode::request {
 
-// Pay request payload
-// TODO: rename rta tx request
+
 GRAFT_DEFINE_IO_STRUCT_INITED(ApprovePaymentRequest,
     (std::string, TxBlob, std::string()), // encrypted serialized tx as hexadecimal string. Includes payment id
     (std::string, TxKey, std::string())  // encrypted tx private key
