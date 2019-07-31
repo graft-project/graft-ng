@@ -88,9 +88,9 @@ protected:
         REGISTER_ENDPOINT("/dapi/v2.0/pos_reject_payment", METHOD_POST, RtaGraftlet, handlePosRejectPaymentRequest);
 
         // TODO: fix cryptonode logic, it prepends "/dapi/v2.0/" to any "callback_uri"
-        REGISTER_ENDPOINT("/dapi/v2.0/core/store_payment_data", METHOD_POST, RtaGraftlet, handleStorePaymentDataRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/payment_data_request", METHOD_POST, RtaGraftlet, handlePaymentDataRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/payment_data_response", METHOD_POST, RtaGraftlet, handlePaymentDataResponse);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/store_payment_data", METHOD_POST, RtaGraftlet, handleStorePaymentDataRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/get_supernode_info", METHOD_POST, RtaGraftlet, handleSupernodeInfoRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/update_payment_status", METHOD_POST, RtaGraftlet, handleUpdatePaymentStatusRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/core/update_payment_status_encrypted", METHOD_POST, RtaGraftlet, handleUpdatePaymentStatusEncryptedRequest);
