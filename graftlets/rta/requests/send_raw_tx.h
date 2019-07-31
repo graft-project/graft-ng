@@ -36,7 +36,9 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SendRawTxResponse,
                               (bool, too_big, true),
                               (bool, overspend, true),
                               (bool, fee_too_low, true),
-                              (bool, not_rct, true)
+                              (bool, not_rct, true),
+                              (bool, untrusted, true),
+                              (bool, rta_validation_failed, true)
                               );
 
 
