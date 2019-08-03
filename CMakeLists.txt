@@ -430,6 +430,7 @@ if (OPT_BUILD_TESTS)
             ${PROJECT_SOURCE_DIR}/test/rta_classes_test.cpp
             ${PROJECT_SOURCE_DIR}/test/sys_info.cpp
             ${PROJECT_SOURCE_DIR}/test/strand_test.cpp
+            ${PROJECT_SOURCE_DIR}/test/serialize_test.cpp
             ${PROJECT_SOURCE_DIR}/test/main.cpp
         )
 
