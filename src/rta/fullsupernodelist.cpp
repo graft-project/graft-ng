@@ -240,7 +240,7 @@ SupernodePtr FullSupernodeList::get(const string &address) const
     return SupernodePtr(nullptr);
 }
 
-bool FullSupernodeList::selectSupernodes(size_t items_count, const std::string& payment_id, const blockchain_based_list_tier& src_array, supernode_array& dst_array)
+bool FullSupernodeList::selectSupernodes(size_t items_count, const blockchain_based_list_tier& src_array, supernode_array& dst_array)
 {
     size_t src_array_size = src_array.size();
 
@@ -278,11 +278,14 @@ bool FullSupernodeList::selectSupernodes(size_t items_count, const std::string& 
     return true;
 }
 
-uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list) const
+uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list, bool use_delay) const
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
 
-    uint64_t blockchain_based_list_height = block_number - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+    uint64_t blockchain_based_list_height = block_number;
+
+    if (use_delay)
+      blockchain_based_list_height -= BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
 
     blockchain_based_list_map::const_iterator it = m_blockchain_based_lists.find(block_number);
 
@@ -292,7 +295,9 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
     blockchain_based_list     result;
     blockchain_based_list_ptr bbl = it->second;
 
-    for (blockchain_based_list_tier& src : *bbl)
+    result.block_hash = bbl->block_hash;
+
+    for (blockchain_based_list_tier& src : bbl->tiers)
     {
         blockchain_based_list_tier dst;
 
@@ -312,68 +317,34 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
             return true;
         });
 
-        result.emplace_back(std::move(dst));
+        result.tiers.emplace_back(std::move(dst));
     }
 
-    list.swap(result);
+    list = std::move(result);
 
     return blockchain_based_list_height;
 }
 
-bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number)
+bool FullSupernodeList::buildSample(const blockchain_based_list& bbl, size_t sample_size, const char* prefix, supernode_array &out)
 {
-    blockchain_based_list bbl;
-
-    out_auth_block_number = getBlockchainBasedListForAuthSample(height, bbl);
-
-    if (!out_auth_block_number)
-    {
-        LOG_ERROR("unable to build auth sample for block height " << height << " (blockchain_based_list_height=" << (height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT) << ") and PaymentID "
-           << payment_id << ". Blockchain based list for this block is absent, latest block is " << getBlockchainBasedListMaxBlockNumber());
-        return false;
-    }
-
-    MDEBUG("building auth sample for height " << height << " (blockchain_based_list_height=" << out_auth_block_number << ") and PaymentID '" << payment_id << "'");
-
     std::array<supernode_array, TIERS> tier_supernodes;
+
+        //select supernodes for a full supernode list
+
+    for (size_t i=0, tiers_count=bbl.tiers.size(); i<TIERS && i<tiers_count; i++)
     {
-        boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+        const blockchain_based_list_tier& src_array = bbl.tiers[i];
+        supernode_array&                  dst_array = tier_supernodes[i];
+        
+        dst_array.reserve(sample_size);
 
-           //seed RNG
- 
-        std::seed_seq seed(reinterpret_cast<const unsigned char*>(payment_id.c_str()),
-                           reinterpret_cast<const unsigned char*>(payment_id.c_str() + payment_id.size()));
- 
-        m_rng.seed(seed);
- 
-            //select supernodes for a full supernode list
-
-        MDEBUG("use blockchain based list for height " << out_auth_block_number);
-        int t = 1;
-        for (const blockchain_based_list_tier& l : bbl)
+        if (!selectSupernodes(sample_size, src_array, dst_array))
         {
-          MDEBUG("...tier #" << t);
-          int j=0;
-          for (const blockchain_based_list_entry& e : l)
-            MDEBUG(".....[" << j++ << "]=" << e.supernode_public_id);
-          t++;
+          LOG_ERROR("unable to select supernodes for " << prefix << " sample");
+          return false;
         }
 
-        for (size_t i=0, tiers_count=bbl.size(); i<TIERS && i<tiers_count; i++)
-        {
-            const blockchain_based_list_tier& src_array = bbl[i];
-            supernode_array&                  dst_array = tier_supernodes[i];
-            
-            dst_array.reserve(AUTH_SAMPLE_SIZE);
-
-            if (!selectSupernodes(AUTH_SAMPLE_SIZE, payment_id, src_array, dst_array))
-            {
-              LOG_ERROR("unable to select supernodes for auth sample");
-              return false;
-            }
-
-            MDEBUG("..." << dst_array.size() << " supernodes has been selected for tier " << (i + 1) << " from blockchain based list with " << src_array.size() << " supernodes");
-        }
+        MDEBUG("..." << dst_array.size() << " supernodes has been selected for tier " << (i + 1) << " from blockchain based list with " << src_array.size() << " supernodes");
     }
 
     array<int, TIERS> select;
@@ -409,29 +380,88 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
     }
 
     if (VLOG_IS_ON(2)) {
-        std::string auth_sample_str, tier_sample_str;
+        std::string sample_str, tier_sample_str;
         for (const auto &a : out) {
-            auth_sample_str += a->idKeyAsString() + "\n";
+            sample_str += a->idKeyAsString() + "\n";
         }
         for (size_t i = 0; i < select.size(); i++) {
             if (i > 0) tier_sample_str += ", ";
             tier_sample_str += std::to_string(select[i]) + " T"  + std::to_string(i+1);
         }
-        MDEBUG("selected " << tier_sample_str << " supernodes of " << size() << " for auth sample");
-        MTRACE("auth sample: \n" << auth_sample_str);
+        MDEBUG("selected " << tier_sample_str << " supernodes of " << size() << " for " << prefix << " sample");
+        MTRACE(prefix << " sample: \n" << sample_str);
     }
 
-    if (out.size() > AUTH_SAMPLE_SIZE)
-      out.resize(AUTH_SAMPLE_SIZE);
+    if (out.size() > sample_size)
+      out.resize(sample_size);
 
     MDEBUG("..." << out.size() << " supernodes has been selected");
 
-    return out.size() == AUTH_SAMPLE_SIZE;
+    return out.size() == sample_size;
+}
+
+bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number)
+{
+    blockchain_based_list bbl;
+
+    out_auth_block_number = getBlockchainBasedListForAuthSample(height, bbl);
+
+    if (!out_auth_block_number)
+    {
+        LOG_ERROR("unable to build auth sample for block height " << height << " (blockchain_based_list_height=" << (height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT) << ") and PaymentID "
+           << payment_id << ". Blockchain based list for this block is absent, latest block is " << getBlockchainBasedListMaxBlockNumber());
+        return false;
+    }
+
+    MDEBUG("building auth sample for height " << height << " (blockchain_based_list_height=" << out_auth_block_number << ") and PaymentID '" << payment_id << "'");
+
+    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+
+       //seed RNG
+
+    std::seed_seq seed(reinterpret_cast<const unsigned char*>(payment_id.c_str()),
+                       reinterpret_cast<const unsigned char*>(payment_id.c_str() + payment_id.size()));
+
+    m_rng.seed(seed);
+
+      //build sample
+
+    return buildSample(bbl, AUTH_SAMPLE_SIZE, "auth", out);
 }
 
 bool FullSupernodeList::buildAuthSample(const string &payment_id, FullSupernodeList::supernode_array &out, uint64_t &out_auth_block_number)
 {
     return buildAuthSample(getBlockchainBasedListMaxBlockNumber(), payment_id, out, out_auth_block_number);
+}
+
+bool FullSupernodeList::buildDisqualificationSamples(uint64_t height, supernode_array &out_disqualification_sample, supernode_array &out_disqualification_candidates)
+{
+    blockchain_based_list bbl;
+
+    uint64_t out_auth_block_number = getBlockchainBasedListForAuthSample(height, bbl, false);
+
+    if (!out_auth_block_number)
+    {
+        LOG_ERROR("unable to build disqualification samples for block height " << height << " (blockchain_based_list_height=" << (height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT) << ") "
+          ". Blockchain based list for this block is absent, latest block is " << getBlockchainBasedListMaxBlockNumber());
+        return false;
+    }
+
+    MDEBUG("building disqualification samples for height " << height << " (blockchain_based_list_height=" << out_auth_block_number << ") and hash=" << bbl.block_hash);
+
+    boost::unique_lock<boost::shared_mutex> writerLock(m_access);
+
+       //seed RNG
+
+    std::seed_seq seed(reinterpret_cast<const unsigned char*>(bbl.block_hash.c_str()),
+                       reinterpret_cast<const unsigned char*>(bbl.block_hash.c_str() + bbl.block_hash.size()));
+
+    m_rng.seed(seed);
+
+      //build sample
+
+    return buildSample(bbl, DISQUALIFICATION_SAMPLE_SIZE, "disqualification", out_disqualification_sample) &&
+           buildSample(bbl, DISQUALIFICATION_CANDIDATES_SIZE, "disqualification candidates", out_disqualification_candidates);
 }
 
 vector<string> FullSupernodeList::items() const
@@ -575,17 +605,6 @@ void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const bloc
 {
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
-    MDEBUG("update blockchain based list for height " << block_number);
-    int t = 1;
-    for (const blockchain_based_list_tier& l : *list)
-    {
-      MDEBUG("...tier #" << t);
-      int j=0;
-      for (const blockchain_based_list_entry& e : l)
-        MDEBUG(".....[" << j++ << "]=" << e.supernode_public_id);
-      t++;
-    }
-
     blockchain_based_list_map::iterator it = m_blockchain_based_lists.find(block_number);
 
     if (it != m_blockchain_based_lists.end())
@@ -637,7 +656,7 @@ size_t FullSupernodeList::getSupernodeBlockchainBasedListTier(const std::string&
 
     size_t tier_number = 1;
 
-    for (const blockchain_based_list_tier& tier : *list)
+    for (const blockchain_based_list_tier& tier : list->tiers)
     {
         for (const blockchain_based_list_entry& sn : tier)
             if (sn.supernode_public_id == supernode_public_id)
