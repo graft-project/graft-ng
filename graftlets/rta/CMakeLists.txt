@@ -50,3 +50,7 @@ set_target_properties(graftlet_walletAddress PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode
 )
 
+target_link_libraries(graftlet_rta PRIVATE
+    utils
+)
+
