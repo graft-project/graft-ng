@@ -39,9 +39,11 @@
 #include "supernode/requests/broadcast.h"
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
+#include <utils/utils.h>
 #include <misc_log_ex.h>
 #include <syncobj.h>
 #include <exception>
+
 
 // logging
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -170,8 +172,10 @@ namespace graft::supernode::request {
 enum class AuthorizeRtaTxRequestHandlerState : int {
     IncomingRequest = 0,    // incoming request from client, store it and return Status::Again
     RequestStored,          // request stored, waiting to be processed: check if already processed
-    StatusUpdateSent,       // "payment status update" broadcast sent
+    PendingStatusUpdateSent,       // "payment status changed to pending" broadcast sent
+    FailedStatusUpdateSent,       // "payment status changed to failed" broadcast sent
     KeyImagesRequestSent,   // "is_key_image_spent" request sent to cryptonode;
+    KeyImagesSpentBroadcastSent, // check key images failed, Failed broadcast sent
     TxResposeSent           // "authorize_rta_tx_response" mullticast sent
 };
 
@@ -298,6 +302,9 @@ bool isAuthSampleValid(const cryptonote::rta_header &rta_hdr, graft::Context &ct
         return false;
     }
     // TODO: implement me
+
+
+
     return true;
 }
 
@@ -310,10 +317,32 @@ bool checkMyFee(const cryptonote::transaction &tx, const crypto::secret_key &tx_
         return false;
     }
 
-    // TODO implement me;
-    return  true;
-}
+#if 0
+    if (supernode->idKeyAsString() == "25b316d25e6c2dd8dd60fd983de9fbd5a9bb1fcf96d65bbb1c295708bafa00cb") {
+        return false;
+    }
+#endif
 
+
+    std::vector<std::pair<size_t, uint64_t>> outputs;
+    uint64_t tx_amount = 0;
+
+
+    cryptonote::address_parse_info address_pi;
+
+    if (!cryptonote::get_account_address_from_str(address_pi, supernode->testnet() ? cryptonote::TESTNET : cryptonote::MAINNET, supernode->walletAddress())) {
+        MERROR("Failed to parse account from: " << supernode->walletAddress());
+        return false;
+    }
+
+    if (!Utils::get_tx_amount(address_pi.address, tx_key, tx, outputs, tx_amount)) {
+        MERROR("Failed to get amount from tx");
+        return false;
+    }
+
+    // TODO: check as percentage of actual amount
+    return tx_amount > 0;
+}
 
 Status signRtaTxAndSendResponse(cryptonote::transaction &tx, const crypto::secret_key &tx_key, graft::Context& ctx, graft::Output &output)
 {
@@ -362,6 +391,23 @@ Status signRtaTxAndSendResponse(cryptonote::transaction &tx, const crypto::secre
 
 }
 
+
+Status broadcastStatusUpdate(const RTAStatus status, const std::string &paymentId, SupernodePtr supernode, graft::Output &output)
+{
+    PaymentStatus req;
+    req.PaymentID = paymentId;
+    req.Status = static_cast<int>(status);
+    if (!paymentStatusSign(supernode, req)) {
+        MERROR("Failed to sign UpdateStatusBroadcast, payment id: " << req.PaymentID);
+        return Status::Ok;
+    }
+    utils::buildBroadcastOutput(req, supernode, std::vector<std::string>(), "json_rpc/rta", "/core/update_payment_status", output);
+    return Status::Forward;
+}
+
+
+
+
 Status processNewRtaTx(cryptonote::transaction &tx, const crypto::secret_key &tx_key, graft::Context& ctx, graft::Output &output)
 {
     cryptonote::rta_header rta_hdr;
@@ -383,7 +429,8 @@ Status processNewRtaTx(cryptonote::transaction &tx, const crypto::secret_key &tx
 
     if (!checkMyFee(tx, tx_key, rta_hdr, supernode, ctx)) {
         MERROR("Failed to validate supernode fee for payment: " << rta_hdr.payment_id);
-        return Status::Ok;
+        ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::FailedStatusUpdateSent;
+        return broadcastStatusUpdate(RTAStatus::FailZeroFee, rta_hdr.payment_id, supernode, output);
     }
 
     // in case we're auth sample supernode - we should check for spent key images and own fee
@@ -427,11 +474,15 @@ Status processKeyImagesReply(const Router::vars_t& vars, const graft::Input& inp
         MERROR("is_key_images_spent returned failure" << input.data());
         return Status::Ok;
     }
+    std::string payment_id = ctx.local["payment_id"];
+    SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+
 
     for (const auto spent_status : resp.spent_status) {
         if (spent_status != 0) {
             MERROR("some of the key images spent, status: " << spent_status);
-            return Status::Ok;
+            ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::KeyImagesSpentBroadcastSent;
+            return broadcastStatusUpdate(RTAStatus::FailDoubleSpend, payment_id, supernode, output);
         }
     }
 
@@ -441,7 +492,7 @@ Status processKeyImagesReply(const Router::vars_t& vars, const graft::Input& inp
         return Status::Ok;
     }
 
-    std::string payment_id = ctx.local["payment_id"];
+
     crypto::secret_key tx_key;
 
     if (!utils::getTxKeyFromContext(ctx, tx_key, payment_id + CONTEXT_RTA_TX_REQ_TX_KEY_KEY)) {
@@ -543,7 +594,6 @@ Status handleTxAuthRequestNew(const Router::vars_t& vars, const graft::Input& /*
     DECRYPT_TX_KEY();
     GET_RTA_HDR();
 
-
     MDEBUG("incoming rta tx for payment: " << rta_hdr.payment_id);
 
     // check if payment id is known already (captured by "/core/store_payment_data" handler)
@@ -567,19 +617,10 @@ Status handleTxAuthRequestNew(const Router::vars_t& vars, const graft::Input& /*
         utils::putTxToGlobalContext(tx, ctx, rta_hdr.payment_id + CONTEXT_RTA_TX_REQ_TX_KEY, SALE_TTL);
         utils::putTxKeyToContext(tx_key, ctx, rta_hdr.payment_id + CONTEXT_RTA_TX_REQ_TX_KEY_KEY, SALE_TTL);
         MDEBUG("tx stored in local context for payment: " << rta_hdr.payment_id);
-        ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::StatusUpdateSent;
+        ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::PendingStatusUpdateSent;
         ctx.local["payment_id"] = rta_hdr.payment_id;
         if (isAuthSampleSupernode(rta_hdr, supernode)) { // we can update status only if we're auth sample member
-            PaymentStatus req;
-            req.PaymentID = rta_hdr.payment_id;
-            req.Status = static_cast<int>(RTAStatus::InProgress);
-            if (!paymentStatusSign(supernode, req)) {
-                MERROR("Failed to sign UpdateStatusBroadcast, payment id: " << req.PaymentID);
-                return Status::Ok;
-            }
-            utils::buildBroadcastOutput(req, supernode, std::vector<std::string>(), "json_rpc/rta", "/core/update_payment_status", output);
-            MDEBUG("Broadcasting status update: " << graft::to_json_str(req));
-            return Status::Forward;
+            return broadcastStatusUpdate(RTAStatus::InProgress, rta_hdr.payment_id, supernode, output);
         }
         // in case we're proxy node - we can't broadcast status update but still need the state machine working
         // (re-using the same state machine, so handler invoked same way as we've sent the status)
@@ -595,7 +636,7 @@ Status handleTxAuthRequestNew(const Router::vars_t& vars, const graft::Input& /*
 }
 
 
-Status handleTxAuthRequestStatusUpdated(const Router::vars_t& vars, const graft::Input& input,
+Status handleTxAuthRequestPendingStatusUpdated(const Router::vars_t& vars, const graft::Input& input,
                             graft::Context& ctx, graft::Output& output) noexcept
 {
     BroadcastResponseFromCryptonodeJsonRpc resp;
@@ -620,6 +661,13 @@ Status handleTxAuthRequestStatusUpdated(const Router::vars_t& vars, const graft:
 
     return processNewRtaTx(tx, tx_key, ctx, output);
 }
+
+Status handleTxAuthRequestFailedStatusUpdated(const Router::vars_t& vars, const graft::Input& input,
+                            graft::Context& ctx, graft::Output& output) noexcept
+{
+    return Status::Ok; // finite state
+}
+
 
 /*!
  * \brief handleCryptonodeMulticastResponse - handles multicast response from cryptonode. Here we only interested in error checking,
@@ -750,6 +798,7 @@ Status handleRtaAuthResponse(const Router::vars_t& vars, const graft::Input& inp
         MDEBUG("voting status: auth_sample_votes: " << auth_sample_votes << ", proxy_votes: " << proxy_votes);
 
 
+
         if (auth_sample_votes >= RTA_VOTES_TO_APPROVE && proxy_votes == 3) { // TODO: magic numbers to constants
             MDEBUG("CoA matches for payment: " << rta_hdr.payment_id
                    << " , pushing tx to pool");
@@ -834,7 +883,7 @@ Status handleCryptonodeTxPushResponse(const Router::vars_t& vars, const graft::I
             LOG_ERROR("double spend for payment: " << rta_hdr.payment_id << ", tx: " << cryptonote::get_transaction_hash(tx));
             return sendOkResponseToCryptonode(output);
         }
-        paymentStatus.Status = static_cast<int>(RTAStatus::Fail);
+        paymentStatus.Status = static_cast<int>(RTAStatus::FailTxRejected);
         // LOG_ERROR("failed to put tx to pool: " << tx_id << ", reason: " << resp.reason);
         LOG_ERROR("failed to put tx to pool: " << cryptonote::get_transaction_hash(tx) << ", input: " << input.data());
     } else {
@@ -891,10 +940,14 @@ Status handleAuthorizeRtaTxRequest(const Router::vars_t& vars, const graft::Inpu
         case AuthorizeRtaTxRequestHandlerState::RequestStored:
             // ctx.local[__FUNCTION__] = HandlerState::CryptonodeReply;
             return handleTxAuthRequestNew(vars, input, ctx, output);
-        case AuthorizeRtaTxRequestHandlerState::StatusUpdateSent: // status update broadcast sent;
-            return handleTxAuthRequestStatusUpdated(vars, input, ctx, output);
+        case AuthorizeRtaTxRequestHandlerState::PendingStatusUpdateSent: // pending status update broadcast sent;
+            return handleTxAuthRequestPendingStatusUpdated(vars, input, ctx, output);
+        case AuthorizeRtaTxRequestHandlerState::FailedStatusUpdateSent: // failed status update broadcast sent;
+            return handleTxAuthRequestFailedStatusUpdated(vars, input, ctx, output);
         case AuthorizeRtaTxRequestHandlerState::KeyImagesRequestSent: // is_key_images_spent request sent;
             return processKeyImagesReply(vars, input, ctx, output);
+        case AuthorizeRtaTxRequestHandlerState::KeyImagesSpentBroadcastSent: // some of the key images found spent
+            return Status::Ok; // we got cryptonode reply, stop processing;
         case AuthorizeRtaTxRequestHandlerState::TxResposeSent:
             return handleCryptonodeReply(vars, input, ctx, output);
         default: // internal error

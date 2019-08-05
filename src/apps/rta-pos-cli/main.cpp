@@ -321,6 +321,8 @@ public:
             MERROR("Failed to get amount from tx");
             return false;
         }
+
+
         MINFO("sale amount: " << sale_amount << ", tx_amount : " << tx_amount << ", expected amount: " << get_total_fee(sale_amount));
         return tx_amount == get_total_fee(sale_amount); //
     }
@@ -363,7 +365,7 @@ public:
     {
         EncryptedPaymentStatus req;
         PaymentStatus paymentStatus;
-        paymentStatus.Status = static_cast<int>(graft::RTAStatus::RejectedByPOS);
+        paymentStatus.Status = static_cast<int>(graft::RTAStatus::FailRejectedByPOS);
         paymentStatus.PaymentID = m_payment_id;
         paymentStatusSign(m_pub_key, m_secret_key, paymentStatus);
 
@@ -554,7 +556,7 @@ int main(int argc, char* argv[])
     }
 
     // wait for status = Success;
-    if (!pos.waitForStatus(int(graft::RTAStatus::RejectedByPOS), actualStatus, std::chrono::seconds(20))) {
+    if (!pos.waitForStatus(int(graft::RTAStatus::FailRejectedByPOS), actualStatus, std::chrono::seconds(20))) {
         MERROR("Expected RejectedByPOS status, got: " << actualStatus);
         return EXIT_FAILURE;
     }

@@ -91,13 +91,16 @@ void cleanPaySaleData(const std::string &payment_id, graft::Context &ctx);
 enum class RTAStatus : int
 {
     None = 0,
-    Waiting = 1,
     InProgress = 2,
     Success = 3,
-    Fail = 4,
-    RejectedByWallet = 5,
-    RejectedByPOS = 6
+    FailRejectedByPOS, // rejected by PoS
+    FailZeroFee,   // rejected by auth sample due low or zero fee
+    FailDoubleSpend,  // rejected by auth sample due double spend
+    FailTimedOut,     // timed out
+    FailTxRejected   // tx rejected by cryptonode
+
 };
+
 
 /*!
  * \brief isFiniteRtaStatus - checks if given rta status is finite, i.e. no transition possible for given status

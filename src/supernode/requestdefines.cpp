@@ -53,8 +53,7 @@ Status errorBuildAuthSample(Output& output)
 
 bool errorFinishedPayment(int status, Output& output)
 {
-    if (status != static_cast<int>(RTAStatus::Waiting)
-            && status != static_cast<int>(RTAStatus::InProgress))
+    if (isFiniteRtaStatus(static_cast<RTAStatus>(status)))
     {
         JsonRpcError err;
         if (status == static_cast<int>(RTAStatus::Success))
@@ -171,8 +170,7 @@ Status sendAgainResponseToCryptonode(Output& output)
 
 bool isFiniteRtaStatus(RTAStatus status)
 {
-    return !(status == RTAStatus::None || status == RTAStatus::InProgress
-            || status == RTAStatus::Waiting);
+    return !(status == RTAStatus::None || status == RTAStatus::InProgress);
 }
 
 } //namespace graft
