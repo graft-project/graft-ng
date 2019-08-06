@@ -77,7 +77,7 @@ Status storePaymentDataRequest(const Router::vars_t& vars, const graft::Input& i
         return errorInvalidParams(output);
     }
 
-    const std::string &payment_id = saleRequest.PaymentID;
+    const std::string payment_id = saleRequest.PaymentID;
     MDEBUG("payment data received from multicast for payment id: " << payment_id);
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr(nullptr));
@@ -104,7 +104,12 @@ Status storePaymentDataRequest(const Router::vars_t& vars, const graft::Input& i
 
             if (!ctx.global.hasKey(payment_id + CONTEXT_KEY_PAYMENT_DATA)) {
                 // TODO: clenup after payment done;
-                ctx.global.set(payment_id + CONTEXT_KEY_PAYMENT_DATA, saleRequest.paymentData, SALE_TTL);
+                GlobalContextMap::OnExpired on_expired = [payment_id, &ctx](std::pair<std::string, std::any> &arg) {
+                    MDEBUG("on_expired: payment_id expired: " << payment_id);
+                    MDEBUG("payment status available: " << ctx.global.hasKey(payment_id + CONTEXT_KEY_STATUS));
+                };
+                MDEBUG("storing payment data in global context: " << payment_id << ", timeout: " << SALE_TTL.count());
+                ctx.global.set(payment_id + CONTEXT_KEY_PAYMENT_DATA, saleRequest.paymentData, SALE_TTL, on_expired);
             } else {
                 MWARNING("payment " << payment_id << " already known");
             }
