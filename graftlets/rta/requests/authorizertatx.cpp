@@ -317,7 +317,7 @@ bool checkMyFee(const cryptonote::transaction &tx, const crypto::secret_key &tx_
         return false;
     }
 
-#if 0
+#if 0 // negative "insufficient fee" test
     if (supernode->idKeyAsString() == "25b316d25e6c2dd8dd60fd983de9fbd5a9bb1fcf96d65bbb1c295708bafa00cb") {
         return false;
     }
@@ -486,12 +486,18 @@ Status processKeyImagesReply(const Router::vars_t& vars, const graft::Input& inp
         }
     }
 
+#if 0 // test for "spent key-images" found
+    if (supernode->idKeyAsString() == "25b316d25e6c2dd8dd60fd983de9fbd5a9bb1fcf96d65bbb1c295708bafa00cb") {
+        ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::KeyImagesSpentBroadcastSent;
+        return broadcastStatusUpdate(RTAStatus::FailDoubleSpend, payment_id, supernode, output);
+    }
+#endif
+
     cryptonote::transaction tx;
     if (!getTxFromLocalContext(ctx, tx, CONTEXT_RTA_TX_REQ_TX_KEY)) {
         MERROR("Failed to read tx from context");
         return Status::Ok;
     }
-
 
     crypto::secret_key tx_key;
 
