@@ -36,11 +36,15 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SendRawTxResponse,
                               (bool, too_big, true),
                               (bool, overspend, true),
                               (bool, fee_too_low, true),
-                              (bool, not_rct, true)
+                              (bool, not_rct, true),
+                              (bool, untrusted, true),
+                              (bool, rta_validation_failed, true)
                               );
 
 
-void registerSendRawTxRequest(graft::Router &router);
+Status sendRawTxHandler(const Router::vars_t& vars, const graft::Input& input,
+graft::Context& ctx, graft::Output& output);
+
 bool createSendRawTxRequest(const tools::wallet2::pending_tx &ptx, SendRawTxRequest &request);
 bool createSendRawTxRequest(const cryptonote::transaction &tx, SendRawTxRequest &request);
 

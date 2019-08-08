@@ -223,11 +223,14 @@ void Supernode::startSupernodePeriodicTasks()
             return graft::Status::Error;
         }
 
-        if (FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr()))
-        {
-            fsl->synchronizeWithCryptonode(supernode->networkAddress().c_str(), supernode->idKeyAsString().c_str());
+        // FSL is a MUST
+        FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr(nullptr));
+        if (!fsl.get()) {
+            LOG_ERROR("supernode is not set in global context");
+            return graft::Status::Error;
         }
 
+        fsl->synchronizeWithCryptonode(supernode->networkAddress().c_str(), supernode->idKeyAsString().c_str());
         return graft::Status::Ok;
     };
 

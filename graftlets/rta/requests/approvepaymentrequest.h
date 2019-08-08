@@ -35,17 +35,15 @@
 
 namespace graft::supernode::request {
 
-// Pay request payload
-// TODO: rename rta tx request
-GRAFT_DEFINE_IO_STRUCT_INITED(PayRequest,
+
+GRAFT_DEFINE_IO_STRUCT_INITED(ApprovePaymentRequest,
     (std::string, TxBlob, std::string()), // encrypted serialized tx as hexadecimal string. Includes payment id
     (std::string, TxKey, std::string())  // encrypted tx private key
 );
 
-// shared constants
-extern const std::chrono::seconds PAY_TTL;
 
-Status handlePayRequest(const Router::vars_t& vars, const graft::Input& input,
+
+Status handleApprovePaymentRequest(const Router::vars_t& vars, const graft::Input& input,
                          graft::Context& ctx, graft::Output& output);
 
 }

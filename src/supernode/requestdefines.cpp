@@ -53,8 +53,7 @@ Status errorBuildAuthSample(Output& output)
 
 bool errorFinishedPayment(int status, Output& output)
 {
-    if (status != static_cast<int>(RTAStatus::Waiting)
-            && status != static_cast<int>(RTAStatus::InProgress))
+    if (isFiniteRtaStatus(static_cast<RTAStatus>(status)))
     {
         JsonRpcError err;
         if (status == static_cast<int>(RTAStatus::Success))
@@ -156,14 +155,22 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(ResultResponseJsonRpc, ResultResponse);
 Status sendOkResponseToCryptonode(Output& output)
 {
     ResultResponseJsonRpc res;
+    res.result.Result = STATUS_OK;
     output.load(res);
     return Status::Ok;
 }
 
+Status sendAgainResponseToCryptonode(Output& output)
+{
+    ResultResponseJsonRpc res;
+    res.result.Result = STATUS_OK;
+    output.load(res);
+    return Status::Again;
+}
+
 bool isFiniteRtaStatus(RTAStatus status)
 {
-    return !(status == RTAStatus::None || status == RTAStatus::InProgress
-            || status == RTAStatus::Waiting);
+    return !(status == RTAStatus::None || status == RTAStatus::InProgress);
 }
 
 } //namespace graft

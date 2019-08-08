@@ -32,29 +32,68 @@
 #include "lib/graft/serialize.h"
 #include "rta/supernode.h"
 #include "supernode/requests/broadcast.h"
-
+#include <cryptonote_basic/cryptonote_basic.h>
+#include <cryptonote_basic/cryptonote_format_utils.h>
 #include <chrono>
 
 
 namespace graft::supernode::request {
+
+static const std::string RTA_TX_REQ_HANDLER_STATE_KEY = "rta_tx_req_handler_state";
+static const std::string CONTEXT_RTA_TX_REQ_TX_KEY = "rta_tx_req_tx_key"; // key to store transaction
+static const std::string CONTEXT_RTA_TX_REQ_TX_KEY_KEY = "rta_tx_req_tx_key_key"; // key to store transaction private key
+
+static const std::string RTA_TX_RESP_HANDLER_STATE_KEY = "rta_tx_resp_handler_state";
+static const std::string CONTEXT_RTA_TX_RESP_TX_KEY = "rta_tx_resp_tx_key"; // key to store transaction
+static const std::string CONTEXT_RTA_TX_RESP_TX_KEY_KEY = "rta_tx_resp_tx_key_key"; // key to store transaction private key
+
+// shared constants
+extern const std::chrono::seconds SALE_TTL;
+
 
 GRAFT_DEFINE_IO_STRUCT(NodeAddress,
                        (std::string, Id),
                        (std::string, WalletAddress)
                        );
 
-GRAFT_DEFINE_IO_STRUCT(EncryptedNodeKey,
-                       (std::string, Id),
-                       (std::string, Key)
-                       );
+GRAFT_DEFINE_IO_STRUCT(NodeId,
+                      (std::string, Id)
+                      );
+
+// to be encrypted and used as PaymentData::EncryptedPayment param
+GRAFT_DEFINE_IO_STRUCT_INITED(PaymentInfo,
+                        (std::string, Details, std::string()),
+                        (uint64_t, Amount, 0)
+                        );
+
 
 // TODO: move to someting like "requests.h"
 GRAFT_DEFINE_IO_STRUCT_INITED(PaymentData,
-                              (std::string, EncryptedPayment, std::string()), // encrypted payment data (incl amount)
-                              (std::vector<EncryptedNodeKey>, AuthSampleKeys, std::vector<EncryptedNodeKey>()),  // encrypted message keys (one-to-many encryption)
+                              (std::string, EncryptedPayment, std::string()),                  // serialized and encrypted PaymentInfo (hexadecimal)
+                              (std::vector<NodeId>, AuthSampleKeys, std::vector<NodeId>()),
                               (NodeAddress, PosProxy, NodeAddress())
                               );
 
+
+GRAFT_DEFINE_IO_STRUCT_INITED(PaymentStatus, // TODO: duplicate: same struct defined in 'getpaymentstatus.h'
+    (std::string, PaymentID, std::string()),
+    (uint64_t, PaymentBlock, 0),
+    (int, Status, 0),
+    (std::string, Signature, std::string()) // signature's hash is contatenated paymentid + to_string(Status)
+);
+
+
+GRAFT_DEFINE_IO_STRUCT(EncryptedPaymentStatus,
+(std::string, PaymentID),
+(std::string, PaymentStatusBlob)  // encrypted PaymentStatus
+);
+
+
+crypto::hash paymentStatusGetHash(const PaymentStatus &req);
+bool paymentStatusSign(graft::SupernodePtr supernode, PaymentStatus &req);
+bool paymentStatusSign(const crypto::public_key &pkey, const crypto::secret_key &skey, PaymentStatus &req);
+bool paymentStatusEncrypt(const PaymentStatus &in, const std::vector<crypto::public_key> &keys,  EncryptedPaymentStatus &out);
+bool paymentStatusDecrypt(const EncryptedPaymentStatus &in, const crypto::secret_key &key, PaymentStatus &out);
 
 namespace utils {
 
@@ -81,7 +120,72 @@ bool signBroadcastMessage(BroadcastRequest &request, const SupernodePtr &superno
  */
 bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &publicId);
 
-}
+/*!
+ * \brief decryptTx     - decrypts transaction from encrypted hexadecimal string
+ * \param encryptedHex  - input data
+ * \param supernode     - recipient supernode to decrypt with
+ * \param tx            - output tx
+ * \return              - true on success
+ */
+bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx);
+
+bool decryptTxFromHex(const std::string &encryptedHex, const crypto::secret_key &key, cryptonote::transaction &tx);
+
+/*!
+ * \brief encryptTxToHex - encrypts transaction using public keys (one-to-many scheme)
+ * \param tx             - transaction to encrypt
+ * \param keys           - keys
+ * \param encryptedHex   - output encoded as hexadecimal string
+ */
+void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto::public_key> &keys, std::string &encryptedHex);
+
+
+bool decryptTxKeyFromHex(const std::string &encryptedHex, SupernodePtr supernode, crypto::secret_key &tx_key);
+
+bool decryptTxKeyFromHex(const std::string &encryptedHex, const crypto::secret_key &key, crypto::secret_key &tx_key);
+
+
+void encryptTxKeyToHex(const crypto::secret_key &tx_key, const std::vector<crypto::public_key> &keys, std::string &encryptedHex);
+
+
+template <typename Request>
+void buildBroadcastOutput(const Request &req, SupernodePtr & supernode, const std::vector<std::string> &destinations,
+                          const std::string &path, const std::string &callback_uri, Output &output)
+{
+    Output innerOut;
+    innerOut.loadT<serializer::JSON_B64>(req);
+    BroadcastRequest bcast;
+    bcast.callback_uri = callback_uri;
+    bcast.sender_address = supernode->idKeyAsString();
+    bcast.data = innerOut.data();
+    bcast.receiver_addresses = destinations;
+
+    utils::signBroadcastMessage(bcast, supernode);
+
+    BroadcastRequestJsonRpc bcast_jsonrpc;
+    bcast_jsonrpc.method = "broadcast";
+    bcast_jsonrpc.params = std::move(bcast);
+
+    output.load(bcast_jsonrpc);
+    output.path = path;
 
 }
+
+
+void putTxToGlobalContext(const cryptonote::transaction &tx,  graft::Context &ctx, const std::string &key, std::chrono::seconds ttl);
+
+bool getTxFromGlobalContext(graft::Context &ctx, cryptonote::transaction &tx, const std::string &key);
+
+void putTxKeyToContext(const crypto::secret_key &txkey, graft::Context &ctx, const std::string &key, std::chrono::seconds ttl);
+
+bool getTxKeyFromContext(graft::Context &ctx, crypto::secret_key &key, const std::string &payment_id);
+
+
+
+
+
+
+} // namespace utils
+
+} // namepace graft::supernode::request
 

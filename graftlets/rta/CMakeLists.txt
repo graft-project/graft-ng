@@ -33,9 +33,24 @@ add_library(graftlet_rta SHARED
     requests/sale.cpp
     requests/common.cpp
     requests/storepaymentdata.cpp
+    requests/paymentdatarequest.cpp
+    requests/paymentdataresponse.cpp
+    requests/getpaymentdata.cpp
     requests/pay.cpp
+    requests/getsupernodeinfo.cpp
+    requests/authorizertatx.cpp
+    requests/updatepaymentstatus.cpp
+    requests/getpaymentstatus.cpp
+    requests/gettx.cpp
+    requests/approvepaymentrequest.cpp
+    requests/send_raw_tx.cpp
+    requests/posrejectpaymentrequest.cpp
 )
 set_target_properties(graftlet_walletAddress PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode
+)
+
+target_link_libraries(graftlet_rta PRIVATE
+    utils
 )
 

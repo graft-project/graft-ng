@@ -26,7 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "supernode/requests/send_raw_tx.h"
+#include "send_raw_tx.h"
 #include "supernode/requestdefines.h"
 #include <misc_log_ex.h>
 
@@ -76,13 +76,6 @@ bool createSendRawTxRequest(const tools::wallet2::pending_tx& ptx, SendRawTxRequ
 {
     assert(ptx.dests.size() == 1);
 
-//    for (const auto &dest : ptx.dests) {
-//        request.tx_info.amount += dest.amount;
-//    }
-
-//    request.tx_info.fee = ptx.fee;
-//    request.tx_info.dest_address = cryptonote::get_account_address_as_str(true, ptx.dests[0].addr);
-//    request.tx_info.id = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx.tx));
     request.tx_as_hex = epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(ptx.tx));
 
     return true;

@@ -1,6 +1,5 @@
-
+#include "rta/requests/send_raw_tx.h"
 #include "supernode/requests/send_transfer.h"
-#include "supernode/requests/send_raw_tx.h"
 #include "supernode/requestdefines.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY

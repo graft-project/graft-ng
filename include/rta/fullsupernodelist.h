@@ -99,6 +99,15 @@ public:
     bool buildAuthSample(const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number);
 
     /*!
+     * @brief checkAuthSample - checks if given auth_sample is valid
+     * @param block_height    - block height auth sample built with
+     * @param payment_id      - payment id auth sample build with
+     * @param auth_sample     - auth sample to check
+     * @return                - true if auth sample is valid
+     */
+    bool checkAuthSample(uint64_t block_height, const std::string &block_hash, const std::string &payment_id, const std::vector<std::string> &auth_sample);
+
+    /*!
      * \brief items - returns address list of known supernodes
      * \return
      */

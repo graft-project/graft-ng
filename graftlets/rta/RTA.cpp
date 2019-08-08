@@ -33,10 +33,27 @@
 #include "supernode/requestdefines.h"
 #include "lib/graft/graft_exception.h"
 
+// client endpoints
 #include "requests/presale.h"
 #include "requests/sale.h"
-#include "requests/storepaymentdata.h"
 #include "requests/pay.h"
+#include "requests/getpaymentdata.h"
+#include "requests/gettx.h"
+#include "requests/approvepaymentrequest.h"
+#include "requests/posrejectpaymentrequest.h"
+
+// core endpoints
+#include "requests/storepaymentdata.h"
+#include "requests/paymentdatarequest.h"
+#include "requests/paymentdataresponse.h"
+#include "requests/getsupernodeinfo.h"
+#include "requests/authorizertatx.h"
+#include "requests/updatepaymentstatus.h"
+#include "requests/getpaymentstatus.h"
+
+// internal endpoints
+#include "requests/send_raw_tx.h"
+
 
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
@@ -64,7 +81,25 @@ protected:
         REGISTER_ENDPOINT("/dapi/v2.0/presale", METHOD_POST, RtaGraftlet, handlePresaleRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/sale", METHOD_POST, RtaGraftlet, handleSaleRequest);
         REGISTER_ENDPOINT("/dapi/v2.0/pay", METHOD_POST, RtaGraftlet, handlePayRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/get_payment_data", METHOD_POST, RtaGraftlet, handleGetPaymentDataRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/get_payment_status", METHOD_POST, RtaGraftlet, handleGetPaymentStatusRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/get_tx", METHOD_POST, RtaGraftlet, handleGetTxRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/approve_payment", METHOD_POST, RtaGraftlet, handleApprovePaymentRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/pos_reject_payment", METHOD_POST, RtaGraftlet, handlePosRejectPaymentRequest);
+
+        // TODO: fix cryptonode logic, it prepends "/dapi/v2.0/" to any "callback_uri"
+        REGISTER_ENDPOINT("/dapi/v2.0/core/payment_data_request", METHOD_POST, RtaGraftlet, handlePaymentDataRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/payment_data_response", METHOD_POST, RtaGraftlet, handlePaymentDataResponse);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/store_payment_data", METHOD_POST, RtaGraftlet, handleStorePaymentDataRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/get_supernode_info", METHOD_POST, RtaGraftlet, handleSupernodeInfoRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/update_payment_status", METHOD_POST, RtaGraftlet, handleUpdatePaymentStatusRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/update_payment_status_encrypted", METHOD_POST, RtaGraftlet, handleUpdatePaymentStatusEncryptedRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/authorize_rta_tx_request", METHOD_POST, RtaGraftlet, handleAuthorizeRtaTxRequest);
+        REGISTER_ENDPOINT("/dapi/v2.0/core/authorize_rta_tx_response", METHOD_POST, RtaGraftlet, handleAuthorizeRtaTxResponse);
+        REGISTER_ENDPOINT("/cryptonode/sendrawtx", METHOD_POST, RtaGraftlet, handleSendRawTx);
+
     }
+
 private:
 
     void prepareSupernode(const graft::CommonOpts& opts, graft::Context& ctx)
@@ -101,7 +136,7 @@ private:
                 throw std::runtime_error("Failed to save keys");
             }
         }
-
+        // TODO: why path is needed here? it's not a part of the "network address" (which is normally hostname:port)
         supernode->setNetworkAddress(supernode_http_address + "/dapi/v2.0");
 
         // create fullsupernode list instance and put it into global context
@@ -124,26 +159,101 @@ private:
         output.body = "Test";
         return Status::Ok;
     }
-
+    // client (dapi) endpoints
     Status handlePresaleRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
-        return supernode::request::handlePresaleRequest(vars, input, ctx, output);
+        return graft::supernode::request::handlePresaleRequest(vars, input, ctx, output);
     }
 
     Status handleSaleRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
-        return supernode::request::handleSaleRequest(vars, input, ctx, output);
-    }
-
-    Status handleStorePaymentDataRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
-    {
-        return supernode::request::storePaymentDataRequest(vars, input, ctx, output);
+        return graft::supernode::request::handleSaleRequest(vars, input, ctx, output);
     }
 
     Status handlePayRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
-        return supernode::request::handlePayRequest(vars, input, ctx, output);
+        return graft::supernode::request::handlePayRequest(vars, input, ctx, output);
     }
+
+    Status handleGetPaymentDataRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::getPaymentDataRequest(vars, input, ctx, output);
+    }
+
+
+    Status handleGetPaymentStatusRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::getPaymentStatusRequest(vars, input, ctx, output);
+    }
+
+    Status handleGetTxRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::getTxRequest(vars, input, ctx, output);
+    }
+
+    Status handleApprovePaymentRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::handleApprovePaymentRequest(vars, input, ctx, output);
+    }
+
+    Status handlePosRejectPaymentRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::handlePosRejectPaymentRequest(vars, input, ctx, output);
+    }
+
+
+
+
+    // core endpoints
+    Status handleStorePaymentDataRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::storePaymentDataRequest(vars, input, ctx, output);
+    }
+
+    Status handlePaymentDataRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::paymentDataRequest(vars, input, ctx, output);
+    }
+
+    Status handlePaymentDataResponse(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::paymentDataResponse(vars, input, ctx, output);
+    }
+
+    Status handleSupernodeInfoRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::handleSupernodeInfoRequest(vars, input, ctx, output);
+    }
+
+    Status handleAuthorizeRtaTxRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::handleAuthorizeRtaTxRequest(vars, input, ctx, output);
+    }
+
+    Status handleAuthorizeRtaTxResponse(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::handleAuthorizeRtaTxResponse(vars, input, ctx, output);
+    }
+
+    Status handleUpdatePaymentStatusRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::handleUpdatePaymentStatusRequest(vars, input, ctx, output);
+    }
+
+    Status handleUpdatePaymentStatusEncryptedRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::handleUpdatePaymentStatusRequestEx(vars, input, ctx, output);
+    }
+
+    Status handleSendRawTx(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::sendRawTxHandler(vars, input, ctx, output);
+    }
+
+
+
+
+
 };
 
 GRAFTLET_EXPORTS_BEGIN("RTA", GRAFTLET_MKVER(1,1));

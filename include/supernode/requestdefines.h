@@ -27,12 +27,14 @@ static const std::string MESSAGE_RTA_INVALID_AUTH_SAMLE("Invalid auth sample");
 
 //Context Keys
 static const std::string CONTEXT_KEY_PAYMENT_DATA(":paymentdata"); // key to get/store encrypted payment data + keys
+static const std::string CONTEXT_KEY_PAYMENT_DATA_PENDING(":paymentdata_pending"); // key to store flag if payment data already requested from remote supernode
 static const std::string CONTEXT_KEY_SALE_DETAILS(":saledetails"); // TODO: remove it
 static const std::string CONTEXT_KEY_SALE(":sale");
 static const std::string CONTEXT_KEY_STATUS(":status");
 static const std::string CONTEXT_KEY_PAY(":pay");
 static const std::string CONTEXT_KEY_SUPERNODE("supernode");
 static const std::string CONTEXT_KEY_FULLSUPERNODELIST("fsl");
+static const std::string CONTEXT_KEY_TX(":tx");
 // key to maintain auth responses from supernodes for given tx id
 static const std::string CONTEXT_KEY_AUTH_RESULT_BY_TXID(":tx_id_to_auth_resp");
 // key to map tx_id -> payment_id
@@ -52,6 +54,12 @@ static const double AUTHSAMPLE_FEE_PERCENTAGE = 0.5;
 static const std::string CONTEXT_KEY_CONFIG_OPTS(":config-opts");
 static const std::string CONTEXT_KEY_RUNTIME_SYS_INFO(":runtime-sys-info");
 
+// key to store if we already processed rta tx
+static const std::string CONTEXT_KEY_RTA_TX_STATE(":rta-tx-state");
+
+// key to store tx with signatures
+static const std::string CONTEXT_KEY_RTA_VOTING_TX(":rta-voting-tx");
+
 namespace graft {
 
 static const std::chrono::seconds RTA_TX_TTL(60);
@@ -68,6 +76,7 @@ Status errorInternalError(const std::string &message, Output &output);
 Status errorCustomError(const std::string &message, int code, Output &output);
 Status errorInvalidSignature(Output &output);
 Status sendOkResponseToCryptonode(Output &output);
+Status sendAgainResponseToCryptonode(Output &output);
 
 
 bool errorFinishedPayment(int status, Output &output);
@@ -82,13 +91,16 @@ void cleanPaySaleData(const std::string &payment_id, graft::Context &ctx);
 enum class RTAStatus : int
 {
     None = 0,
-    Waiting = 1,
     InProgress = 2,
     Success = 3,
-    Fail = 4,
-    RejectedByWallet = 5,
-    RejectedByPOS = 6
+    FailRejectedByPOS, // rejected by PoS
+    FailZeroFee,   // rejected by auth sample due low or zero fee
+    FailDoubleSpend,  // rejected by auth sample due double spend
+    FailTimedOut,     // timed out
+    FailTxRejected   // tx rejected by cryptonode
+
 };
+
 
 /*!
  * \brief isFiniteRtaStatus - checks if given rta status is finite, i.e. no transition possible for given status
@@ -158,5 +170,22 @@ Status storeRequestAndReplyOk(const Router::vars_t& vars, const graft::Input& in
     return Status::Again;
 }
 
+template <typename T>
+std::string to_json_str(const T &object)
+{
+    graft::Output out;
+    out.load(object);
+    return out.data();
 }
+
+template <typename T>
+bool from_json_str(const std::string &buf, T &object)
+{
+    graft::Input in;
+    in.load(buf);
+    return in.get(object);
+}
+
+
+} //namespace graft
 

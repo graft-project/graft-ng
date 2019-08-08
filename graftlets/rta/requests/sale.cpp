@@ -2,8 +2,6 @@
 #include "common.h"
 
 #include "supernode/requests/broadcast.h"
-#include "supernode/requests/sale_status.h"
-
 
 #include "supernode/requestdefines.h"
 #include "lib/graft/requesttools.h"
@@ -19,13 +17,14 @@
 
 namespace graft::supernode::request {
 
-const std::chrono::seconds SALE_TTL = std::chrono::seconds(60);
+
 
 enum class SaleHandlerState : int
 {
     ClientRequest = 0,
     SaleMulticastReply
 };
+
 
 Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
@@ -40,6 +39,7 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         return errorInvalidPaymentID(output);
     }
 
+    // looks like AuthSampleKeys will not be used as keys are already embedded into encrypted message blob. Handled internally by graft::crypto_tools::encryptMessage
     if (req.paymentData.AuthSampleKeys.size() != FullSupernodeList::AUTH_SAMPLE_SIZE) {
         return errorCustomError(MESSAGE_RTA_INVALID_AUTH_SAMLE, ERROR_INVALID_PARAMS, output);
     }
@@ -48,25 +48,22 @@ Status handleClientSaleRequest(const Router::vars_t& vars, const graft::Input& i
         return errorInvalidParams(output);
     }
 
-    // here we need to perform two actions:
-    // 1. multicast sale over auth sample
-    // 2. broadcast sale status
-
-    ctx.global.set(req.PaymentID + CONTEXT_KEY_PAYMENT_DATA, req.paymentData, SALE_TTL);
-    ctx.global.set(req.PaymentID + CONTEXT_KEY_STATUS, static_cast<int>(RTAStatus::Waiting), SALE_TTL);
+    // TODO: check if the same payment id has been already processed
 
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
     Output innerOut;
     innerOut.loadT<serializer::JSON_B64>(req);
     BroadcastRequest bcast;
-    bcast.callback_uri = "/core/set_payment_data";
+    bcast.callback_uri = "/core/store_payment_data";
     bcast.sender_address = supernode->idKeyAsString();
     bcast.data = innerOut.data();
 
+#if 1 // broadcast to all while development/debugging // TODO: enable this code
     for (const auto & item : req.paymentData.AuthSampleKeys) {
         bcast.receiver_addresses.push_back(item.Id);
     }
+#endif
     if (!utils::signBroadcastMessage(bcast, supernode)) {
         return errorInternalError("Failed to sign broadcast message", output);
     }
@@ -93,7 +90,7 @@ Status handleSaleMulticastReply(const Router::vars_t& vars, const graft::Input& 
     if (!input.get(resp) || resp.error.code != 0 || resp.result.status != STATUS_OK) {
         return errorCustomError("Error multicasting request", ERROR_INTERNAL_ERROR, output);
     }
-
+    output.reset();
     output.resp_code = 202;
     return Status::Ok;
 }
@@ -131,15 +128,6 @@ Status handleSaleRequest(const Router::vars_t& vars, const graft::Input& input,
     };
 
 }
-
-
-//void registerSaleRequest(graft::Router &router)
-//{
-//    Router::Handler3 h1(nullptr, saleClientHandler, nullptr);
-//    router.addRoute("/sale", METHOD_POST, h1);
-//    Router::Handler3 h2(nullptr, saleCryptonodeHandler, nullptr);
-//    router.addRoute("/cryptonode/sale", METHOD_POST, h2);
-//}
 
 }
 

@@ -282,7 +282,12 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
 
-    uint64_t blockchain_based_list_height = block_number - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+    uint64_t blockchain_based_list_height = block_number;
+
+    if (block_number == 0) {
+        block_number = this->getBlockchainBasedListMaxBlockNumber();
+        blockchain_based_list_height = block_number - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+    }
 
     blockchain_based_list_map::const_iterator it = m_blockchain_based_lists.find(block_number);
 
@@ -303,8 +308,8 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
             if (it == m_list.end())
                 return false;
 
-            const SupernodePtr& sn              = it->second;
-            uint64_t            last_update_age = static_cast<unsigned>(std::time(nullptr)) - sn->lastUpdateTime();
+            const SupernodePtr& sn = it->second;
+            uint64_t  last_update_age = static_cast<unsigned>(std::time(nullptr)) - sn->lastUpdateTime();
 
             if (FullSupernodeList::ANNOUNCE_TTL_SECONDS < last_update_age)
                 return false;
@@ -320,8 +325,24 @@ uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_n
     return blockchain_based_list_height;
 }
 
+
+
 bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number)
 {
+
+// #define HARDCODED_AUTH_SAMPLE
+#ifdef HARDCODED_AUTH_SAMPLE
+    out.push_back(this->get("cdba49cbdece633266681b3c6f80f1085e7b3d3e0cca395d3986d10ab3ea0d6a"));
+    out.push_back(this->get("ce7cf758df6f2eb7f74d28730078be733cb953bda37a5f6e54ab09140f40e712"));
+    out.push_back(this->get("25b316d25e6c2dd8dd60fd983de9fbd5a9bb1fcf96d65bbb1c295708bafa00cb"));
+    out.push_back(this->get("914c13339fdfacdbbebe4c223d1900415432aab24f1f995823286104c7ac9eaa"));
+    out.push_back(this->get("54749bad9925d34e414062a4e3cf3991e1a1ee5c778fc6c44a53c11f55cafe44"));
+    out.push_back(this->get("002fc53f231568a2ecd6387db83e1a0211d5060a91f0534fdf5474a7e9b556ae"));
+    out.push_back(this->get("ba3990991be1db9f05f47179e16ddad7f0959f952be8aaea0ee4d19e8d82ce7f"));
+    out.push_back(this->get("217c474a2394584a74051a7dd579c496dd3bc0768e8c56c69659ac93c8f78023"));
+    return true;
+#endif
+
     blockchain_based_list bbl;
 
     out_auth_block_number = getBlockchainBasedListForAuthSample(height, bbl);
@@ -432,6 +453,12 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
 bool FullSupernodeList::buildAuthSample(const string &payment_id, FullSupernodeList::supernode_array &out, uint64_t &out_auth_block_number)
 {
     return buildAuthSample(getBlockchainBasedListMaxBlockNumber(), payment_id, out, out_auth_block_number);
+}
+
+bool FullSupernodeList::checkAuthSample(uint64_t block_height, const string &block_hash, const string &payment_id, const std::vector<string> &auth_sample)
+{
+    // TODO: implement me
+    return true;
 }
 
 vector<string> FullSupernodeList::items() const

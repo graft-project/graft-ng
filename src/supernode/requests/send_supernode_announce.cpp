@@ -27,7 +27,6 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "supernode/requests/send_supernode_announce.h"
-#include "supernode/requests/send_raw_tx.h"
 #include "supernode/requestdefines.h"
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"

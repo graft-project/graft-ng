@@ -3,7 +3,6 @@
 
 #include "common.h"
 #include "lib/graft/router.h"
-#include "lib/graft/jsonrpc.h"
 #include "supernode/requestdefines.h"
 
 
@@ -18,8 +17,6 @@ GRAFT_DEFINE_IO_STRUCT_INITED(SaleRequest,
     (PaymentData, paymentData, PaymentData()) // encrypted payment data (incl amount)
 );
 
-// shared constants
-extern const std::chrono::seconds SALE_TTL;
 
 Status handleSaleRequest(const Router::vars_t& vars, const graft::Input& input,
                          graft::Context& ctx, graft::Output& output);

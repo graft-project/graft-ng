@@ -26,7 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "pay.h"
+#include "posrejectpaymentrequest.h"
 #include "common.h"
 
 #include "supernode/requests/broadcast.h"
@@ -44,52 +44,48 @@
 #include <string>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "supernode.payrequest"
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.posrejectpayment"
 
 namespace graft::supernode::request {
 
-const std::chrono::seconds PAY_TTL = std::chrono::seconds(60);
-
-enum class PayHandlerState : int
+enum class PosRejectPaymentHandlerState : int
 {
     ClientRequest = 0,
-    PayMulticastReply
+    MulticastReply
 };
 
 
 
-Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+Status handleClientPosRejectPaymentRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
-    PayRequest req;
+    EncryptedPaymentStatus req;
 
-    if (!input.get(req))
+    if (!input.get(req)) {
+        MERROR("Failed to deseialize request");
         return errorInvalidParams(output);
+    }
 
-    if (req.TxBlob.empty() || req.TxKey.empty())
+    // get auth sample by payment id:
+    if (!ctx.global.hasKey(req.PaymentID + CONTEXT_KEY_PAYMENT_DATA)) {
+        std::string msg = std::string("Unknown payment id: ") + req.PaymentID;
+        return errorCustomError(msg, ERROR_INVALID_PARAMS, output);
+    }
+
+    if (req.PaymentStatusBlob.empty()) {
+        MERROR("Empty PaymentRejectBlob");
         return errorInvalidParams(output);
+    }
 
-    // we are going to
-    // - multicast pay over auth sample + two proxy
-
+    PaymentData paymentData = ctx.global.get(req.PaymentID + CONTEXT_KEY_PAYMENT_DATA, PaymentData());
     SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
 
-    // decrypt transaction
-    cryptonote::transaction tx;
-    if (!utils::decryptTxFromHex(req.TxBlob, supernode, tx)) {
-        return errorCustomError("Failed to decrypt tx", ERROR_RTA_FAILED, output);
-    }
-
-    // check if we have rta_header in tx.extra;
-    cryptonote::rta_header rta_hdr;
-    if (!cryptonote::get_graft_rta_header_from_extra(tx, rta_hdr)) {
-        return errorCustomError("Failed to get rta_header from tx: " +
-                                epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx)),
-                                ERROR_RTA_FAILED, output);
-    }
-
     BroadcastRequest bcast;
-    for (const auto &key : rta_hdr.keys) {
-        bcast.receiver_addresses.push_back(epee::string_tools::pod_to_hex(key));
+    for (const auto &key : paymentData.AuthSampleKeys) {
+        bcast.receiver_addresses.push_back(key.Id);
+        // debug
+#if 0
+        bcast.receiver_addresses.push_back(supernode->idKeyAsString());
+#endif
     }
 
     Output innerOut;
@@ -97,10 +93,12 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
 
     bcast.sender_address = supernode->idKeyAsString();
     bcast.data = innerOut.data();
-    bcast.callback_uri = "/core/authorize_rta_tx_request";
+    bcast.callback_uri = "/core/update_payment_status_encrypted";
 
-    if(!utils::signBroadcastMessage(bcast, supernode))
-        return errorInternalError("Failed to sign broadcast message", output);
+    if (!utils::signBroadcastMessage(bcast, supernode)) {
+        std::string msg = std::string("Failed to sign broadcast message: ") + req.PaymentID;
+        return errorInternalError(msg, output);
+    }
 
     BroadcastRequestJsonRpc cryptonode_req;
     cryptonode_req.method = "broadcast";
@@ -112,7 +110,7 @@ Status handleClientPayRequest(const Router::vars_t& vars, const graft::Input& in
     return Status::Forward;
 }
 
-Status handlePayMulticastReply(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+Status handlePosRejectMulticastReply(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
     MDEBUG(__FUNCTION__ << " begin");
     BroadcastResponseFromCryptonodeJsonRpc resp;
@@ -127,33 +125,33 @@ Status handlePayMulticastReply(const Router::vars_t& vars, const graft::Input& i
 }
 
 /*!
- * \brief handlePayRequest - handles /dapi/v3.0/pay Wallet request
+ * \brief handleApprovePaymentRequest - handles /dapi/v3.0/approve_payment Wallet request
  * \param vars
  * \param input
  * \param ctx
  * \param output
  * \return
  */
-Status handlePayRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+Status handlePosRejectPaymentRequest(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
-    PayHandlerState state =
-      ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : PayHandlerState::ClientRequest;
+    PosRejectPaymentHandlerState state =
+      ctx.local.hasKey(__FUNCTION__) ? ctx.local[__FUNCTION__] : PosRejectPaymentHandlerState::ClientRequest;
 
     switch(state) // state machine to perform a) multicast to cryptonode
     {
-        // client requested "/pay"
-        case PayHandlerState::ClientRequest:
-            ctx.local[__FUNCTION__] = PayHandlerState::PayMulticastReply;
+        // client requested "/approve_payment"
+        case PosRejectPaymentHandlerState::ClientRequest:
+            ctx.local[__FUNCTION__] = PosRejectPaymentHandlerState::MulticastReply;
             // call cryptonode's "/rta/multicast" to send pay data to auth sample
             // "handleClientPayRequest" returns Forward;
-            return handleClientPayRequest(vars, input, ctx, output);
+            return handleClientPosRejectPaymentRequest(vars, input, ctx, output);
 
-        case PayHandlerState::PayMulticastReply:
+        case PosRejectPaymentHandlerState::MulticastReply:
             // handle "multicast" response from cryptonode, check it's status, send
             // "pay status" with broadcast to cryptonode
-            MDEBUG("PayMulticast response from cryptonode: " << input.data());
+            MDEBUG("PosReject response from cryptonode: " << input.data());
             MDEBUG("status: " << (int)ctx.local.getLastStatus());
-            return handlePayMulticastReply(vars, input, ctx, output);
+            return handlePosRejectMulticastReply(vars, input, ctx, output);
 
         default:
             LOG_ERROR("Internal error: unhandled state");

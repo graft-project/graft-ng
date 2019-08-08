@@ -115,6 +115,7 @@ endif(STATIC_LINK)
 set(GRAFT_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/modules/libr3/include
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/graftlets
     )
 
 set(CRYPTONODE_INCLUDE_DIRS
@@ -150,7 +151,6 @@ set(CRYPTONODE_LIBS
     wallet
     utils
     mnemonics
-    epee
     cryptonote_core
     cryptonote_basic
     cncrypto
@@ -163,6 +163,7 @@ set(CRYPTONODE_LIBS
     sodium
     checkpoints
     lmdb
+    epee
     )
 
 if(STATIC_LINK)
@@ -319,16 +320,11 @@ add_dependencies(requests_common graft cryptonode)
 add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/authorize_rta_tx.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/get_info.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/pay_status.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_pay.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/reject_sale.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_details.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_raw_tx.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_stakes.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
@@ -405,7 +401,94 @@ target_link_libraries(wallet_server PRIVATE
     requests_common
     )
 
-add_dependencies(wallet_server graft requests_common)
+### rta-pos-cli
+set(rta-pos-cli-sources
+    ${PROJECT_SOURCE_DIR}/src/apps/rta-pos-cli/main.cpp
+    ${PROJECT_SOURCE_DIR}/graftlets/rta/requests/common.cpp
+    )
+
+add_executable(rta-pos-cli
+    ${rta-pos-cli-sources}
+    )
+
+set_target_properties(rta-pos-cli PROPERTIES LINK_FLAGS "-Wl,-E")
+
+
+target_include_directories(rta-pos-cli PRIVATE
+    ${GRAFT_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/src/apps/common
+    )
+
+target_link_libraries(rta-pos-cli PRIVATE
+    ${CRYPTONODE_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_CHRONO_LIBRARY}
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+    supernode_common
+    graftlet_lib
+    # ${COMMON_LIBS}
+    # TODO: figure out the issue with mixing static and dynamic linking
+    # in case uncomment "${COMMON_LIBS} - there will be errors:
+    #    /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/libcrypto.a(dso_dlfcn.o): In function `dlfcn_globallookup':
+    #    (.text+0x11): undefined reference to `dlopen'
+    #    (.text+0x24): undefined reference to `dlsym'
+    #    (.text+0x2f): undefined reference to `dlclose'
+    ssl
+    crypto
+    readline
+    pthread
+)
+
+### rta-wallet-cli
+set(rta-wallet-cli-sources
+    ${PROJECT_SOURCE_DIR}/src/apps/rta-wallet-cli/main.cpp
+    ${PROJECT_SOURCE_DIR}/graftlets/rta/requests/common.cpp
+    )
+
+add_executable(rta-wallet-cli
+    ${rta-wallet-cli-sources}
+    )
+
+set_target_properties(rta-wallet-cli PROPERTIES LINK_FLAGS "-Wl,-E")
+
+
+target_include_directories(rta-wallet-cli PRIVATE
+    ${GRAFT_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/src/apps/common
+    )
+
+target_link_libraries(rta-wallet-cli PRIVATE
+    ${CRYPTONODE_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    ${Boost_CHRONO_LIBRARY}
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_SERIALIZATION_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
+    supernode_common
+    graftlet_lib
+    # ${COMMON_LIBS}
+    # TODO: figure out the issue with mixing static and dynamic linking
+    # in case uncomment "${COMMON_LIBS} - there will be errors:
+    #    /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/libcrypto.a(dso_dlfcn.o): In function `dlfcn_globallookup':
+    #    (.text+0x11): undefined reference to `dlopen'
+    #    (.text+0x24): undefined reference to `dlsym'
+    #    (.text+0x2f): undefined reference to `dlclose'
+    ssl
+    crypto
+    readline
+    pthread
+)
+
+
+
 
 ##################
 ### tests section

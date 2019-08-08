@@ -35,18 +35,31 @@
 
 namespace graft::supernode::request {
 
-// Pay request payload
-// TODO: rename rta tx request
-GRAFT_DEFINE_IO_STRUCT_INITED(PayRequest,
-    (std::string, TxBlob, std::string()), // encrypted serialized tx as hexadecimal string. Includes payment id
-    (std::string, TxKey, std::string())  // encrypted tx private key
+// SupernodeInfoRequest request payload
+GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeInfoRequest,
+    (std::vector<std::string>, input, std::vector<std::string>())
 );
 
-// shared constants
-extern const std::chrono::seconds PAY_TTL;
+GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeInfo,
+    (std::string, Address, std::string()),
+    (std::string, PublicId, std::string()),
+    (uint64, StakeAmount, 0),
+    (uint64, StakeFirstValidBlock, 0),
+    (uint64, StakeExpiringBlock, 0),
+    (bool, IsStakeValid, 0),
+    (unsigned int, BlockchainBasedListTier, 0),
+    (unsigned int, AuthSampleBlockchainBasedListTier, 0),
+    (bool, IsAvailableForAuthSample, false),
+    (uint64, LastUpdateAge, 0)
+);
 
-Status handlePayRequest(const Router::vars_t& vars, const graft::Input& input,
+
+GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeInfoResponse,
+    (std::vector<SupernodeInfo>, output,  std::vector<SupernodeInfo>())
+);
+
+Status handleSupernodeInfoRequest(const Router::vars_t& vars, const graft::Input& input,
                          graft::Context& ctx, graft::Output& output);
 
-}
+} // namespace graft::supernode::request
 

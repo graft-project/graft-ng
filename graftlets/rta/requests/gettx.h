@@ -26,6 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+
 #pragma once
 
 #include "common.h"
@@ -33,20 +34,30 @@
 #include "lib/graft/jsonrpc.h"
 #include "supernode/requestdefines.h"
 
+
 namespace graft::supernode::request {
 
-// Pay request payload
-// TODO: rename rta tx request
-GRAFT_DEFINE_IO_STRUCT_INITED(PayRequest,
-    (std::string, TxBlob, std::string()), // encrypted serialized tx as hexadecimal string. Includes payment id
-    (std::string, TxKey, std::string())  // encrypted tx private key
+
+// request payload
+GRAFT_DEFINE_IO_STRUCT_INITED(GetTxRequest,
+(std::string, PaymentID, std::string()),
+(std::string, Signature, std::string())
 );
 
-// shared constants
-extern const std::chrono::seconds PAY_TTL;
+// response payload
+GRAFT_DEFINE_IO_STRUCT_INITED(GetTxResponse,
+(std::string, TxBlob, std::string()),
+(std::string, TxKeyBlob, std::string())
+);
 
-Status handlePayRequest(const Router::vars_t& vars, const graft::Input& input,
-                         graft::Context& ctx, graft::Output& output);
+
+Status getTxRequest(const Router::vars_t& vars, const graft::Input& input,
+    graft::Context& ctx, graft::Output& output);
 
 }
+
+
+
+
+
 
