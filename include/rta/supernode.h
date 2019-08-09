@@ -18,8 +18,6 @@ namespace cryptonote {
     class transaction;
 }
 
-namespace graft::supernode::request { struct SupernodeAnnounce; }
-
 namespace graft {
 
 /*!
@@ -87,23 +85,6 @@ public:
     void setWalletAddress(const std::string &address);
 
     /*!
-     * \brief updateFromAnnounce - updates supernode from announce (helper to extract signed key images from graft::supernode::request::SupernodeAnnounce)
-     * \param announce           - reference to graft::supernode::request::SupernodeAnnounce
-     * \return                   - true on success
-     */
-    bool updateFromAnnounce(const graft::supernode::request::SupernodeAnnounce& announce);
-
-    /*!
-     * \brief createFromAnnounce - creates new Supernode instance from announce
-     * \param announce           - announce object
-     * \param testnet            - testnet flag
-     * \return                   - Supernode pointer on success
-     */
-    static Supernode * createFromAnnounce(const graft::supernode::request::SupernodeAnnounce& announce,
-                                          const std::string &daemon_address,
-                                          bool testnet);
-
-    /*!
      * \brief createFromStake - creates new Supernode instance from a stake
      * \param stake           - stake of the supernode
      * \param testnet         - testnet flag
@@ -112,8 +93,6 @@ public:
     static Supernode * createFromStake(const supernode_stake& stake,
                                        const std::string &daemon_address,
                                        bool testnet);
-
-    bool prepareAnnounce(graft::supernode::request::SupernodeAnnounce& announce);
 
     /*!
      * \brief signMessage - signs message. internally hashes the message and signs the hash
@@ -243,8 +222,6 @@ public:
 
 private:
     Supernode(bool testnet = false);
-    static bool validateAnnounce(const graft::supernode::request::SupernodeAnnounce& announce, crypto::public_key &id_key);
-
 
 private:
     // wallet's address. empty in case 'their' supernode

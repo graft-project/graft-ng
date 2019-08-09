@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include "lib/graft/router.h"
@@ -26,6 +25,7 @@ GRAFT_DEFINE_JSON_RPC_REQUEST(RegisterSupernodeJsonRpcRequest, RegisterSupernode
 GRAFT_DEFINE_IO_STRUCT(UDHTInfoItem,
                        (std::string, id),
                        (std::string, ip_port),
+                       (bool, active),
                        (std::string, expiration_time),
                        (uint32_t, broadcast_count),
                        (double, avg_hop_ip_broadcast),
@@ -46,7 +46,8 @@ GRAFT_DEFINE_IO_STRUCT(UDHTInfoResponse,
 ///////
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIds,
-                              (std::string, id, std::string())
+                              (std::string, id, std::string()),
+                              (std::string, my_id, std::string())
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIdsResponse,

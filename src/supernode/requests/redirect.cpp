@@ -44,12 +44,14 @@ namespace graft::supernode::request {
 namespace
 {
 
-const std::chrono::system_clock::duration time_wnd = std::chrono::hours(12);
+using Clock = std::chrono::system_clock;
+
+const Clock::duration time_wnd = std::chrono::hours(12);
 
 struct UdhtStates
 {
     //announce expire time, hops left
-    using ContTimeHop = std::deque<std::pair<std::chrono::system_clock::time_point, uint64_t>>;
+    using ContTimeHop = std::deque<std::pair<Clock::time_point, uint64_t>>;
     ContTimeHop announces;
     ContTimeHop redirects;
 };
@@ -58,7 +60,7 @@ class UdhtInfo
 {
     void chop_old(UdhtStates* item = nullptr)
     {
-        auto edge = std::chrono::system_clock::now() - time_wnd;
+        auto edge = Clock::now() - time_wnd;
         auto chop = [&edge](UdhtStates::ContTimeHop& cont)->void
         {
             auto v = std::make_pair(edge, (uint64_t)0);
@@ -94,7 +96,7 @@ public:
         case Redirects: cont = &item.redirects; break;
         default: assert(false);
         }
-        cont->push_front(std::make_pair(std::chrono::system_clock::now(), hops));
+        cont->push_front(std::make_pair(Clock::now(), hops));
     }
 
     void chop_all_old()
@@ -106,9 +108,9 @@ public:
         }
     }
 
-    static std::string local_time(const std::chrono::system_clock::time_point& tp)
+    static std::string local_time(const Clock::time_point& tp)
     {
-        auto tm = std::chrono::system_clock::to_time_t(tp);
+        auto tm = Clock::to_time_t(tp);
 
         std::ostringstream ss;
         ss << std::put_time(std::localtime(&tm), "%F %T");
@@ -172,7 +174,6 @@ void getSupernodesWithStake(graft::Context& ctx, IdSet& allWithStake)
             if(!sptr->stakeAmount()) continue;
             allWithStake.emplace_back(item);
         }
-        return true;
     }
     );
 
@@ -335,9 +336,10 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
             myIDstr = epee::string_tools::pod_to_hex(pubID);
         }
         tst_myIDstr = myIDstr;
-        tst_IDs.push_back("c2e3c8e7adf55ac6be9b9ac62e2cf96b239299b9b3a6ac152fbe4de121188452");
-        tst_IDs.push_back("a638e97d174c4f7af32f613a485ceec22394486ac3ed7d8720129f3c40f4260e");
-        tst_IDs.push_back("3cad1a7a0b34bba7def142666d454dbc6690624bb643f12d26cc69525591615a");
+        tst_IDs.push_back("7f06eb8659c594c3f654a6814a2fac91c07a3ac711df993da1d00cab1bb4a33b");
+        tst_IDs.push_back("cb350e34fa8c8913db902e7210ed55d0fda3f95c5636caa61cbc46d26c42a2e8");
+        tst_IDs.push_back("6da61691a3841ddc2e4c02868aba623132953d2d8150dafecc34efacbb54abca");
+        tst_IDs.push_back("ab59657817fda347aad9bda78184863737b422f09910089127cf9e6480d83665");
     }
 
     {
@@ -596,12 +598,19 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
             //register ID of another supernode to redirect
             SupernodeRedirectIdsJsonRpcRequest oreq;
             oreq.params.id = ID;
+            oreq.params.my_id = my_pubIDstr;
 
             oreq.method = "redirect_supernode_id";
             oreq.id = 0;
+
+            ctx.local["oreq"] = oreq;
+            return graft::Status::Again;
+        } break;
+        case graft::Status::Again:
+        {
+            SupernodeRedirectIdsJsonRpcRequest oreq = ctx.local["oreq"];
             output.load(oreq);
             output.path = "/json_rpc/rta";
-
             return graft::Status::Forward;
         } break;
         case graft::Status::Forward:
@@ -668,7 +677,7 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
         });
 
 #endif //UDHT_INFO
-        // TODO: hardcoded path?
+
         output.path = "dapi/v2.0" + req.params.request.callback_uri;
 
         MDEBUG("Redirect broadcast for supernode id '") << req.params.receiver_id << "' uri:'"
@@ -695,8 +704,6 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
         return graft::Status::Ok;
     }
     }
-    assert(false);
-    return graft::Status::Ok;
 }
 
 #ifdef UDHT_INFO
@@ -720,20 +727,29 @@ graft::Status onGetUDHTInfo(const graft::Router::vars_t& vars, const graft::Inpu
         res.url = (std::string)ctx.global["supernode_url"];
         res.redirect_uri = "/redirect_broadcast";
 
-        Id2IpShared id2ip = ctx.global["ID:IP:port map"];
+        //make copy of "ID:IP:port map"
+        Id2Ip id2ip;
+        ctx.global.apply<Id2IpShared>("ID:IP:port map", [&id2ip](Id2IpShared& ptr)->bool
+        {
+            id2ip = *ptr;
+        });
+
+        uint32_t redirect_timeout_ms = ctx.global["redirect_timeout_ms"];
 
         ctx.global.apply<UdhtInfoShared>("UdhtInfo", [&](UdhtInfoShared& info)->bool
         {
             info->chop_all_old();
+
+            Clock::time_point tp_now = Clock::now();
 
             // fill res.items
             for(auto& it : info->id2states)
             {
                 std::string id = it.first;
                 UdhtStates states = it.second;
-                auto it_ip = id2ip->find(id);
-                assert(it_ip != id2ip->end());
-                if(it_ip == id2ip->end()) continue;
+                auto it_ip = id2ip.find(id);
+                assert(it_ip != id2ip.end());
+                if(it_ip == id2ip.end()) continue;
                 if(states.announces.empty()) continue;
 
                 UDHTInfoItem res_item;
@@ -741,8 +757,8 @@ graft::Status onGetUDHTInfo(const graft::Router::vars_t& vars, const graft::Inpu
                 res_item.ip_port = it_ip->second;
                 {//res_item.expiration_time
                     auto& tp = states.announces.front().first;
-                    uint32_t redirect_timeout_ms = ctx.global["redirect_timeout_ms"];
                     tp += std::chrono::milliseconds( redirect_timeout_ms );
+                    res_item.active = (tp_now <= tp);
                     res_item.expiration_time = UdhtInfo::local_time(tp);
                 }
                 res_item.broadcast_count = states.announces.size();
@@ -859,4 +875,3 @@ curl --header "Content-Type: application/json" --request GET --data '{}'  http:/
 }
 
 } //namespace graft::supernode::request
-

@@ -547,6 +547,7 @@ bool GraftServer::initConfigOption(int argc, const char** argv, ConfigOpts& conf
     configOpts.workers_expelling_interval_ms = server_conf.get<int>("workers-expelling-interval-ms", 1000);
     configOpts.upstream_request_timeout = server_conf.get<double>("upstream-request-timeout");
     configOpts.lru_timeout_ms = server_conf.get<int>("lru-timeout-ms");
+    configOpts.duplicate_filter_timeout_ms = server_conf.get<int>("duplicate-filter-timeout-ms", 30000);
     configOpts.common.data_dir = server_conf.get<std::string>("data-dir");
     configOpts.common.wallet_public_address = server_conf.get<std::string>("wallet-public-address", "");
     configOpts.common.testnet = server_conf.get<bool>("testnet", false);

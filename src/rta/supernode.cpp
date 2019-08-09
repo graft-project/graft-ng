@@ -1,6 +1,5 @@
 #include "supernode/supernode.h"
 #include "rta/fullsupernodelist.h"
-#include "supernode/requests/send_supernode_announce.h"
 
 #include <misc_log_ex.h>
 #include <wallet/wallet2.h>
@@ -16,9 +15,6 @@
 using namespace std;
 
 namespace graft {
-
-using graft::supernode::request::SupernodeAnnounce;
-
 
 #ifndef __cpp_inline_variables
 constexpr uint64_t Supernode::TIER1_STAKE_AMOUNT, Supernode::TIER2_STAKE_AMOUNT, Supernode::TIER3_STAKE_AMOUNT, Supernode::TIER4_STAKE_AMOUNT;
@@ -70,50 +66,6 @@ void Supernode::setWalletAddress(const std::string &address)
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
     m_wallet_address = address;
-}
-
-bool Supernode::updateFromAnnounce(const SupernodeAnnounce &announce)
-{
-    // check if address match
-    //setNetworkAddress(announce.network_address);
-    crypto::public_key id_key;
-    if (!Supernode::validateAnnounce(announce, id_key))
-        return false;
-
-    setLastUpdateTime(std::time(nullptr));
-    uint64 stake_amount = stakeAmount();
-    MDEBUG("update from announce done for: " << walletAddress() <<
-            "; last update time updated to: " << m_last_update_time <<
-            "; stake amount: " << stake_amount);
-    return true;
-}
-
-Supernode *Supernode::createFromAnnounce(const SupernodeAnnounce &announce, const std::string &daemon_address,
-                                         bool testnet)
-{
-
-    crypto::public_key id_key;
-    if (!Supernode::validateAnnounce(announce, id_key))
-        return nullptr;
-
-    Supernode * result = new Supernode("",  id_key, daemon_address, testnet);
-    result->setLastUpdateTime(time(nullptr));
-    // TODO: get stake amount here?
-    return result;
-}
-
-bool Supernode::prepareAnnounce(SupernodeAnnounce &announce)
-{
-    announce.supernode_public_id = this->idKeyAsString();
-    announce.height = m_stake_block_height;
-
-    crypto::signature sign;
-    if (!signMessage(announce.supernode_public_id + to_string(announce.height), sign))
-        return false;
-    announce.signature = epee::string_tools::pod_to_hex(sign);
-    announce.network_address = this->networkAddress();
-
-    return true;
 }
 
 Supernode* Supernode::createFromStake(const supernode_stake& stake, const std::string &daemon_address, bool testnet)
@@ -336,32 +288,6 @@ const crypto::secret_key &Supernode::secretKey() const
 std::string Supernode::idKeyAsString() const
 {
     return epee::string_tools::pod_to_hex(m_id_key);
-}
-
-bool Supernode::validateAnnounce(const SupernodeAnnounce& announce, crypto::public_key &id_key)
-{
-    if (announce.supernode_public_id.empty()) {
-        MERROR("Empty public id");
-        return false;
-    }
-
-    if (!epee::string_tools::hex_to_pod(announce.supernode_public_id, id_key)) {
-        MERROR("Failed to parse id key from announce: " << announce.supernode_public_id);
-        return false;
-    }
-
-    crypto::signature sign;
-    if (!epee::string_tools::hex_to_pod(announce.signature, sign)) {
-        MERROR("Failed to parse signature from announce: " << announce.signature);
-        return false;
-    }
-
-    string msg = announce.supernode_public_id + to_string(announce.height);
-    if (!Supernode::verifySignature(msg, id_key, sign)) {
-        MERROR("Signature check failed ");
-        return false;
-    }
-    return true;
 }
 
 } // namespace graft

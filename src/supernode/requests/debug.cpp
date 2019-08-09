@@ -2,8 +2,6 @@
 #include "lib/graft/inout.h"
 #include "lib/graft/jsonrpc.h"
 #include "supernode/requests/broadcast.h"
-#include "supernode/requests/multicast.h"
-#include "supernode/requests/send_supernode_announce.h"
 #include "supernode/requestdefines.h"
 #include "lib/graft/requesttools.h"
 #include "rta/supernode.h"
@@ -85,15 +83,13 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
             MDEBUG("supernode: " << sPtr->walletAddress() << " is currently busy");
             continue;
         }
-        uint64_t lastUpdateAge = static_cast<unsigned>(std::time(nullptr)) - sPtr->lastUpdateTime();
-        if (validOnly && !(lastUpdateAge <= FullSupernodeList::ANNOUNCE_TTL_SECONDS
-                           && sPtr->stakeAmount())) {
+        if (validOnly && !sPtr->stakeAmount()) {
             MDEBUG("supernode " << sPtr->walletAddress() << " can't be considered as valid one");
             continue;
         }
 
         DbSupernode dbSupernode;
-        dbSupernode.LastUpdateAge = lastUpdateAge;
+//        dbSupernode.LastUpdateAge = lastUpdateAge;
         dbSupernode.Address = sPtr->walletAddress();
         dbSupernode.PublicId = sPtr->idKeyAsString();
         dbSupernode.StakeAmount = sPtr->stakeAmount();
@@ -201,12 +197,6 @@ Status getAuthSample2(const Router::vars_t& vars, const graft::Input& input,
     return Status::Ok;
 }
 
-
-Status doAnnounce(const Router::vars_t& vars, const graft::Input& input,
-                        graft::Context& ctx, graft::Output& output)
-{
-    return sendAnnounce(vars, input, ctx, output);
-}
 
 
 Status closeStakeWallets(const Router::vars_t& vars, const graft::Input& input,
@@ -319,7 +309,6 @@ void __registerDebugRequests(Router &router)
     router.addRoute("/debug/supernode_list/{all:[0-1]}", METHOD_GET, _HANDLER(getSupernodeList));
     router.addRoute("/debug/blockchain_based_list/{block_height:[0-9]+}", METHOD_GET, _HANDLER(getBlockchainBasedList<BlockchainBasedListMode_Source>));
     router.addRoute("/debug/auth_sample_blockchain_based_list/{block_height:[0-9]+}", METHOD_GET, _HANDLER(getBlockchainBasedList<BlockchainBasedListMode_ForAuthSample>));
-    router.addRoute("/debug/announce", METHOD_POST, _HANDLER(doAnnounce));
     router.addRoute("/debug/close_wallets/", METHOD_POST, _HANDLER(closeStakeWallets));
     router.addRoute("/debug/auth_sample/{payment_id:[0-9a-zA-Z]+}", METHOD_GET, _HANDLER(getAuthSample));
     router.addRoute("/debug/auth_sample2/{payment_id:[0-9a-zA-Z]+}/{height:[0-9]+}", METHOD_GET, _HANDLER(getAuthSample2));

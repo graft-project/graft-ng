@@ -323,9 +323,6 @@ add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/get_info.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_details.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/sale_status.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_announce.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_stakes.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/blockchain_based_list.cpp
@@ -515,7 +512,6 @@ if (OPT_BUILD_TESTS)
             )
 
         add_executable(supernode_test
-            ${PROJECT_SOURCE_DIR}/test/configini_test.cpp
             ${PROJECT_SOURCE_DIR}/test/expiring_set_test.cpp
             ${PROJECT_SOURCE_DIR}/test/upstream_test.cpp
             ${PROJECT_SOURCE_DIR}/test/blacklist_test.cpp

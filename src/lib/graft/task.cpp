@@ -556,7 +556,7 @@ bool TaskManager::tryProcessReadyJob()
     ++m_cntJobDone;
     BaseTaskPtr bt = gj->getTask();
 
-    LOG_PRINT_RQS_BT(2,bt,"worker_action completed with result " << bt->getStrStatus());
+    LOG_PRINT_RQS_BT(3,bt,"worker_action completed with result " << bt->getStrStatus());
     m_stateMachine->dispatch(bt, StateMachine::State::WORKER_ACTION_DONE);
     return true;
 }
