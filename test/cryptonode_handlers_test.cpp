@@ -35,8 +35,8 @@
 #include "lib/graft/router.h"
 #include "lib/graft/requests.h"
 #include "supernode/requests/get_info.h"
-#include "supernode/requests/send_raw_tx.h"
-#include "supernode/requests/authorize_rta_tx.h"
+//#include "supernode/requests/send_raw_tx.h"
+//#include "supernode/requests/authorize_rta_tx.h"
 #include "fixture.h"
 
 // cryptonode includes
@@ -67,8 +67,8 @@ struct CryptonodeHandlersTest : public ::testing::Test
         Router router;
 
         registerGetInfoRequest(router);
-        registerSendRawTxRequest(router);
-        registerAuthorizeRtaTxRequests(router);
+//        registerSendRawTxRequest(router);
+//        registerAuthorizeRtaTxRequests(router);
 
         m_gserver = std::make_unique<detail::GSTest>(router, true);
 
@@ -183,6 +183,7 @@ struct FooBar
     int bar;
 };
 
+#if 0
 TEST_F(CryptonodeHandlersTest, sendrawtx)
 {
     MGINFO_YELLOW("*** This test requires running cryptonode with public testnet blockchain running on localhost:28881. If not running, test will fail ***");
@@ -211,7 +212,7 @@ TEST_F(CryptonodeHandlersTest, sendrawtx)
     // TODO: modify so it works with subaddresses
     std::vector<tools::wallet2::pending_tx> ptx = wallet.create_transactions_2(dsts, 4, 0, 0, extra, 0, subaddr_indices, true);
     ASSERT_TRUE(ptx.size() == 1);
-    SendRawTxRequest req;
+//    SendRawTxRequest req;
     ASSERT_TRUE(createSendRawTxRequest(ptx.at(0), req));
     std::string request_s = req.toJson().GetString();
     LOG_PRINT_L2("sending to supernode: " << request_s);
@@ -220,7 +221,7 @@ TEST_F(CryptonodeHandlersTest, sendrawtx)
     EXPECT_FALSE(response_s.empty());
     LOG_PRINT_L2("response: " << response_s);
     Input in; in.load(response_s);
-    SendRawTxResponse  resp = in.get<SendRawTxResponse>();
+//    SendRawTxResponse  resp = in.get<SendRawTxResponse>();
     wallet.store();
     EXPECT_TRUE(resp.status == "OK");
     EXPECT_FALSE(resp.not_relayed);
@@ -239,4 +240,4 @@ TEST_F(CryptonodeHandlersTest, sendrawtx)
     LOG_PRINT_L2("Server stopped, Server thread done...");
 }
 
-
+#endif
