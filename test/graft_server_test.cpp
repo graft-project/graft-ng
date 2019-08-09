@@ -35,10 +35,7 @@
 #include "lib/graft/expiring_list.h"
 #include "supernode/requests.h"
 #include "supernode/requests/sale_status.h"
-#include "supernode/requests/reject_sale.h"
 #include "supernode/requests/sale_details.h"
-#include "supernode/requests/pay_status.h"
-#include "supernode/requests/reject_pay.h"
 #include "supernode/requestdefines.h"
 #include "fixture.h"
 
