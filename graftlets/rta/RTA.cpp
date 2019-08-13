@@ -150,7 +150,7 @@ private:
         // TODO: check what depends on following context values, move to the proper place;
         ctx.global["testnet"] = opts.testnet;
         ctx.global["cryptonode_rpc_address"] = cryptonode_rpc_address;
-        ctx.global["supernode_url"] = supernode_http_address + "/dapi/v3.0";
+        ctx.global["supernode_url"] = supernode_http_address + "/dapi/v2.0";
     }
 
     Status test(const Router::vars_t& vars, const graft::Input& input,
