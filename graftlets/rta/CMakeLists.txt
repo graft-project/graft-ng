@@ -54,3 +54,4 @@ target_link_libraries(graftlet_rta PRIVATE
     utils
 )
 
+add_dependencies(graftlet_rta cryptonode)
