@@ -38,6 +38,7 @@
 #include "rta/requests/pay.h"
 #include "rta/requests/getpaymentdata.h"
 #include "rta/requests/getsupernodeinfo.h"
+#include "rta/requests/getpaymentstatus.h"
 #include "rta/requests/common.h"
 #include "supernode/requestdefines.h"
 
@@ -294,7 +295,7 @@ public:
         uint64_t recepient_amount, fee_per_destination = 0;
         double fee_ratio = 0.5;
 
-        std::vector<tools::wallet2::pending_tx> ptx_v = m_wallet.create_transactions_graft(
+        m_ptx_v = m_wallet.create_transactions_graft(
                     m_paymentDetails.posAddress.WalletAddress,
                     fee_wallets,
                     m_paymentInfo.Amount,
@@ -306,12 +307,12 @@ public:
                     {0},
                     recepient_amount,
                     fee_per_destination);
-        if (ptx_v.size() < 1 || ptx_v.size() > 1) {
-            MERROR("wrong tx count: " << ptx_v.size());
+        if (m_ptx_v.size() < 1 || m_ptx_v.size() > 1) {
+            MERROR("wrong tx count: " << m_ptx_v.size());
             return false;
         }
 
-        const cryptonote::transaction &tx = ptx_v.at(0).tx;
+        const cryptonote::transaction &tx = m_ptx_v.at(0).tx;
 
         MWARNING("About to do pay, payment_id:  " << m_paymentDetails.paymentId << ", Total amount: " << print_money(m_paymentInfo.Amount)
               << ", Merchant amount : " << print_money(recepient_amount)
@@ -327,7 +328,7 @@ public:
 
         PayRequest pay_req;
 
-        utils::encryptTxKeyToHex(ptx_v.at(0).tx_key, rta_hdr.keys, pay_req.TxKey);
+        utils::encryptTxKeyToHex(m_ptx_v.at(0).tx_key, rta_hdr.keys, pay_req.TxKey);
         utils::encryptTxToHex(tx, rta_hdr.keys, pay_req.TxBlob);
 
         r = invoke_http_rest("/dapi/v2.0/pay", pay_req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
@@ -345,7 +346,62 @@ public:
 
     std::string paymentId() const
     {
-        return m_payment_id;
+        return m_paymentDetails.paymentId;
+    }
+    // TODO: this is common method for pos/wallet - move to library/shared code
+    bool waitForStatus(int expectedStatus, int &receivedStatus, std::chrono::seconds timeout)
+    {
+
+        request::PaymentStatusRequest req;
+        req.PaymentID = paymentId();
+
+        std::string raw_resp;
+        int http_status = 0;
+        ErrorResponse err_resp;
+        chrono::steady_clock::time_point start = chrono::steady_clock::now();
+        chrono::milliseconds elapsed;
+
+        do {
+
+            MWARNING("Requesting payment status for payment: " << paymentId());
+
+            bool r = invoke_http_rest("/dapi/v2.0/get_payment_status", req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
+            if (!r) {
+                MERROR("Failed to invoke get_payment_status: " << graft::to_json_str(err_resp));
+            }
+
+            if (http_status == 200 && !raw_resp.empty()) {
+                request::PaymentStatusResponse resp;
+                if (!graft::from_json_str(raw_resp, resp)) {
+                    MERROR("Failed to parse payment status response: " << raw_resp);
+                    return false;
+                }
+
+                receivedStatus = resp.Status;
+                if (expectedStatus == receivedStatus) {
+                    return true;
+                }
+
+                if (graft::isFiniteRtaStatus((graft::RTAStatus)receivedStatus)) {
+                    return false;
+                }
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(chrono::steady_clock::now() - start);
+
+        } while (elapsed < timeout);
+
+        return  false;
+    }
+
+    // set last tx inputs spent in wallet's cache
+    void setTxInputsSpent()
+    {
+        for (const auto &ptx : m_ptx_v) {
+            m_wallet.set_spent(ptx);
+        }
+        m_wallet.store();
     }
 
 
@@ -361,6 +417,7 @@ private:
     crypto::secret_key m_decryption_key;
     PaymentInfo m_paymentInfo;
     PaymentDataResponse m_paymentDataResponse;
+    std::vector<tools::wallet2::pending_tx> m_ptx_v;
 };
 
 
@@ -458,8 +515,14 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    // TODO: monitor for a payment status, mark tx inputs as spent
 
+    int actualStatus = 0;
+    if (!wallet.waitForStatus(int(graft::RTAStatus::Success), actualStatus, std::chrono::seconds(20))) {
+        MERROR("Expected Success status, got: " << actualStatus);
+        return EXIT_FAILURE;
+    }
+    // TODO mark tx inputs as spent
+    wallet.setTxInputsSpent();
 
     return 0;
 
