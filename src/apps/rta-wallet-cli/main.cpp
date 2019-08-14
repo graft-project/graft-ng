@@ -116,11 +116,13 @@ public:
             recovery_val = m_wallet.generate(wallet_path, wallet_password, secret_key, false, false);
         }
         m_wallet.init(cryptonode_address);
-        m_wallet.store();
         MINFO("wallet opened: " << m_wallet.get_address_as_str());
-        m_wallet.refresh(true);
+        uint64_t blocks_fetched = 0;
+        m_wallet.refresh(true, 0, blocks_fetched);
+        m_wallet.store();
         std::cout << "Wallet opened, balance:  " << print_money(m_wallet.unlocked_balance_all()) << std::endl;
         std::cout << "Press <Return> to continue.." <<  std::endl;
+
         std::cin.get();
         // open wallet;
     }
@@ -336,6 +338,8 @@ public:
         }
 
         MWARNING("Payment sent, payment id: " << m_paymentDetails.paymentId << ", tx id: " << tx.hash);
+
+
         return true;
     }
 
@@ -364,6 +368,7 @@ private:
 
 int main(int argc, char* argv[])
 {
+
     TRY_ENTRY();
     epee::string_tools::set_module_name_and_folder(argv[0]);
 
@@ -453,7 +458,8 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    // TODO: monitor for a payment status
+    // TODO: monitor for a payment status, mark tx inputs as spent
+
 
     return 0;
 
