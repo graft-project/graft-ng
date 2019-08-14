@@ -11,6 +11,7 @@
 import subprocess
 import threading
 import argparse
+import time
 
 RTA_WALLET_APP = 'rta-wallet-cli'
 RTA_POS_APP    = 'rta-pos-cli'
@@ -61,19 +62,25 @@ def main():
 	parser = argparse.ArgumentParser(description='RTA test helper')
 	parser.add_argument("--wallet-path", type = str, required = True)
 	parser.add_argument("--pos-wallet", type = str, required = True)
+	parser.add_argument("--period", type = int, required = False, default = 120)
 	args = parser.parse_args()
 
 	# acquire lock
-	lock.acquire()
-	wallet_thread = threading.Thread(target = run_client_wallet, args = (args.wallet_path,))
-	wallet_thread.start()
-	print("Wallet thread started");
-	pos_thread = threading.Thread(target = run_pos, args = (args.pos_wallet,))
-	pos_thread.start()
-	print("POS thread started")
-	wallet_thread.join()
-	pos_thread.join()
-    
+	while True:
+		print("RTA test started")
+		lock.acquire()
+		wallet_thread = threading.Thread(target = run_client_wallet, args = (args.wallet_path,))
+		wallet_thread.start()
+		print("Wallet thread started");
+		pos_thread = threading.Thread(target = run_pos, args = (args.pos_wallet,))
+		pos_thread.start()
+		print("POS thread started")
+		wallet_thread.join()
+		pos_thread.join()
+		lock.release()
+		print("RTA test finished, sleeping for %d seconds" % args.period)
+		time.sleep(args.period)
+
 
 if __name__ == "__main__":
     main()    	
