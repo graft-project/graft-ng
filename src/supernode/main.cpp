@@ -15,8 +15,9 @@ std::terminate_handler prev_terminate = nullptr;
 // the workflow, the error propagates back to the client.
 void terminate()
 {
-    std::cerr << "\nTerminate called, dump stack:\n";
-    graft_bt();
+    std::ostringstream oss;
+    oss << "\nTerminate called, dump stack:\n";
+    oss << graft_bt_str();
 
     //dump exception info
     std::exception_ptr eptr = std::current_exception();
@@ -28,13 +29,16 @@ void terminate()
         }
         catch(std::exception& ex)
         {
-            std::cerr << "\nTerminate caused by exception : '" << ex.what() << "'\n";
+            oss << "\nTerminate caused by exception : '" << ex.what() << "'\n";
         }
         catch(...)
         {
-            std::cerr << "\nTerminate caused by unknown exception.\n";
+            oss << "\nTerminate caused by unknown exception.\n";
         }
     }
+
+    LOG_ERROR("") << oss.str();
+    std::cerr << oss.str();
 
     prev_terminate();
 }
@@ -54,12 +58,6 @@ int main(int argc, const char** argv)
     } catch (const graft::exit_error& e) {
         LOG_ERROR("The program is terminated because of error: ") << e.what();
         return -1;
-    } catch (const std::exception & e) {
-        LOG_ERROR("Exception thrown: ") << e.what();
-        throw;
-    } catch(...) {
-        LOG_ERROR("Exception of unknown type!");
-        throw;
     }
 
     return 0;

@@ -28,6 +28,72 @@ typedef struct {
     sigset_t          uc_sigmask;
 } sig_ucontext_t;
 
+#ifdef __cplusplus
+
+std::string graft_bt_str()
+{
+    void *trace[TRACE_SIZE_MAX];
+    char **messages = (char **) NULL;
+
+    char *funcname =  (char*) malloc(FUNC_NAME_SIZE_MAX);
+    int i, trace_size = backtrace(trace, TRACE_SIZE_MAX);
+
+    if (trace_size == 0)
+    {
+        return "\t<stack trace is possibly corrupt>\n";
+    }
+
+    std::ostringstream oss;
+
+    messages = backtrace_symbols(trace, trace_size);
+    for (i = 1; i < trace_size && messages; ++i)
+    {
+        char *begin_name = NULL, *begin_offset = NULL, *end_offset = NULL, *p;
+        for (p = messages[i]; *p; ++p)
+        {
+            if (*p == '(')
+            begin_name = p;
+            else if (*p == '+')
+            begin_offset = p;
+            else if (*p == ')' && begin_offset) {
+            end_offset = p;
+            break;
+            }
+        }
+
+        if (begin_name && begin_offset && end_offset && begin_name < begin_offset)
+        {
+            int status;
+            size_t funcnamesize = FUNC_NAME_SIZE_MAX;
+
+            *begin_name++ = '\0';
+            *begin_offset++ = '\0';
+            *end_offset = '\0';
+
+            p = abi::__cxa_demangle(begin_name, funcname, &funcnamesize, &status);
+            if (status == 0)
+            {
+                funcname = p;
+                oss << "\t#" << i << " " << messages[i] << " : " << funcname << "+" << begin_offset << "\n";
+            }
+            else
+            {
+                oss << "\t#" << i << " " << messages[i] << " : " << begin_name << "()+" << begin_offset << "\n";
+            }
+        }
+        else
+        {
+            oss << "\t#" << i << " " << messages[i] << "\n";
+        }
+    }
+    free(messages);
+    free(funcname);
+
+    return oss.str();
+}
+
+#endif //__cplusplus
+
 void graft_bt()
 {
     void *trace[TRACE_SIZE_MAX];
