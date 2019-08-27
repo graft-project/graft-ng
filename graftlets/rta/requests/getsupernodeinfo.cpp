@@ -73,7 +73,7 @@ Status handleSupernodeInfoRequest(const Router::vars_t &vars, const Input &input
 
     auto is_supernode_available = [&](const std::string& supernode_public_id)
     {
-        for (const FullSupernodeList::blockchain_based_list_tier& tier : auth_sample_base_list)
+        for (const FullSupernodeList::blockchain_based_list_tier& tier : auth_sample_base_list.tiers)
         {
             for (const FullSupernodeList::blockchain_based_list_entry& entry : tier)
                 if (supernode_public_id == entry.supernode_public_id)

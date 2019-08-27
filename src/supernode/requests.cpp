@@ -14,12 +14,15 @@ namespace graft::request::system_info { void register_request(Router& router); }
 
 namespace graft::supernode::request {
 
+void registerAuthSDisqualificatorRequest(graft::Router &router);
+
 void registerRTARequests(graft::Router &router)
 {
     registerGetInfoRequest(router);
     registerSendSupernodeStakesRequest(router);
     registerRedirectRequests(router);
     registerBlockchainBasedListRequest(router);
+    registerAuthSDisqualificatorRequest(router);
 }
 
 void registerWalletApiRequests(graft::Router &router)
