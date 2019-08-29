@@ -228,7 +228,7 @@ TEST(InOut, nested2)
 }
 
 
-TEST(InOut, makeUri)
+TEST(InOut, DISABLED_makeUri)
 {
     {
         graft::Output output;
