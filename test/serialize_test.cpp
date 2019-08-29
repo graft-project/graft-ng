@@ -35,6 +35,7 @@ using namespace epee;
 
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "serialization/binary_utils.h"
+#include "serialization/string.h"
 
 #include "lib/graft/jsonrpc.h"
 #include <cstring>
@@ -67,11 +68,11 @@ GRAFT_DEFINE_IO_STRUCT(WithVectorInt,
 
 struct PaymentX
 {
-  uint64 amount;
-  uint32 block_height;
+  uint64_t amount;
+  uint32_t block_height;
   std::string payment_id;
   std::string tx_hash;
-  uint32 unlock_time;
+  uint32_t unlock_time;
   BEGIN_SERIALIZE()
     FIELD(amount)
     FIELD(block_height)
