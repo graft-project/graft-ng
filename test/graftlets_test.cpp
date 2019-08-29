@@ -255,8 +255,6 @@ TEST(Graftlets, calls)
         EXPECT_EQ(true,false);
     }
 
-    IGraftlet::EndpointsVec endpoints = loader.getEndpoints();
-    EXPECT_EQ(endpoints.size(), 4);
 }
 
 TEST(Graftlets, exceptionList)
