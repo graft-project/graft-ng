@@ -104,17 +104,30 @@ private:
 
     void prepareSupernode(const graft::CommonOpts& opts, graft::Context& ctx)
     {
-        // create data directory if not exists
-        boost::filesystem::path data_path(opts.data_dir);
+        // opts could be empty in case we're running unit tests
+        // in case empty opts - suppose data_path is the current dir,
+        // config_filename is config.ini in current_dir
 
-        if (!boost::filesystem::exists(data_path)) {
-            boost::system::error_code ec;
-            if (!boost::filesystem::create_directories(data_path, ec)) {
-                throw std::runtime_error(ec.message());
+        // create data directory if not exists
+        boost::filesystem::path data_path;
+        if (!opts.data_dir.empty()) {
+
+            data_path = boost::filesystem::path(opts.data_dir);
+
+            if (!boost::filesystem::exists(data_path)) {
+                boost::system::error_code ec;
+                if (!boost::filesystem::create_directories(data_path, ec)) {
+                    MERROR("Failed to create data directory: " << data_path.string() << ": " << ec.message());
+                    return;
+                }
             }
         }
 
         // read config
+        if (opts.config_filename.empty()) {
+            MWARNING("Empty config_filename, running tests?");
+            return;
+        }
         auto config = graft::ConfigIniSubtree::create(opts.config_filename);
         std::string cryptonode_rpc_address = config.get<std::string>("cryptonode.rpc-address");
         std::string supernode_http_address = config.get<std::string>("server.http-address");
