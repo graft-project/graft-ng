@@ -366,10 +366,11 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
     PUSH_CHECKED("217c474a2394584a74051a7dd579c496dd3bc0768e8c56c69659ac93c8f78023");
     return true;
 #endif
-
+    MDEBUG(__FUNCTION__  << 1);
     blockchain_based_list bbl;
 
     out_auth_block_number = getBlockchainBasedListForAuthSample(height, bbl);
+    MDEBUG(__FUNCTION__  << 2);
 
     if (!out_auth_block_number)
     {

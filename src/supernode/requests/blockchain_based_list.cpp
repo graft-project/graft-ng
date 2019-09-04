@@ -117,12 +117,18 @@ namespace {
 
 class BBLDisqualificator : public BBLDisqualificatorBase
 {
+    // TODO: explain constant meaning
     static constexpr int32_t DESIRED_BBQS_SIZE = graft::FullSupernodeList::DISQUALIFICATION_SAMPLE_SIZE;
+    // TODO: explain constant meaning
     static constexpr int32_t DESIRED_QCL_SIZE = graft::FullSupernodeList::DISQUALIFICATION_CANDIDATES_SIZE;
+    // TODO: explain constant meaning and magic numbers
     static constexpr int32_t REQUIRED_BBQS_VOTES = (DESIRED_BBQS_SIZE*2 + (3-1))/3;
+    // TODO: explain constant meaning
     static constexpr size_t BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT = graft::FullSupernodeList::BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+    // TODO: explain constant meaning
     static constexpr size_t DISQUALIFICATION_DURATION_BLOCK_COUNT = 10;
 
+    // TODO: rename each phase properly. Right now it means nothing
     enum Phases : int
     {
         phase_1,
@@ -138,9 +144,9 @@ class BBLDisqualificator : public BBLDisqualificatorBase
 
     uint64_t m_block_height = 0;
     crypto::hash m_block_hash;
-    //Blockchain Based Qualification Sample, exclude itself
+    // Blockchain Based Qualification Sample, exclude itself
     std::vector<crypto::public_key> m_bbqs_ids;
-    //Qualification Candidate List, exclude itself
+    // Qualification Candidate List, exclude itself
     std::vector<crypto::public_key> m_qcl_ids;
 
     std::vector<crypto::public_key> m_answered_ids;
@@ -171,8 +177,9 @@ class BBLDisqualificator : public BBLDisqualificatorBase
             return (res<0);
         }
     };
-
+    // TODO why not unordered_map?
     std::map<DisqId, std::vector<std::pair<SignerId, Sign>>, less_mem<DisqId> > m_votes;
+    // std::unordered_map<DisqId, std::vector<std::pair<SignerId, Sign>>> m_votes;
 
 ///////////////////// tools return error message if any
 
@@ -192,6 +199,7 @@ class BBLDisqualificator : public BBLDisqualificatorBase
         str = out.body;
     }
 
+    // TODO: Return bool and error message as extra output param
     template<typename T>
     static std::string bin_deserialize(const std::string& str, T& t)
     {
@@ -276,7 +284,9 @@ class BBLDisqualificator : public BBLDisqualificatorBase
             uint64_t tmp_block_number;
             bool res = fsl->buildDisqualificationSamples(block_height+BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT, suBBQS, suQCL, tmp_block_number);
             if(!res) return false; //block_height can be old
-            assert(tmp_block_number == block_height);
+
+            // TODO: explain what is the point of this assert and next assignment?
+            // assert(tmp_block_number == block_height);
             block_height = tmp_block_number;
             std::string block_hash_str;
             fsl->getBlockHash(block_height, block_hash_str);
@@ -299,10 +309,12 @@ class BBLDisqualificator : public BBLDisqualificatorBase
         {
             qcl.push_back(item->idKey());
         }
+        return true;
     }
 
 ///////////////////// phases
 protected:
+    // TODO: explain what is the "phase1"
     graft::Status do_phase1(graft::Context& ctx, uint64_t block_height)
     {
         m_started = true;
@@ -316,7 +328,10 @@ protected:
         {//generate BBQS & QCL
             m_block_height = block_height;
             bool res = getBBQSandQCL(ctx, m_block_height, m_block_hash, m_bbqs_ids, m_qcl_ids);
-            if(!res) return graft::Status::Error;
+            if (!res) {
+                MERROR("getBBQSandQCL failed");
+                return graft::Status::Error;
+            }
         }
 
         std::sort(m_bbqs_ids.begin(), m_bbqs_ids.end(), less_mem<crypto::public_key>{});
@@ -823,14 +838,16 @@ protected:
 
     graft::Status do_process(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
-        if(ctx.local.getLastStatus() == graft::Status::Forward) return graft::Status::Ok;
+        if (ctx.local.getLastStatus() == graft::Status::Forward)
+            return graft::Status::Ok;
+
         assert(ctx.global.hasKey("fsl"));
 
         BlockchainBasedListJsonRpcRequest req;
         if (!input.get(req))
         {
             // can't parse request
-            LOG_ERROR("Failed to parse request");
+            LOG_ERROR("Failed to parse request: " << input.data());
             return Status::Error;
         }
 
@@ -1012,22 +1029,17 @@ namespace graft::supernode::request {
 namespace
 {
 
-Status blockchainBasedListHandler
- (const Router::vars_t& vars,
-  const graft::Input& input,
-  graft::Context& ctx,
-  graft::Output& output)
+Status blockchainBasedListHandler (const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
     LOG_PRINT_L1(PATH << " called with payload: " << input.data());
 
     boost::shared_ptr<FullSupernodeList> fsl = ctx.global.get("fsl", boost::shared_ptr<FullSupernodeList>());
-    SupernodePtr supernode = ctx.global.get("supernode", SupernodePtr());
 
     if (!fsl.get()) {
         LOG_ERROR("Internal error. Supernode list object missing");
         return Status::Error;
     }
-
+    SupernodePtr supernode = ctx.global.get("supernode", SupernodePtr());
     if (!supernode.get()) {
        LOG_ERROR("Internal error. Supernode object missing");
        return Status::Error;
@@ -1035,8 +1047,7 @@ Status blockchainBasedListHandler
 
     BlockchainBasedListJsonRpcRequest req;
 
-    if (!input.get(req))
-    { 
+    if (!input.get(req)) {
         // can't parse request
         LOG_ERROR("Failed to parse request");
         return Status::Error;

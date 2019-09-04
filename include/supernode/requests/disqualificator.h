@@ -67,7 +67,7 @@ public:
     {
         std::string uri; //process if empty
             // if uri.empty()
-	uint64_t block_height;
+        uint64_t block_height;
         crypto::hash block_hash;
             // if !uri.empty()
         std::string body;
@@ -77,9 +77,9 @@ public:
 
         command() = default;
         //for bbl disqualification
-	command(uint64_t block_height, const crypto::hash& block_hash) : block_height(block_height), block_hash(block_hash) { }
+        command(uint64_t block_height, const crypto::hash& block_hash) : block_height(block_height), block_hash(block_hash) { }
         //for auth sample disqualification
-	command(const std::string& payment_id, const std::vector<crypto::public_key>& ids, uint64_t block_height, const crypto::hash& block_hash)
+        command(const std::string& payment_id, const std::vector<crypto::public_key>& ids, uint64_t block_height, const crypto::hash& block_hash)
             : payment_id(payment_id), ids(ids), block_height(block_height), block_hash(block_hash) { }
         //
         command(const std::string& uri, const std::string& body) : uri(uri), body(body) { }

@@ -111,7 +111,9 @@ Status getAuthSample(const Router::vars_t& vars, const graft::Input& input,
 {
 
 
+    MDEBUG(__FUNCTION__ << 1);
     FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr());
+    MDEBUG(__FUNCTION__ << 2);
     std::vector<SupernodePtr> sample;
     uint64_t sample_block_number = 0;
 
