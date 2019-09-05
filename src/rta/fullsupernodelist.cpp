@@ -348,22 +348,34 @@ bool FullSupernodeList::buildSample(const blockchain_based_list& bbl, size_t sam
 bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& payment_id, supernode_array &out, uint64_t &out_auth_block_number)
 {
 
-// #define HARDCODED_AUTH_SAMPLE
+#define HARDCODED_AUTH_SAMPLE
 #ifdef HARDCODED_AUTH_SAMPLE
     #define PUSH_CHECKED(id) { \
         SupernodePtr s = this->get(id); \
         if (s) \
             out.push_back(s); \
     }
+ // RTA DQ-TX private devnet nodes
+    PUSH_CHECKED("c89cd66f1f0e8f0dd108be9463a28e714eb513a56f0512fbce151d0c216e8941");
+    PUSH_CHECKED("04eb530ad9b7df66786abe63cffc1c4fc0f22a8c34fccfd670390e7b1c0e8a6f");
+    PUSH_CHECKED("54a6418ead8cf211555eb685a6574adfd1b3acb4cd0034780ba973ada17b28d1");
+    PUSH_CHECKED("a76dd51a5007e509d81bf5aab17ac5abca04ac905aafaf83a9792fb4dcda39de");
+    PUSH_CHECKED("9316ace1d6b31e77b2d8875c54719ef6ab0f0ce20880f1130c8b08f2618ee218");
+    PUSH_CHECKED("07b8bdcc940ee2e67562a3c5a6291edf187170c2f31a66867760ff101f35cc87");
+    PUSH_CHECKED("5122d63790ebf8e72f7935018ac64e2cdc760c24c3ccf0de614a1b3d7f29f759");
+    PUSH_CHECKED("bc6eb0403452b114ad37d791b04c5d2eaa71e1a46776edfed493dd7fde839ac0");
 
-    PUSH_CHECKED("cdba49cbdece633266681b3c6f80f1085e7b3d3e0cca395d3986d10ab3ea0d6a");
-    PUSH_CHECKED("ce7cf758df6f2eb7f74d28730078be733cb953bda37a5f6e54ab09140f40e712");
-    PUSH_CHECKED("25b316d25e6c2dd8dd60fd983de9fbd5a9bb1fcf96d65bbb1c295708bafa00cb");
-    PUSH_CHECKED("914c13339fdfacdbbebe4c223d1900415432aab24f1f995823286104c7ac9eaa");
-    PUSH_CHECKED("54749bad9925d34e414062a4e3cf3991e1a1ee5c778fc6c44a53c11f55cafe44");
-    PUSH_CHECKED("002fc53f231568a2ecd6387db83e1a0211d5060a91f0534fdf5474a7e9b556ae");
-    PUSH_CHECKED("ba3990991be1db9f05f47179e16ddad7f0959f952be8aaea0ee4d19e8d82ce7f");
-    PUSH_CHECKED("217c474a2394584a74051a7dd579c496dd3bc0768e8c56c69659ac93c8f78023");
+
+
+// RTA BETA graft nodes
+//    PUSH_CHECKED("cdba49cbdece633266681b3c6f80f1085e7b3d3e0cca395d3986d10ab3ea0d6a");
+//    PUSH_CHECKED("ce7cf758df6f2eb7f74d28730078be733cb953bda37a5f6e54ab09140f40e712");
+//    PUSH_CHECKED("25b316d25e6c2dd8dd60fd983de9fbd5a9bb1fcf96d65bbb1c295708bafa00cb");
+//    PUSH_CHECKED("914c13339fdfacdbbebe4c223d1900415432aab24f1f995823286104c7ac9eaa");
+//    PUSH_CHECKED("54749bad9925d34e414062a4e3cf3991e1a1ee5c778fc6c44a53c11f55cafe44");
+//    PUSH_CHECKED("002fc53f231568a2ecd6387db83e1a0211d5060a91f0534fdf5474a7e9b556ae");
+//    PUSH_CHECKED("ba3990991be1db9f05f47179e16ddad7f0959f952be8aaea0ee4d19e8d82ce7f");
+//    PUSH_CHECKED("217c474a2394584a74051a7dd579c496dd3bc0768e8c56c69659ac93c8f78023");
     return true;
 #endif
     MDEBUG(__FUNCTION__  << 1);
