@@ -805,15 +805,18 @@ Status handleRtaAuthResponse(const Router::vars_t& vars, const graft::Input& inp
 
 
 
-        if (auth_sample_votes >= RTA_VOTES_TO_APPROVE && proxy_votes == 3) { // TODO: magic numbers to constants
-            MDEBUG("CoA matches for payment: " << rta_hdr.payment_id
-                   << " , pushing tx to pool");
+        if (auth_sample_votes >= RTA_VOTES_TO_APPROVE && proxy_votes == 3
+                && isAuthSampleSupernode(rta_hdr, supernode)) { // TODO: magic numbers to constants
             SendRawTxRequest req;
 
             if (!removeInvalidSignatures(local_tx)) {
                 MERROR("Failed to clean up invalid signatures");
                 return sendOkResponseToCryptonode(output); // stop processing
             }
+
+            MDEBUG("CoA matches for payment: " << rta_hdr.payment_id
+                   << " , pushing tx: " << cryptonote::get_transaction_hash(local_tx) << " to tx pool");
+
             createSendRawTxRequest(local_tx, req);
             dumpSignatures(local_tx);
 
