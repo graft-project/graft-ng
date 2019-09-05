@@ -273,6 +273,9 @@ public:
         rta_hdr.auth_sample_height = m_paymentDetails.blockNumber;
 
         MWARNING("Building transaction...");
+        MWARNING("pos key: " << m_paymentDetails.posAddress.Id);
+        MWARNING("pos proxy key: " << m_paymentDataResponse.paymentData.PosProxy.Id);
+        MWARNING("wallet proxy key: " <<  m_paymentDataResponse.WalletProxy.Id);
 
         if (!append_key_to_rta_hdr(rta_hdr, m_paymentDetails.posAddress.Id)) { // pos key;
             return false;
@@ -284,11 +287,16 @@ public:
             return false;
         }
 
+        ostringstream ss;
+        ss << std::endl;
+
         for (const auto & item: m_paymentDataResponse.paymentData.AuthSampleKeys) {
+            ss << "\t" << item.Id << std::endl;
             if (!append_key_to_rta_hdr(rta_hdr, item.Id)) {
                 return false;
             }
         }
+        MDEBUG("auth sample keys: " << ss.str());
 
         std::vector<uint8_t> extra;
         cryptonote::add_graft_rta_header_to_extra(extra, rta_hdr);
