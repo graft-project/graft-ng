@@ -229,6 +229,14 @@ public:
      */
     uint64_t getBlockchainHeight() const;
 
+    /*!
+     * \brief hasBlockChainBasedListsForRange - checks if BBLs are available for block range
+     * \param start_height                    - beginning of range
+     * \param end_height                      - end of range (exclusive)
+     * \return
+     */
+    bool hasBlockChainBasedListsForRange(uint64_t start_height, uint64_t end_height);
+
 private:
     // bool loadWallet(const std::string &wallet_path);
     void addImpl(SupernodePtr item);

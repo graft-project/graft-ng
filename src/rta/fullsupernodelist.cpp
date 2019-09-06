@@ -427,10 +427,21 @@ bool FullSupernodeList::buildDisqualificationSamples(uint64_t height, supernode_
 
     crypto::hash block_hash;
     bool ok = epee::string_tools::hex_to_pod(bbl.block_hash, block_hash);
-    assert(ok);
+    if (!ok) {
+        MERROR("Failed to parse bbl block hash: " << bbl.block_hash);
+        return false;
+    }
 
     std::vector<TI> idxs_bbqs, idxs_qcl;
     bool res = generator::select_BBQS_QCL(block_hash, idxs, idxs_bbqs, idxs_qcl);
+    if (!res) {
+        if (idxs_bbqs.empty())
+            MERROR("Failed to generate BBQS");
+        if (idxs_qcl.empty()) {
+            MERROR("Failed to generate QCL");
+        }
+        return res;
+    }
 
     out_bbqs = fromIndexes(bbl, idxs_bbqs, m_list);
     out_qcl = fromIndexes(bbl, idxs_qcl, m_list);
@@ -604,7 +615,7 @@ void FullSupernodeList::setBlockchainBasedList(uint64_t block_number, const bloc
     if (block_number > m_blockchain_based_list_max_block_number)
         m_blockchain_based_list_max_block_number = block_number;
 
-      //flush cache - remove old blockchain based lists
+    // flush cache - remove old blockchain based lists
 
     uint64_t oldest_block_number = m_blockchain_based_list_max_block_number - config::graft::SUPERNODE_HISTORY_SIZE;
 
@@ -656,6 +667,17 @@ uint64_t FullSupernodeList::getBlockchainBasedListMaxBlockNumber() const
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
     return m_blockchain_based_list_max_block_number;
 }
+
+bool FullSupernodeList::hasBlockChainBasedListsForRange(uint64_t start_height, uint64_t end_height)
+{
+    boost::shared_lock<boost::shared_mutex> readerLock(m_access);
+    bool result =  m_blockchain_based_list_max_block_number == end_height
+           && m_blockchain_based_lists.size() >= end_height - start_height;
+    MDEBUG("Checking if BBLs are available for range: " << start_height << " - " << end_height << ", known BBLs : " << m_blockchain_based_lists.size()
+           << " : " << result);
+    return result;
+}
+
 
 std::ostream& operator<<(std::ostream& os, const std::vector<SupernodePtr> supernodes)
 {

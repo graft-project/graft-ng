@@ -131,9 +131,9 @@ class BBLDisqualificator : public BBLDisqualificatorBase
     // TODO: rename each phase properly. Right now it means nothing
     enum Phases : int
     {
-        phase_1,
-        phase_2,
-        phase_3,
+        phase_1, // init
+        phase_2, // send poll
+        phase_3, // handle poll responses
         phase_4,
         phases_count
     };
@@ -158,9 +158,16 @@ class BBLDisqualificator : public BBLDisqualificatorBase
     std::string m_supernode_str_id;
 
 
+    // m_in_bbqs - flag is set if ...
     bool m_in_bbqs = false;
+
+    // m_in_qcl - flag is set if ...
     bool m_in_qcl = false;
+
+    // m_collectPings - flag is set if ...
     bool m_collectPings = false;
+
+    // m_collectVotes - flag is set if ...
     bool m_collectVotes = false;
 
     using DisqId = crypto::public_key;
@@ -277,24 +284,40 @@ class BBLDisqualificator : public BBLDisqualificatorBase
             return true;
         }
         graft::FullSupernodeList::supernode_array suBBQS, suQCL;
-        bool res = ctx.global.apply<boost::shared_ptr<graft::FullSupernodeList>>("fsl",
-            [&](boost::shared_ptr<graft::FullSupernodeList>& fsl)->bool
-        {
-            if(!fsl) return false;
+
+        auto ctx_worker = [&](boost::shared_ptr<graft::FullSupernodeList> &fsl)->bool {
+            if (!fsl) {
+               MERROR("Internal error: no fsl in global context");
+               abort();
+               return false;
+            }
+
             uint64_t tmp_block_number;
-            bool res = fsl->buildDisqualificationSamples(block_height+BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT, suBBQS, suQCL, tmp_block_number);
-            if(!res) return false; //block_height can be old
+            uint64_t samples_height = block_height + BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+            bool res = fsl->buildDisqualificationSamples(samples_height, suBBQS, suQCL, tmp_block_number);
+            if (!res) {
+               MERROR("buildDisqualificationSamples failed for height: " << samples_height);
+               return false; //block_height can be old
+            }
 
             // TODO: explain what is the point of this assert and next assignment?
             // assert(tmp_block_number == block_height);
+
             block_height = tmp_block_number;
             std::string block_hash_str;
             fsl->getBlockHash(block_height, block_hash_str);
             bool res1 = epee::string_tools::hex_to_pod(block_hash_str, block_hash);
-            assert(res1);
+            if (!res1) {
+                MERROR("Failed to parse block hash: " << block_hash_str);
+                return false;
+            }
             return true;
-        });
-        if(!res) return false;
+        };
+
+        bool res = ctx.global.apply<boost::shared_ptr<graft::FullSupernodeList>>("fsl", ctx_worker);
+        if (!res) {
+            return false;
+        }
 
         bbqs.clear();
         bbqs.reserve(suBBQS.size());
@@ -314,19 +337,17 @@ class BBLDisqualificator : public BBLDisqualificatorBase
 
 ///////////////////// phases
 protected:
-    // TODO: explain what is the "phase1"
+    // Phase1 is an initialization phase. Collecting BBQS and QCL
     graft::Status do_phase1(graft::Context& ctx, uint64_t block_height)
     {
+        MDEBUG(__FUNCTION__ << " begin");
         m_started = true;
-        m_block_height = block_height;
-
         {//get m_supernode_id & m_supernode_str_id & m_secret_key
             getSupenodeKeys(ctx, m_supernode_id, m_secret_key);
             m_supernode_str_id = epee::string_tools::pod_to_hex(m_supernode_id);
         }
 
         {//generate BBQS & QCL
-            m_block_height = block_height;
             bool res = getBBQSandQCL(ctx, m_block_height, m_block_hash, m_bbqs_ids, m_qcl_ids);
             if (!res) {
                 MERROR("getBBQSandQCL failed");
@@ -334,8 +355,27 @@ protected:
             }
         }
 
+
         std::sort(m_bbqs_ids.begin(), m_bbqs_ids.end(), less_mem<crypto::public_key>{});
+
+
         std::sort(m_qcl_ids.begin(), m_qcl_ids.end(), less_mem<crypto::public_key>{});
+
+        {
+            std::ostringstream ss;
+            for (const auto &item: m_bbqs_ids) {
+                ss << epee::string_tools::pod_to_hex(item) << "\n";
+            }
+            MDEBUG("BBQS for height:  " << m_block_height << " : \n" << ss.str());
+        }
+
+        {
+            std::ostringstream ss;
+            for (const auto &item: m_qcl_ids) {
+                ss << epee::string_tools::pod_to_hex(item) << "\n";
+            }
+            MDEBUG("QCL for height:  " << m_block_height << " : \n" << ss.str());
+        }
 
         {//set m_in_bbqs
             auto pair = std::equal_range(m_bbqs_ids.begin(), m_bbqs_ids.end(), m_supernode_id, less_mem<crypto::public_key>{});
@@ -366,15 +406,35 @@ protected:
         m_answered_ids.clear();
         m_collectPings = m_in_bbqs;
 
+        MDEBUG(__FUNCTION__ << " end");
+
         return graft::Status::Ok;
     }
-
+    // QC should report "i'm alive" to BBSs in this phase
     graft::Status do_phase2(graft::Context& ctx, graft::Output& output)
     {
-        if(!m_started) return graft::Status::Ok;
+        MDEBUG(__FUNCTION__ << " begin");
+        if (!m_started) {
+            MERROR("phase is not started");
+            return graft::Status::Ok;
+        }
         m_collectVotes = m_in_bbqs;
-        if(m_collectVotes) m_votes.clear();
-        if(!m_in_qcl) return graft::Status::Ok;
+        if (m_collectVotes)
+            m_votes.clear();
+        if (!m_in_qcl) {
+            MDEBUG("m_in_qcl is not set");
+            return graft::Status::Ok;
+        }
+#if 1   // disq test
+
+        SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+        if (supernode->idKeyAsString() == "54a6418ead8cf211555eb685a6574adfd1b3acb4cd0034780ba973ada17b28d1") {
+            MDEBUG("disqualifiaction test: node " << supernode->idKeyAsString()  << " doesnt send pings");
+            return graft::Status::Ok;
+        }
+
+
+#endif
 
         std::string spm_str;
         {//prepare bin serialized SignedPingMessage
@@ -409,9 +469,11 @@ protected:
         MDEBUG(__FUNCTION__ << " end");
         return graft::Status::Forward;
     }
-
+    // BBSs member should handle QCL member "ping" here
     graft::Status handle_phase2(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+
+        MDEBUG(__FUNCTION__ << " begin");
         if(!m_started || !m_collectPings) return graft::Status::Ok;
         if(!m_in_bbqs)
         {
@@ -473,15 +535,17 @@ protected:
             }
 
         }
-
         //save SN id
         m_answered_ids.push_back(spm.pm.id);
+
+        MDEBUG(__FUNCTION__ << " end");
 
         return graft::Status::Ok;
     }
 
     graft::Status do_phase3(graft::Context& ctx, graft::Output& output)
     {
+        MDEBUG(__FUNCTION__ << " begin");
         if(!m_started || !m_in_bbqs) return graft::Status::Ok;
         m_collectPings = false;
 
@@ -541,7 +605,7 @@ protected:
         //multicast to m_bbqs_ids
         BroadcastRequestJsonRpc req;
         req.params.receiver_addresses = m_bbqs_str_ids;
-        req.method = "multicast";
+        req.method = "broadcast";
         req.params.callback_uri = ROUTE_VOTES;
         req.params.data = graft::utils::base64_encode(message);
         req.params.sender_address = m_supernode_str_id;
@@ -555,6 +619,8 @@ protected:
 
     graft::Status handle_phase3(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+
+        MDEBUG(__FUNCTION__ << " begin");
         if(!m_started || !m_collectVotes) return graft::Status::Ok;
         if(!m_in_bbqs)
         {
@@ -644,17 +710,21 @@ protected:
             auto& vec = m_votes[id];
             vec.emplace_back( std::make_pair(dv.signer_id, sign) );
         }
-
+        MDEBUG(__FUNCTION__ << " end");
         return graft::Status::Ok;
     }
 
     graft::Status do_phase4(graft::Context& ctx, graft::Output& output)
     {
+        MDEBUG(__FUNCTION__ << " begin");
+
         if(!m_started || !m_in_bbqs) return graft::Status::Ok;
         m_collectVotes = false;
 
         //remove entries from m_votes with not enough votes
-        for(auto it = m_votes.begin(), eit = m_votes.end(); it != eit;)
+
+        // for(auto it = m_votes.begin(), eit = m_votes.end(); it != eit;)
+        for (auto it = m_votes.begin(); it != m_votes.end();)
         {
             if(it->second.size() < REQUIRED_BBQS_VOTES)
             {
@@ -664,9 +734,15 @@ protected:
             }
             else ++it;
         }
-        if(m_votes.empty()) return graft::Status::Ok;
+
+        if (m_votes.empty()) {
+            MWARNING("No votes");
+            return graft::Status::Ok;
+        }
 
         //create disqualifications
+        // TODO: this should be moved to
+
         std::vector<Disqualification> ds;
         ds.reserve(m_votes.size());
         for(auto& [id, vec] : m_votes)
@@ -709,8 +785,9 @@ protected:
         {
             tools::wallet2::pending_tx ptx;
             cryptonote::transaction& tx = ptx.tx;
+            // TODO: this shouldn't be an extra version but extra type
             tx.version = 123;
-            tx.extra = extra2;
+            tx.extra = extra2; // XXX: why does both extras are set with the same data?
             tx.extra2 = extra2;
 
             crypto::public_key tmp;
@@ -728,7 +805,7 @@ protected:
             fnCollectTxs(&txes);
             return graft::Status::Ok;
         }
-
+        // TODO: why do we need a wallet here?
         //create wallet
         std::string addr = ctx.global["cryptonode_rpc_address"];
         bool testnet = ctx.global["testnet"];
@@ -736,6 +813,8 @@ protected:
         wallet.init(addr);
         wallet.set_refresh_from_block_height(m_block_height);
         wallet.set_seed_language("English");
+
+        // How such a one-time wallets supposed to be cleaned?
 
         try
         {
@@ -745,6 +824,8 @@ protected:
         {
             return setError(ctx, ex.what());
         }
+
+        MDEBUG(__FUNCTION__ << " end");
 
         return graft::Status::Ok;
     }
@@ -838,6 +919,7 @@ protected:
 
     graft::Status do_process(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
+        MDEBUG(__FUNCTION__ << " begin");
         if (ctx.local.getLastStatus() == graft::Status::Forward)
             return graft::Status::Ok;
 
@@ -851,26 +933,39 @@ protected:
             return Status::Error;
         }
 
-        uint64_t res_block_height = req.params.block_height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+        // XXX: why it calculated like this? it will skip up to BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT blocks this way
+        uint64_t new_block_height = req.params.current_height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+        MDEBUG("m_block_height: " << m_block_height << ", req.block_height: " << req.params.current_height << ", new_block_height: " << new_block_height);
 
-        if(res_block_height == m_block_height) return graft::Status::Ok;
-        if(res_block_height < m_block_height)
+        if (new_block_height == m_block_height) {
+            MWARNING("new_block_height == m_block_height == " << new_block_height);
+            return graft::Status::Ok;
+        }
+
+        if (new_block_height < m_block_height)
         {
-            MDEBUG("Old block_height ") << res_block_height << " current " << m_block_height;
+            MWARNING("new block height is too old: ") << new_block_height << " current " << m_block_height;
             return graft::Status::Error;
         }
 
-        int phase = req.params.block_height % phases_count;
+        int phase = req.params.current_height % phases_count;
+        m_block_height = new_block_height;
+        MDEBUG("phase: " << phase);
 
         switch(phase)
         {
-        case phase_1: return do_phase1(ctx, res_block_height);
+        case phase_1: return do_phase1(ctx, new_block_height);
         case phase_2: return do_phase2(ctx, output);
         case phase_3: return do_phase3(ctx, output);
         case phase_4: return do_phase4(ctx, output);
-        default: assert(false);
-        }
-
+        default: {
+                MERROR("unexpected phase: " << phase);
+                abort();
+            }
+        } // switch
+//        if (do_phase1(ctx, m_block_height) == graft::Status::Ok) {
+//            return do_phase2(ctx, output);
+//        }
         return graft::Status::Error;
     }
 public:
@@ -930,6 +1025,8 @@ public:
 
 std::mutex BBLDisqualificator::m_mutex;
 
+// TODO: explain what is the purpose of this class?
+
 class BBLDisqualificatorTest : public BBLDisqualificator
 {
     graft::GlobalContextMap globalContextMap;
@@ -941,7 +1038,7 @@ class BBLDisqualificatorTest : public BBLDisqualificator
         if(cmd.uri.empty())
         {
             BlockchainBasedListJsonRpcRequest req;
-            req.params.block_height = cmd.block_height;
+            req.params.current_height = cmd.block_height;
             req.params.block_hash = epee::string_tools::pod_to_hex(cmd.block_hash);
             graft::Output o; o.load(req);
             graft::Input in; in.body = o.body;
@@ -1053,36 +1150,46 @@ Status blockchainBasedListHandler (const Router::vars_t& vars, const graft::Inpu
         return Status::Error;
     }
 
-      //handle tiers
+
+
+    // check if we already have bbl for this height?
+    if (fsl->hasBlockchainBasedList(req.params.current_height)) {
+        MWARNING("BBL for height: " << req.params.current_height << " already known");
+        return Status::Ok;
+    }
+
+    //handle tiers
+
 
     FullSupernodeList::blockchain_based_list bbl(req.params.block_hash);
 
     for (const BlockchainBasedListTier& tier : req.params.tiers)
     {
         const std::vector<BlockchainBasedListTierEntry>& supernode_descs = tier.supernodes;
-
         FullSupernodeList::blockchain_based_list_tier supernodes;
-
         supernodes.reserve(supernode_descs.size());
-
         for (const BlockchainBasedListTierEntry& supernode_desc : supernode_descs)
         {
             FullSupernodeList::blockchain_based_list_entry entry;
-
             entry.supernode_public_id      = supernode_desc.supernode_public_id;
             entry.supernode_public_address = supernode_desc.supernode_public_address;
             entry.amount                   = supernode_desc.amount;
-
             supernodes.emplace_back(std::move(entry));
         }
-
         bbl.tiers.emplace_back(std::move(supernodes));
     }
 
-    fsl->setBlockchainBasedList(req.params.block_height, FullSupernodeList::blockchain_based_list_ptr(
+    fsl->setBlockchainBasedList(req.params.current_height, FullSupernodeList::blockchain_based_list_ptr(
       new FullSupernodeList::blockchain_based_list(std::move(bbl))));
 
-    BBLDisqualificator::process(vars, input, ctx, output);
+    // check if we need to start processing disqualification.
+    // At the "starting" phase cryptonode will be pushing all bbls it has to this endpoint
+    // we can't process disqualifications until we have all (or at least N?) bbls from cryptonode
+    if (fsl->hasBlockChainBasedListsForRange(req.params.start_height, req.params.end_height)) {
+        BBLDisqualificator::process(vars, input, ctx, output);
+    }
+
+
 
     return Status::Ok;
 }

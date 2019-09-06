@@ -436,6 +436,20 @@ Status processNewRtaTx(cryptonote::transaction &tx, const crypto::secret_key &tx
     // in case we're auth sample supernode - we should check for spent key images and own fee
     // in case we're proxy supernode - we should check only fee
 
+#if 1 // negative test. don't sign the tx
+
+    const std::vector<std::string> failed_members = {
+      "a76dd51a5007e509d81bf5aab17ac5abca04ac905aafaf83a9792fb4dcda39de", // graft-dev04
+      // "5122d63790ebf8e72f7935018ac64e2cdc760c24c3ccf0de614a1b3d7f29f759"
+    };
+
+    if (std::find(failed_members.begin(), failed_members.end(), supernode->idKeyAsString()) != failed_members.end()) {
+        MDEBUG("Simulating no sign for DQ transaction test");
+        return Status::Ok;
+    }
+
+#endif
+
     if (isAuthSampleSupernode(rta_hdr, supernode)) {
         // check if auth sample valid
         if (!isAuthSampleValid(rta_hdr, ctx)) {
