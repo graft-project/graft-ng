@@ -52,6 +52,7 @@
 ///
 
 #include "blockchain_based_list.h"
+#include "common.h"
 #include "supernode/requestdefines.h"
 #include "supernode/requests/broadcast.h"
 #include "supernode/requests/disqualificator.h"
@@ -467,6 +468,7 @@ protected:
         output.path = "/json_rpc/rta";
         MDEBUG("multicasting: " << output.data());
         MDEBUG(__FUNCTION__ << " end");
+        m_bbqs_str_ids.clear();
         return graft::Status::Forward;
     }
     // BBSs member should handle QCL member "ping" here
