@@ -54,6 +54,9 @@
 // internal endpoints
 #include "requests/send_raw_tx.h"
 
+// dq endpoints
+#include "requests/blockchain_based_list.h"
+#include "requests/auth_sample_disqualificator.h"
 
 #include <rta/supernode.h>
 #include <rta/fullsupernodelist.h>
@@ -72,6 +75,10 @@ class RtaGraftlet: public IGraftlet
 public:
     RtaGraftlet(const char* name)
       : IGraftlet(name) { }
+
+private:
+    static const size_t CRYPTONODE_SYNCHRONIZATION_PERIOD_MS = 1000;
+
 
 protected:
     virtual void initOnce(const graft::CommonOpts& opts, graft::Context& ctx) override
@@ -98,6 +105,15 @@ protected:
         REGISTER_ENDPOINT("/dapi/v2.0/core/authorize_rta_tx_response", METHOD_POST, RtaGraftlet, handleAuthorizeRtaTxResponse);
         REGISTER_ENDPOINT("/cryptonode/sendrawtx", METHOD_POST, RtaGraftlet, handleSendRawTx);
 
+        // BBL based DQ endpoints:
+        REGISTER_ENDPOINT("/dapi/v2.0/blockchain_based_list", METHOD_POST, RtaGraftlet, handleBlockchainBasedList);
+        REGISTER_ENDPOINT("/dapi/v2.0/supernode/disqualify/ping_result", METHOD_POST, RtaGraftlet, handleQCLPingResult);
+        REGISTER_ENDPOINT("/dapi/v2.0/supernode/disqualify/votes", METHOD_POST, RtaGraftlet, handleDQVotesV1);
+        // Auth Sample Based DQ enpoints
+        REGISTER_ENDPOINT("/dapi/v2.0/supernode/disqualify2/votes", METHOD_POST, RtaGraftlet, handleDQVotesV2);
+
+        // periodic tasks
+        REGISTER_PERIODIC(RtaGraftlet, syncWithCryptonode, CRYPTONODE_SYNCHRONIZATION_PERIOD_MS, CRYPTONODE_SYNCHRONIZATION_PERIOD_MS, 0);
     }
 
 private:
@@ -263,9 +279,47 @@ private:
         return graft::supernode::request::sendRawTxHandler(vars, input, ctx, output);
     }
 
+    Status handleBlockchainBasedList(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::blockchainBasedListHandler(vars, input, ctx, output);
+    }
+
+    Status handleQCLPingResult(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::pingResultHandler(vars, input, ctx, output);
+    }
 
 
+    Status handleDQVotesV1(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::votesHandlerV1(vars, input, ctx, output);
+    }
 
+    Status handleDQVotesV2(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        return graft::supernode::request::votesHandlerV2(vars, input, ctx, output);
+    }
+
+    // perioic sync with cryptonode
+    Status syncWithCryptonode(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+    {
+        graft::SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
+
+        if (!supernode.get()) {
+            LOG_ERROR("supernode is not set in global context");
+            return graft::Status::Error;
+        }
+
+        // FSL is a MUST
+        FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr(nullptr));
+        if (!fsl.get()) {
+            LOG_ERROR("FullSupernodeList is not set in global context");
+            return graft::Status::Error;
+        }
+
+        fsl->synchronizeWithCryptonode(supernode->networkAddress().c_str(), supernode->idKeyAsString().c_str());
+        return graft::Status::Ok;
+    }
 
 };
 

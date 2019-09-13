@@ -51,7 +51,7 @@
 /// a handler that validates and collects DLs (if SN is in BBQS) [n+2..n+4).
 ///
 
-#include "supernode/requests/blockchain_based_list.h"
+#include "blockchain_based_list.h"
 #include "supernode/requestdefines.h"
 #include "supernode/requests/broadcast.h"
 #include "supernode/requests/disqualificator.h"
@@ -1123,10 +1123,7 @@ void BBLDisqualificatorBase::clear_errors()
 
 namespace graft::supernode::request {
 
-namespace
-{
-
-Status blockchainBasedListHandler (const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+Status blockchainBasedListHandler (const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output) noexcept
 {
     LOG_PRINT_L1(PATH << " called with payload: " << input.data());
 
@@ -1194,22 +1191,32 @@ Status blockchainBasedListHandler (const Router::vars_t& vars, const graft::Inpu
     return Status::Ok;
 }
 
-}
-
-void registerBlockchainBasedListRequest(graft::Router &router)
+Status pingResultHandler (const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
-    Router::Handler3 h3(nullptr, blockchainBasedListHandler, nullptr);
+    return BBLDisqualificator::phase2Handler(vars, input, ctx, output);
+}
 
-    router.addRoute(PATH, METHOD_POST, h3);
-
-    LOG_PRINT_L0("route " << PATH << " registered");
-
-    router.addRoute(BBLDisqualificator::ROUTE_PING_RESULT, METHOD_POST, {nullptr, BBLDisqualificator::phase2Handler , nullptr});
-    router.addRoute(BBLDisqualificator::ROUTE_VOTES, METHOD_POST, {nullptr, BBLDisqualificator::phase3Handler , nullptr});
-
-#if(tst)
-    router.addRoute("/disqualTest", METHOD_GET | METHOD_POST, {nullptr, BBLDisqualificator::testHandler , nullptr});
-#endif
+Status votesHandlerV1 (const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
+{
+    return BBLDisqualificator::phase3Handler(vars, input, ctx, output);
 }
 
 }
+
+//void registerBlockchainBasedListRequest(graft::Router &router)
+//{
+//    Router::Handler3 h3(nullptr, blockchainBasedListHandler, nullptr);
+
+//    router.addRoute(PATH, METHOD_POST, h3);
+
+//    LOG_PRINT_L0("route " << PATH << " registered");
+
+//    router.addRoute(BBLDisqualificator::ROUTE_PING_RESULT, METHOD_POST, {nullptr, BBLDisqualificator::phase2Handler , nullptr});
+//    router.addRoute(BBLDisqualificator::ROUTE_VOTES, METHOD_POST, {nullptr, BBLDisqualificator::phase3Handler , nullptr});
+
+//#if(tst)
+//    router.addRoute("/disqualTest", METHOD_GET | METHOD_POST, {nullptr, BBLDisqualificator::testHandler , nullptr});
+//#endif
+//}
+
+

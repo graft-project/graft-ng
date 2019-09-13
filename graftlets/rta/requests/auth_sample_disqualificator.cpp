@@ -26,7 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "supernode/requests/auth_sample_disqualificator.h"
+#include "auth_sample_disqualificator.h"
 #include "supernode/requests/disqualificator.h"
 #include "rta/fullsupernodelist.h"
 #include "supernode/requests/broadcast.h"
@@ -501,6 +501,9 @@ void registerAuthSDisqualificatorRequest(graft::Router &router)
     router.addRoute(AuthSDisqualificatorImpl::ROUTE_VOTES, METHOD_POST, {nullptr, AuthSDisqualificatorImpl::staticHandleVotes , nullptr});
 }
 
+
+
+
 namespace
 {
 
@@ -633,6 +636,11 @@ void BBLDisqualificatorBase::waitForTestAuthSDisqualificator()
         th.join();
     }
     AuthSDisqualificatorTest::m_threads.clear();
+}
+
+Status votesHandlerV2(const graft::Router::vars_t &vars, const Input &input, Context &ctx, Output &output)
+{
+    return AuthSDisqualificatorImpl::staticHandleVotes(vars, input, ctx, output);
 }
 
 } //namespace graft::supernode::request

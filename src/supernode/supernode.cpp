@@ -125,25 +125,7 @@ void Supernode::prepareSupernode()
 {
     // create data directory if not exists
     boost::filesystem::path data_path(m_configEx.common.data_dir);
-    boost::filesystem::path stake_wallet_path = data_path / "stake-wallet";
-    boost::filesystem::path watchonly_wallets_path = data_path / "watch-only-wallets";
 
-    if (!boost::filesystem::exists(data_path)) {
-        boost::system::error_code ec;
-        if (!boost::filesystem::create_directories(data_path, ec)) {
-            throw std::runtime_error(ec.message());
-        }
-
-        if (!boost::filesystem::create_directories(stake_wallet_path, ec)) {
-            throw std::runtime_error(ec.message());
-        }
-
-        if (!boost::filesystem::create_directories(watchonly_wallets_path, ec)) {
-            throw std::runtime_error(ec.message());
-        }
-    }
-
-    m_configEx.watchonly_wallets_path = watchonly_wallets_path.string();
 
     MINFO("data path: " << data_path.string());
     Context ctx(getLooper().getGcm());
@@ -166,10 +148,6 @@ void Supernode::initMisc(ConfigOpts& configOpts)
     prepareSupernode();
     startSupernodePeriodicTasks();
 
-    std::chrono::milliseconds duration( 5000 );
-    auto deferred_task = [duration, this] () { std::this_thread::sleep_for(duration); this->loadStakeWallets(); };
-    std::thread t(deferred_task);
-    t.detach();
 }
 
 void Supernode::startSupernodePeriodicTasks()
@@ -210,35 +188,6 @@ void Supernode::startSupernodePeriodicTasks()
 
 #endif
     }
-
-    // sync with cryptonode
-
-    auto handler = [](const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)->graft::Status
-    {
-        graft::SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, graft::SupernodePtr(nullptr));
-
-        if (!supernode.get()) {
-            LOG_ERROR("supernode is not set in global context");
-            return graft::Status::Error;
-        }
-
-        // FSL is a MUST
-        FullSupernodeListPtr fsl = ctx.global.get(CONTEXT_KEY_FULLSUPERNODELIST, FullSupernodeListPtr(nullptr));
-        if (!fsl.get()) {
-            LOG_ERROR("supernode is not set in global context");
-            return graft::Status::Error;
-        }
-
-        fsl->synchronizeWithCryptonode(supernode->networkAddress().c_str(), supernode->idKeyAsString().c_str());
-        return graft::Status::Ok;
-    };
-
-    static const size_t CRYPTONODE_SYNCHRONIZATION_PERIOD_MS = 1000;
-
-    getConnectionBase().getLooper().addPeriodicTask(
-                graft::Router::Handler3(nullptr, handler, nullptr),
-                std::chrono::milliseconds(CRYPTONODE_SYNCHRONIZATION_PERIOD_MS)
-                );
 }
 
 void Supernode::setHttpRouters(ConnectionManager& httpcm)

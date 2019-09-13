@@ -45,6 +45,9 @@ add_library(graftlet_rta SHARED
     requests/approvepaymentrequest.cpp
     requests/send_raw_tx.cpp
     requests/posrejectpaymentrequest.cpp
+    requests/auth_sample_disqualificator.cpp
+    requests/blockchain_based_list.cpp
+
 )
 set_target_properties(graftlet_walletAddress PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/supernode
@@ -52,6 +55,9 @@ set_target_properties(graftlet_walletAddress PROPERTIES
 
 target_link_libraries(graftlet_rta PRIVATE
     utils
+    -lboost_serialization # TODO: failed to build in case static link
+    ${CRYPTONODE_LIBS}
 )
+
 
 add_dependencies(graftlet_rta cryptonode)

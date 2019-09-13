@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include "lib/graft/router.h"
 #include "lib/graft/inout.h"
 #include "lib/graft/context.h"
 
@@ -55,5 +56,7 @@ public:
     //it fills output with multicast request and returns Forward. call it even if ids empty, it will clear the context and return Ok
     static graft::Status startDisqualify(graft::Context& ctx, const std::string& payment_id, uint64_t block_height, const Ids& ids, graft::Output& output);
 };
+
+Status votesHandlerV2(const graft::Router::vars_t &vars, const Input &input, Context &ctx, Output &output);
 
 } //namespace graft::supernode::request

@@ -320,13 +320,11 @@ add_dependencies(requests_common graft cryptonode)
 add_library(supernode_common STATIC
     ${PROJECT_SOURCE_DIR}/src/supernode/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/auth_sample_disqualificator.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/forward.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/get_info.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_supernode_stakes.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/send_transfer.cpp
-    ${PROJECT_SOURCE_DIR}/src/supernode/requests/blockchain_based_list.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/redirect.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/DaemonRpcClient.cpp
     ${PROJECT_SOURCE_DIR}/src/rta/fullsupernodelist.cpp
@@ -528,6 +526,10 @@ if (OPT_BUILD_TESTS)
             ${PROJECT_SOURCE_DIR}/test/disqualification_test.cpp
             ${PROJECT_SOURCE_DIR}/test/serialize_test.cpp
             ${PROJECT_SOURCE_DIR}/test/main.cpp
+	    # TODO: fix multiple compilation (organize as static lib?)
+	    ${PROJECT_SOURCE_DIR}/graftlets/rta/requests/blockchain_based_list.cpp
+	    ${PROJECT_SOURCE_DIR}/graftlets/rta/requests/auth_sample_disqualificator.cpp
+
         )
 
         target_include_directories(supernode_test PRIVATE

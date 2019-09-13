@@ -31,6 +31,11 @@ GRAFT_DEFINE_IO_STRUCT_INITED(BlockchainBasedListResponse,
 GRAFT_DEFINE_JSON_RPC_REQUEST(BlockchainBasedListJsonRpcRequest, BlockchainBasedList);
 GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(BlockchainBasedListJsonRpcResponse, BlockchainBasedListResponse);
 
-void registerBlockchainBasedListRequest(graft::Router &router);
 
-}
+Status blockchainBasedListHandler(const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output) noexcept;
+Status pingResultHandler (const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
+Status votesHandlerV1 (const Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);
+
+} // namespace
+
+
