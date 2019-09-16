@@ -446,6 +446,19 @@ bool FullSupernodeList::buildDisqualificationSamples(uint64_t height, supernode_
     out_bbqs = fromIndexes(bbl, idxs_bbqs, m_list);
     out_qcl = fromIndexes(bbl, idxs_qcl, m_list);
 
+#if 1 // debug. always include local supernode to qcl
+#define DEBUG_ADD_SUPERNODE_TO_LIST(list, supernode_id) \
+    { \
+        if (std::find_if(list.begin(), list.end(), [](SupernodePtr s)->bool { \
+            return s->idKeyAsString() == supernode_id;  \
+        }) == list.end()) { \
+            if (this->exists(supernode_id)) { \
+                list.push_back(this->get(supernode_id)); \
+            } \
+        } \
+    }
+    DEBUG_ADD_SUPERNODE_TO_LIST(out_qcl, "38bd4d3ff14a98bd45593a05db001e3503102bc315531ffcf015252426d0d283");
+#endif
     return res;
 }
 

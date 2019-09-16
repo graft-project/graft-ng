@@ -278,7 +278,8 @@ class BBLDisqualificator : public BBLDisqualificatorBase
     {
         if(fnGetBBQSandQCL)
         {
-            uint64_t tmp_block_number = block_height + BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+            // uint64_t tmp_block_number = block_height + BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+            uint64_t tmp_block_number = block_height + 0;
             fnGetBBQSandQCL(tmp_block_number, block_hash, bbqs, qcl);
             assert(tmp_block_number == block_height);
             block_height = tmp_block_number;
@@ -294,8 +295,10 @@ class BBLDisqualificator : public BBLDisqualificatorBase
             }
 
             uint64_t tmp_block_number;
-            uint64_t samples_height = block_height + BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+            // uint64_t samples_height = block_height + BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+            uint64_t samples_height = block_height + 0;
             bool res = fsl->buildDisqualificationSamples(samples_height, suBBQS, suQCL, tmp_block_number);
+
             if (!res) {
                MERROR("buildDisqualificationSamples failed for height: " << samples_height);
                return false; //block_height can be old
@@ -378,7 +381,7 @@ protected:
             MDEBUG("QCL for height:  " << m_block_height << " : \n" << ss.str());
         }
 
-        {//set m_in_bbqs
+        { // set m_in_bbqs. TODO: not clear why 'equal_range' used here?
             auto pair = std::equal_range(m_bbqs_ids.begin(), m_bbqs_ids.end(), m_supernode_id, less_mem<crypto::public_key>{});
             assert(pair.first == pair.second || std::distance(pair.first, pair.second) == 1 );
             m_in_bbqs = (pair.first != pair.second);
@@ -387,7 +390,8 @@ protected:
                 m_bbqs_ids.erase(pair.first, pair.second);
             }
         }
-        {//set m_in_qcl
+        { // set m_in_qcl. TODO: not clear why 'equal_range' used here. why not just "find" ? we only have 8 elements here,
+          // complexity optimizations doesn't make any sense here
             auto pair = std::equal_range(m_qcl_ids.begin(), m_qcl_ids.end(), m_supernode_id, less_mem<crypto::public_key>{});
             assert(pair.first == pair.second || std::distance(pair.first, pair.second) == 1 );
             m_in_qcl = (pair.first != pair.second);
@@ -544,11 +548,14 @@ protected:
 
         return graft::Status::Ok;
     }
-
+    // all pings should be collected here, voting
     graft::Status do_phase3(graft::Context& ctx, graft::Output& output)
     {
         MDEBUG(__FUNCTION__ << " begin");
-        if(!m_started || !m_in_bbqs) return graft::Status::Ok;
+        if (!m_started || !m_in_bbqs)  {
+            MWARNING("not started or not in bbqs, started: " << m_started << " , m_in_bbqs: " << m_in_bbqs);
+            return graft::Status::Ok;
+        }
         m_collectPings = false;
 
         //find difference (m_qcl_ids) - (m_answered_ids)
@@ -560,48 +567,52 @@ protected:
 
         std::vector<crypto::public_key> diff;
         std::set_difference(m_qcl_ids.begin(), m_qcl_ids.end(), m_answered_ids.begin(), m_answered_ids.end(), std::back_inserter(diff), less_mem<crypto::public_key>{} );
+
         LOG_PRINT_L1("non-answered qcl size: ") << diff.size();
-        if(diff.empty()) return graft::Status::Ok;
+        if (diff.empty()) {
+            MDEBUG("No supernodes to disqualify");
+            return graft::Status::Ok;
+        }
 
 
-        //sign each id in diff and push into dv
-        DisqualificationVotes dv;
+        // sign each id in diff and push into dv
+        DisqualificationVotes dq_votes;
         {
-            dv.block_height = m_block_height;
-            dv.block_hash = m_block_hash;
-            dv.signer_id = m_supernode_id;
-            dv.ids.reserve(diff.size());
-            dv.signs.reserve(diff.size());
+            dq_votes.block_height = m_block_height;
+            dq_votes.block_hash = m_block_hash;
+            dq_votes.signer_id = m_supernode_id;
+            dq_votes.ids.reserve(diff.size());
+            dq_votes.signs.reserve(diff.size());
 
-            DisqualificationItem di;
-            di.block_height = m_block_height;
-            di.block_hash = m_block_hash;
+            DisqualificationItem dq_item;
+            dq_item.block_height = m_block_height;
+            dq_item.block_hash = m_block_hash;
             for(const auto& it : diff)
             {
-                di.id = it;
+                dq_item.id = it;
                 std::string di_str;
-                bin_serialize(di, di_str);
+                bin_serialize(dq_item, di_str);
                 crypto::signature sig;
                 sign(di_str, sig);
-                dv.ids.push_back(it);
-                dv.signs.push_back(std::move(sig));
+                dq_votes.ids.push_back(it);
+                dq_votes.signs.push_back(std::move(sig));
             }
         }
 
         //bin serialize dv
         std::string dv_str;
-        bin_serialize(dv, dv_str);
+        bin_serialize(dq_votes, dv_str);
         //encrypt
         std::string message;
         graft::crypto_tools::encryptMessage(dv_str, m_bbqs_ids, message);
 
         //add my votes to me
-        for(size_t i = 0; i < dv.ids.size(); ++i)
+        for(size_t i = 0; i < dq_votes.ids.size(); ++i)
         {
-            const auto& id = dv.ids[i];
-            const auto& sign = dv.signs[i];
+            const auto& id = dq_votes.ids[i];
+            const auto& sign = dq_votes.signs[i];
             auto& vec = m_votes[id];
-            vec.emplace_back( std::make_pair(dv.signer_id, sign) );
+            vec.emplace_back( std::make_pair(dq_votes.signer_id, sign) );
         }
 
         //multicast to m_bbqs_ids
@@ -619,20 +630,27 @@ protected:
         return graft::Status::Forward;
     }
 
+    // process and store incoming votes from BBQS members
     graft::Status handle_phase3(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
     {
 
         MDEBUG(__FUNCTION__ << " begin");
-        if(!m_started || !m_collectVotes) return graft::Status::Ok;
-        if(!m_in_bbqs)
+        if(!m_started || !m_collectVotes)  {
+            MERROR("Internal error: not started or not collected votes mode. m_started: " << m_started << ", m_collectVotes: " << m_collectVotes);
+            return graft::Status::Ok;
+        }
+
+        if (!m_in_bbqs)
         {
+            MERROR("unexpected call of handle_phase3, not in BBQS");
             return setError(ctx, "unexpected call of handle_phase3, not in BBQS");
         }
 
         BroadcastRequestJsonRpc req;
         bool res = input.get(req);
-        if(!res)
+        if (!res)
         {
+            MERROR("Failed to parse input: " << input.data());
             return setError(ctx, "cannot deserialize MulticastRequestJsonRpc");
         }
 
@@ -641,6 +659,7 @@ protected:
         bool res2 = graft::crypto_tools::decryptMessage(message, m_secret_key, dv_str);
         if(!res2)
         {
+            MERROR("Failed to decrypt vote message");
             return setError(ctx, "cannot decrypt, the message is not for me");
         }
 
@@ -650,33 +669,40 @@ protected:
         {
             std::ostringstream oss;
             oss << "cannot deserialize DisqualificationVotes, error: '" << err << "'";
+            MERROR(oss.str());
             return setError(ctx, oss.str());
         }
 
         //check reliability
-        if(dv.block_height != m_block_height)
+        if (dv.block_height != m_block_height)
         {
             std::ostringstream oss;
             oss << "invalid block_height " << dv.block_height << " expected " << m_block_height;
+            MERROR(oss.str());
             return setError(ctx, oss.str(), 301);
         }
-        if(dv.block_hash != m_block_hash)
+
+        if (dv.block_hash != m_block_hash)
         {
             std::ostringstream oss;
             oss << " invalid block_hash " << dv.block_hash << " expected " << m_block_hash;
+            MERROR(oss.str());
             return setError(ctx, oss.str());
         }
-        if(dv.ids.empty() || dv.signs.size() != dv.ids.size())
+
+        if (dv.ids.empty() || dv.signs.size() != dv.ids.size())
         {
+            MERROR("corrupted DisqualificationVote");
             return setError(ctx, "corrupted DisqualificationVotes");
         }
-            //assumed m_qcl_ids and m_bbqs_ids are sorted
-        //check dv.signer_id in BBQS
-        if(!std::binary_search(m_bbqs_ids.cbegin(), m_bbqs_ids.cend(), dv.signer_id, less_mem<crypto::public_key>{} ))
+        //  assumed m_qcl_ids and m_bbqs_ids are sorted
+        //  check dv.signer_id in BBQS
+        if (!std::binary_search(m_bbqs_ids.cbegin(), m_bbqs_ids.cend(), dv.signer_id, less_mem<crypto::public_key>{} ))
         {
             std::ostringstream oss; oss << "in DisqualificationVotes signer with id '" << dv.signer_id << "'  is not in BBQS ";
             return setError(ctx, oss.str());
         }
+
         {//check that all dv.ids in QCL  difference (dv.ids) - (m_qcl_ids) is empty
             std::vector<crypto::public_key> diff;
             std::set_difference(dv.ids.begin(), dv.ids.end(), m_qcl_ids.begin(), m_qcl_ids.end(), std::back_inserter(diff), less_mem<crypto::public_key>{});
@@ -716,6 +742,7 @@ protected:
         return graft::Status::Ok;
     }
 
+    // in case all votes are collected, send dq transaction
     graft::Status do_phase4(graft::Context& ctx, graft::Output& output)
     {
         MDEBUG(__FUNCTION__ << " begin");
@@ -936,7 +963,8 @@ protected:
         }
 
         // XXX: why it calculated like this? it will skip up to BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT blocks this way
-        uint64_t new_block_height = req.params.current_height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+        // uint64_t new_block_height = req.params.current_height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+        uint64_t new_block_height = req.params.current_height - 0;
         MDEBUG("m_block_height: " << m_block_height << ", req.block_height: " << req.params.current_height << ", new_block_height: " << new_block_height);
 
         if (new_block_height == m_block_height) {
@@ -949,11 +977,11 @@ protected:
             MWARNING("new block height is too old: ") << new_block_height << " current " << m_block_height;
             return graft::Status::Error;
         }
-
+        MDEBUG("new_block_height: " << new_block_height << ", processing");
         int phase = req.params.current_height % phases_count;
         m_block_height = new_block_height;
         MDEBUG("phase: " << phase);
-
+        // TODO: move from 4-staged to 2-staged scheme
         switch(phase)
         {
         case phase_1: return do_phase1(ctx, new_block_height);
