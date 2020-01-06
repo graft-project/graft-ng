@@ -414,7 +414,7 @@ graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const
                 const crypto::public_key& my_pubID = ctx.global["my_pubID"];
                 my_pubIDstr = epee::string_tools::pod_to_hex(my_pubID);
             }
-            LOG_PRINT_L0("my_pubIDstr ") << my_pubIDstr;
+            LOG_PRINT_L0("my_pubIDstr " << my_pubIDstr);
 #if tst
             {
                 Id2IpShared map = ctx.global["ID:IP:port map"];
@@ -527,7 +527,7 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
 
             BroadcastRequestJsonRpc ireq;
             input.get(ireq);
-            MDEBUG("redirect_supernode_id from '") << input.host << ":" << input.port << "' : " << ireq.params.data;
+            MDEBUG("redirect_supernode_id from '" << input.host << ":" << input.port << "' : " << ireq.params.data);
 
             std::string ID_ip_port;
             {
@@ -555,14 +555,14 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
                 }
             }
 
-            MDEBUG(" ID:IP:port decrypted. ") << ID_ip_port;
+            MDEBUG(" ID:IP:port decrypted. " << ID_ip_port);
 
             std::string ID, ip_port;
             {
                 size_t pos = ID_ip_port.find(':');
                 if(pos == std::string::npos)
                 {
-                    LOG_ERROR("Invalid format ID:IP:port expected in '") << ID_ip_port << "'";
+                    LOG_ERROR("Invalid format ID:IP:port expected in '" << ID_ip_port << "'");
                     return graft::Status::Error;
                 }
                 ID = ID_ip_port.substr(0,pos);
@@ -636,7 +636,7 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
     case graft::Status::Ok:
     case graft::Status::None:
     {
-        LOG_PRINT_L0("onRedirectBroadcast : ") << input.body;
+        LOG_PRINT_L0("onRedirectBroadcast : " << input.body);
         RedirectBroadcastJsonRpc req;
         bool res = input.get(req);
         assert(res);
@@ -654,7 +654,7 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
 
         if(!ok)
         {
-            LOG_ERROR("Cannot find supernode IP:port to redirect by ID:'") << req.params.receiver_id << "'";
+            LOG_ERROR("Cannot find supernode IP:port to redirect by ID:'" << req.params.receiver_id << "'");
             return graft::Status::Error;
         }
 
@@ -680,8 +680,8 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
 
         output.path = "dapi/v2.0" + req.params.request.callback_uri;
 
-        MDEBUG("Redirect broadcast for supernode id '") << req.params.receiver_id << "' uri:'"
-            << output.host << ":" << output.port << "/" << output.path;
+        MDEBUG("Redirect broadcast for supernode id '" << req.params.receiver_id << "' uri:'"
+            << output.host << ":" << output.port << "/" << output.path);
 #if tst
         {
             assert(!tst_myIDstr.empty());

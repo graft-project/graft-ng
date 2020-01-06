@@ -42,6 +42,9 @@
 #include <utils/utils.h>
 #include <misc_log_ex.h>
 #include <syncobj.h>
+
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <exception>
 
 

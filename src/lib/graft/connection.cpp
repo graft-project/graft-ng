@@ -510,7 +510,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
             {
                 conBase->getLooper().runtimeSysInfo().count_http_request_unrouted();
 
-                LOG_PRINT_CLN(3,client,"Duplicating hash found '") << std::ios::hex << xr << std::ios::dec << "'; closing connection";
+                LOG_PRINT_CLN(3,client,"Duplicating hash found '" << std::ios::hex << xr << std::ios::dec << "'; closing connection");
                 mg_http_send_error(client, 409, "duplicate request found");
                 client->flags |= MG_F_SEND_AND_CLOSE;
                 break;
