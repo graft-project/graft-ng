@@ -1,9 +1,29 @@
-# Graft Supernode (graft-ng)
+# Supernode (graft-ng)
 
-Supernodes represent the Proof-of-Stake Network layer for GRAFT Network.  
-Their main function is instant authorizations.  Instant authorizations are accomplished via supernode sample-based consensus. Supernodes get rewarded with part of the sale transaction fee for their work.  Supernodes also provide DAPI into GRAFT Network, supporting various transaction types including and most notably a "Sale" transaction compatible with the Point-of-Sale environments. 
+GRAFT Supernodes (SN) represent the second layer Proof-of-Stake Network layer for PoW-based privacy network based on Monero and CryptoNote protocol.  The usage of Monero/Cryptonote as the underlying settlement layer of the network is caused by the requirement to have privacy of the financial transactions ON by default "at rest" at the core of the network.
+
+Supernode's main function is instant authorizations to support the real-time nature of the point-of-sale grade payment network.  Instant authorizations are accomplished via supernode sample-based consensus. Supernodes get rewarded with part of the sale transaction fee for their work.  Supernodes also provide DAPI into GRAFT Network, supporting various transaction types including and most notably a "Sale" transaction compatible with the Point-of-Sale environments. 
 
 GRAFT Network itself is an attempt at building a payment network that functions similarly to other credit card networks with instant authorizations, merchant paid (greately reduced) transaction proportionate fees, multiple transaction types that are compatible with point-of-sale workflows, adaptable to regulatory environments and with unlimited TPS via decentralization.
+
+## High-level Roadmap
+
+1. RTA (real-time auhtorizations)
+2. DEX (exchange broker based decentralized exchange)
+3. Point of Sale integration
+
+## Current state of Development
+
+- First implementation of supernodes is live, on the mainnet, backed by the simulated RTA transactions
+- An improved DHT-based P2P supernode communication layer is implemented and is being tested on the testnet
+- RTA workflow is implemented and is undergoing refinements for double spend protection -> checkpointing is being implemented currently
+
+## Tokenomics
+
+Supernodes earn fees that represent % of the payment network transaction value (unlike other 2nd layer implementations, supernodes are not compensated from the block rewards)
+
+There are 4 tiers of supernodes, differentiated by staking amount - 50k, 90k, 150k, 250k.  A sample of 8 supernodes (2 from each layer) gets chosen from each layer for the *authorization sample*
+
 
 
 
