@@ -44,7 +44,7 @@ GRAFT_DEFINE_IO_STRUCT(UDHTInfoResponse,
 
 #endif //UDHT_INFO
 ///////
-
+// TODO: explain what is the purpose of this message?
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIds,
                               (std::string, id, std::string()),
                               (std::string, my_id, std::string())
