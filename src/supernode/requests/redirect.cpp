@@ -165,6 +165,9 @@ static const std::string CONTEXT_KEY_SUPERNODE_INITIALIZED("supernode_initialize
 static const std::string CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE("supernode_address_table"); // map of the public id -> network address
 static const std::string CONTEXT_KEY_RANDOM_SUPERNODES("random_supernodes"); // map of the public id -> network address
 
+static const std::string REGISTER_SUPERNODE_ENDPOINT("/cryptonode/register_supernode");
+
+
 using IdSet = std::vector<std::string>;
 
 using Id2Ip = std::map<std::string,std::string>;
@@ -317,10 +320,19 @@ std::vector<std::string> tst_IDs;
 std::string tst_myIDstr;
 #endif
 
-std::string prepareMyIpBroadcast(graft::Context& ctx)
+std::string buildNetworkAddressMsg(graft::Context& ctx)
 {
-    assert((bool)ctx.global[CONTEXT_KEY_SUPERNODE_INITIALIZED] == true);
+    assert(ctx.global[CONTEXT_KEY_SUPERNODE_INITIALIZED]);
+    
+    // XXX: Using plain text broadcasts for now
+    const crypto::public_key& public_id = ctx.global[CONTEXT_KEY_SUPERNODE_PUBKEY];
 
+    std::string id = epee::string_tools::pod_to_hex(public_id);
+    const std::string& external_address = ctx.global["external_address"];
+    std::string plain = id + ':' + external_address;
+    return plain;
+    
+#if 0
     using IdSet = std::vector<std::string>;
     IdSet allWithStake;
     //get sorted list of all supernodes with stake
@@ -408,6 +420,7 @@ std::string prepareMyIpBroadcast(graft::Context& ctx)
     }
 
     return message;
+#endif // #if 0    
 }
 
 } // namespace
@@ -422,7 +435,6 @@ graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const
         case graft::Status::None:
         {
             bool res = initializeIDs(ctx);
-
             std::string my_pubIDstr;
             if(ctx.global.hasKey(CONTEXT_KEY_SUPERNODE_PUBKEY))
             {
@@ -493,16 +505,17 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
                 return graft::Status::Stop;
             }
 
-            std::string message = prepareMyIpBroadcast(ctx);
+            std::string message = buildNetworkAddressMsg(ctx);
             if (message.empty())  {
                MWARNING("Failed to build address broadcast");
                return graft::Status::Ok;
-                
             }
 
             BroadcastRequestJsonRpc req;
             req.params.callback_uri = "/cryptonode/update_redirect_ids";
-            req.params.data = graft::utils::base64_encode(message);
+            // req.params.data = graft::utils::base64_encode(message);
+            // XXX: plain-text supenode address
+            req.params.data = message;
 
             req.method = "wide_broadcast";
             //TODO: do we need unique id?
@@ -551,7 +564,10 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
 
             std::string node_address_str; // TODO: rename as "node_address_str";
             {
-                std::string message = graft::utils::base64_decode(ireq.params.data);
+                // std::string message = graft::utils::base64_decode(ireq.params.data);
+                std::string message = ireq.params.data;
+                
+#if 0                
                 if(!ctx.global.hasKey(CONTEXT_KEY_SUPERNODE_SECKEY))
                 {
                     MWARNING("My secret key not found.");
@@ -573,9 +589,11 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
                     MDEBUG("The message is not for me.");
                     return graft::Status::Ok;
                 }
+#endif                 
+                node_address_str = message;
             }
 
-            MDEBUG(" node address decrypted. ") << node_address_str;
+            MDEBUG("node address decrypted. ") << node_address_str;
 
             std::string pubkey, network_address;
             {
@@ -667,29 +685,29 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
         bool res = input.get(req);
         assert(res);
 
-        std::string ID, ip_port;
+        std::string id, network_address;
         // find id and network address of the 
         bool ok = ctx.global.apply(CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE, std::function<bool(Id2IpShared&)>( [&](Id2IpShared& map)->bool
         {
             auto it = map->find(req.params.receiver_id);
             if(it == map->end()) return false;
-            ID = it->first;
-            ip_port = it->second;
+            id = it->first;
+            network_address = it->second;
             return true;
         }));
 
         if (!ok)
         {
-            LOG_ERROR("Cannot find supernode to redirect by ID:'") << req.params.receiver_id << "'";
+            MWARNING("Unknown ID: '") << req.params.receiver_id << "'";
             return graft::Status::Ok; 
         }
 
         {//set output.host, output.port
-            int pos = ip_port.find(':');
-            output.host = ip_port.substr(0, pos);
-            if(pos != std::string::npos) // TODO: isn't port always set?
+            size_t pos = network_address.find(':');
+            output.host = network_address.substr(0, pos);
+            if (pos != std::string::npos) // TODO: isn't port always set?
             {
-                output.port = ip_port.substr(pos+1);
+                output.port = network_address.substr(pos+1);
             }
         }
 
