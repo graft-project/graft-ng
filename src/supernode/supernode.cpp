@@ -93,9 +93,10 @@ bool Supernode::initConfigOption(int argc, const char** argv, ConfigOpts& config
             auto pos = m_configEx.http_address.find(':');
             if(pos != std::string::npos)
             {
-                external_address += ":" + m_configEx.http_address.substr(pos);
+                external_address += ":" + m_configEx.http_address.substr(pos + 1);
             }
             m_configEx.external_address = external_address;
+            MDEBUG("external_address: " << external_address);
         }
         else
         {//external-address or http-address
