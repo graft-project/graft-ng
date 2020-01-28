@@ -166,12 +166,13 @@ static const std::string CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE("supernode_address_
 static const std::string CONTEXT_KEY_RANDOM_SUPERNODES("random_supernodes"); // map of the public id -> network address
 
 static const std::string REGISTER_SUPERNODE_ENDPOINT("/cryptonode/register_supernode");
+static const std::string CRYPTONODE_UPDATE_RTA_ROUTE("/cryptonode/update_rta_route");
 
 
 using IdSet = std::vector<std::string>;
 
-using Id2Ip = std::map<std::string,std::string>;
-using Id2IpShared = std::shared_ptr<std::map<std::string,std::string>>;
+using ForwardTable = std::map<std::string, std::string>;
+using ForwardTablePtr = std::shared_ptr<ForwardTable>;
 
 // TODO: move it to FullSupernodeList 
 void getValidSupernodes(graft::Context& ctx, IdSet& result)
@@ -305,7 +306,7 @@ bool initializeIDs(graft::Context& ctx)
     ctx.global[CONTEXT_KEY_SUPERNODE_SECKEY] = secID;
     ctx.global[CONTEXT_KEY_SUPERNODE_PUBKEY] = pubID;
 
-    ctx.global[CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE] = std::make_shared<Id2Ip>();
+    ctx.global[CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE] = std::make_shared<ForwardTable>();
 
 #ifdef UDHT_INFO
     ctx.global["UdhtInfo"] = std::make_shared<UdhtInfo>();
@@ -330,9 +331,9 @@ std::string buildNetworkAddressMsg(graft::Context& ctx)
     std::string id = epee::string_tools::pod_to_hex(public_id);
     const std::string& external_address = ctx.global["external_address"];
     std::string plain = id + ':' + external_address;
-    return plain;
+    // return plain;
     
-#if 0
+#if 1
     using IdSet = std::vector<std::string>;
     IdSet allWithStake;
     //get sorted list of all supernodes with stake
@@ -388,13 +389,10 @@ std::string buildNetworkAddressMsg(graft::Context& ctx)
 
     fillSubsetFromAll(allWithStake, *selectedSupernodes, selectedCount);
 
-    if(selectedSupernodes->empty()) return std::string();
-
-    const crypto::public_key& pubID = ctx.global[CONTEXT_KEY_SUPERNODE_PUBKEY];
-
-    std::string ID = epee::string_tools::pod_to_hex(pubID);
-    const std::string& external_address = ctx.global["external_address"];
-    std::string plain = ID + ':' + external_address;
+    if (selectedSupernodes->empty()) {
+      MERROR("Failed to select random supernodes");
+      return std::string();
+    }
 
     //encrypt
     std::string message;
@@ -429,6 +427,8 @@ std::string buildNetworkAddressMsg(graft::Context& ctx)
 graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
         graft::Output& output)
 {
+    
+    // return graft::Status::Ok;
     try {
         switch (ctx.local.getLastStatus()) {
         case graft::Status::Ok:
@@ -490,8 +490,8 @@ graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const
     return graft::Status::Ok;
 }
 
-//sends encrypted message for random subset of supernodes with stake
-graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+// multicasts network address to the randomly selected subset of all known (valid) supernodes. 
+graft::Status periodicAnnounceNetworkAddress(const graft::Router::vars_t& /*vars*/, const graft::Input& /*input*/, graft::Context& ctx,
         graft::Output& output)
 {
     try {
@@ -501,7 +501,7 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
         {
             if(!initializeIDs(ctx))
             {
-                LOG_PRINT_L0("ID keys are not used. The supernode will not participate in IP redirection.");
+                MERROR("ID keys are not used. The supernode will not participate in message forwarding.");
                 return graft::Status::Stop;
             }
 
@@ -512,10 +512,10 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
             }
 
             BroadcastRequestJsonRpc req;
-            req.params.callback_uri = "/cryptonode/update_redirect_ids";
-            // req.params.data = graft::utils::base64_encode(message);
+            req.params.callback_uri = CRYPTONODE_UPDATE_RTA_ROUTE;
+            req.params.data = graft::utils::base64_encode(message);
             // XXX: plain-text supenode address
-            req.params.data = message;
+            // req.params.data = message;
 
             req.method = "wide_broadcast";
             //TODO: do we need unique id?
@@ -543,7 +543,16 @@ graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const
     return graft::Status::Ok;
 }
 
-graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+
+/**
+ * @brief onUpdateRtaRoute - updates RTA route path (id -> IP:PORT mapping)
+ * @param vars
+ * @param input
+ * @param ctx
+ * @param output
+ * @return 
+ */
+graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
         graft::Output& output)
 {
     graft::Status status = ctx.local.getLastStatus();
@@ -587,7 +596,7 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
                 if(!res1)
                 {
                     MDEBUG("The message is not for me.");
-                    return graft::Status::Ok;
+                    return sendOkResponseToCryptonode(output);
                 }
 #endif                 
                 node_address_str = message;
@@ -619,7 +628,7 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
                 return graft::Status::Ok;
             }
 
-            ctx.global.apply<Id2IpShared>(CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE, [&](Id2IpShared& map)->bool
+            ctx.global.apply<ForwardTablePtr>(CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE, [&](ForwardTablePtr& map)->bool
             {
                 map->emplace(pubkey, network_address);
                 return true;
@@ -632,15 +641,14 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
                 return true;
             });
 #endif //UDHT_INFO
-            // register ID of another supernode to redirect
-            // TODO: IK20200116 not clear what is it for
+            // 
+            // Inform connected cryptonode so it should forward (or redirects?) broadcast messages addressed to 'pubkey' to this supernode
+            // TODO: IK20200128: still not clear why don't store/maintain id -> network address mapping directly on cryptonode?
             SupernodeRedirectIdsJsonRpcRequest oreq;
             oreq.params.id = pubkey;
             oreq.params.my_id = my_pubIDstr;
-
-            oreq.method = "redirect_supernode_id";
+            oreq.method = "add_rta_route";
             oreq.id = 0;
-
             ctx.local["oreq"] = oreq;
             return graft::Status::Again;
         } break;
@@ -655,7 +663,7 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
         
         case graft::Status::Forward:
         {
-            return graft::Status::Ok;
+            return sendOkResponseToCryptonode(output);
         } break;
         default:
           MERROR("FIXME: Unhandled status: " << static_cast<size_t>(status));
@@ -671,7 +679,7 @@ graft::Status onUpdateRedirectIds(const graft::Router::vars_t& vars, const graft
     }
     return graft::Status::Ok;
 }
-
+// TODO: IK use 'forward' verb instead of 'redirect' ?
 graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
     
@@ -683,11 +691,14 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
         LOG_PRINT_L0("onRedirectBroadcast : ") << input.body;
         RedirectBroadcastJsonRpc req;
         bool res = input.get(req);
-        assert(res);
+        if (!res) {
+            MERROR("Failed to parse request: " << input.body);
+            return sendOkResponseToCryptonode(output);
+        }
 
         std::string id, network_address;
         // find id and network address of the 
-        bool ok = ctx.global.apply(CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE, std::function<bool(Id2IpShared&)>( [&](Id2IpShared& map)->bool
+        bool ok = ctx.global.apply(CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE, std::function<bool(ForwardTablePtr&)>( [&](ForwardTablePtr& map)->bool
         {
             auto it = map->find(req.params.receiver_id);
             if(it == map->end()) return false;
@@ -699,7 +710,7 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
         if (!ok)
         {
             MWARNING("Unknown ID: '") << req.params.receiver_id << "'";
-            return graft::Status::Ok; 
+            return sendOkResponseToCryptonode(output);
         }
 
         {//set output.host, output.port
@@ -745,7 +756,7 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
     }
     case graft::Status::Forward: // reply to cryptonode
     {
-        return graft::Status::Ok;
+        return sendOkResponseToCryptonode(output);
     }
     default: 
     {
@@ -906,9 +917,10 @@ graft::Status test_startBroadcast(const graft::Router::vars_t& vars, const graft
 
 void registerRedirectRequests(graft::Router &router)
 {
-    std::string endpoint = "/cryptonode/update_redirect_ids";
+    std::string endpoint = CRYPTONODE_UPDATE_RTA_ROUTE; 
 
-    router.addRoute(endpoint, METHOD_POST, {nullptr, onUpdateRedirectIds, nullptr});
+    router.addRoute(endpoint, METHOD_POST, {nullptr, onUpdateRtaRoute, nullptr});
+    // TODO: rename /redirect_broadcast as '/broadcast' ? NEVER CALLED NOW
     router.addRoute("/redirect_broadcast", METHOD_POST, {nullptr, onRedirectBroadcast, nullptr});
 #ifdef UDHT_INFO
     router.addRoute("/get_udht_info", METHOD_POST, {nullptr, onGetUDHTInfo, nullptr});

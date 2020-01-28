@@ -192,7 +192,7 @@ void Supernode::startSupernodePeriodicTasks()
                     );
 
         getLooper().addPeriodicTask(
-                    graft::Router::Handler3(nullptr, graft::supernode::request::periodicUpdateRedirectIds, nullptr),
+                    graft::Router::Handler3(nullptr, graft::supernode::request::periodicAnnounceNetworkAddress, nullptr),
 #if tst
                     std::chrono::milliseconds(10*initial_interval_ms),
 #else
