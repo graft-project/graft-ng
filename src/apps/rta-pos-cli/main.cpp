@@ -588,10 +588,13 @@ int main(int argc, char* argv[])
     }
     
     // debugging p2p
+    // TODO: remove it when done, using hardcoded id -> network address table
     MINFO("Checking for payment data... ");
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    pos.checkForSaleData(std::chrono::seconds(20));
-    return EXIT_SUCCESS;
+    if (!pos.checkForSaleData(std::chrono::seconds(20))) {
+      MERROR("Failed to receive payment data from auth sample..");
+      return EXIT_FAILURE;
+    }
 
 
     MINFO("Sale initiated: " << pos.paymentId());
