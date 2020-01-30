@@ -44,7 +44,7 @@ GRAFT_DEFINE_IO_STRUCT(UDHTInfoResponse,
 
 #endif //UDHT_INFO
 ///////
-
+// TODO: explain what is the purpose of this message?
 GRAFT_DEFINE_IO_STRUCT_INITED(SupernodeRedirectIds,
                               (std::string, id, std::string()),
                               (std::string, my_id, std::string())
@@ -59,7 +59,7 @@ GRAFT_DEFINE_JSON_RPC_RESPONSE_RESULT(SupernodeRedirectIdsJsonRpcResponse, Super
 
 graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
         graft::Output& output);
-graft::Status periodicUpdateRedirectIds(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
+graft::Status periodicAnnounceNetworkAddress(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx,
         graft::Output& output);
 #if tst
 graft::Status test_startBroadcast(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output);

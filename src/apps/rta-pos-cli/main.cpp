@@ -40,6 +40,7 @@
 #include "rta/requests/common.h" //
 #include "rta/requests/gettx.h" //
 #include "rta/requests/getpaymentstatus.h"
+#include "rta/requests/getpaymentdata.h"
 #include "rta/requests/approvepaymentrequest.h"
 #include "rta/requests/posrejectpaymentrequest.h"
 #include "rta/requests/updatepaymentstatus.h"
@@ -92,7 +93,19 @@ namespace
     }
 
     static const std::string SALE_ITEMS = "SERIALIZED SALE ITEMS HERE";
-
+    
+    static const std::map<std::string, std::string> id_to_address = {
+        {"c89cd66f1f0e8f0dd108be9463a28e714eb513a56f0512fbce151d0c216e8941", "graft-dev01.graft:28690"},
+        {"04eb530ad9b7df66786abe63cffc1c4fc0f22a8c34fccfd670390e7b1c0e8a6f", "graft-dev02.graft:28690"},
+        {"54a6418ead8cf211555eb685a6574adfd1b3acb4cd0034780ba973ada17b28d1", "graft-dev03.graft:28690"},
+        {"a76dd51a5007e509d81bf5aab17ac5abca04ac905aafaf83a9792fb4dcda39de", "graft-dev04.graft:28690"},
+        {"9316ace1d6b31e77b2d8875c54719ef6ab0f0ce20880f1130c8b08f2618ee218", "graft-dev05.graft:28690"},
+        {"07b8bdcc940ee2e67562a3c5a6291edf187170c2f31a66867760ff101f35cc87", "graft-dev06.graft:28690"},
+        {"5122d63790ebf8e72f7935018ac64e2cdc760c24c3ccf0de614a1b3d7f29f759", "graft-dev07.graft:28690"},
+        {"bc6eb0403452b114ad37d791b04c5d2eaa71e1a46776edfed493dd7fde839ac0", "graft-dev08.graft:28690"},
+        {"1b3730554d524ed8888d8431791da9f5428722f9b2205778d9671a4886c714c1", "graft-dev09.graft:28690"}
+    };
+    
 }
 
 namespace po = boost::program_options;
@@ -225,6 +238,66 @@ public:
     const std::string & paymentId() const
     {
         return m_payment_id;
+    }
+    
+    bool checkForSaleData( std::chrono::seconds timeout)
+    {
+        request::PaymentDataRequest req;
+        req.BlockHash = m_presale_resp.BlockHash;
+        req.PaymentID = m_payment_id;
+        req.BlockHeight = m_presale_resp.BlockNumber;
+        
+        std::string raw_resp;
+        int http_status = 0;
+        ErrorResponse err_resp;
+        chrono::steady_clock::time_point start = chrono::steady_clock::now();
+        chrono::milliseconds elapsed;
+        
+        std::set<string> good_nodes, bad_nodes;
+        MINFO("checking for payment data: " << m_payment_id);
+        do {
+            for (const auto & item : m_presale_resp.AuthSample) {
+                if (good_nodes.find(item) != good_nodes.end())
+                    continue;
+                
+                epee::net_utils::http::http_simple_client http_client;
+                boost::optional<epee::net_utils::http::login> login{};
+                http_client.set_server(id_to_address.at(item), login);
+                
+                bool r = invoke_http_rest("/dapi/v2.0/get_payment_data", req, raw_resp, err_resp, http_client, http_status, m_network_timeout, "POST");
+                if (!r) {
+                    MERROR("Failed to invoke get_payment_data: " << graft::to_json_str(err_resp));
+                    return false;
+                }       
+                
+                if (http_status == 200) {
+                    MINFO("Payment data received from: " << item);
+                    good_nodes.insert(item);
+                    auto it = bad_nodes.find(item);
+                    if (it != bad_nodes.end())
+                        bad_nodes.erase(it);
+                    
+                } else {
+                    MERROR("Payment data missing from: " << item);
+                    bad_nodes.insert(item);
+                }
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(chrono::steady_clock::now() - start);
+
+        } while (/*elapsed < timeout && good_nodes.size() < m_presale_resp.AuthSample.size()*/false);
+        
+        if (good_nodes.size() != m_presale_resp.AuthSample.size()) {
+            std::ostringstream oss;
+            for(auto& it : bad_nodes) { 
+                oss << it << "\n"; 
+            }
+            
+            MERROR("supernodes missing sale data: \n" << oss.str());
+            return false;
+        }
+        return true;
     }
 
     bool waitForStatus(int expectedStatus, int &receivedStatus, std::chrono::seconds timeout)
@@ -513,6 +586,15 @@ int main(int argc, char* argv[])
 
     if (!pos.saveQrCodeFile()) {
         return EXIT_FAILURE;
+    }
+    
+    // debugging p2p
+    // TODO: remove it when done, using hardcoded id -> network address table
+    MINFO("Checking for payment data... ");
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    if (!pos.checkForSaleData(std::chrono::seconds(20))) {
+      MERROR("Failed to receive payment data from auth sample..");
+      return EXIT_FAILURE;
     }
 
 
