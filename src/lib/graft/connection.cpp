@@ -531,7 +531,7 @@ void HttpConnectionManager::ev_handler_http(mg_connection *client, int ev, void 
 
         std::string s_method(hm->method.p, hm->method.len);
         LOG_PRINT_CLN(1,client,"New HTTP client. uri:" << std::string(hm->uri.p, hm->uri.len) << " method:" << s_method
-            << " remote: " << remote_address_host_str << ":" << remote_port);
+            << " remote: " << remote_address_host_str << ":" << ntohs(remote_port));
 
         HttpConnectionManager* httpcm = HttpConnectionManager::from_accepted(client);
         Router::JobParams prms;
