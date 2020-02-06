@@ -119,6 +119,7 @@ Status paymentDataRequest(const Router::vars_t& vars, const graft::Input& input,
 {
     enum class State: int {
         ClientRequest = 0,    // requests comes from cryptonode
+        ClientRequestStored,  // reply ok to cryptonode and call again
         CallbackToClient,     // unicast callback sent to cryptonode
         CallbackAcknowledge,  // cryptonode accepted callbacks,
     };
@@ -127,14 +128,18 @@ Status paymentDataRequest(const Router::vars_t& vars, const graft::Input& input,
 
     switch (state) {
     case State::ClientRequest:
-        ctx.local[__FUNCTION__] = State::CallbackToClient;
-        return handlePaymentDataRequestUnicast(vars, input, ctx, output); // send Unicast callback
+        ctx.local[__FUNCTION__] = State::ClientRequestStored;
+        // ctx.local["request"] = input; not needed, input will remain the same?
+        return sendAgainResponseToCryptonode(output);
+   case State::ClientRequestStored:
+        return handlePaymentDataRequestUnicast(vars, input, ctx, output); // send Unicast message to callback_uri
     case State::CallbackToClient:
         ctx.local[__FUNCTION__] = State::CallbackAcknowledge;
-        return sendOkResponseToCryptonode(output);                       //  cryptonode accepted uncast callback,
-    case State::CallbackAcknowledge:
-        ctx.local[__FUNCTION__] = State::CallbackAcknowledge;
-        return sendOkResponseToCryptonode(output);                       // send ok as reply to initial request
+        return sendOkResponseToCryptonode(output);                        //  cryptonode accepted uncast callback,
+    case State::CallbackAcknowledge:                                      // finite state 
+        // TODO: process input and check if cryptonode accepted it
+        MDEBUG("Cryptonode acknowledge: " << input.body);
+        return Status::Ok;
     }
     assert(false);
     return graft::Status::Ok;
