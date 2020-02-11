@@ -35,6 +35,9 @@
 #include <utils/cryptmsg.h> // one-to-many message cryptography
 #include <boost/algorithm/string/join.hpp>
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "supernode.common"
+
 namespace graft::supernode::request {
 
 const std::chrono::seconds SALE_TTL = std::chrono::seconds(60);
@@ -130,7 +133,7 @@ bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &public
     MDEBUG("Verifying hash: " << hash << " with id: " << request.sender_address << "(" << publicId << ")" );
     crypto::signature sign;
     if (!epee::string_tools::hex_to_pod(request.signature, sign)) {
-        LOG_ERROR("Failed to deserialize signature from: " << request.signature);
+        LOG_ERROR("Failed to deserialize signature from: " << request.signature << ", request: " << request.toJson().GetString());
         return false;
     }
     crypto::public_key pkey;
