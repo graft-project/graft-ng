@@ -748,9 +748,13 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
             req.params.request.data = oss.str();
         }
 #endif
-        output.load(req.params.request);
-#if tst
-        LOG_PRINT_L0(" I redirect '") << input.body << "\nas\n" << output.body;
+        // JSON-RPC Envelope
+        BroadcastRequestJsonRpc out;
+        out.method = "broadcast";
+        out.params = req.params.request;
+        output.load(out);
+#if 1
+        MDEBUG("Forwarding '" << input.body << "\nas\n" << output.body);
 #endif
         return graft::Status::Forward;
     }
