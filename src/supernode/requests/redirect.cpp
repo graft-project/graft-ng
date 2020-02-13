@@ -645,8 +645,8 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
             // Inform connected cryptonode so it should forward (or redirects?) broadcast messages addressed to 'pubkey' to this supernode
             // TODO: IK20200128: still not clear why don't store/maintain id -> network address mapping directly on cryptonode?
             SupernodeRedirectIdsJsonRpcRequest oreq;
-            oreq.params.id = pubkey;
-            oreq.params.my_id = my_pubIDstr;
+            oreq.params.dst_id = pubkey;
+            oreq.params.router_id = my_pubIDstr;
             oreq.method = "add_rta_route";
             oreq.id = 0;
             ctx.local["oreq"] = oreq;
