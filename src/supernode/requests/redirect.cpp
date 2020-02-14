@@ -282,7 +282,7 @@ bool initializeIDs(graft::Context& ctx)
     assert(ctx.global.hasKey("jump_node_coefficient"));
     assert(ctx.global.hasKey("redirect_timeout_ms"));
 
-    const double& jump_node_coefficient = ctx.global["jump_node_coefficient"];
+    const double jump_node_coefficient = ctx.global["jump_node_coefficient"];
     uint32_t broadcast_hops = 1 + std::lround(1./jump_node_coefficient);
     ctx.global["broadcast_hops"] = broadcast_hops;
 
@@ -325,13 +325,13 @@ std::string buildNetworkAddressMsg(graft::Context& ctx)
 {
     assert(ctx.global[CONTEXT_KEY_SUPERNODE_INITIALIZED]);
     
-    // XXX: Using plain text broadcasts for now
+    // DBG: Using plain text broadcasts for now
     const crypto::public_key& public_id = ctx.global[CONTEXT_KEY_SUPERNODE_PUBKEY];
 
     std::string id = epee::string_tools::pod_to_hex(public_id);
     const std::string& external_address = ctx.global["external_address"];
     std::string plain = id + ':' + external_address;
-    // return plain;
+    return plain; // TODO: plain-text address, some issues with encrypt/decrypt
     
 #if 1
     using IdSet = std::vector<std::string>;
@@ -341,6 +341,7 @@ std::string buildNetworkAddressMsg(graft::Context& ctx)
 
     const double& jump_node_coefficient = ctx.global["jump_node_coefficient"];
     size_t selectedCount = std::lround(allWithStake.size() * jump_node_coefficient);
+    MDEBUG("jump_node_coefficient: " << jump_node_coefficient << ", selectedCount: " << selectedCount);
 
 #if tst
     //temporarily, to test
@@ -378,7 +379,8 @@ std::string buildNetworkAddressMsg(graft::Context& ctx)
         selectedCount = allWithStake.size();
     }
 #else
-    if(allWithStake.empty()) return std::string();
+    if(allWithStake.empty()) 
+        return std::string();
 
 #endif
     //It is expected that this is the only function that accesses selectedSupernodes
@@ -388,11 +390,15 @@ std::string buildNetworkAddressMsg(graft::Context& ctx)
     boost::shared_ptr<IdSet> selectedSupernodes = ctx.global.get(CONTEXT_KEY_RANDOM_SUPERNODES, boost::shared_ptr<IdSet>());
 
     fillSubsetFromAll(allWithStake, *selectedSupernodes, selectedCount);
-
+    
+    
     if (selectedSupernodes->empty()) {
       MERROR("Failed to select random supernodes");
       return std::string();
     }
+    
+    MDEBUG("selected " << selectedSupernodes->size() << 
+           " random supernodes,  multicasting network address to them[" <<  boost::algorithm::join(*selectedSupernodes, ",") << "]");
 
     //encrypt
     std::string message;
@@ -404,14 +410,14 @@ std::string buildNetworkAddressMsg(graft::Context& ctx)
             epee::string_tools::hex_to_pod(Bstr, B);
             Bkeys.emplace_back(std::move(B));
         }
-#if tst
+#if 1
         {//
             std::ostringstream oss;
             for(auto& k : Bkeys)
             {
                 oss << epee::string_tools::pod_to_hex(k) << "\n";
             }
-            LOG_PRINT_L0("prepare encrypted message for\n") << oss.str();
+            MDEBUG("prepare encrypted message for\n" << oss.str());
         }
 #endif
         graft::crypto_tools::encryptMessage(plain, Bkeys, message);
@@ -470,7 +476,7 @@ graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const
             output.load(req);
             output.path = "/json_rpc/rta";
 
-            MDEBUG("registering supernode in cryptonode ");
+            MDEBUG("registering supernode in cryptonode " << supernode_url);
             return graft::Status::Forward;
         }
         case graft::Status::Forward:
@@ -513,14 +519,15 @@ graft::Status periodicAnnounceNetworkAddress(const graft::Router::vars_t& /*vars
 
             BroadcastRequestJsonRpc req;
             req.params.callback_uri = CRYPTONODE_UPDATE_RTA_ROUTE;
-            req.params.data = graft::utils::base64_encode(message);
-            // XXX: plain-text supenode address
-            // req.params.data = message;
+            // req.params.data = graft::utils::base64_encode(message);
+            //DBG: plain-text supenode address, no encryption
+            req.params.data = message;
 
             req.method = "wide_broadcast";
             //TODO: do we need unique id?
             static uint64_t i = 0;
             req.id = ++i;
+            MDEBUG("announcing network address: " << message);
 
             output.path = "/json_rpc/rta";
             output.load(req);
@@ -563,7 +570,7 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
         {
             if(!initializeIDs(ctx)) // What?
             {
-                MDEBUG("redirect_supernode_id. But does not participate.");
+                MERROR("redirect_supernode_id. But does not participate.");
                 return graft::Status::Ok;
             }
 
@@ -571,12 +578,12 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
             input.get(ireq);
             MDEBUG("redirect_supernode_id from '" << input.host << ":" << input.port << "' : " << ireq.params.data);
 
-            std::string node_address_str; // TODO: rename as "node_address_str";
+            std::string node_address_str; 
             {
                 // std::string message = graft::utils::base64_decode(ireq.params.data);
                 std::string message = ireq.params.data;
                 
-#if 1                
+#if 0           // TODO: fix encryption/decryption
                 if(!ctx.global.hasKey(CONTEXT_KEY_SUPERNODE_SECKEY))
                 {
                     MWARNING("My secret key not found.");
@@ -598,7 +605,7 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
                     MDEBUG("The message is not for me.");
                     return sendOkResponseToCryptonode(output);
                 }
-#endif                 
+#endif
                 node_address_str = message;
             }
 
@@ -610,9 +617,14 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
                 boost::algorithm::split(tokens, node_address_str, [](char c) { return c == ':';});
                 if (tokens.size() != 3) {
                     MERROR("Invalid node address, expected 'ID:IP:PORT', got: '" << node_address_str << "'");
-                    return graft::Status::Ok;    
+                    return sendOkResponseToCryptonode(output); 
                 }
                 pubkey = tokens.at(0);
+                if (tokens.at(1) == "0.0.0.0") { // FIXME
+                  MDEBUG("FIXME: skip self registation, id: " << pubkey);
+                  return sendOkResponseToCryptonode(output);
+                }
+                
                 network_address = tokens.at(1) + ":" + tokens.at(2);
             }
 
@@ -625,7 +637,7 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
             assert(!my_pubIDstr.empty());
             if (pubkey == my_pubIDstr) {
                 MERROR("The message with my ID.");
-                return graft::Status::Ok;
+                return sendOkResponseToCryptonode(output);
             }
 
             ctx.global.apply<ForwardTablePtr>(CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE, [&](ForwardTablePtr& map)->bool
@@ -646,7 +658,9 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
             // TODO: IK20200128: still not clear why don't store/maintain id -> network address mapping directly on cryptonode?
             SupernodeRedirectIdsJsonRpcRequest oreq;
             oreq.params.dst_id = pubkey;
-            oreq.params.router_id = my_pubIDstr;
+            // oreq.params.router_id = my_pubIDstr;
+            // FIXME: Path prefix should be set in some another way
+            oreq.params.router_id = network_address + "/dapi/v2.0";
             oreq.method = "add_rta_route";
             oreq.id = 0;
             ctx.local["oreq"] = oreq;
@@ -682,8 +696,8 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
 // TODO: IK use 'forward' verb instead of 'redirect' ?
 graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft::Input& input, graft::Context& ctx, graft::Output& output)
 {
-    
     graft::Status status = ctx.local.getLastStatus();
+    
     switch (status) {
     case graft::Status::Ok:
     case graft::Status::None:
