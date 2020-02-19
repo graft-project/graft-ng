@@ -72,7 +72,7 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
 #define CHECK(func) \
     if(!lib.has(func)) \
     { \
-        LOG_PRINT_L2(func) "not found '" << it->path().c_str() << "'"; \
+        LOG_PRINT_L2(func << "not found '" << it->path().c_str() << "'"); \
         continue; \
     }
 
@@ -85,7 +85,7 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
             std::string graftletABI = getGraftletABI();
             if(graftletABI != getBuildSignature())
             {
-                LOG_PRINT_L2("\tgraftlet ABI does not match '") << graftletABI << "' != '" << getBuildSignature() << "'";
+                LOG_PRINT_L2("\tgraftlet ABI does not match '" << graftletABI << "' != '" << getBuildSignature() << "'");
                 continue;
             }
 
@@ -111,7 +111,7 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
 
             if(is_in_GEL(dllName, graftletVersion))
             {
-                LOG_PRINT_L2("The graftlet '") << dllName << "', version " << getVersionStr(graftletVersion) << " is in the exception list";
+                LOG_PRINT_L2("The graftlet '" << dllName << "', version " << getVersionStr(graftletVersion) << " is in the exception list");
                 continue;
             }
 
@@ -119,8 +119,8 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
             auto checkFwVersionFunc = dll::import<decltype(checkFwVersion)>(lib, "checkFwVersion" );
             if(!checkFwVersionFunc(m_fwVersion))
             {
-                LOG_PRINT_L2("The graftlet '") << dllName << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
-                                               << getVersionStr(m_fwVersion);
+                LOG_PRINT_L2("The graftlet '" << dllName << "', version " << getVersionStr(graftletVersion) << " is not compatible with current version "
+                                               << getVersionStr(m_fwVersion));
                 continue;
             }
 
@@ -131,7 +131,7 @@ void GraftletLoader::findGraftletsInDirectory(std::string directory, std::string
                 infoFunction = [infoFunc]()->std::string { return infoFunc(); };
             }
 
-            LOG_PRINT_L2("The graftlet accepted '") << dllName << " version " << graftletVersion << " path " << dll_path;
+            LOG_PRINT_L2("The graftlet accepted '" << dllName << " version " << graftletVersion << " path " << dll_path);
 
             auto res = m_name2lib.emplace(
                         std::make_pair(dllName,
@@ -337,7 +337,7 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
                 {//mandatory
                     throw graft::exit_error("Required graftlets have invalid dependency format. Cannot continue.");
                 }
-                LOG_PRINT_L2("graftlet '") << name << "' has invalid dependency format. it will be unloaded.";
+                LOG_PRINT_L2("graftlet '" << name << "' has invalid dependency format. it will be unloaded.");
                 ok = false;
             }
             else
@@ -356,7 +356,7 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
                             oss << "The graftlet '" << dep_name << "' is required, but not found or cannot be loaded. Cannot continue.";
                             throw graft::exit_error(oss.str());
                         }
-                        LOG_PRINT_L2("graftlet '") << name << "' depends on '" << dep_name << "' which is not found. it will be unloaded.";
+                        LOG_PRINT_L2("graftlet '" << name << "' depends on '" << dep_name << "' which is not found. it will be unloaded.");
                         ok = false;
                         break;
                     }
@@ -372,9 +372,9 @@ std::vector<GraftletLoader::DependencyGraph::DllName> GraftletLoader::Dependency
                                 << GRAFTLET_Major(minver) << "." << GRAFTLET_Minor(minver) << ". Cannot continue.";
                             throw graft::exit_error(oss.str());
                         }
-                        LOG_PRINT_L2("graftlet '") << name << "' depends on '" << dep_name << "' which version "
+                        LOG_PRINT_L2("graftlet '" << name << "' depends on '" << dep_name << "' which version "
                                                    << GRAFTLET_Major(dep_ver) << "." << GRAFTLET_Minor(dep_ver) << " is less than required "
-                                                   << GRAFTLET_Major(minver) << "." << GRAFTLET_Minor(minver) << ". it will be unloaded.";
+                                                   << GRAFTLET_Major(minver) << "." << GRAFTLET_Minor(minver) << ". it will be unloaded.");
                         ok = false;
                         break;
                     }

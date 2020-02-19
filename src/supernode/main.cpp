@@ -52,10 +52,10 @@ int main(int argc, const char** argv)
         bool res = supernode.run(argc, argv);
         if(!res) return -2;
     } catch (const graft::exit_error& e) {
-        LOG_ERROR("The program is terminated because of error: ") << e.what();
+        LOG_ERROR("The program is terminated because of error: " << e.what());
         return -1;
     } catch (const std::exception & e) {
-        LOG_ERROR("Exception thrown: ") << e.what();
+        LOG_ERROR("Exception thrown: " << e.what());
         throw;
     } catch(...) {
         LOG_ERROR("Exception of unknown type!");

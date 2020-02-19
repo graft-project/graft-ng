@@ -67,6 +67,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <unistd.h>
 
 
@@ -509,6 +510,7 @@ int main(int argc, char* argv[])
     const command_line::arg_descriptor<size_t>      arg_sale_timeout  = {"sale-timeout", "Sale timeout in millis", 5000, false};
     const command_line::arg_descriptor<std::string> arg_supernode_address = { "supernode-address", "Supernode address", "localhost:28690", false };
     const command_line::arg_descriptor<std::string> arg_pos_wallet_address = { "wallet-address", "POS Wallet address", "", false };
+    const command_line::arg_descriptor<bool>        arg_check_payment_data = { "check-payment-data", "Check payment data", false, false };
 
 
     command_line::add_arg(desc_cmd, arg_input_file);
@@ -520,6 +522,7 @@ int main(int argc, char* argv[])
     command_line::add_arg(desc_cmd, arg_supernode_address);
     command_line::add_arg(desc_cmd, arg_pos_wallet_address);
     command_line::add_arg(desc_cmd, command_line::arg_help);
+    command_line::add_arg(desc_cmd, arg_check_payment_data);
 
     po::options_description desc_options("Allowed options");
     desc_options.add(desc_cmd);
@@ -541,7 +544,9 @@ int main(int argc, char* argv[])
         std::cout << desc_options << std::endl;
         return 1;
     }
-
+    
+    
+    bool check_payment_data = command_line::get_arg(vm, arg_check_payment_data);
     mlog_configure(mlog_get_default_log_path("rta-pos-cli.log"), true);
     if (!command_line::is_arg_defaulted(vm, arg_log_level))
         mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
@@ -591,11 +596,10 @@ int main(int argc, char* argv[])
     // TODO: remove it when done, using hardcoded id -> network address table
     MINFO("Checking for payment data... ");
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    if (!pos.checkForSaleData(std::chrono::seconds(20))) {
+    if (check_payment_data && !pos.checkForSaleData(std::chrono::seconds(20))) {
       MERROR("Failed to receive payment data from auth sample..");
       return EXIT_FAILURE;
     }
-
 
     MINFO("Sale initiated: " << pos.paymentId());
 

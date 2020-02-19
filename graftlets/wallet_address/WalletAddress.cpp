@@ -175,7 +175,7 @@ void WalletAddress::prepareIdKeys(const graft::CommonOpts& opts, crypto::public_
     boost::filesystem::path wallet_keys_file = data_path / "supernode.keys";
     if (!boost::filesystem::exists(wallet_keys_file))
     {
-        LOG_PRINT_L0("file '") << wallet_keys_file << "' not found. Generating the keys";
+        LOG_PRINT_L0("file '" << wallet_keys_file << "' not found. Generating the keys");
         crypto::generate_keys(W, w);
         //save secret key
         boost::filesystem::path wallet_keys_file_tmp = wallet_keys_file;
@@ -194,7 +194,7 @@ void WalletAddress::prepareIdKeys(const graft::CommonOpts& opts, crypto::public_
     }
     else
     {
-        LOG_PRINT_L1(" Reading wallet keys file '") << wallet_keys_file << "'";
+        LOG_PRINT_L1(" Reading wallet keys file '" << wallet_keys_file << "'");
         std::string w_str;
         bool r = epee::file_io_utils::load_file_to_string(wallet_keys_file.string(), w_str);
         if(!r)

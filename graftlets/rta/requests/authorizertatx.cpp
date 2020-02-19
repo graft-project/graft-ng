@@ -42,6 +42,9 @@
 #include <utils/utils.h>
 #include <misc_log_ex.h>
 #include <syncobj.h>
+
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <exception>
 
 
@@ -381,7 +384,6 @@ Status signRtaTxAndSendResponse(cryptonote::transaction &tx, const crypto::secre
         destinations.push_back(epee::string_tools::pod_to_hex(key));
     }
 
-
     utils::buildBroadcastOutput(pay_req, supernode, destinations, "json_rpc/rta", "/core/authorize_rta_tx_response", output);
     ctx.local[RTA_TX_REQ_HANDLER_STATE_KEY] = AuthorizeRtaTxRequestHandlerState::TxResposeSent;
     // store payment id for a logging purposes
@@ -421,6 +423,9 @@ Status processNewRtaTx(cryptonote::transaction &tx, const crypto::secret_key &tx
     bool proxy_supernode = isProxySupernode(rta_hdr, supernode);
     bool auth_sample_supernode = isAuthSampleSupernode(rta_hdr, supernode);
 
+    MDEBUG("processing rta tx for payment: " << rta_hdr.payment_id << ", proxy_supernode: " << proxy_supernode 
+           << ", auth_sample_supernode: " << auth_sample_supernode);
+    
     // sanity check if we're proxy supernode or auth sample supernode
     if (!proxy_supernode && !auth_sample_supernode) {
         MERROR("Internal error: authorize_rta_tx_request handled by non-proxy non-auth-sample supernode: " << rta_hdr.payment_id);

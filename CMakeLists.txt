@@ -142,8 +142,9 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/utils
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/multisig
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/device
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/device_trezor
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/checkpoints
-
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/net
     )
 
 set(CRYPTONODE_LIBS
@@ -160,10 +161,12 @@ set(CRYPTONODE_LIBS
     common
     unbound
     device
+    device_trezor
     sodium
     checkpoints
     lmdb
     epee
+    net
     )
 
 if(STATIC_LINK)

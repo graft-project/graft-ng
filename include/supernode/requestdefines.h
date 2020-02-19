@@ -94,10 +94,10 @@ enum class RTAStatus : int
     InProgress = 2,
     Success = 3,
     FailRejectedByPOS, // rejected by PoS
-    FailZeroFee,   // rejected by auth sample due low or zero fee
-    FailDoubleSpend,  // rejected by auth sample due double spend
-    FailTimedOut,     // timed out
-    FailTxRejected   // tx rejected by cryptonode
+    FailZeroFee,       // rejected by auth sample due low or zero fee
+    FailDoubleSpend,   // rejected by auth sample due double spend
+    FailTimedOut,      // timed out
+    FailTxRejected     // tx rejected by cryptonode
 
 };
 

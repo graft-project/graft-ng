@@ -441,7 +441,7 @@ graft::Status periodicRegisterSupernode(const graft::Router::vars_t& vars, const
                 const crypto::public_key& my_pubID = ctx.global[CONTEXT_KEY_SUPERNODE_PUBKEY];
                 my_pubIDstr = epee::string_tools::pod_to_hex(my_pubID);
             }
-            LOG_PRINT_L0("my_pubIDstr ") << my_pubIDstr;
+            LOG_PRINT_L0("my_pubIDstr " << my_pubIDstr);
 #if tst
             {
                 Id2IpShared map = ctx.global[CONTEXT_KEY_SUPERNODE_ADDRESS_TABLE];
@@ -569,14 +569,14 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
 
             BroadcastRequestJsonRpc ireq;
             input.get(ireq);
-            MDEBUG("redirect_supernode_id from '") << input.host << ":" << input.port << "' : " << ireq.params.data;
+            MDEBUG("redirect_supernode_id from '" << input.host << ":" << input.port << "' : " << ireq.params.data);
 
             std::string node_address_str; // TODO: rename as "node_address_str";
             {
                 // std::string message = graft::utils::base64_decode(ireq.params.data);
                 std::string message = ireq.params.data;
                 
-#if 0                
+#if 1                
                 if(!ctx.global.hasKey(CONTEXT_KEY_SUPERNODE_SECKEY))
                 {
                     MWARNING("My secret key not found.");
@@ -602,14 +602,14 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
                 node_address_str = message;
             }
 
-            MDEBUG("node address decrypted. ") << node_address_str;
+            MDEBUG("node address decrypted. " << node_address_str);
 
             std::string pubkey, network_address;
             {
                 std::vector<std::string> tokens;
                 boost::algorithm::split(tokens, node_address_str, [](char c) { return c == ':';});
                 if (tokens.size() != 3) {
-                    MERROR("Invalid node address, expected 'ID:IP:PORT', got: '") << node_address_str << "'";
+                    MERROR("Invalid node address, expected 'ID:IP:PORT', got: '" << node_address_str << "'");
                     return graft::Status::Ok;    
                 }
                 pubkey = tokens.at(0);
@@ -645,8 +645,8 @@ graft::Status onUpdateRtaRoute(const graft::Router::vars_t& vars, const graft::I
             // Inform connected cryptonode so it should forward (or redirects?) broadcast messages addressed to 'pubkey' to this supernode
             // TODO: IK20200128: still not clear why don't store/maintain id -> network address mapping directly on cryptonode?
             SupernodeRedirectIdsJsonRpcRequest oreq;
-            oreq.params.id = pubkey;
-            oreq.params.my_id = my_pubIDstr;
+            oreq.params.dst_id = pubkey;
+            oreq.params.router_id = my_pubIDstr;
             oreq.method = "add_rta_route";
             oreq.id = 0;
             ctx.local["oreq"] = oreq;
@@ -688,7 +688,7 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
     case graft::Status::Ok:
     case graft::Status::None:
     {
-        LOG_PRINT_L0("onRedirectBroadcast : ") << input.body;
+        LOG_PRINT_L0("onRedirectBroadcast : " << input.body);
         RedirectBroadcastJsonRpc req;
         bool res = input.get(req);
         if (!res) {
@@ -709,7 +709,7 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
 
         if (!ok)
         {
-            MWARNING("Unknown ID: '") << req.params.receiver_id << "'";
+            MWARNING("Unknown ID: '" << req.params.receiver_id << "'");
             return sendOkResponseToCryptonode(output);
         }
 
@@ -735,8 +735,8 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
 
         output.path = "dapi/v2.0" + req.params.request.callback_uri;
 
-        MDEBUG("Redirect broadcast for supernode id '") << req.params.receiver_id << "' uri:'"
-            << output.host << ":" << output.port << "/" << output.path;
+        MDEBUG("Redirect broadcast for supernode id '" << req.params.receiver_id << "' uri:'"
+            << output.host << ":" << output.port << "/" << output.path);
 #if tst
         {
             assert(!tst_myIDstr.empty());
@@ -748,9 +748,13 @@ graft::Status onRedirectBroadcast(const graft::Router::vars_t& vars, const graft
             req.params.request.data = oss.str();
         }
 #endif
-        output.load(req.params.request);
-#if tst
-        LOG_PRINT_L0(" I redirect '") << input.body << "\nas\n" << output.body;
+        // JSON-RPC Envelope
+        BroadcastRequestJsonRpc out;
+        out.method = "broadcast";
+        out.params = req.params.request;
+        output.load(out);
+#if 1
+        MDEBUG("Forwarding '" << input.body << "\nas\n" << output.body);
 #endif
         return graft::Status::Forward;
     }
