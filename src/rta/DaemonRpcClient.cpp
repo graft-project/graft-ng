@@ -206,7 +206,7 @@ bool DaemonRpcClient::send_supernode_blockchain_based_list(const char* network_a
 
 bool DaemonRpcClient::init(const string &daemon_address, boost::optional<epee::net_utils::http::login> daemon_login)
 {
-    return m_http_client.set_server(daemon_address, daemon_login);
+    return m_http_client.set_server(daemon_address, daemon_login, epee::net_utils::ssl_support_t::e_ssl_support_disabled);
     return true;
 }
 
