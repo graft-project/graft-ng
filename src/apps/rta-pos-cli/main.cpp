@@ -26,7 +26,8 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "common.h"
+#include "common.h"  // "local" commom/common.h
+
 #include "misc_log_ex.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_core.h"
@@ -37,7 +38,6 @@
 #include "include_base_utils.h"
 #include "rta/requests/sale.h" // sale request struct
 #include "rta/requests/presale.h" //
-#include "rta/requests/common.h" //
 #include "rta/requests/gettx.h" //
 #include "rta/requests/getpaymentstatus.h"
 #include "rta/requests/getpaymentdata.h"
@@ -46,8 +46,8 @@
 #include "rta/requests/updatepaymentstatus.h"
 
 #include "rta/fullsupernodelist.h"
-
 #include "supernode/requestdefines.h"
+#include "supernode/requests/common.h"
 #include "utils/cryptmsg.h" // one-to-many message cryptography
 #include "utils/utils.h" // decode amount from tx
 #include "lib/graft/serialize.h"
@@ -254,12 +254,12 @@ public:
         chrono::milliseconds elapsed;
         
         std::set<string> good_nodes, bad_nodes;
-        MINFO("checking for payment data: " << m_payment_id);
+        MINFO("checking payment data for payment id: " << m_payment_id);
         do {
             for (const auto & item : m_presale_resp.AuthSample) {
                 if (good_nodes.find(item) != good_nodes.end())
                     continue;
-                
+                MINFO("requesting payment data from: " << item);
                 epee::net_utils::http::http_simple_client http_client;
                 boost::optional<epee::net_utils::http::login> login{};
                 http_client.set_server(id_to_address.at(item), login);

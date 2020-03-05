@@ -26,7 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "common.h"
+#include "supernode/requests/common.h"
 #include "supernode/requestdefines.h"
 #include <string_tools.h> // graftnoded's contrib/epee/include
 #include <misc_log_ex.h>  // graftnoded's log macros

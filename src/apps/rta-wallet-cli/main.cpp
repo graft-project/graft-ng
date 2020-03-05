@@ -39,8 +39,8 @@
 #include "rta/requests/getpaymentdata.h"
 #include "rta/requests/getsupernodeinfo.h"
 #include "rta/requests/getpaymentstatus.h"
-#include "rta/requests/common.h"
 #include "supernode/requestdefines.h"
+#include "supernode/requests/common.h"
 
 #include "utils/cryptmsg.h" // one-to-many message cryptography
 #include "lib/graft/serialize.h"

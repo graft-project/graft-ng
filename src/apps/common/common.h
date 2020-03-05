@@ -30,7 +30,7 @@
 
 #include "lib/graft/serialize.h" // serialization macros
 #include "lib/graft/inout.h"
-#include "rta/requests/common.h" // NodeAddress
+#include "supernode/requests/common.h" // NodeAddress
 #include "misc_log_ex.h"
 
 #include <net/http_client.h>

@@ -321,6 +321,7 @@ add_dependencies(requests_common graft cryptonode)
 
 ### supernode_common library
 add_library(supernode_common STATIC
+    ${PROJECT_SOURCE_DIR}/src/supernode/requests/common.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requestdefines.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests.cpp
     ${PROJECT_SOURCE_DIR}/src/supernode/requests/debug.cpp
@@ -404,7 +405,6 @@ target_link_libraries(wallet_server PRIVATE
 ### rta-pos-cli
 set(rta-pos-cli-sources
     ${PROJECT_SOURCE_DIR}/src/apps/rta-pos-cli/main.cpp
-    ${PROJECT_SOURCE_DIR}/graftlets/rta/requests/common.cpp
     )
 
 add_executable(rta-pos-cli
@@ -447,7 +447,6 @@ target_link_libraries(rta-pos-cli PRIVATE
 ### rta-wallet-cli
 set(rta-wallet-cli-sources
     ${PROJECT_SOURCE_DIR}/src/apps/rta-wallet-cli/main.cpp
-    ${PROJECT_SOURCE_DIR}/graftlets/rta/requests/common.cpp
     )
 
 add_executable(rta-wallet-cli
@@ -486,7 +485,6 @@ target_link_libraries(rta-wallet-cli PRIVATE
     readline
     pthread
 )
-
 
 
 

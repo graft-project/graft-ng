@@ -30,7 +30,7 @@
 #include "updatepaymentstatus.h"
 #include "sale.h"
 #include "supernode/requestdefines.h"
-#include "common.h"
+#include "supernode/requests/common.h"
 #include "posrejectpaymentrequest.h"
 #include "supernode/requests/broadcast.h"
 #include "lib/graft/jsonrpc.h"

@@ -1,5 +1,4 @@
 #include "sale.h"
-#include "common.h"
 
 #include "supernode/requests/broadcast.h"
 

@@ -28,17 +28,11 @@
 
 #pragma once
 
-#include "common.h"
 #include "lib/graft/router.h"
 #include "lib/graft/jsonrpc.h"
 #include "supernode/requestdefines.h"
 
 namespace graft::supernode::request {
-// TODO:
-// 1. rename it as EncryptedPaymentStatus
-// 2. move to common.h
-// 3. provide function to decrypt
-
 
 
 

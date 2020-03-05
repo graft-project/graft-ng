@@ -28,7 +28,6 @@
 
 #pragma once
 
-#include "common.h"
 #include "lib/graft/router.h"
 #include "lib/graft/jsonrpc.h"
 #include "supernode/requestdefines.h"

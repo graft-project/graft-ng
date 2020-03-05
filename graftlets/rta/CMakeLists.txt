@@ -31,7 +31,6 @@ add_library(graftlet_rta SHARED
     RTA.cpp
     requests/presale.cpp
     requests/sale.cpp
-    requests/common.cpp
     requests/storepaymentdata.cpp
     requests/paymentdatarequest.cpp
     requests/paymentdataresponse.cpp

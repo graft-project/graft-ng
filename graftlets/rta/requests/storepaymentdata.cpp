@@ -27,7 +27,7 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "storepaymentdata.h"
-#include "common.h"
+#include "supernode/requests/common.h"
 #include "sale.h"
 
 #include "supernode/requests/sale_status.h"

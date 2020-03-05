@@ -28,8 +28,7 @@
 
 #include "paymentdatarequest.h"
 #include "paymentdataresponse.h"
-#include "common.h"
-
+#include "supernode/requests/common.h"
 #include "supernode/requests/sale_status.h"
 
 #include "supernode/requestdefines.h"

@@ -33,11 +33,8 @@
 #include "lib/graft/router.h"
 #include "crypto/hash.h"
 #include "rta/supernode.h"
-#include "common.h"
-
 
 namespace graft::supernode::request {
-
 
 
 Status handleUpdatePaymentStatusRequest(const Router::vars_t& vars, const graft::Input& input,

@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "common.h"
+#include "supernode/requests/common.h"
 #include "lib/graft/router.h"
 #include "supernode/requestdefines.h"
 

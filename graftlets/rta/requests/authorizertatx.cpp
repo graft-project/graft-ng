@@ -32,9 +32,8 @@
 #include "updatepaymentstatus.h"
 #include "send_raw_tx.h"
 #include "lib/graft/jsonrpc.h"
-#include "common.h"
+#include "supernode/requests/common.h"
 #include "supernode/requestdefines.h"
-
 
 #include "supernode/requests/broadcast.h"
 #include "rta/supernode.h"

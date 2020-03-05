@@ -27,10 +27,8 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "getpaymentstatus.h"
-#include "common.h"
-
+#include "supernode/requests/common.h"
 #include "supernode/requests/sale_status.h"
-
 #include "supernode/requestdefines.h"
 #include "lib/graft/requesttools.h"
 #include "rta/supernode.h"
