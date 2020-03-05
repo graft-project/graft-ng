@@ -44,6 +44,7 @@ DaemonRpcClient::DaemonRpcClient(const std::string &daemon_addr, const std::stri
 
     boost::shared_mutex mutex;
     boost::shared_lock<boost::shared_mutex> readerLock(mutex);
+    
 
     bool result = false;
     boost::optional<epee::net_utils::http::login> login{};
@@ -97,7 +98,7 @@ bool DaemonRpcClient::get_tx(const string &hash_str, cryptonote::transaction &ou
     req_tx.txs_hashes.push_back(hash_str);
 
     req_tx.decode_as_json = false;
-    bool r = epee::net_utils::invoke_http_json("/gettransactions", req_tx, res_tx, m_http_client, m_rpc_timeout);
+    bool r = epee::net_utils::invoke_http_json("/gettransactions", req_tx, res_tx, m_http_client, m_rpc_timeout, "POST");
     if (!r && res_tx.status != CORE_RPC_STATUS_OK) {
         LOG_ERROR("/getransactions error");
         return false;
@@ -157,7 +158,7 @@ bool DaemonRpcClient::get_block_hash(uint64_t height, string &hash)
     req_t.id = epee::serialization::storage_entry(0);
     req_t.method = "on_getblockhash";
     req_t.params.push_back(height);
-    bool ok = epee::net_utils::invoke_http_json("/json_rpc", req_t, resp_t, m_http_client, m_rpc_timeout);
+    bool ok = epee::net_utils::invoke_http_json("/json_rpc", req_t, resp_t, m_http_client, m_rpc_timeout, "POST");
     if (!ok) {
         LOG_ERROR("/on_getblockhash error");
         return false;
@@ -176,7 +177,7 @@ bool DaemonRpcClient::send_supernode_stakes(const char* network_address, const c
     req.method = "send_supernode_stakes";
     req.params.network_address = network_address;
     req.params.supernode_public_id = id;
-    bool r = epee::net_utils::invoke_http_json("/json_rpc/rta", req, res, m_http_client, m_rpc_timeout);
+    bool r = epee::net_utils::invoke_http_json("/json_rpc/rta", req, res, m_http_client, m_rpc_timeout, "POST");
     if (!r) {
         MWARNING("/json_rpc/rta/send_supernode_stakes error");
         return false;
@@ -195,7 +196,7 @@ bool DaemonRpcClient::send_supernode_blockchain_based_list(const char* network_a
     req.params.network_address = network_address;
     req.params.supernode_public_id = id;
     req.params.last_received_block_height = last_received_block_height;
-    bool r = epee::net_utils::invoke_http_json("/json_rpc/rta", req, res, m_http_client, m_rpc_timeout);
+    bool r = epee::net_utils::invoke_http_json("/json_rpc/rta", req, res, m_http_client, m_rpc_timeout, "POST");
     if (!r) {
         MWARNING("/json_rpc/rta/send_supernode_blockchain_based_list error");
         return false;
