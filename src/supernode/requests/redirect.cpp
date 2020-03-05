@@ -28,6 +28,7 @@
 
 #include "supernode/requests/redirect.h"
 #include "supernode/requests/broadcast.h"
+#include "supernode/requests/common.h"
 #include "rta/fullsupernodelist.h"
 #include "rta/supernode.h"
 #include "lib/graft/common/utils.h"
@@ -510,14 +511,18 @@ graft::Status periodicAnnounceNetworkAddress(const graft::Router::vars_t& /*vars
                MWARNING("Failed to build address broadcast");
                return graft::Status::Ok;
             }
-
+            SupernodePtr supernode = ctx.global.get(CONTEXT_KEY_SUPERNODE, SupernodePtr());
+            
             BroadcastRequestJsonRpc req;
             req.params.callback_uri = CRYPTONODE_UPDATE_RTA_ROUTE;
-            req.params.data = graft::utils::base64_encode(message);
             // XXX: plain-text supenode address
             // req.params.data = message;
-
+            req.params.data = graft::utils::base64_encode(message);
+            req.params.sender_address = supernode->idKeyAsString();
+            utils::signBroadcastMessage(req.params, supernode);
+            
             req.method = "wide_broadcast";
+            
             //TODO: do we need unique id?
             static uint64_t i = 0;
             req.id = ++i;
