@@ -191,6 +191,7 @@ void Supernode::startSupernodePeriodicTasks()
                     m_configEx.stake_wallet_refresh_interval_random_factor
                     );
 
+#if 0  // UDHT off (not implemented properly yet)       
         getLooper().addPeriodicTask(
                     graft::Router::Handler3(nullptr, graft::supernode::request::periodicAnnounceNetworkAddress, nullptr),
 #if tst
@@ -201,7 +202,9 @@ void Supernode::startSupernodePeriodicTasks()
                     std::chrono::milliseconds(initial_interval_ms),
                     m_configEx.stake_wallet_refresh_interval_random_factor
                     );
+#endif        
 #if tst
+
         getLooper().addPeriodicTask(
                     graft::Router::Handler3(nullptr, graft::supernode::request::test_startBroadcast, nullptr),
                     std::chrono::milliseconds(15*initial_interval_ms),
