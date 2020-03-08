@@ -5,9 +5,9 @@
 
 namespace graft::supernode::request::walletnode {
 
-void registerForwardRequest(graft::Router& router);
-
-void registerForward(graft::Router& router);
+void registerCryptonodeForward(graft::Router& router);
+void registerWalletnodeForward(graft::Router& router);
+void registerLegacySupernodeForward(graft::Router& router);
 
 }
 

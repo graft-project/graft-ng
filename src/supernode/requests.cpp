@@ -29,8 +29,10 @@ void registerWalletApiRequests(graft::Router &router)
 
 void registerForwardRequests(graft::Router &router)
 {
-    walletnode::registerForwardRequest(router);
-    walletnode::registerForward(router);
+    walletnode::registerCryptonodeForward(router);
+    walletnode::registerWalletnodeForward(router);
+    walletnode::registerLegacySupernodeForward(router);
+    
 }
 
 void registerDebugRequests(Router &router)
