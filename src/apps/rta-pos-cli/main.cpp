@@ -470,12 +470,14 @@ public:
         MINFO("pos_reject_payment returned: " << raw_resp);
         return true;
     }
+    
+    std::chrono::milliseconds sale_timeout() const { return m_sale_timeout; }
 
 private:
 
     std::string m_qrcode_file;
     std::string m_sale_items_file;
-    std::chrono::microseconds m_sale_timeout = std::chrono::milliseconds(5000);
+    std::chrono::milliseconds m_sale_timeout = std::chrono::milliseconds(5000);
     crypto::public_key m_pub_key;
     crypto::secret_key m_secret_key, m_wallet_secret_key;
     epee::net_utils::http::http_simple_client m_http_client;
@@ -604,7 +606,8 @@ int main(int argc, char* argv[])
     MINFO("Sale initiated: " << pos.paymentId());
 
     int actualStatus = 0;
-    if (!pos.waitForStatus(int(graft::RTAStatus::InProgress), actualStatus, std::chrono::seconds(20))) {
+    if (!pos.waitForStatus(int(graft::RTAStatus::InProgress), actualStatus, 
+                           std::chrono::duration_cast<std::chrono::seconds>(pos.sale_timeout()))) {
         MERROR("Expected in-progress status, got: " << actualStatus);
         return EXIT_FAILURE;
     }
