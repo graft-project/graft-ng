@@ -45,6 +45,7 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <exception>
+#include <sstream>
 
 
 // logging
@@ -88,8 +89,15 @@ namespace {
             MERROR("failed to read rta_signatures from tx: " << cryptonote::get_transaction_hash(tx));
             return;
         }
-        for (int i = 0; i < rta_signs.size(); ++i) {
-            MDEBUG(rta_hdr.keys.at(rta_signs.at(i).key_index) << ":" << rta_signs.at(i).signature);
+        MDEBUG("keys count: " << rta_hdr.keys.size() << ", signs count: " << rta_signs.size());
+        for (size_t i = 0; i < rta_hdr.keys.size(); ++i) {
+            std::ostringstream oss;
+            oss << i << rta_hdr.keys.at(i) << " : ";
+            if (rta_signs.size() > i)
+                oss << rta_signs.at(i).signature << "(" << rta_signs.at(i).key_index << ")";
+            else
+                oss << "n/a";
+            MDEBUG(oss.str());
         }
     }
 
@@ -136,12 +144,13 @@ namespace {
         }
 
         if (rta_hdr_dst.keys.size() != rta_signs_dst.size()) {
-            MERROR("destination transaction keys amount and signatures amount mismatches");
+            MERROR("destination transaction keys amount and signatures amount mismatches, rta_hdr_dst.keys.size: " 
+                   << rta_hdr_dst.keys.size() << ", rta_signs_dst.size: " << rta_signs_dst.size());
             return false;
         }
 
         if (rta_hdr_src.keys.size() != rta_signs_src.size()) {
-            MERROR("destination transaction keys amount and signatures amount mismatches");
+            MERROR("source transaction keys amount and signatures amount mismatches");
             return false;
         }
 
