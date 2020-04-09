@@ -128,24 +128,8 @@ bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &public
  * \return              - true on success
  */
 bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx);
-
-bool decryptTxFromHex(const std::string &encryptedHex, const crypto::secret_key &key, cryptonote::transaction &tx);
-
-/*!
- * \brief encryptTxToHex - encrypts transaction using public keys (one-to-many scheme)
- * \param tx             - transaction to encrypt
- * \param keys           - keys
- * \param encryptedHex   - output encoded as hexadecimal string
- */
-void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto::public_key> &keys, std::string &encryptedHex);
-
-
 bool decryptTxKeyFromHex(const std::string &encryptedHex, SupernodePtr supernode, crypto::secret_key &tx_key);
 
-bool decryptTxKeyFromHex(const std::string &encryptedHex, const crypto::secret_key &key, crypto::secret_key &tx_key);
-
-
-void encryptTxKeyToHex(const crypto::secret_key &tx_key, const std::vector<crypto::public_key> &keys, std::string &encryptedHex);
 
 
 template <typename Request>

@@ -33,7 +33,9 @@
 #include <cryptonote_basic/cryptonote_basic.h>
 #include <cryptonote_basic/cryptonote_format_utils.h>
 #include <utils/cryptmsg.h> // one-to-many message cryptography
+#include <utils/rta_helpers.h> // tx/txkey encryption/decryption
 #include <boost/algorithm/string/join.hpp>
+
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "supernode.common"
@@ -144,69 +146,15 @@ bool verifyBroadcastMessage(BroadcastRequest &request, const std::string &public
     return Supernode::verifyHash(hash, pkey, sign);
 }
 
-bool decryptTxFromHex(const std::string &encryptedHex, const crypto::secret_key &key, cryptonote::transaction &tx)
-{
-    std::string decryptedTxBlob, encryptedTxBlob;
-
-    if (!epee::string_tools::parse_hexstr_to_binbuff(encryptedHex, encryptedTxBlob)) {
-        MERROR("failed to deserialize encrypted tx blob");
-        return false;
-    }
-
-    if (!graft::crypto_tools::decryptMessage(encryptedTxBlob, key, decryptedTxBlob)) {
-        MERROR("Failed to decrypt tx");
-        return false;
-    }
-
-    if (!cryptonote::parse_and_validate_tx_from_blob(decryptedTxBlob, tx)) {
-        MERROR("Failed to parse transaction from blob");
-        return false;
-    }
-    return true;
-}
 bool decryptTxFromHex(const std::string &encryptedHex, SupernodePtr supernode, cryptonote::transaction &tx)
 {
-    return decryptTxFromHex(encryptedHex, supernode->secretKey(), tx);
+    return graft::rta_helpers::decryptTxFromHex(encryptedHex, supernode->secretKey(), tx);
 }
 
-
-
-void encryptTxToHex(const cryptonote::transaction &tx, const std::vector<crypto::public_key> &keys, std::string &encryptedHex)
-{
-    std::string buf;
-    graft::crypto_tools::encryptMessage(cryptonote::tx_to_blob(tx), keys, buf);
-    encryptedHex = epee::string_tools::buff_to_hex_nodelimer(buf);
-
-}
 
 bool decryptTxKeyFromHex(const std::string &encryptedHex, SupernodePtr supernode, crypto::secret_key &tx_key)
 {
-    return decryptTxKeyFromHex(encryptedHex, supernode->secretKey(), tx_key);
-}
-
-bool decryptTxKeyFromHex(const std::string &encryptedHex, const crypto::secret_key &key, crypto::secret_key &tx_key)
-{
-    std::string decryptedBlob, encryptedBlob;
-    if (!epee::string_tools::parse_hexstr_to_binbuff(encryptedHex, encryptedBlob)) {
-        MERROR("failed to deserialize encrypted tx key blob");
-        return false;
-    }
-
-    if (!graft::crypto_tools::decryptMessage(encryptedBlob, key, decryptedBlob)) {
-        MERROR("Failed to decrypt tx");
-        return false;
-    }
-
-    memcpy(&tx_key, decryptedBlob.c_str(), decryptedBlob.size());
-    return true;
-}
-
-void encryptTxKeyToHex(const crypto::secret_key &tx_key, const std::vector<crypto::public_key> &keys, std::string &encryptedHex)
-{
-    std::string buf;
-    std::string tx_buf(reinterpret_cast<const char*>(&tx_key), sizeof(crypto::secret_key));
-    graft::crypto_tools::encryptMessage(tx_buf, keys, buf);
-    encryptedHex = epee::string_tools::buff_to_hex_nodelimer(buf);
+    return graft::rta_helpers::decryptTxKeyFromHex(encryptedHex, supernode->secretKey(), tx_key);
 }
 
 

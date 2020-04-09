@@ -43,6 +43,7 @@
 #include "supernode/requests/common.h"
 
 #include "utils/cryptmsg.h" // one-to-many message cryptography
+#include <utils/rta_helpers.h> // tx/txkey encryption/decryption
 #include "lib/graft/serialize.h"
 
 #include <atomic>
@@ -328,8 +329,8 @@ public:
 
         PayRequest pay_req;
 
-        utils::encryptTxKeyToHex(m_ptx_v.at(0).tx_key, rta_hdr.keys, pay_req.TxKey);
-        utils::encryptTxToHex(tx, rta_hdr.keys, pay_req.TxBlob);
+        graft::rta_helpers::encryptTxKeyToHex(m_ptx_v.at(0).tx_key, rta_hdr.keys, pay_req.TxKey);
+        graft::rta_helpers::encryptTxToHex(tx, rta_hdr.keys, pay_req.TxBlob);
 
         r = invoke_http_rest("/dapi/v2.0/pay", pay_req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
 

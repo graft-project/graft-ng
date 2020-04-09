@@ -40,6 +40,8 @@
 #include "lib/graft/common/utils.h"
 #include "supernode/requests/broadcast.h"
 #include "utils/cryptmsg.h" // one-to-many message cryptography
+#include <utils/rta_helpers.h> // tx/txkey encryption/decryption
+
 
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -103,8 +105,8 @@ Status handleClientTxRequest(const Router::vars_t& vars, const graft::Input& inp
         std::vector<crypto::public_key> recepient_keys;
         recepient_keys.push_back(rta_hdr.keys.at(cryptonote::rta_header::POS_KEY_INDEX));
         GetTxResponse resp;
-        utils::encryptTxToHex(tx, recepient_keys, resp.TxBlob);
-        utils::encryptTxKeyToHex(txkey, recepient_keys, resp.TxKeyBlob);
+        graft::rta_helpers::encryptTxToHex(tx, recepient_keys, resp.TxBlob);
+        graft::rta_helpers::encryptTxKeyToHex(txkey, recepient_keys, resp.TxKeyBlob);
 
         output.load(resp);
         return Status::Ok;

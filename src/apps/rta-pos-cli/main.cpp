@@ -49,6 +49,7 @@
 #include "supernode/requestdefines.h"
 #include "supernode/requests/common.h"
 #include "utils/cryptmsg.h" // one-to-many message cryptography
+#include <utils/rta_helpers.h> // tx/txkey encryption/decryption
 #include "utils/utils.h" // decode amount from tx
 #include "lib/graft/serialize.h"
 
@@ -373,12 +374,12 @@ public:
         }
 
 
-        if (!utils::decryptTxFromHex(resp.TxBlob, m_secret_key, m_tx)) {
+        if (!graft::rta_helpers::decryptTxFromHex(resp.TxBlob, m_secret_key, m_tx)) {
             MERROR("Failed to decrypt tx");
             return false;
         }
 
-        if (!utils::decryptTxKeyFromHex(resp.TxKeyBlob, m_secret_key, m_txkey)) {
+        if (!graft::rta_helpers::decryptTxKeyFromHex(resp.TxKeyBlob, m_secret_key, m_txkey)) {
             MERROR("Failed to decrypt tx key");
             return false;
         }
@@ -420,7 +421,7 @@ public:
 
         m_tx.extra2.clear();
         cryptonote::add_graft_rta_signatures_to_extra2(m_tx.extra2, rta_signatures);
-        utils::encryptTxToHex(m_tx, rta_hdr.keys, req.TxBlob);
+        graft::rta_helpers::encryptTxToHex(m_tx, rta_hdr.keys, req.TxBlob);
 
         std::string raw_resp;
         int http_status = 0;

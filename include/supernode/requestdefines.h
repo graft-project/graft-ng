@@ -91,7 +91,7 @@ void cleanPaySaleData(const std::string &payment_id, graft::Context &ctx);
 enum class RTAStatus : int
 {
     None = 0,
-    InProgress = 2,
+    InProgress = 2,    // non-continous (compatibility issues)
     Success = 3,
     FailRejectedByPOS, // rejected by PoS
     FailZeroFee,       // rejected by auth sample due low or zero fee

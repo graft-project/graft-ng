@@ -39,6 +39,7 @@
 #include "rta/supernode.h"
 #include "rta/fullsupernodelist.h"
 #include <utils/utils.h>
+#include <utils/rta_helpers.h> // tx/txkey encryption/decryption
 #include <misc_log_ex.h>
 #include <syncobj.h>
 
@@ -384,8 +385,8 @@ Status signRtaTxAndSendResponse(cryptonote::transaction &tx, const crypto::secre
     }
 
     PayRequest pay_req;
-    utils::encryptTxToHex(tx, rta_hdr.keys, pay_req.TxBlob);
-    utils::encryptTxKeyToHex(tx_key, rta_hdr.keys, pay_req.TxKey);
+    graft::rta_helpers::encryptTxToHex(tx, rta_hdr.keys, pay_req.TxBlob);
+    graft::rta_helpers::encryptTxKeyToHex(tx_key, rta_hdr.keys, pay_req.TxKey);
     std::vector<std::string> destinations;
 
     for (const auto & key : rta_hdr.keys) {
