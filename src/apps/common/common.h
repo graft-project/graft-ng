@@ -41,7 +41,7 @@ namespace graft::rta::apps {
 
 GRAFT_DEFINE_IO_STRUCT_INITED(WalletDataQrCode,
 (graft::supernode::request::NodeAddress, posAddress, graft::supernode::request::NodeAddress()), //
-                              (uint64_t, blockNumber, 0),
+                              (uint64_t, blockHeight, 0),
                               (std::string, blockHash, std::string()),
                               (std::string, paymentId, std::string()),
                               (std::string, key, std::string()) // key so wallet can decrypt the Payment Data

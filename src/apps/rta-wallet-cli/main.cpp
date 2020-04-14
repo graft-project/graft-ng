@@ -158,7 +158,7 @@ public:
     {
         PaymentDataRequest req;
         req.PaymentID   = m_paymentDetails.paymentId;
-        req.BlockHeight = m_paymentDetails.blockNumber;
+        req.BlockHeight = m_paymentDetails.blockHeight;
         req.BlockHash   = m_paymentDetails.blockHash;
 
         std::string raw_resp;
@@ -271,7 +271,7 @@ public:
       // 2. create tx;
         cryptonote::rta_header rta_hdr;
         rta_hdr.payment_id = m_paymentDetails.paymentId;
-        rta_hdr.auth_sample_height = m_paymentDetails.blockNumber;
+        rta_hdr.auth_sample_height = m_paymentDetails.blockHeight;
 
         MWARNING("Building transaction...");
 

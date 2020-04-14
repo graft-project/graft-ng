@@ -222,7 +222,7 @@ public:
     {
         WalletDataQrCode qrCode;
         qrCode.blockHash = m_presale_resp.BlockHash;
-        qrCode.blockNumber = m_presale_resp.BlockNumber;
+        qrCode.blockHeight = m_presale_resp.BlockNumber;
         qrCode.key = epee::string_tools::pod_to_hex(m_wallet_secret_key);
         qrCode.posAddress.Id = epee::string_tools::pod_to_hex(m_pub_key);
         qrCode.posAddress.WalletAddress = m_wallet_address;
@@ -384,7 +384,6 @@ public:
             return false;
         }
         return true;
-
     }
 
     bool validateTx(uint64_t sale_amount)
@@ -514,6 +513,9 @@ int main(int argc, char* argv[])
     const command_line::arg_descriptor<std::string> arg_supernode_address = { "supernode-address", "Supernode address", "localhost:28690", false };
     const command_line::arg_descriptor<std::string> arg_pos_wallet_address = { "wallet-address", "POS Wallet address", "", false };
     const command_line::arg_descriptor<bool>        arg_check_payment_data = { "check-payment-data", "Check payment data", false, false };
+    const command_line::arg_descriptor<bool>        arg_dont_approve = { "dont-approve-payment", "Don't approve payment", false, false };
+    const command_line::arg_descriptor<bool>        arg_force_reject = { "force-payment-rejected", "Force payment rejected", false, false };
+    
 
 
     command_line::add_arg(desc_cmd, arg_input_file);
@@ -526,6 +528,8 @@ int main(int argc, char* argv[])
     command_line::add_arg(desc_cmd, arg_pos_wallet_address);
     command_line::add_arg(desc_cmd, command_line::arg_help);
     command_line::add_arg(desc_cmd, arg_check_payment_data);
+    command_line::add_arg(desc_cmd, arg_dont_approve);
+    command_line::add_arg(desc_cmd, arg_force_reject);
 
     po::options_description desc_options("Allowed options");
     desc_options.add(desc_cmd);
@@ -567,6 +571,9 @@ int main(int argc, char* argv[])
     std::cout << "sale-itimeout: "      << command_line::get_arg(vm, arg_sale_timeout) << std::endl;
     std::cout << "supernode-address: "  << command_line::get_arg(vm, arg_supernode_address) << std::endl;
     std::cout << "pos-wallet-address: " << command_line::get_arg(vm, arg_pos_wallet_address) << std::endl;
+    
+    bool no_approve =   command_line::get_arg(vm, arg_dont_approve);
+    bool force_reject = command_line::get_arg(vm, arg_force_reject);
 
 
     uint64_t amount = 0;
@@ -627,30 +634,29 @@ int main(int argc, char* argv[])
 
     MINFO("Sale tx validated for payment: " << pos.paymentId());
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-#if 1
-    if (!pos.approvePayment()) {
-        return EXIT_FAILURE;
+    if (!no_approve && !force_reject) {
+        if (!pos.approvePayment()) {
+            return EXIT_FAILURE;
+        }
+        
+        // wait for status = Success;
+        if (!pos.waitForStatus(int(graft::RTAStatus::Success), actualStatus, std::chrono::seconds(20))) {
+            MERROR("Expected Success status, got: " << actualStatus);
+            return EXIT_FAILURE;
+        }
     }
 
-    // wait for status = Success;
-    if (!pos.waitForStatus(int(graft::RTAStatus::Success), actualStatus, std::chrono::seconds(20))) {
-        MERROR("Expected Success status, got: " << actualStatus);
-        return EXIT_FAILURE;
+    if (force_reject) {
+        if (!pos.rejectPayment()) {
+            return EXIT_FAILURE;
+        }
+    
+        // wait for status = Success;
+        if (!pos.waitForStatus(int(graft::RTAStatus::FailRejectedByPOS), actualStatus, std::chrono::seconds(20))) {
+            MERROR("Expected RejectedByPOS status, got: " << actualStatus);
+            return EXIT_FAILURE;
+        }        
     }
-
-#endif
-
-#if 0
-    if (!pos.rejectPayment()) {
-        return EXIT_FAILURE;
-    }
-
-    // wait for status = Success;
-    if (!pos.waitForStatus(int(graft::RTAStatus::FailRejectedByPOS), actualStatus, std::chrono::seconds(20))) {
-        MERROR("Expected RejectedByPOS status, got: " << actualStatus);
-        return EXIT_FAILURE;
-    }
-#endif
 
     MWARNING("Payment: " << pos.paymentId() << "  processed, status: " << actualStatus);
 
