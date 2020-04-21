@@ -120,7 +120,13 @@ public:
         m_wallet.init(cryptonode_address);
         MINFO("wallet opened: " << m_wallet.get_address_as_str());
         uint64_t blocks_fetched = 0;
+        // workaround for 'ask-password'
+        if (m_wallet.ask_password() != tools::wallet2::AskPasswordNever) {
+            epee::wipeable_string pwd(wallet_password);
+            m_wallet.decrypt_keys(pwd);
+        }
         m_wallet.refresh(true, 0, blocks_fetched);
+        std::cout << "wallet refreshed, " << blocks_fetched << " blocks received." <<  std::endl;
         m_wallet.store();
         std::cout << "Wallet opened, balance:  " << print_money(m_wallet.unlocked_balance_all()) << std::endl;
         std::cout << "Press <Return> to continue.." <<  std::endl;
