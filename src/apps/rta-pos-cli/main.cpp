@@ -509,7 +509,7 @@ int main(int argc, char* argv[])
     const command_line::arg_descriptor<std::string> arg_log_level   = {"log-level",  "0-4 or categories", "", false};
     const command_line::arg_descriptor<std::string> arg_amount  = {"amount", "Sale amount", "12.345", false};
     const command_line::arg_descriptor<std::string> arg_sale_items_file  = {"sale-items-file", "File where to read sale items", "sale-items.json", false};
-    const command_line::arg_descriptor<size_t>      arg_sale_timeout  = {"sale-timeout", "Sale timeout in millis", 5000, false};
+    const command_line::arg_descriptor<size_t>      arg_sale_timeout  = {"sale-timeout", "Sale timeout in millis", 60000, false};
     const command_line::arg_descriptor<std::string> arg_supernode_address = { "supernode-address", "Supernode address", "localhost:28690", false };
     const command_line::arg_descriptor<std::string> arg_pos_wallet_address = { "wallet-address", "POS Wallet address", "", false };
     const command_line::arg_descriptor<bool>        arg_check_payment_data = { "check-payment-data", "Check payment data", false, false };
