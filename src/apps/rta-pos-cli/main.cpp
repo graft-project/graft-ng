@@ -417,7 +417,9 @@ public:
         crypto::signature &sig = rta_signatures.at(cryptonote::rta_header::POS_KEY_INDEX).signature;
         crypto::hash hash = cryptonote::get_transaction_hash(m_tx);
         crypto::generate_signature(hash, m_pub_key, m_secret_key, sig);
-
+        
+        MDEBUG("POS approved payment:  " << m_payment_id << ", tx: " <<  hash << ", POS key: " << m_pub_key << ", POS sign: " << sig);
+        
         m_tx.extra2.clear();
         cryptonote::add_graft_rta_signatures_to_extra2(m_tx.extra2, rta_signatures);
         graft::rta_helpers::encryptTxToHex(m_tx, rta_hdr.keys, req.TxBlob);

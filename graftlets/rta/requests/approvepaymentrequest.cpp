@@ -84,12 +84,28 @@ Status handleClientApprovePaymentRequest(const Router::vars_t& vars, const graft
                                 epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx)),
                                 ERROR_RTA_FAILED, output);
     }
+    
+    crypto::hash tx_hash = cryptonote::get_transaction_hash(tx);
+    
+    // check if POS signature is valid
+    std::vector<cryptonote::rta_signature> rta_signs;
+    if (!cryptonote::get_graft_rta_signatures_from_extra2(tx, rta_signs)) {
+        MERROR("failed to read rta_signatures from tx: " << tx_hash);
+        return errorInvalidTransaction(req.TxBlob, output);
+    }
+    
+    if (!graft::Supernode::verifyHash(tx_hash, rta_hdr.keys.at(0), rta_signs.at(0).signature)) {
+        MERROR("Failed to check signature for tx: " << tx_hash);
+        return errorInvalidSignature(output);
+    }
+    
+    MDEBUG("POS signature validated for tx: " << tx_hash << " POS key: " << rta_hdr.keys.at(0) << ", POS sign: " << rta_signs.at(0).signature);
 
     BroadcastRequest bcast;
     for (const auto &key : rta_hdr.keys) {
         bcast.receiver_addresses.push_back(epee::string_tools::pod_to_hex(key));
     }
-
+    
     Output innerOut;
     innerOut.loadT<serializer::JSON_B64>(req);
 

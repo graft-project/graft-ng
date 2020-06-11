@@ -104,10 +104,10 @@ namespace {
 
     bool mergeTxSignatures(const cryptonote::transaction &src, cryptonote::transaction &dst)
     {
-        crypto::hash tx_hash = cryptonote::get_transaction_hash(src);
+        crypto::hash src_tx_hash = cryptonote::get_transaction_hash(src);
 
-        if (tx_hash != cryptonote::get_transaction_hash(dst)) {
-            MERROR("merging different transactions");
+        if (src_tx_hash != cryptonote::get_transaction_hash(dst)) {
+            MERROR("merging different transactions. src txid: " << src_tx_hash << "ver: " << (int)src.version << ", dst txid: " << cryptonote::get_transaction_hash(dst) << ", version: " << (int)dst.version);
             return false;
         }
 
@@ -156,8 +156,8 @@ namespace {
         }
 
         for (size_t i = 0; i < rta_signs_dst.size(); ++i) {
-            if (!graft::Supernode::verifyHash(tx_hash, rta_hdr_src.keys.at(i), rta_signs_dst.at(i).signature)
-                    && graft::Supernode::verifyHash(tx_hash, rta_hdr_src.keys.at(i), rta_signs_src.at(i).signature)) {
+            if (!graft::Supernode::verifyHash(src_tx_hash, rta_hdr_src.keys.at(i), rta_signs_dst.at(i).signature)
+                    && graft::Supernode::verifyHash(src_tx_hash, rta_hdr_src.keys.at(i), rta_signs_src.at(i).signature)) {
 
                 rta_signs_dst[i] = rta_signs_src.at(i);
                 MDEBUG("approval vote from: " << rta_hdr_src.keys.at(i));
@@ -372,6 +372,7 @@ Status signRtaTxAndSendResponse(cryptonote::transaction &tx, const crypto::secre
         return Status::Ok;
     }
     crypto::hash tx_hash = cryptonote::get_transaction_hash(tx);
+    
     for (int idx : key_indexes) {
         cryptonote::rta_signature &rta_sign = rta_signatures.at(idx);
         supernode->signHash(tx_hash, rta_sign.signature);
@@ -383,9 +384,11 @@ Status signRtaTxAndSendResponse(cryptonote::transaction &tx, const crypto::secre
         MERROR("Failed to get test signatures");
         abort();
     }
+    MDEBUG(__FUNCTION__ << " signed tx: " << tx_hash << ", checking tx hash: " << cryptonote::get_transaction_hash(tx));
 
     PayRequest pay_req;
     graft::rta_helpers::encryptTxToHex(tx, rta_hdr.keys, pay_req.TxBlob);
+    
     graft::rta_helpers::encryptTxKeyToHex(tx_key, rta_hdr.keys, pay_req.TxKey);
     std::vector<std::string> destinations;
 
@@ -432,8 +435,9 @@ Status processNewRtaTx(cryptonote::transaction &tx, const crypto::secret_key &tx
     bool proxy_supernode = isProxySupernode(rta_hdr, supernode);
     bool auth_sample_supernode = isAuthSampleSupernode(rta_hdr, supernode);
 
-    MDEBUG("processing rta tx for payment: " << rta_hdr.payment_id << ", proxy_supernode: " << proxy_supernode 
-           << ", auth_sample_supernode: " << auth_sample_supernode);
+    MDEBUG("processing new rta tx for payment: " << rta_hdr.payment_id << ", txid: " << cryptonote::get_transaction_hash(tx)
+             << ", proxy_supernode: " << proxy_supernode 
+            << ", auth_sample_supernode: " << auth_sample_supernode);
     
     // sanity check if we're proxy supernode or auth sample supernode
     if (!proxy_supernode && !auth_sample_supernode) {
@@ -614,7 +618,7 @@ Status handleTxAuthRequestNew(const Router::vars_t& vars, const graft::Input& /*
     DECRYPT_TX_KEY();
     GET_RTA_HDR();
 
-    MDEBUG("incoming rta tx for payment: " << rta_hdr.payment_id);
+    MDEBUG("incoming rta tx for payment: " << rta_hdr.payment_id << ", txid: " << cryptonote::get_transaction_hash(tx));
 
     // check if payment id is known already (captured by "/core/store_payment_data" handler)
     if (!ctx.global.hasKey(rta_hdr.payment_id + CONTEXT_KEY_PAYMENT_DATA)) {
@@ -629,8 +633,6 @@ Status handleTxAuthRequestNew(const Router::vars_t& vars, const graft::Input& /*
     if (!ctx.global.hasKey(rta_hdr.payment_id + CONTEXT_KEY_RTA_TX_STATE)) { // new tx;
         // update payment status
         ctx.global.set(rta_hdr.payment_id + CONTEXT_KEY_RTA_TX_STATE, RtaTxState::Processing, SALE_TTL);
-
-
 
         putTxToLocalContext(tx, ctx, CONTEXT_RTA_TX_REQ_TX_KEY); // TODO remove this duplicate tx, use only one from global context
         // store tx and tx key key
@@ -770,7 +772,7 @@ Status handleRtaAuthResponse(const Router::vars_t& vars, const graft::Input& inp
             return Status::Ok;
         }
 
-        MDEBUG("incoming rta tx response for payment: " << rta_hdr.payment_id);
+        MDEBUG("incoming rta tx response for payment: " << rta_hdr.payment_id << ", txid: " << cryptonote::get_transaction_hash(tx));
 
         // check if payment id is known already (captured by "/core/store_payment_data" handler)
         if (!ctx.global.hasKey(rta_hdr.payment_id + CONTEXT_KEY_PAYMENT_DATA)) {
