@@ -159,7 +159,7 @@ public:
         return true;
 
     }
-
+    
     bool getPaymentData()
     {
         PaymentDataRequest req;
@@ -328,16 +328,18 @@ public:
               << ", tx_id: " << tx.hash);
 
         // 3. get tx private key
-        if (tx.version != 3) {
-            MERROR("expected version 3: " << tx.version);
+        if (tx.version != 4) {
+            MERROR("expected version 4, actual version: " << tx.version);
             abort();
         }
 
+        
+        
         PayRequest pay_req;
 
         graft::rta_helpers::encryptTxKeyToHex(m_ptx_v.at(0).tx_key, rta_hdr.keys, pay_req.TxKey);
         graft::rta_helpers::encryptTxToHex(tx, rta_hdr.keys, pay_req.TxBlob);
-
+        
         r = invoke_http_rest("/dapi/v2.0/pay", pay_req, raw_resp, err_resp, m_http_client, http_status, m_network_timeout, "POST");
 
         if (!r || http_status != 202) {
