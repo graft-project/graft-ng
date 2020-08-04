@@ -333,7 +333,25 @@ public:
             abort();
         }
 
-        
+        // test ptx
+        {
+            std::string ptx_blob = tools::wallet2::pending_tx::serialize(m_ptx_v.at(0));
+            tools::wallet2::pending_tx test_ptx;
+            
+            if (!tools::wallet2::pending_tx::deserialize(ptx_blob, test_ptx)) {
+                MERROR("Failed to deserialize ptx");
+                abort();
+            }
+            if (cryptonote::get_transaction_hash(test_ptx.tx)
+                    != tx.hash) {
+                
+                MERROR("original and serialized transactions mismatch: "
+                       << "original hash: " << tx.hash << ", deserialized hash: "
+                       << cryptonote::get_transaction_hash(test_ptx.tx)
+                       << "original tx: " << cryptonote::obj_to_json_str(m_ptx_v.at(0).tx)
+                       << "deserialized tx: " << cryptonote::obj_to_json_str(test_ptx.tx));
+            }
+        }
         
         PayRequest pay_req;
 

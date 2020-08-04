@@ -61,7 +61,7 @@ Status getSupernodeList(const Router::vars_t& vars, const graft::Input& input,
 
     FullSupernodeList::blockchain_based_list auth_sample_base_list;
 
-    uint64_t auth_sample_base_block_number = fsl->getBlockchainBasedListForAuthSample(resp.result.height, auth_sample_base_list);
+    uint64_t auth_sample_base_block_number = fsl->getBlockchainBasedListForHeight(resp.result.height, auth_sample_base_list);
 
     auto is_supernode_available = [&](const std::string& supernode_public_id)
     {
@@ -248,7 +248,7 @@ Status getBlockchainBasedListImpl(const Router::vars_t& vars, const graft::Input
     switch (mode)
     {
         case BlockchainBasedListMode_ForAuthSample:
-            resp.result.Height = fsl->getBlockchainBasedListForAuthSample(block_height, bbl);
+            resp.result.Height = fsl->getBlockchainBasedListForHeight(block_height, bbl);
 
             if (!resp.result.Height)
             {

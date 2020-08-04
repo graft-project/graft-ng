@@ -277,18 +277,18 @@ bool FullSupernodeList::selectSupernodes(size_t items_count, const std::string& 
     return true;
 }
 
-uint64_t FullSupernodeList::getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list) const
+uint64_t FullSupernodeList::getBlockchainBasedListForHeight(uint64_t block_height, blockchain_based_list& list) const
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
 
-    uint64_t blockchain_based_list_height = block_number;
+    uint64_t blockchain_based_list_height = block_height;
 
-    if (block_number == 0) {
-        block_number = this->getBlockchainBasedListMaxBlockNumber();
-        blockchain_based_list_height = block_number - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
+    if (block_height == 0) {
+        block_height = this->getBlockchainBasedListMaxBlockNumber();
+        blockchain_based_list_height = block_height - BLOCKCHAIN_BASED_LIST_DELAY_BLOCK_COUNT;
     }
 
-    blockchain_based_list_map::const_iterator it = m_blockchain_based_lists.find(block_number);
+    blockchain_based_list_map::const_iterator it = m_blockchain_based_lists.find(block_height);
 
     if (it == m_blockchain_based_lists.end())
         return 0;
@@ -344,7 +344,7 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
 
     blockchain_based_list bbl;
 
-    out_auth_block_number = getBlockchainBasedListForAuthSample(height, bbl);
+    out_auth_block_number = getBlockchainBasedListForHeight(height, bbl);
 
     if (!out_auth_block_number)
     {
@@ -359,14 +359,13 @@ bool FullSupernodeList::buildAuthSample(uint64_t height, const std::string& paym
     {
         boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 
-           //seed RNG
- 
+        //  seed RNG
         std::seed_seq seed(reinterpret_cast<const unsigned char*>(payment_id.c_str()),
                            reinterpret_cast<const unsigned char*>(payment_id.c_str() + payment_id.size()));
  
         m_rng.seed(seed);
  
-            //select supernodes for a full supernode list
+        //select supernodes for a full supernode list
 
         MDEBUG("use blockchain based list for height " << out_auth_block_number);
         int t = 1;

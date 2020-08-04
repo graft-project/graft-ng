@@ -69,7 +69,7 @@ Status handleSupernodeInfoRequest(const Router::vars_t &vars, const Input &input
     FullSupernodeList::blockchain_based_list auth_sample_base_list;
 
     uint64_t bbl_block_height = fsl->getBlockchainBasedListMaxBlockNumber();
-    uint64_t auth_sample_base_block_number = fsl->getBlockchainBasedListForAuthSample(bbl_block_height, auth_sample_base_list);
+    uint64_t auth_sample_base_block_number = fsl->getBlockchainBasedListForHeight(bbl_block_height, auth_sample_base_list);
 
     auto is_supernode_available = [&](const std::string& supernode_public_id)
     {

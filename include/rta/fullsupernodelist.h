@@ -194,7 +194,7 @@ public:
      * \param out_list     - resulting list
      * \return             - block number which was used for base list
      */
-    uint64_t getBlockchainBasedListForAuthSample(uint64_t block_number, blockchain_based_list& list) const;
+    uint64_t getBlockchainBasedListForHeight(uint64_t block_number, blockchain_based_list& list) const;
     
     /*!
      * \brief synchronizeWithCryptonode - synchronize with cryptonode
