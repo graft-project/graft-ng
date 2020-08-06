@@ -8,6 +8,7 @@
 #include "supernode/requests/send_supernode_stakes.h"
 #include "supernode/requests/blockchain_based_list.h"
 #include "supernode/requests/redirect.h"
+#include "supernode/requests/block_added.h"
 
 namespace graft::supernode::request::debug { void __registerDebugRequests(Router& router); }
 namespace graft::request::system_info { void register_request(Router& router); }
@@ -20,6 +21,7 @@ void registerRTARequests(graft::Router &router)
     registerSendSupernodeStakesRequest(router);
     registerRedirectRequests(router);
     registerBlockchainBasedListRequest(router);
+    registerBlockAddedRequest(router);
 }
 
 void registerWalletApiRequests(graft::Router &router)

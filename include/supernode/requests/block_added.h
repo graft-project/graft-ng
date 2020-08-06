@@ -9,7 +9,8 @@ namespace graft::supernode::request {
 
 GRAFT_DEFINE_IO_STRUCT_INITED(BlockAddedRequest,
                               (uint64_t, height, uint64_t()),
-                              (std::string, hash, std::string())
+                              (std::string, block_hash, std::string()),
+                              (std::string, seed_hash, std::string())
                        );
 
 GRAFT_DEFINE_IO_STRUCT_INITED(BlockAddedResponse,

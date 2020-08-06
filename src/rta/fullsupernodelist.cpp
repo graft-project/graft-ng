@@ -3,6 +3,8 @@
 #include <wallet/api/wallet_manager.h>
 #include <cryptonote_basic/cryptonote_basic_impl.h>
 #include <cryptonote_basic/blobdatatype.h>
+#include <cryptonote_core/blockchain_based_list.h>
+
 #include <misc_log_ex.h>
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -459,6 +461,39 @@ bool FullSupernodeList::checkAuthSample(uint64_t block_height, const string &blo
     return true;
 }
 
+bool FullSupernodeList::buildCheckpointingSample(uint64_t height, const crypto::hash &seed_hash, FullSupernodeList::supernode_array &out, uint64_t &out_bbl_height)
+{
+    // get BBL
+    blockchain_based_list bbl;
+    out_bbl_height = getBlockchainBasedListForHeight(height, bbl);
+    if (out_bbl_height != height) {
+        MWARNING("Unable to build BBL for height: " << height << ", used " << out_bbl_height << " instead");
+    }
+    
+    blockchain_based_list_tier in_list, out_list;
+    for (const auto &tier : bbl) {
+       in_list.insert(in_list.end(), tier.begin(), tier.end());
+    }
+    
+    std::seed_seq seed(reinterpret_cast<const unsigned char*>(&seed_hash.data[0]),
+                       reinterpret_cast<const unsigned char*>(&seed_hash.data[sizeof seed_hash.data]));
+    m_rng.seed(seed);
+    
+    cryptonote::BlockchainBasedList::select_random_items(m_rng, CHECKPOINT_SAMPLE_SIZE, in_list, out_list);
+    out.clear();
+    for (const auto &item : out_list) {
+        SupernodePtr sn = this->get(item.supernode_public_id);
+        if (!sn) {
+            MERROR("Internal error: supernode " << item.supernode_public_id << " doesn't exist in the FSL");
+            abort();
+        }
+        out.push_back(sn);
+    }
+    
+    return true;
+    
+}
+
 vector<string> FullSupernodeList::items() const
 {
     boost::shared_lock<boost::shared_mutex> readerLock(m_access);
@@ -502,7 +537,7 @@ size_t FullSupernodeList::refreshedItems() const
 
 void FullSupernodeList::updateStakes(uint64_t block_number, const supernode_stake_array& stakes, const std::string& cryptonode_rpc_address, bool testnet)
 {
-    MDEBUG("update stakes");
+    MDEBUG("update stakes for block: " << block_number);
 
     boost::unique_lock<boost::shared_mutex> writerLock(m_access);
 

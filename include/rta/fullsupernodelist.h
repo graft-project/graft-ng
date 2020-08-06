@@ -6,6 +6,8 @@
 #include "rta/supernode.h"
 #include "rta/DaemonRpcClient.h"
 
+#include <cryptonote_core/blockchain_based_list.h>
+
 #include <cryptonote_config.h>
 #include <string>
 #include <vector>
@@ -30,6 +32,7 @@ public:
     static constexpr int32_t ITEMS_PER_TIER = 2;
     static constexpr int32_t AUTH_SAMPLE_SIZE = TIERS * ITEMS_PER_TIER;
     static constexpr int64_t AUTH_SAMPLE_HASH_HEIGHT = 20; // block number for calculating auth sample should be calculated as current block height - AUTH_SAMPLE_HASH_HEIGHT;
+    static constexpr int32_t CHECKPOINT_SAMPLE_SIZE = 4;  
 
     FullSupernodeList(const std::string &daemon_address, bool testnet = false);
     ~FullSupernodeList();
@@ -105,7 +108,18 @@ public:
      * @return                - true if auth sample is valid
      */
     bool checkAuthSample(uint64_t block_height, const std::string &block_hash, const std::string &payment_id, const std::vector<std::string> &auth_sample);
-
+    
+    
+    /*!
+     * \brief buildCheckpointingSample - generates checkpointing sample for height
+     * \param height                   - height to get source bbl
+     * \param seed                     - seed hash for rng
+     * \param out                      - result vector
+     * \param out_bbl_height           - actual BBL height use
+     * \return                         - true if success
+     */
+    bool buildCheckpointingSample(uint64_t height, const crypto::hash &seed_hash, supernode_array &out, uint64_t &out_bbl_height);
+    
     /*!
      * \brief items - returns address list of known supernodes
      * \return

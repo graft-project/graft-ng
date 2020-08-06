@@ -46,6 +46,7 @@ static const std::string CONTEXT_RTA_TX_REQ_TX_KEY_KEY = "rta_tx_req_tx_key_key"
 static const std::string RTA_TX_RESP_HANDLER_STATE_KEY = "rta_tx_resp_handler_state";
 static const std::string CONTEXT_RTA_TX_RESP_TX_KEY = "rta_tx_resp_tx_key"; // key to store transaction
 static const std::string CONTEXT_RTA_TX_RESP_TX_KEY_KEY = "rta_tx_resp_tx_key_key"; // key to store transaction private key
+static const std::string RTA_HANDLE_BLOCK_STATE_KEY = "rta_handle_block_state"; 
 
 // shared constants
 extern const std::chrono::seconds SALE_TTL;
