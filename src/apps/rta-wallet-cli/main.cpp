@@ -320,12 +320,18 @@ public:
         }
 
         const cryptonote::transaction &tx = m_ptx_v.at(0).tx;
-
-        MWARNING("About to do pay, payment_id:  " << m_paymentDetails.paymentId << ", Total amount: " << print_money(m_paymentInfo.Amount)
-              << ", Merchant amount : " << print_money(recepient_amount)
-              << ", Fee per supernode: " << print_money(fee_per_destination)
-              << ", Payment details: " << m_paymentInfo.Details
-              << ", tx_id: " << tx.hash);
+        {
+          std::ostringstream oss;
+          
+          oss <<  "About to pay:\n\tpayment_id:  " << m_paymentDetails.paymentId << ",\n\tTotal amount: " << print_money(m_paymentInfo.Amount)
+               << ",\n\tMerchant address : " << m_paymentDetails.posAddress.WalletAddress 
+               << ",\n\tMerchant amount : " << print_money(recepient_amount)
+               << ",\n\tFee per supernode: " << print_money(fee_per_destination)
+               << ",\n\tPayment details: " << m_paymentInfo.Details
+               << ",\n\ttx_id: " << tx.hash;
+          
+          std::cout << oss.str() << std::endl;
+        }
 
         // 3. get tx private key
         if (tx.version != 4) {
@@ -364,10 +370,13 @@ public:
             MERROR("Failed to invoke pay: " << raw_resp);
             return false;
         }
-
-        MWARNING("Payment sent, payment id: " << m_paymentDetails.paymentId << ", tx id: " << tx.hash);
-
-
+          
+        {
+          std::ostringstream oss;
+          oss << "Payment sent, payment id: " << m_paymentDetails.paymentId << ", tx id: " << tx.hash;
+          std::cout << oss.str() << std::endl;  
+        }
+        
         return true;
     }
 
@@ -508,7 +517,7 @@ int main(int argc, char* argv[])
         mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
     else
         mlog_set_log(std::string(std::to_string(log_level) + ",rta-pos-cli:INFO").c_str());
-
+        
     MINFO("Starting...");
 
     boost::filesystem::path fs_import_file_path;
@@ -544,12 +553,15 @@ int main(int argc, char* argv[])
 
 
     int actualStatus = 0;
+    std::cout << "Waiting for status change..\n";
     if (!wallet.waitForStatus(int(graft::RTAStatus::Success), actualStatus, std::chrono::seconds(20))) {
         MERROR("Expected Success status, got: " << actualStatus);
         return EXIT_FAILURE;
     }
     // TODO mark tx inputs as spent
     wallet.setTxInputsSpent();
+    
+    std::cout << "Payment processed successfully\n";
 
     return 0;
 
