@@ -120,7 +120,10 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/unbound
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/db_drivers/liblmdb
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/randomx
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/lib
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/blocks
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/blockchain_db
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/common
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/crypto
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/cryptonote_basic
@@ -153,6 +156,9 @@ set(CRYPTONODE_LIBS
     sodium
     checkpoints
     lmdb
+    randomx
+    blocks
+    blockchain_db
     )
 
 if(STATIC_LINK)
