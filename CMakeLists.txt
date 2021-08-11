@@ -120,7 +120,10 @@ set(CRYPTONODE_LIB_DIRS
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/easylogging++
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/unbound
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/db_drivers/liblmdb
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/external/randomx
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/lib
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/blocks
+    ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/blockchain_db
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/common
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/crypto
     ${PROJECT_BINARY_DIR}/BUILD/cryptonode/src/cryptonote_basic
@@ -153,6 +156,9 @@ set(CRYPTONODE_LIBS
     sodium
     checkpoints
     lmdb
+    randomx
+    blocks
+    blockchain_db
     )
 
 if(STATIC_LINK)
@@ -278,16 +284,6 @@ target_include_directories(requests_common PRIVATE
     )
 
 target_link_libraries(requests_common PRIVATE
-    ${CRYPTONODE_LIBS}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY}
-    ${Boost_CHRONO_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_SERIALIZATION_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${Boost_REGEX_LIBRARY}
-    ${COMMON_LIBS}
     graft
     )
 
@@ -330,7 +326,7 @@ target_include_directories(supernode_common PRIVATE
     ${GRAFT_INCLUDE_DIRS}
     )
 
-target_link_libraries(supernode_common PRIVATE
+  target_link_libraries(supernode_common PUBLIC
     ${CRYPTONODE_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
@@ -387,9 +383,12 @@ target_include_directories(wallet_server PRIVATE
     )
 
 target_link_libraries(wallet_server PRIVATE
-    ${Boost_SYSTEM_LIBRARY}
+  #${CRYPTONODE_LIBS}
+    #${CMAKE_THREAD_LIBS_INIT}
+   ${COMMON_LIBS}
     graft
     requests_common
+    supernode_common
     )
 
 add_dependencies(wallet_server graft requests_common)
